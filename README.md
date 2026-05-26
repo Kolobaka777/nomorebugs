@@ -82,7 +82,23 @@
     auth.js       # JWT и middleware
 ```
 
-## Установка и запуск
+## 🚀 Быстрый запуск (с mock-данными)
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Открой http://localhost:5173/
+
+**Тестовые аккаунты:**
+- **Lead:** lead@qa.com / test123
+- **Tester:** nazar@qa.com / test123
+
+---
+
+## Полная установка (с SQLite сервером)
 
 ### 1. Установка зависимостей
 
@@ -92,21 +108,20 @@ npm run dev:server
 npm run dev:client
 ```
 
-Или в одной команде оба одновременно:
-
-```bash
-npm install
-npm run dev
-```
-
-Сервер запустится на `http://localhost:5000`
-Фронтенд откроется на `http://localhost:5173`
-
 ### 2. Инициализация БД
 
 ```bash
 npm run seed
 ```
+
+### 3. Запуск
+
+```bash
+npm run dev
+```
+
+Сервер: http://localhost:5000
+Фронтенд: http://localhost:5173
 
 Это создаст `server/db/learning_hub.db` с полным набором тестовых данных:
 - 5 пользователей (1 lead + 4 testers)
