@@ -11,6 +11,8 @@ build/
 .vite/
 .serverless/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 .idea/
