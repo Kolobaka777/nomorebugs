@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, 'learning_hub.db');
 
+console.log('DB path:', dbPath);
+
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
@@ -87,5 +89,48 @@ export function initDb() {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (lecture_id) REFERENCES lectures(id)
     );
+
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      nickname TEXT,
+      status_quote TEXT DEFAULT '',
+      specialization TEXT DEFAULT '',
+      info_box TEXT DEFAULT '',
+      snail_joke TEXT DEFAULT '',
+      avatar_id TEXT DEFAULT 'bug1',
+      avatar_frame TEXT DEFAULT 'default',
+      profile_bg TEXT DEFAULT 'default',
+      showcase_badges TEXT DEFAULT '[]',
+      favorite_lecture_id INTEGER,
+      is_public INTEGER DEFAULT 1,
+      custom_avatar TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lecture_id INTEGER NOT NULL,
+      skill_area TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'common',
+      earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (lecture_id) REFERENCES lectures(id),
+      UNIQUE(user_id, lecture_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_badges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      badge_id TEXT NOT NULL,
+      earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, badge_id)
+    );
   `);
+
+  // Migrations: add columns to existing tables safely
+  try { db.exec('ALTER TABLE user_profiles ADD COLUMN bug_coins INTEGER DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE user_profiles ADD COLUMN purchased_items TEXT DEFAULT \'[]\''); } catch {}
 }

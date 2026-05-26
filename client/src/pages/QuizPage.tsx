@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { testerApi } from '../api';
 import { Question, QuestionExplanation } from '../types';
+import SnailLoader from '../components/SnailLoader';
 
 interface QuizPageProps {
   user: any;
@@ -29,9 +30,9 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     try {
       const res = await testerApi.getQuestions(parseInt(lectureId!));
       setQuestions(res.data);
-      setLoading(false);
     } catch (err) {
-      console.error('Error loading questions:', err);
+      console.error(err);
+    } finally {
       setLoading(false);
     }
   };
@@ -41,14 +42,12 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const handleSelectAnswer = async (answer: string) => {
     setSelectedAnswer(answer);
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: answer }));
-
-    // Get explanation
     try {
       const res = await testerApi.getExplanation(parseInt(lectureId!), currentQuestion.id);
       setExplanation(res.data);
       setShowExplanation(true);
     } catch (err) {
-      console.error('Error loading explanation:', err);
+      console.error(err);
     }
   };
 
@@ -69,44 +68,117 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
       const res = await testerApi.submitTest(parseInt(lectureId!), answers);
       setResult(res.data);
     } catch (err) {
-      console.error('Error submitting test:', err);
+      console.error(err);
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Загрузка...</div>;
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
+        {/* Mini header */}
+        <header
+          className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
+          style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
+        >
+          <span className="font-pixel text-primary text-xs pixel-pulse">baga-net</span>
+          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
+        </header>
+        <SnailLoader />
+      </div>
+    );
   }
 
+  // ===== RESULT SCREEN =====
   if (result) {
+    const score = Math.round(result.score);
+    const passed = result.passed;
     return (
-      <div className="flex justify-center items-center bg-gradient-to-br from-primary to-teal-900 p-4 min-h-screen">
-        <div className="bg-white shadow-lg p-8 rounded-lg w-full max-w-md">
-          <h1 className="mb-4 font-bold text-3xl text-center">
-            {result.passed ? '✓ Тест пройден!' : '✗ Тест не пройден'}
-          </h1>
-          <p className="mb-2 font-bold text-primary text-6xl text-center">
-            {Math.round(result.score)}%
-          </p>
-          <p className="mb-8 text-gray-600 text-center">
-            Нужно 60% для прохождения лекции{result.passed ? '' : ' (нужно еще уточнить)'}
-          </p>
+      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
+        <header
+          className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
+          style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
+        >
+          <span className="font-pixel text-primary text-xs">baga-net</span>
+          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
+        </header>
 
-          <button
-            onClick={() => navigate('/cabinet')}
-            className="w-full font-semibold btn-primary"
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div
+            className="w-full max-w-md p-8 rounded text-center fade-in"
+            style={{
+              background: '#1a1a2e',
+              boxShadow: passed
+                ? '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75'
+                : '4px 0 0 0 #e05252, -4px 0 0 0 #e05252, 0 4px 0 0 #e05252, 0 -4px 0 0 #e05252',
+            }}
           >
-            Вернуться в кабинет
-          </button>
+            <div className="text-5xl mb-4">{passed ? '🏆' : '💀'}</div>
+            <p
+              className="font-pixel mb-2"
+              style={{
+                color: passed ? '#1D9E75' : '#e05252',
+                fontSize: '0.65rem',
+                lineHeight: 1.8,
+              }}
+            >
+              {passed ? 'ТЕСТ ПРОЙДЕН!' : 'ТЕСТ НЕ СДАН'}
+            </p>
+            <p
+              className="font-pixel mb-6"
+              style={{
+                color: passed ? '#1D9E75' : '#e05252',
+                fontSize: '2.5rem',
+                lineHeight: 1.4,
+              }}
+            >
+              {score}%
+            </p>
+            <p className="text-pixel/40 text-sm font-sans mb-8">
+              {passed
+                ? 'Следующая лекция разблокирована!'
+                : 'Нужно минимум 60%. Попробуй ещё раз!'}
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate('/cabinet')}
+                className="btn-primary"
+              >
+                Моя нора
+              </button>
+              {!passed && (
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    setCurrentQuestionIdx(0);
+                    setAnswers({});
+                    setShowExplanation(false);
+                    setSelectedAnswer(null);
+                    setExplanation(null);
+                  }}
+                  className="btn-secondary"
+                >
+                  🔄 Реанимация
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   if (!currentQuestion) {
-    return <div className="flex justify-center items-center h-screen">Нет вопросов</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0f1a' }}>
+        <p className="text-pixel/40 font-sans">Вопросы не найдены</p>
+      </div>
+    );
   }
+
+  const progPercent = ((currentQuestionIdx + 1) / questions.length) * 100;
 
   const optionsArray = [
     { key: 'a', text: currentQuestion.option_a },
@@ -115,93 +187,153 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     { key: 'd', text: currentQuestion.option_d },
   ];
 
+  const isCorrect = explanation && selectedAnswer === explanation.correctAnswer;
+
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
       {/* Header */}
-      <header className="bg-white border-gray-200 border-b">
-        <div className="flex justify-between items-center mx-auto px-6 py-4 max-w-4xl">
-          <h1 className="font-bold text-gray-900 text-xl">QA Learning Hub</h1>
-          <button
-            onClick={onLogout}
-            className="text-sm btn-secondary"
-          >
-            Выход
-          </button>
+      <header
+        className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
+        style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
+      >
+        <span className="font-pixel text-primary text-xs">baga-net</span>
+        <div className="flex items-center gap-3">
+          <span className="text-pixel/40 text-xs font-sans">
+            {currentQuestionIdx + 1}/{questions.length}
+          </span>
+          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
         </div>
       </header>
 
-      {/* Quiz Content */}
-      <div className="mx-auto px-6 py-8 max-w-4xl">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
-            <span className="font-medium text-gray-900 text-sm">
-              Вопрос {currentQuestionIdx + 1} из {questions.length}
-            </span>
-            <span className="font-medium text-gray-600 text-sm">
-              {Math.round(((currentQuestionIdx + 1) / questions.length) * 100)}%
-            </span>
-          </div>
-          <div className="bg-gray-300 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-primary h-full transition-all"
-              style={{
-                width: `${((currentQuestionIdx + 1) / questions.length) * 100}%`,
-              }}
-            />
+      {/* Progress bar */}
+      <div style={{ background: '#0f0f1a', height: '6px' }}>
+        <div
+          className="h-full transition-all duration-300"
+          style={{ width: `${progPercent}%`, background: '#1D9E75' }}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 max-w-3xl mx-auto w-full px-6 py-8">
+        {/* Question number */}
+        <div className="flex items-center justify-between mb-4">
+          <p
+            className="font-pixel text-pixel/30"
+            style={{ fontSize: '0.55rem', lineHeight: 1.8 }}
+          >
+            ВОПРОС {currentQuestionIdx + 1}
+          </p>
+          <div className="xp-bar-track" style={{ width: '120px' }}>
+            <div className="xp-bar-fill" style={{ width: `${progPercent}%` }} />
           </div>
         </div>
 
-        {/* Question Card */}
-        <div className="card">
-          <h2 className="mb-6 font-bold text-gray-900 text-xl">
+        {/* Question card */}
+        <div
+          className="p-6 rounded mb-6 fade-in"
+          style={{
+            background: '#1a1a2e',
+            boxShadow: '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75',
+          }}
+        >
+          <h2 className="text-pixel font-sans font-semibold text-base leading-relaxed mb-6">
             {currentQuestion.question_text}
           </h2>
 
           {/* Options */}
-          <div className="space-y-3 mb-6">
-            {optionsArray.map(option => (
-              <button
-                key={option.key}
-                onClick={() => !showExplanation && handleSelectAnswer(option.key)}
-                disabled={showExplanation}
-                className={`w-full p-4 text-left border-2 rounded-lg transition ${
-                  selectedAnswer === option.key
-                    ? 'border-primary bg-primary/10'
-                    : 'border-gray-200 hover:border-gray-300'
-                } disabled:opacity-50`}
-              >
-                <div className="font-semibold text-gray-900">
-                  {option.key.toUpperCase()}.
-                </div>
-                <div className="text-gray-700">
-                  {option.text}
-                </div>
-              </button>
-            ))}
+          <div className="space-y-3">
+            {optionsArray.map(option => {
+              const isSelected = selectedAnswer === option.key;
+              const isCorrectAnswer = showExplanation && explanation?.correctAnswer === option.key;
+              const isWrongAnswer = showExplanation && isSelected && !isCorrect;
+
+              let borderColor = 'rgba(232,232,208,0.15)';
+              let bgColor = 'transparent';
+              if (isCorrectAnswer && showExplanation) {
+                borderColor = '#1D9E75';
+                bgColor = 'rgba(29,158,117,0.1)';
+              } else if (isWrongAnswer) {
+                borderColor = '#e05252';
+                bgColor = 'rgba(224,82,82,0.1)';
+              } else if (isSelected) {
+                borderColor = '#EF9F27';
+                bgColor = 'rgba(239,159,39,0.1)';
+              }
+
+              return (
+                <button
+                  key={option.key}
+                  onClick={() => !showExplanation && handleSelectAnswer(option.key)}
+                  disabled={showExplanation}
+                  className="w-full p-4 rounded text-left transition-all cursor-pointer disabled:cursor-default"
+                  style={{
+                    background: bgColor,
+                    boxShadow: `1px 0 0 0 ${borderColor}, -1px 0 0 0 ${borderColor}, 0 1px 0 0 ${borderColor}, 0 -1px 0 0 ${borderColor}`,
+                  }}
+                >
+                  <div className="flex gap-3 items-start">
+                    <span
+                      className="shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-pixel"
+                      style={{
+                        background: isCorrectAnswer && showExplanation ? '#1D9E75' : isWrongAnswer ? '#e05252' : isSelected ? '#EF9F27' : 'rgba(232,232,208,0.08)',
+                        color: (isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? '#0f0f1a' : 'rgba(232,232,208,0.4)',
+                        fontSize: '0.45rem',
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {option.key.toUpperCase()}
+                    </span>
+                    <span className="text-pixel font-sans text-sm leading-relaxed">
+                      {option.text}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Explanation */}
           {showExplanation && explanation && (
-            <div className="bg-blue-50 mb-6 p-4 border border-blue-200 rounded-lg">
-              <p className="mb-2 font-semibold text-blue-900 text-sm">Объяснение:</p>
-              <p className="text-blue-800 text-sm">
-                {explanation.explanation}
+            <div
+              className="mt-6 p-4 rounded fade-in"
+              style={{
+                background: isCorrect ? 'rgba(29,158,117,0.08)' : 'rgba(224,82,82,0.08)',
+                boxShadow: `1px 0 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, -1px 0 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, 0 1px 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, 0 -1px 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}`,
+              }}
+            >
+              <p
+                className="font-pixel mb-2"
+                style={{
+                  color: isCorrect ? '#1D9E75' : '#e05252',
+                  fontSize: '0.5rem',
+                  lineHeight: 1.8,
+                }}
+              >
+                {isCorrect ? '✓ ВЕРНО!' : '✗ НЕВЕРНО'}
               </p>
-              <p className="mt-2 text-blue-800 text-sm">
-                <strong>Правильный ответ:</strong> {explanation.correctAnswer.toUpperCase()} - {explanation.correctOption}
+              <p className="text-pixel/70 text-sm font-sans mb-2">{explanation.explanation}</p>
+              <p className="text-pixel/50 text-xs font-sans">
+                Правильный ответ:{' '}
+                <span className="text-primary font-semibold">
+                  {explanation.correctAnswer.toUpperCase()}. {explanation.correctOption}
+                </span>
               </p>
             </div>
           )}
 
-          {/* Navigation */}
+          {/* Next button */}
           {showExplanation && (
             <button
               onClick={handleNext}
               disabled={submitting}
-              className="disabled:opacity-50 w-full font-semibold btn-primary"
+              className="btn-primary w-full mt-6 disabled:opacity-50"
             >
-              {submitting ? 'Загрузка...' : currentQuestionIdx === questions.length - 1 ? 'Завершить тест' : 'Далее'}
+              {submitting
+                ? <span className="pixel-pulse">🐌 ползём...</span>
+                : currentQuestionIdx === questions.length - 1
+                ? 'Завершить тест'
+                : 'Следующий →'
+              }
             </button>
           )}
         </div>
