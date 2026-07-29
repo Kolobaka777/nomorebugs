@@ -51,7 +51,7 @@ export default function InstallPrompt() {
       <span className="text-pixel text-xs">Можно установить baga-net как приложение</span>
       <button
         onClick={install}
-        className="font-pixel text-[10px] text-game bg-primary px-3 py-2 rounded cursor-pointer shrink-0"
+        className="font-pixel text-xs text-game bg-primary px-3 py-2 rounded cursor-pointer shrink-0"
       >
         Установить
       </button>

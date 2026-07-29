@@ -128,7 +128,7 @@ export const checklistApi = {
     verska_author?: string;
     task_type?: string;
     check_date?: string;
-    results: { item_id: number; status: string }[];
+    results: { item_id: number; status: string; note?: string }[];
   }) => api.post('/checklists/submit', data),
 
   getSubmissions: (params?: {
@@ -136,15 +136,22 @@ export const checklistApi = {
     tester?: string;
     content_author?: string;
     verska_author?: string;
+    task_type?: string;
+    date_from?: string;
+    date_to?: string;
     sort?: string;
     offset?: number;
   }) => api.get('/checklists/submissions', { params }),
 
   getSubmissionDetail: (id: number) => api.get(`/checklists/submissions/${id}`),
-  getStats: () => api.get('/checklists/stats'),
+
+  getStats: (params?: { template_id?: string | number; task_type?: string; date_from?: string; date_to?: string }) =>
+    api.get('/checklists/stats', { params }),
+
   getTaskCounts: () => api.get('/tester/task-counts'),
 
   getAuthors: () => api.get('/checklists/authors'),
+  getTaskTypes: () => api.get('/checklists/task-types'),
 
   updateMvtItems: (templateId: number, items: { id: number; in_mvt: number }[]) =>
     api.patch(`/checklists/templates/${templateId}/mvt`, { items }),
@@ -156,4 +163,29 @@ export const checklistApi = {
     fd.append('color', color);
     return api.post('/checklists/templates/import', fd);
   },
+};
+
+// Knowledge base (Багодельня): bug examples + glossary
+export const knowledgeApi = {
+  getBugExamples: () => api.get('/bug-examples'),
+  createBugExample: (data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) =>
+    api.post('/bug-examples', data),
+  updateBugExample: (id: number, data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) =>
+    api.put(`/bug-examples/${id}`, data),
+  deleteBugExample: (id: number) => api.delete(`/bug-examples/${id}`),
+
+  getGlossary: () => api.get('/glossary'),
+  createGlossaryTerm: (data: { term: string; definition: string }) => api.post('/glossary', data),
+  updateGlossaryTerm: (id: number, data: { term: string; definition: string }) => api.put(`/glossary/${id}`, data),
+  deleteGlossaryTerm: (id: number) => api.delete(`/glossary/${id}`),
+
+  getMyPermissions: () => api.get('/me/permissions'),
+};
+
+// Lead: scoped permission grants (e.g. letting a tester manage the knowledge base)
+export const permissionsApi = {
+  list: () => api.get('/lead/permissions'),
+  grant: (data: { user_id: number; permission: string; expires_at: string | null }) =>
+    api.post('/lead/permissions', data),
+  revoke: (id: number) => api.delete(`/lead/permissions/${id}`),
 };

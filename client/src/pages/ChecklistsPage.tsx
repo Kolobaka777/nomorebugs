@@ -33,7 +33,7 @@ interface Submission {
 }
 
 interface SubmissionDetail extends Submission {
-  results: { status: string; text: string; category: string; order_num: number }[];
+  results: { status: string; text: string; category: string; order_num: number; note?: string }[];
 }
 
 type Tab = 'checklists' | 'history' | 'stats';
@@ -100,6 +100,9 @@ function SubmissionDetailModal({ sub, onClose }: { sub: SubmissionDetail; onClos
                     <div>
                       <span className="text-xs font-sans px-1.5 py-0.5 rounded mr-2" style={{ background: `${catColor(r.category)}20`, color: catColor(r.category), fontSize: '0.6rem' }}>{r.category}</span>
                       <span className="text-sm font-sans" style={{ color: 'rgba(232,232,208,0.75)' }}>{r.text}</span>
+                      {r.note && (
+                        <p className="text-xs font-sans mt-1" style={{ color: 'rgba(232,232,208,0.55)' }}>{r.note}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -125,14 +128,14 @@ function SubmissionDetailModal({ sub, onClose }: { sub: SubmissionDetail; onClos
   );
 }
 
-function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (id: number) => void }) {
   useEscapeKey(onClose);
   const [name, setName] = useState('');
   const [color, setColor] = useState('#7F77DD');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ item_count: number; category_count: number; warning: string | null } | null>(null);
+  const [result, setResult] = useState<{ id: number; item_count: number; category_count: number; warning: string | null } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const COLORS = ['#1D9E75', '#7F77DD', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
@@ -189,7 +192,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
               )}
             </div>
             <button
-              onClick={onImported}
+              onClick={() => onImported(result.id)}
               className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer"
               style={{ background: '#1D9E75', color: '#0f0f1a' }}
             >
@@ -317,11 +320,13 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [justImportedId, setJustImportedId] = useState<number | null>(null);
 
   const [authors, setAuthors] = useState<{ contentAuthors: string[]; verskaAuthors: string[] }>({
     contentAuthors: [],
     verskaAuthors: [],
   });
+  const [taskTypes, setTaskTypes] = useState<string[]>([]);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -338,17 +343,36 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   const [filterTester, setFilterTester] = useState('');
   const [filterContent, setFilterContent] = useState('');
   const [filterVerska, setFilterVerska] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
   const [sort, setSort] = useState('date_desc');
+
+  // Stats (Отчёты) tab filters — separate from history's, since a lead
+  // scoping a report ("prelending checklists this week") is a different
+  // use case from a lead/tester browsing raw submission history.
+  const [statsFilterTpl, setStatsFilterTpl] = useState('');
+  const [statsFilterType, setStatsFilterType] = useState('');
+  const [statsFilterFrom, setStatsFilterFrom] = useState('');
+  const [statsFilterTo, setStatsFilterTo] = useState('');
 
   useEffect(() => {
     loadTemplates();
     loadAuthors();
+    checklistApi.getTaskTypes().then(r => setTaskTypes(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (tab === 'history') loadSubmissions();
     if (tab === 'stats' && isLead && !stats) loadStats();
   }, [tab]);
+
+  const statsFilters = () => ({
+    template_id: statsFilterTpl || undefined,
+    task_type: statsFilterType || undefined,
+    date_from: statsFilterFrom || undefined,
+    date_to: statsFilterTo || undefined,
+  });
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -369,7 +393,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   const loadStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await checklistApi.getStats();
+      const res = await checklistApi.getStats(statsFilters());
       setStats(res.data);
     } catch {}
     finally { setStatsLoading(false); }
@@ -383,6 +407,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         tester: filterTester,
         content_author: filterContent,
         verska_author: filterVerska,
+        task_type: filterType,
+        date_from: filterFrom,
+        date_to: filterTo,
         sort,
       });
       setSubmissions(res.data.rows);
@@ -399,6 +426,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         tester: filterTester,
         content_author: filterContent,
         verska_author: filterVerska,
+        task_type: filterType,
+        date_from: filterFrom,
+        date_to: filterTo,
         sort,
         offset: submissions.length,
       });
@@ -431,8 +461,23 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
-          onImported={() => { setShowImport(false); loadTemplates(); }}
+          onImported={(id) => {
+            setShowImport(false);
+            loadTemplates();
+            loadAuthors();
+            checklistApi.getTaskTypes().then(r => setTaskTypes(r.data)).catch(() => {});
+            setJustImportedId(id);
+            setTimeout(() => setJustImportedId(null), 5000);
+          }}
         />
+      )}
+      {justImportedId !== null && (
+        <div
+          className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded text-sm font-sans font-semibold"
+          style={{ background: '#1D9E75', color: '#0f0f1a', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
+        >
+          ✓ Шаблон импортирован и уже доступен во вкладке «Чеклисты»
+        </div>
       )}
 
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-8 fade-in">
@@ -488,8 +533,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                       borderLeft:   '2px solid rgba(255,255,255,0.12)',
                       borderBottom: '2px solid rgba(0,0,0,0.5)',
                       borderRight:  '2px solid rgba(0,0,0,0.5)',
-                      outline: `1px solid ${tpl.color}40`,
+                      outline: tpl.id === justImportedId ? `2px solid #1D9E75` : `1px solid ${tpl.color}40`,
                       outlineOffset: '-3px',
+                      transition: 'outline-color 0.3s',
                     }}
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -499,6 +545,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                       >
                         {tpl.name}
                       </span>
+                      {tpl.id === justImportedId && (
+                        <span className="text-xs font-sans font-bold px-2 py-0.5 rounded" style={{ background: '#1D9E75', color: '#0f0f1a' }}>NEW</span>
+                      )}
                       <span className="text-pixel/55 text-xs font-sans">{tpl.items.length} пунктов</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mb-4 flex-1">
@@ -544,14 +593,25 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
             </p>
 
             {/* Filters */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
               <select
                 className="pixel-input text-xs"
                 value={filterTpl}
                 onChange={e => setFilterTpl(e.target.value)}
+                aria-label="Фильтр по чеклисту"
               >
-                <option value="">Все типы</option>
+                <option value="">Все чеклисты</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+
+              <select
+                className="pixel-input text-xs"
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                aria-label="Фильтр по типу задачи"
+              >
+                <option value="">Все типы задач</option>
+                {taskTypes.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
 
               <input
@@ -579,23 +639,42 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 {authors.verskaAuthors.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
 
-              <div className="flex gap-2">
-                <select
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
                   className="pixel-input text-xs flex-1"
-                  value={sort}
-                  onChange={e => setSort(e.target.value)}
-                >
-                  <option value="date_desc">Новые</option>
-                  <option value="date_asc">Старые</option>
-                  <option value="fails_desc">Больше ошибок</option>
-                  <option value="fails_asc">Меньше ошибок</option>
-                </select>
+                  value={filterFrom}
+                  onChange={e => setFilterFrom(e.target.value)}
+                  aria-label="Дата проверки от"
+                />
+                <span className="text-pixel/40 text-xs">—</span>
+                <input
+                  type="date"
+                  className="pixel-input text-xs flex-1"
+                  value={filterTo}
+                  onChange={e => setFilterTo(e.target.value)}
+                  aria-label="Дата проверки до"
+                />
+              </div>
+
+              <select
+                className="pixel-input text-xs"
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+              >
+                <option value="date_desc">Новые</option>
+                <option value="date_asc">Старые</option>
+                <option value="fails_desc">Больше ошибок</option>
+                <option value="fails_asc">Меньше ошибок</option>
+              </select>
+
+              <div className="flex gap-2">
                 <button
                   onClick={loadSubmissions}
                   aria-label="Применить фильтры поиска"
-                  className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer shrink-0"
+                  className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer shrink-0 flex-1"
                 >
-                  →
+                  Применить
                 </button>
               </div>
             </div>
@@ -618,6 +697,68 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         {/* ===== STATS TAB (lead only) ===== */}
         {tab === 'stats' && isLead && (
           <div>
+            {/* Report filters — scope the whole report instead of only ever
+                seeing an unfiltered all-time aggregate. */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+              <select
+                className="pixel-input text-xs"
+                value={statsFilterTpl}
+                onChange={e => setStatsFilterTpl(e.target.value)}
+                aria-label="Отчёт: фильтр по чеклисту"
+              >
+                <option value="">Все чеклисты</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+
+              <select
+                className="pixel-input text-xs"
+                value={statsFilterType}
+                onChange={e => setStatsFilterType(e.target.value)}
+                aria-label="Отчёт: фильтр по типу задачи"
+              >
+                <option value="">Все типы задач</option>
+                {taskTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  className="pixel-input text-xs flex-1"
+                  value={statsFilterFrom}
+                  onChange={e => setStatsFilterFrom(e.target.value)}
+                  aria-label="Отчёт: дата от"
+                />
+                <span className="text-pixel/40 text-xs">—</span>
+                <input
+                  type="date"
+                  className="pixel-input text-xs flex-1"
+                  value={statsFilterTo}
+                  onChange={e => setStatsFilterTo(e.target.value)}
+                  aria-label="Отчёт: дата до"
+                />
+              </div>
+
+              <button onClick={loadStats} className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer">
+                Применить
+              </button>
+              {(statsFilterTpl || statsFilterType || statsFilterFrom || statsFilterTo) && (
+                <button
+                  onClick={async () => {
+                    setStatsFilterTpl(''); setStatsFilterType(''); setStatsFilterFrom(''); setStatsFilterTo('');
+                    setStatsLoading(true);
+                    try {
+                      const res = await checklistApi.getStats({});
+                      setStats(res.data);
+                    } catch {}
+                    finally { setStatsLoading(false); }
+                  }}
+                  className="btn-secondary px-3 py-1 text-xs font-sans cursor-pointer"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
+
             {statsLoading && <SnailLoader />}
 
             {stats && (

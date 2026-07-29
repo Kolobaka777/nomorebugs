@@ -195,6 +195,19 @@ export function initDb() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
+    -- Powers the "NEW" badge on the courses page: a course only shows NEW
+    -- while it's recently created AND this user hasn't opened it yet — as
+    -- soon as they view it once, it drops off for them (but still shows
+    -- NEW for teammates who haven't looked yet).
+    CREATE TABLE IF NOT EXISTS custom_course_views (
+      user_id INTEGER NOT NULL,
+      course_id INTEGER NOT NULL,
+      viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, course_id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (course_id) REFERENCES custom_courses(id)
+    );
+
     CREATE TABLE IF NOT EXISTS custom_modules (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id INTEGER NOT NULL,
@@ -367,6 +380,83 @@ export function initDb() {
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL');
 
+  // Knowledge base (Багодельня) — bug-report examples and glossary terms,
+  // previously hardcoded in the client with no way to add/edit/delete.
+  // created_by is nullable so a system-seeded row (the original hardcoded
+  // content, migrated in on first boot below) isn't tied to any one user.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bug_examples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tag TEXT NOT NULL DEFAULT 'Общее',
+      tag_color TEXT NOT NULL DEFAULT '#7F77DD',
+      problem TEXT NOT NULL,
+      bad_text TEXT NOT NULL,
+      good_text TEXT NOT NULL,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS glossary_terms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term TEXT NOT NULL,
+      definition TEXT NOT NULL,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    -- Lets a lead hand a specific tester a narrow, named capability
+    -- (e.g. editing the knowledge base) without promoting them to 'lead' —
+    -- a full role change grants everything requireRole('lead') gates,
+    -- which is far more than "can add a glossary term." expires_at is
+    -- nullable — NULL means the grant doesn't expire on its own (still
+    -- revocable any time by a lead).
+    CREATE TABLE IF NOT EXISTS granted_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      permission TEXT NOT NULL,
+      granted_by INTEGER NOT NULL,
+      granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (granted_by) REFERENCES users(id)
+    );
+  `);
+
+  // Seed the knowledge base once with the content that used to be
+  // hardcoded, so existing users don't see it disappear when this becomes
+  // DB-backed. Only runs while both tables are still empty.
+  const bugExampleCount = db.prepare('SELECT COUNT(*) as c FROM bug_examples').get().c;
+  if (bugExampleCount === 0) {
+    db.prepare(`
+      INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by)
+      VALUES (?, ?, ?, ?, ?, NULL)
+    `).run(
+      'Визуал', '#7F77DD', 'Неверный отступ в секции',
+      '"Отступ слишком большой" — нет конкретики: какой элемент, в какой секции, на каком устройстве, насколько большой. Разработчик не знает что исправлять.',
+      'padding-top секции .features на 20px больше макета — десктоп 1920px.\n' +
+      'Где: секция .features, десктоп (1920×1080, Chrome 124, Windows).\n' +
+      'Воспроизведение: открыть страницу → DevTools → Elements → найти .features → проверить padding-top.\n' +
+      'Что: padding-top: 80px, по макету Figma должно быть 60px — лишние 20px сверху.\n' +
+      'Ожидалось: .features { padding-top: 60px } согласно Figma-макету.\n' +
+      'Пункт: Визуал → Отступы соответствуют макету.'
+    );
+  }
+  const glossaryCount = db.prepare('SELECT COUNT(*) as c FROM glossary_terms').get().c;
+  if (glossaryCount === 0) {
+    const seedGlossary = db.prepare('INSERT INTO glossary_terms (term, definition, created_by) VALUES (?, ?, NULL)');
+    for (const [term, def] of [
+      ['DevTools', 'Инструменты разработчика в браузере для отладки'],
+      ['Bug', 'Дефект в программном обеспечении — отклонение от ожидаемого поведения'],
+      ['Viewport', 'Видимая область экрана — размер окна браузера'],
+      ['DOM', 'Document Object Model — структура HTML-документа в виде дерева'],
+      ['Console', 'Консоль браузера — показывает ошибки JS и логи'],
+    ]) {
+      seedGlossary.run(term, def);
+    }
+  }
+
   // custom_lessons prerequisite columns: one-time add + backfill. Backfill
   // only runs the first time these columns are added (gated on the column
   // not existing yet) so it never overwrites a lead's later manual edits.
@@ -426,6 +516,7 @@ export function initDb() {
         submission_id INTEGER NOT NULL,
         item_id INTEGER NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('ok', 'fail', 'na')),
+        note TEXT DEFAULT '',
         FOREIGN KEY (submission_id) REFERENCES checklist_submissions(id),
         FOREIGN KEY (item_id) REFERENCES checklist_items(id)
       );
@@ -441,6 +532,12 @@ export function initDb() {
 
     // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
     try { if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1'); } catch {}
+
+    // Migration: optional free-text note per failed item — lets a tester
+    // describe what actually went wrong instead of just a bare fail flag,
+    // so reporting can show more than "this item failed N times".
+    const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
+    try { if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''"); } catch {}
 
     // Check if preland template has full items (75 items) — if still old (9 items), reseed
     const prelandTpl = db.prepare("SELECT id FROM checklist_templates WHERE task_type = 'prelending'").get();
@@ -484,6 +581,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
     CREATE INDEX IF NOT EXISTS idx_telegram_login_tokens_expires_at ON telegram_login_tokens(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_granted_permissions_user_id ON granted_permissions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_course_views_course_id ON custom_course_views(course_id);
   `);
 }
 

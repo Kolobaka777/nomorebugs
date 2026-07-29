@@ -130,11 +130,11 @@ function Stars({ value, color }: { value: number; color: string }) {
 function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-pixel shrink-0" style={{ fontSize: '0.42rem', color, width: 58, lineHeight: 2 }}>{label}</span>
+      <span className="font-pixel shrink-0" style={{ fontSize: '0.6rem', color, width: 58, lineHeight: 2 }}>{label}</span>
       <div className="stat-bar-track flex-1" style={{ borderLeft: `2px solid ${color}30` }}>
         <div className="stat-bar-fill" style={{ width: `${(value / max) * 100}%`, background: color }} />
       </div>
-      <span className="font-pixel shrink-0" style={{ fontSize: '0.42rem', color, width: 22, textAlign: 'right', lineHeight: 2 }}>
+      <span className="font-pixel shrink-0" style={{ fontSize: '0.6rem', color, width: 22, textAlign: 'right', lineHeight: 2 }}>
         {value}
       </span>
     </div>
@@ -164,7 +164,7 @@ function MapNode({ lecture, index }: { lecture: Lecture; index: number }) {
         <span className="font-pixel" style={{ fontSize: isLocked ? '0.7rem' : '0.75rem', color: isPassed ? '#0f0f1a' : isActive ? '#EF9F27' : 'rgba(232,232,208,0.2)', lineHeight: 1 }}>
           {isPassed ? '✓' : isActive ? `${index}` : <PixelIcon name="lock" size={12} color="rgba(232,232,208,0.4)" />}
         </span>
-        {!isLocked && <span style={{ fontSize: '0.38rem', color: isPassed ? '#0f0f1a' : '#EF9F27', fontFamily: 'Press Start 2P', lineHeight: 1.6, opacity: 0.7 }}>#{index}</span>}
+        {!isLocked && <span style={{ fontSize: '0.58rem', color: isPassed ? '#0f0f1a' : '#EF9F27', fontFamily: 'Press Start 2P', lineHeight: 1.6, opacity: 0.7 }}>#{index}</span>}
       </div>
       {hover && (
         <div className="absolute z-20 px-3 py-2 text-xs font-sans pointer-events-none"
@@ -364,7 +364,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                 onClick={() => setShowEdit(true)}
                 className="font-pixel cursor-pointer"
                 style={{
-                  fontSize: '0.38rem', lineHeight: 1.8, padding: '4px 10px',
+                  fontSize: '0.58rem', lineHeight: 1.8, padding: '4px 10px',
                   background: 'rgba(239,159,39,0.1)',
                   color: '#EF9F27',
                   borderTop:    '2px solid #f5c065',
@@ -422,7 +422,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
               {/* ВИТРИНА скрыта
               {(profile?.showcase_badges?.length ?? 0) > 0 && (
                 <div className="flex items-center gap-2 mt-3">
-                  <span className="text-pixel/55 font-pixel" style={{ fontSize: '0.38rem' }}>ВИТРИНА:</span>
+                  <span className="text-pixel/55 font-pixel" style={{ fontSize: '0.58rem' }}>ВИТРИНА:</span>
                 </div>
               )}
               */}
@@ -430,7 +430,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
 
             {/* RIGHT: Task counts panel */}
             <div className="shrink-0 p-4" style={{ width: 180, borderLeft: '2px solid rgba(42,31,79,0.5)' }}>
-              <p className="font-pixel mb-3" style={{ fontSize: '0.42rem', color: 'rgba(127,119,221,0.7)', lineHeight: 1.8, letterSpacing: '0.05em' }}>
+              <p className="font-pixel mb-3" style={{ fontSize: '0.6rem', color: 'rgba(127,119,221,0.7)', lineHeight: 1.8, letterSpacing: '0.05em' }}>
                 <span className="flex items-center gap-1.5"><PixelIcon name="clipboard" size={11} color="currentColor" />ЗАДАЧИ</span>
               </p>
               {taskCounts.length > 0 ? (
@@ -438,7 +438,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                   {taskCounts.map(t => (
                     <div key={t.task_type}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-pixel" style={{ fontSize: '0.38rem', color: t.color, lineHeight: 1.8 }}>
+                        <span className="font-pixel" style={{ fontSize: '0.58rem', color: t.color, lineHeight: 1.8 }}>
                           {t.name.toUpperCase()}
                         </span>
                         <span className="font-pixel" style={{ fontSize: '0.55rem', color: t.count > 0 ? t.color : 'rgba(232,232,208,0.2)', lineHeight: 1.8 }}>
@@ -457,7 +457,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                       </div>
                     </div>
                   ))}
-                  <p className="text-pixel/55 text-xs font-sans mt-2" style={{ fontSize: '0.5rem' }}>
+                  <p className="text-pixel/55 text-xs font-sans mt-2" style={{ fontSize: '0.65rem' }}>
                     всего: {taskCounts.reduce((s, t) => s + t.count, 0)}
                   </p>
                 </div>
@@ -466,7 +466,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                   {['Прелендинг', 'Оффер', 'Вайт'].map(name => (
                     <div key={name}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-pixel" style={{ fontSize: '0.38rem', color: 'rgba(232,232,208,0.55)', lineHeight: 1.8 }}>
+                        <span className="font-pixel" style={{ fontSize: '0.58rem', color: 'rgba(232,232,208,0.55)', lineHeight: 1.8 }}>
                           {name.toUpperCase()}
                         </span>
                         <span className="font-pixel" style={{ fontSize: '0.55rem', color: 'rgba(232,232,208,0.55)', lineHeight: 1.8 }}>0</span>
@@ -474,7 +474,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                       <div style={{ height: 4, background: 'rgba(232,232,208,0.04)', borderRadius: 2 }} />
                     </div>
                   ))}
-                  <p className="text-pixel/55 text-xs font-sans mt-1" style={{ fontSize: '0.45rem' }}>
+                  <p className="text-pixel/55 text-xs font-sans mt-1" style={{ fontSize: '0.62rem' }}>
                     нет данных
                   </p>
                 </div>
@@ -499,7 +499,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
         <RpgPanel variant="dark" className="p-4 mb-5 flex items-start gap-3">
           <PixelIcon name={todayJoke.icon as IconName} size={22} color="#1D9E75" style={{ flexShrink: 0 }} />
           <div>
-            <p className="font-pixel mb-1" style={{ color: 'rgba(29,158,117,0.6)', fontSize: '0.42rem', lineHeight: 1.8 }}>ФАКТ ДНЯ</p>
+            <p className="font-pixel mb-1" style={{ color: 'rgba(29,158,117,0.6)', fontSize: '0.6rem', lineHeight: 1.8 }}>ФАКТ ДНЯ</p>
             <p className="text-pixel/60 text-xs font-sans leading-relaxed">{todayJoke.text}</p>
           </div>
         </RpgPanel>
@@ -532,7 +532,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
               <RpgPanel className="p-4 flex items-center gap-4">
                 <PixelIcon name="star" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
                 <div className="flex-1 min-w-0">
-                  <p className="font-pixel mb-1" style={{ fontSize: '0.42rem', color: '#EF9F27', lineHeight: 1.8 }}>ЛЮБИМАЯ ЛЕКЦИЯ</p>
+                  <p className="font-pixel mb-1" style={{ fontSize: '0.6rem', color: '#EF9F27', lineHeight: 1.8 }}>ЛЮБИМАЯ ЛЕКЦИЯ</p>
                   <p className="text-pixel font-sans font-semibold text-sm">{profile.favLecture.title}</p>
                   <p className="text-pixel/60 text-xs font-sans">
                     {profile.favLecture.skill_area}
@@ -559,7 +559,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
         {tab === 'notes' && (
           <RpgPanel variant="dark" className="text-center py-16">
             <PixelIcon name="memo" size={32} color="rgba(232,232,208,0.08)" />
-            <p className="font-pixel mt-4" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.5rem', lineHeight: 1.8 }}>ЗАМЕТКИ</p>
+            <p className="font-pixel mt-4" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.65rem', lineHeight: 1.8 }}>ЗАМЕТКИ</p>
             <p className="text-pixel/55 text-xs font-sans mt-2">Здесь будут твои заметки с курсов</p>
           </RpgPanel>
         )}

@@ -1256,11 +1256,11 @@ app.post('/api/checklists/submit', authMiddleware, (req, res) => {
         content_author || '', verska_author || '', task_type || '', check_date || '');
 
       const insertResult = db.prepare(
-        'INSERT INTO checklist_item_results (submission_id, item_id, status) VALUES (?, ?, ?)'
+        'INSERT INTO checklist_item_results (submission_id, item_id, status, note) VALUES (?, ?, ?, ?)'
       );
       for (const r of results) {
         if (r.item_id && r.status) {
-          insertResult.run(sub.lastInsertRowid, r.item_id, r.status);
+          insertResult.run(sub.lastInsertRowid, r.item_id, r.status, (r.note || '').trim().slice(0, 1000));
         }
       }
 
@@ -1280,7 +1280,7 @@ app.post('/api/checklists/submit', authMiddleware, (req, res) => {
 // All authenticated users: all submissions with filters
 app.get('/api/checklists/submissions', authMiddleware, (req, res) => {
   try {
-    const { template_id, tester, content_author, verska_author, sort = 'date_desc' } = req.query;
+    const { template_id, tester, content_author, verska_author, task_type, date_from, date_to, sort = 'date_desc' } = req.query;
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const PAGE_SIZE = 50;
 
@@ -1291,6 +1291,12 @@ app.get('/api/checklists/submissions', authMiddleware, (req, res) => {
     if (tester) { where.push('LOWER(u.name) LIKE ?'); params.push(`%${tester.toLowerCase()}%`); }
     if (content_author) { where.push('LOWER(cs.content_author) LIKE ?'); params.push(`%${content_author.toLowerCase()}%`); }
     if (verska_author) { where.push('LOWER(cs.verska_author) LIKE ?'); params.push(`%${verska_author.toLowerCase()}%`); }
+    if (task_type) { where.push('cs.task_type = ?'); params.push(task_type); }
+    // Filtered on submitted_at (a real, always-populated timestamp) rather
+    // than check_date (free-typed by the tester, so unreliable format) —
+    // see the task-types/date-range notes in ChecklistsPage.tsx.
+    if (date_from) { where.push('date(cs.submitted_at) >= date(?)'); params.push(date_from); }
+    if (date_to) { where.push('date(cs.submitted_at) <= date(?)'); params.push(date_to); }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -1342,6 +1348,20 @@ app.get('/api/checklists/authors', authMiddleware, (req, res) => {
   }
 });
 
+// All authenticated users: distinct task types actually used in submissions
+// (free-typed by testers, so this reflects real values — not a fixed enum).
+app.get('/api/checklists/task-types', authMiddleware, (req, res) => {
+  try {
+    const types = db.prepare(
+      "SELECT DISTINCT task_type FROM checklist_submissions WHERE task_type != '' ORDER BY task_type"
+    ).all().map(r => r.task_type);
+    res.json(types);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Lead or submitter: detail of one submission
 app.get('/api/checklists/submissions/:id', authMiddleware, (req, res) => {
   try {
@@ -1359,7 +1379,7 @@ app.get('/api/checklists/submissions/:id', authMiddleware, (req, res) => {
     }
 
     const results = db.prepare(`
-      SELECT cir.status, ci.text, ci.category, ci.order_num, ci.id as item_id
+      SELECT cir.status, cir.note, ci.text, ci.category, ci.order_num, ci.id as item_id
       FROM checklist_item_results cir
       JOIN checklist_items ci ON cir.item_id = ci.id
       WHERE cir.submission_id = ?
@@ -1373,33 +1393,48 @@ app.get('/api/checklists/submissions/:id', authMiddleware, (req, res) => {
   }
 });
 
-// Lead: stats — by template, top fails, per tester, per content/verska author
+// Lead: stats — by template, top fails, per tester, per content/verska author.
+// Accepts the same optional filters as /api/checklists/submissions
+// (template_id, task_type, date_from, date_to) so a lead can scope the
+// whole report to e.g. "prelending checklists in the last week" instead of
+// only ever seeing an unfiltered all-time aggregate.
 app.get('/api/checklists/stats', authMiddleware, requireRole('lead'), (req, res) => {
   try {
+    const { template_id, task_type, date_from, date_to } = req.query;
+
+    const subFilters = [];
+    const subParams = [];
+    if (template_id) { subFilters.push('cs.template_id = ?'); subParams.push(template_id); }
+    if (task_type) { subFilters.push('cs.task_type = ?'); subParams.push(task_type); }
+    if (date_from) { subFilters.push('date(cs.submitted_at) >= date(?)'); subParams.push(date_from); }
+    if (date_to) { subFilters.push('date(cs.submitted_at) <= date(?)'); subParams.push(date_to); }
+    const subWhere = subFilters.length ? 'WHERE ' + subFilters.join(' AND ') : '';
+    const subWhereAnd = subFilters.length ? 'AND ' + subFilters.join(' AND ') : '';
+
     const byTemplate = db.prepare(`
       SELECT ct.id, ct.name, ct.color,
              COUNT(DISTINCT cs.id) as submissions
       FROM checklist_templates ct
-      LEFT JOIN checklist_submissions cs ON cs.template_id = ct.id
+      LEFT JOIN checklist_submissions cs ON cs.template_id = ct.id ${subWhere ? subWhere.replace('WHERE', 'AND') : ''}
       GROUP BY ct.id
       ORDER BY ct.order_num
-    `).all();
+    `).all(...subParams);
 
     const topFails = db.prepare(`
       SELECT ci.text as item_text, ci.category, ct.name as template_name, ct.color,
              COUNT(*) as fail_count,
              (SELECT COUNT(*) FROM checklist_item_results cir2
               JOIN checklist_submissions cs2 ON cir2.submission_id = cs2.id
-              WHERE cs2.template_id = ct.id AND cir2.item_id = ci.id) as total_checks
+              WHERE cs2.template_id = ct.id AND cir2.item_id = ci.id ${subWhereAnd.replace(/cs\./g, 'cs2.')}) as total_checks
       FROM checklist_item_results cir
       JOIN checklist_items ci ON cir.item_id = ci.id
       JOIN checklist_submissions cs ON cir.submission_id = cs.id
       JOIN checklist_templates ct ON cs.template_id = ct.id
-      WHERE cir.status = 'fail'
+      WHERE cir.status = 'fail' ${subWhereAnd}
       GROUP BY ci.id
       ORDER BY fail_count DESC
       LIMIT 15
-    `).all();
+    `).all(...subParams, ...subParams);
 
     const byTester = db.prepare(`
       SELECT u.name as tester_name, u.avatar_initials,
@@ -1408,9 +1443,10 @@ app.get('/api/checklists/stats', authMiddleware, requireRole('lead'), (req, res)
       FROM checklist_submissions cs
       JOIN users u ON cs.user_id = u.id
       LEFT JOIN checklist_item_results cir ON cir.submission_id = cs.id
+      ${subWhere}
       GROUP BY u.id
       ORDER BY submissions DESC
-    `).all();
+    `).all(...subParams);
 
     const byContentAuthor = db.prepare(`
       SELECT cs.content_author,
@@ -1418,11 +1454,11 @@ app.get('/api/checklists/stats', authMiddleware, requireRole('lead'), (req, res)
              COUNT(CASE WHEN cir.status = 'fail' THEN 1 END) as bugs_found
       FROM checklist_submissions cs
       LEFT JOIN checklist_item_results cir ON cir.submission_id = cs.id
-      WHERE cs.content_author != ''
+      WHERE cs.content_author != '' ${subWhereAnd}
       GROUP BY cs.content_author
       ORDER BY bugs_found DESC
       LIMIT 20
-    `).all();
+    `).all(...subParams);
 
     const byVerskaAuthor = db.prepare(`
       SELECT cs.verska_author,
@@ -1430,11 +1466,11 @@ app.get('/api/checklists/stats', authMiddleware, requireRole('lead'), (req, res)
              COUNT(CASE WHEN cir.status = 'fail' THEN 1 END) as bugs_found
       FROM checklist_submissions cs
       LEFT JOIN checklist_item_results cir ON cir.submission_id = cs.id
-      WHERE cs.verska_author != ''
+      WHERE cs.verska_author != '' ${subWhereAnd}
       GROUP BY cs.verska_author
       ORDER BY bugs_found DESC
       LIMIT 20
-    `).all();
+    `).all(...subParams);
 
     res.json({ byTemplate, topFails, byTester, byContentAuthor, byVerskaAuthor });
   } catch (err) {
@@ -1608,20 +1644,22 @@ app.get('/api/custom-courses', authMiddleware, (req, res) => {
     let rows;
     if (req.user.role === 'lead') {
       rows = db.prepare(`
-        SELECT cc.*, u.name as author_name
+        SELECT cc.*, u.name as author_name,
+          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
         WHERE cc.created_by = ? OR cc.is_published = 1
         ORDER BY cc.created_at DESC
-      `).all(req.user.id);
+      `).all(req.user.id, req.user.id);
     } else {
       rows = db.prepare(`
-        SELECT cc.*, u.name as author_name
+        SELECT cc.*, u.name as author_name,
+          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
         WHERE cc.is_published = 1
         ORDER BY cc.created_at DESC
-      `).all();
+      `).all(req.user.id);
     }
     res.json(rows);
   } catch (err) {
@@ -1642,6 +1680,8 @@ app.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
     if (!course.is_published && course.created_by !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Нет доступа' });
     }
+
+    db.prepare('INSERT OR IGNORE INTO custom_course_views (user_id, course_id) VALUES (?, ?)').run(req.user.id, course.id);
 
     const completedIds = new Set(
       db.prepare('SELECT lesson_id FROM custom_lesson_progress WHERE user_id = ?').all(req.user.id).map(r => r.lesson_id)
@@ -1962,6 +2002,7 @@ app.delete('/api/custom-courses/:id', authMiddleware, requireRole('lead'), (req,
         db.prepare('DELETE FROM custom_lessons WHERE module_id = ?').run(m.id);
       }
       db.prepare('DELETE FROM custom_modules WHERE course_id = ?').run(course.id);
+      db.prepare('DELETE FROM custom_course_views WHERE course_id = ?').run(course.id);
       db.prepare('DELETE FROM custom_courses WHERE id = ?').run(course.id);
     })();
     res.json({ ok: true });
@@ -2091,6 +2132,227 @@ app.patch('/api/admin/users/:id/role', authMiddleware, requireRole('admin'), (re
     notifyUser(updatedTarget, 'Роль изменена', `Твоя роль в baga-net изменена на "${role}".`);
 
     res.json({ ok: true, id: targetId, role });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== SCOPED PERMISSIONS ==============
+// A lead can hand a specific tester a narrow, named capability (e.g.
+// managing the knowledge base) without a full role change — requireRole
+// grants everything that role can do, which is far more than intended for
+// "let this one tester edit glossary terms." Deliberately separate from
+// requireRole rather than a new role value: a role is a fixed, broad set of
+// permissions; a grant is one named capability, optionally time-limited,
+// revocable at any time, and never itself grants the ability to grant more
+// (only 'lead'/'admin' can call the grant/revoke endpoints below).
+const KNOWN_PERMISSIONS = ['manage_knowledge_base'];
+
+function hasPermission(userId, permission) {
+  const row = db.prepare(`
+    SELECT 1 FROM granted_permissions
+    WHERE user_id = ? AND permission = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+  `).get(userId, permission);
+  return !!row;
+}
+
+// Like requireRole, 'admin' and 'lead' always pass — a lead doesn't need a
+// grant to manage their own team's knowledge base.
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (req.user.role === 'lead' || req.user.role === 'admin') return next();
+    if (hasPermission(req.user.id, permission)) return next();
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+// Any authenticated user: what am I currently allowed to do beyond my role?
+// The client uses this to decide whether to show knowledge-base edit
+// controls — re-checked from the DB on every call, so a revoked grant takes
+// effect immediately rather than waiting for the user's JWT to expire.
+app.get('/api/me/permissions', authMiddleware, (req, res) => {
+  try {
+    if (req.user.role === 'lead' || req.user.role === 'admin') {
+      return res.json(KNOWN_PERMISSIONS);
+    }
+    const rows = db.prepare(`
+      SELECT permission FROM granted_permissions
+      WHERE user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+    `).all(req.user.id);
+    res.json(rows.map(r => r.permission));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lead: list active grants (who has what, and until when)
+app.get('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT gp.id, gp.permission, gp.granted_at, gp.expires_at,
+             u.id as user_id, u.name as user_name, u.avatar_initials,
+             gb.name as granted_by_name
+      FROM granted_permissions gp
+      JOIN users u ON u.id = gp.user_id
+      JOIN users gb ON gb.id = gp.granted_by
+      WHERE gp.expires_at IS NULL OR gp.expires_at > datetime('now')
+      ORDER BY gp.granted_at DESC
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lead: grant a permission to a tester. expires_at is optional (ISO string
+// or null for "doesn't expire on its own").
+app.post('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { user_id, permission, expires_at } = req.body;
+    if (!KNOWN_PERMISSIONS.includes(permission)) {
+      return res.status(400).json({ error: `Неизвестное право. Допустимые: ${KNOWN_PERMISSIONS.join(', ')}` });
+    }
+    const targetId = parseInt(user_id, 10);
+    const target = db.prepare('SELECT id, role, name, telegram_id FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (target.role !== 'tester') return res.status(400).json({ error: 'Права можно выдавать только тестировщикам — лид и админ уже имеют полный доступ' });
+
+    // Replace any existing grant of the same permission for this user
+    // instead of stacking duplicates.
+    db.prepare('DELETE FROM granted_permissions WHERE user_id = ? AND permission = ?').run(targetId, permission);
+    const result = db.prepare(
+      'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
+    ).run(targetId, permission, req.user.id, expires_at || null);
+
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+      .run(req.user.id, `permission_granted:target=${targetId}:permission=${permission}`);
+    notifyUser(target, 'Новые права', `Тебе выдано право «${permission}» в baga-net.`);
+
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lead: revoke a grant early
+app.delete('/api/lead/permissions/:id', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const grant = db.prepare('SELECT * FROM granted_permissions WHERE id = ?').get(req.params.id);
+    if (!grant) return res.status(404).json({ error: 'Не найдено' });
+    db.prepare('DELETE FROM granted_permissions WHERE id = ?').run(req.params.id);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+      .run(req.user.id, `permission_revoked:target=${grant.user_id}:permission=${grant.permission}`);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== KNOWLEDGE BASE (Багодельня) ==============
+
+app.get('/api/bug-examples', authMiddleware, (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM bug_examples ORDER BY created_at DESC').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/bug-examples', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const { tag, tag_color, problem, bad_text, good_text } = req.body;
+    if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
+      return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
+    }
+    const result = db.prepare(
+      'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.user.id);
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM bug_examples WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Не найдено' });
+    const { tag, tag_color, problem, bad_text, good_text } = req.body;
+    if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
+      return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
+    }
+    db.prepare(
+      'UPDATE bug_examples SET tag = ?, tag_color = ?, problem = ?, bad_text = ?, good_text = ? WHERE id = ?'
+    ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    db.prepare('DELETE FROM bug_examples WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/glossary', authMiddleware, (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM glossary_terms ORDER BY term ASC').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/glossary', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const { term, definition } = req.body;
+    if (!term?.trim() || !definition?.trim()) {
+      return res.status(400).json({ error: 'Заполните термин и определение' });
+    }
+    const result = db.prepare(
+      'INSERT INTO glossary_terms (term, definition, created_by) VALUES (?, ?, ?)'
+    ).run(term.trim(), definition.trim(), req.user.id);
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM glossary_terms WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Не найдено' });
+    const { term, definition } = req.body;
+    if (!term?.trim() || !definition?.trim()) {
+      return res.status(400).json({ error: 'Заполните термин и определение' });
+    }
+    db.prepare('UPDATE glossary_terms SET term = ?, definition = ? WHERE id = ?').run(term.trim(), definition.trim(), req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    db.prepare('DELETE FROM glossary_terms WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

@@ -13,7 +13,7 @@ export default function LevelBadge({ lecturesCompleted, isLead = false, showXp =
   const xpPercent = getLevelXpPercent(lecturesCompleted);
 
   const iconSize = size === 'sm' ? 16 : size === 'md' ? 24 : 36;
-  const nameSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[10px]' : 'text-xs';
+  const nameSize = size === 'sm' ? 'text-[11px]' : size === 'md' ? 'text-xs' : 'text-sm';
 
   return (
     <div className="flex flex-col items-center gap-1">

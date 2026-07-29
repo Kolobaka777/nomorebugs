@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import { leadApi } from '../api';
+import { leadApi, permissionsApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, LectureStat, getLevel } from '../types';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 
@@ -27,8 +27,13 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [lectureStats, setLectureStats] = useState<LectureStat[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [grants, setGrants] = useState<{ id: number; user_id: number; permission: string; expires_at: string | null }[]>([]);
+  const [grantingFor, setGrantingFor] = useState<number | null>(null);
+  const [grantExpiry, setGrantExpiry] = useState('never');
+
   useEffect(() => {
     loadData();
+    loadGrants();
   }, []);
 
   const loadData = async () => {
@@ -48,6 +53,32 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadGrants = async () => {
+    try {
+      const res = await permissionsApi.list();
+      setGrants(res.data);
+    } catch {}
+  };
+
+  const EXPIRY_OPTIONS: Record<string, () => string | null> = {
+    never: () => null,
+    '24h': () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    '7d': () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    '30d': () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+
+  const grantKnowledgeBaseAccess = async (userId: number) => {
+    try {
+      await permissionsApi.grant({ user_id: userId, permission: 'manage_knowledge_base', expires_at: EXPIRY_OPTIONS[grantExpiry]() });
+      setGrantingFor(null);
+      loadGrants();
+    } catch {}
+  };
+
+  const revokeGrant = async (grantId: number) => {
+    try { await permissionsApi.revoke(grantId); loadGrants(); } catch {}
   };
 
   if (loading) {
@@ -228,6 +259,45 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                     <p className="text-primary text-xs font-sans font-semibold">
                       рост: +{member.skillGrowth}
                     </p>
+                  </div>
+
+                  {/* Scoped permission grant — lets this tester manage the
+                      knowledge base (Багодельня) without a full role change. */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
+                    {(() => {
+                      const grant = grants.find(g => g.user_id === member.id && g.permission === 'manage_knowledge_base');
+                      if (grant) {
+                        return (
+                          <>
+                            <span className="text-xs font-sans px-2 py-0.5 rounded" style={{ background: 'rgba(29,158,117,0.12)', color: '#1D9E75' }}>
+                              ✏ Может редактировать Багодельню{grant.expires_at ? ` до ${new Date(grant.expires_at).toLocaleDateString('ru-RU')}` : ''}
+                            </span>
+                            <button onClick={() => revokeGrant(grant.id)} className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                              Отозвать
+                            </button>
+                          </>
+                        );
+                      }
+                      if (grantingFor === member.id) {
+                        return (
+                          <>
+                            <select className="pixel-input text-xs" value={grantExpiry} onChange={e => setGrantExpiry(e.target.value)}>
+                              <option value="never">Без ограничения</option>
+                              <option value="24h">На 24 часа</option>
+                              <option value="7d">На 7 дней</option>
+                              <option value="30d">На 30 дней</option>
+                            </select>
+                            <button onClick={() => grantKnowledgeBaseAccess(member.id)} className="btn-primary text-xs px-3 py-1">Выдать</button>
+                            <button onClick={() => setGrantingFor(null)} className="btn-secondary text-xs px-3 py-1">Отмена</button>
+                          </>
+                        );
+                      }
+                      return (
+                        <button onClick={() => { setGrantingFor(member.id); setGrantExpiry('never'); }} className="btn-secondary text-xs px-3 py-1">
+                          + Доступ к Багодельне
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               );

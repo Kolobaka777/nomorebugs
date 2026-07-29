@@ -241,6 +241,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
 
   const [checkMode, setCheckMode] = useState<CheckMode>('full');
   const [results, setResults] = useState<Record<number, Status>>({});
+  const [notes, setNotes] = useState<Record<number, string>>({});
 
   // Lead MVT edit mode
   const [editingMvt, setEditingMvt] = useState(false);
@@ -375,6 +376,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
       const payload = tpl.items.map(item => ({
         item_id: item.id,
         status: results[item.id] || 'na',
+        note: results[item.id] === 'fail' ? (notes[item.id] || '').trim() : '',
       }));
       await checklistApi.submitV2({
         template_id: tpl.id,
@@ -621,7 +623,6 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 px-4 py-3"
                         style={{
                           background: editingMvt
                             ? (inMvt ? 'rgba(29,158,117,0.03)' : 'rgba(0,0,0,0.15)')
@@ -634,58 +635,77 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
                           borderBottom: isLast ? `2px solid ${cc}20` : '1px solid rgba(232,232,208,0.04)',
                         }}
                       >
-                        <span className="text-xs font-sans shrink-0" style={{ color: 'rgba(232,232,208,0.55)', width: 22, textAlign: 'right' }}>
-                          {item.order_num}.
-                        </span>
-                        <p
-                          className="flex-1 text-sm font-sans leading-snug"
-                          style={{ color: editingMvt
-                            ? (inMvt ? 'rgba(232,232,208,0.75)' : 'rgba(232,232,208,0.3)')
-                            : status ? 'rgba(232,232,208,0.45)' : 'rgba(232,232,208,0.82)'
-                          }}
-                        >
-                          {item.text}
-                        </p>
-
-                        {/* MVT edit toggle */}
-                        {editingMvt && (
-                          <button
-                            onClick={() => setPendingMvt(p => ({ ...p, [item.id]: !p[item.id] }))}
-                            className="w-8 h-8 rounded text-xs font-bold cursor-pointer transition-all shrink-0"
-                            style={{
-                              background: inMvt ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                              color: inMvt ? '#1D9E75' : 'rgba(232,232,208,0.2)',
-                              border: `1.5px solid ${inMvt ? '#1D9E75' : 'rgba(232,232,208,0.1)'}`,
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <span className="text-xs font-sans shrink-0" style={{ color: 'rgba(232,232,208,0.55)', width: 22, textAlign: 'right' }}>
+                            {item.order_num}.
+                          </span>
+                          <p
+                            className="flex-1 text-sm font-sans leading-snug"
+                            style={{ color: editingMvt
+                              ? (inMvt ? 'rgba(232,232,208,0.75)' : 'rgba(232,232,208,0.3)')
+                              : status ? 'rgba(232,232,208,0.45)' : 'rgba(232,232,208,0.82)'
                             }}
-                            title={inMvt ? 'Убрать из МВТ' : 'Добавить в МВТ'}
-                          >М</button>
-                        )}
+                          >
+                            {item.text}
+                          </p>
 
-                        {/* Status buttons (not shown in edit mode) */}
-                        {!editingMvt && (
-                          <div className="flex gap-1.5 shrink-0">
-                            {(['ok', 'fail', 'na'] as Status[]).map(s => (
-                              <button
-                                key={s}
-                                onClick={() => setStatus(item.id, s)}
-                                className="h-8 rounded text-xs font-semibold cursor-pointer transition-all font-sans"
-                                style={{
-                                  minWidth: s === 'na' ? 28 : 44,
-                                  background: status === s ? STATUS_COLORS[s] : `${STATUS_COLORS[s]}12`,
-                                  // STATUS_COLORS.na is itself a semi-transparent rgba() (needed so the
-                                  // background/border hex-suffix trick above still reads as a subtle
-                                  // overlay) — too faint on its own to use directly as text color, so
-                                  // bump it here specifically rather than changing the shared constant.
-                                  color: status === s ? (s === 'ok' ? '#0f0f1a' : '#fff') : (s === 'na' ? 'rgba(232,232,208,0.6)' : STATUS_COLORS[s]),
-                                  border: `1.5px solid ${status === s ? STATUS_COLORS[s] : STATUS_COLORS[s] + '40'}`,
-                                }}
-                                title={s === 'na' ? 'Не применимо (н/п) — пункт неактуален для этой задачи' : undefined}
-                                aria-label={s === 'ok' ? 'Отметить как ок' : s === 'fail' ? 'Отметить как ошибку' : 'Не применимо'}
-                                aria-pressed={status === s}
-                              >
-                                {s === 'ok' ? '✓' : s === 'fail' ? '✗' : '—'}
-                              </button>
-                            ))}
+                          {/* MVT edit toggle */}
+                          {editingMvt && (
+                            <button
+                              onClick={() => setPendingMvt(p => ({ ...p, [item.id]: !p[item.id] }))}
+                              className="w-8 h-8 rounded text-xs font-bold cursor-pointer transition-all shrink-0"
+                              style={{
+                                background: inMvt ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
+                                color: inMvt ? '#1D9E75' : 'rgba(232,232,208,0.2)',
+                                border: `1.5px solid ${inMvt ? '#1D9E75' : 'rgba(232,232,208,0.1)'}`,
+                              }}
+                              title={inMvt ? 'Убрать из МВТ' : 'Добавить в МВТ'}
+                            >М</button>
+                          )}
+
+                          {/* Status buttons (not shown in edit mode) */}
+                          {!editingMvt && (
+                            <div className="flex gap-1.5 shrink-0">
+                              {(['ok', 'fail', 'na'] as Status[]).map(s => (
+                                <button
+                                  key={s}
+                                  onClick={() => setStatus(item.id, s)}
+                                  className="h-8 rounded text-xs font-semibold cursor-pointer transition-all font-sans"
+                                  style={{
+                                    minWidth: s === 'na' ? 28 : 44,
+                                    background: status === s ? STATUS_COLORS[s] : `${STATUS_COLORS[s]}12`,
+                                    // STATUS_COLORS.na is itself a semi-transparent rgba() (needed so the
+                                    // background/border hex-suffix trick above still reads as a subtle
+                                    // overlay) — too faint on its own to use directly as text color, so
+                                    // bump it here specifically rather than changing the shared constant.
+                                    color: status === s ? (s === 'ok' ? '#0f0f1a' : '#fff') : (s === 'na' ? 'rgba(232,232,208,0.6)' : STATUS_COLORS[s]),
+                                    border: `1.5px solid ${status === s ? STATUS_COLORS[s] : STATUS_COLORS[s] + '40'}`,
+                                  }}
+                                  title={s === 'na' ? 'Не применимо (н/п) — пункт неактуален для этой задачи' : undefined}
+                                  aria-label={s === 'ok' ? 'Отметить как ок' : s === 'fail' ? 'Отметить как ошибку' : 'Не применимо'}
+                                  aria-pressed={status === s}
+                                >
+                                  {s === 'ok' ? '✓' : s === 'fail' ? '✗' : '—'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Optional description of the failure — feeds the
+                            reporting tab's per-item detail instead of just a
+                            bare fail count. */}
+                        {!editingMvt && status === 'fail' && (
+                          <div className="px-4 pb-3" style={{ paddingLeft: 41 }}>
+                            <textarea
+                              value={notes[item.id] || ''}
+                              onChange={e => setNotes(p => ({ ...p, [item.id]: e.target.value }))}
+                              placeholder="Опишите ошибку (необязательно)"
+                              rows={1}
+                              maxLength={1000}
+                              className="pixel-input w-full text-xs font-sans resize-y"
+                              style={{ minHeight: 32 }}
+                            />
                           </div>
                         )}
                       </div>

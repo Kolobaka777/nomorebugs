@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
+import SnailLoader from '../components/SnailLoader';
 import PixelIcon, { IconName } from '../components/PixelIcon';
+import { knowledgeApi } from '../api';
 
 interface BagodelnyaPageProps {
   user: any;
@@ -9,52 +11,183 @@ interface BagodelnyaPageProps {
 
 type Tab = 'examples' | 'glossary';
 
-const GLOSSARY = [
-  { term: 'DevTools', def: 'Инструменты разработчика в браузере для отладки' },
-  { term: 'Bug', def: 'Дефект в программном обеспечении — отклонение от ожидаемого поведения' },
-  { term: 'Viewport', def: 'Видимая область экрана — размер окна браузера' },
-  { term: 'DOM', def: 'Document Object Model — структура HTML-документа в виде дерева' },
-  { term: 'Console', def: 'Консоль браузера — показывает ошибки JS и логи' },
-];
-
-interface BugPair {
+interface BugExample {
+  id: number;
   tag: string;
-  tagColor: string;
+  tag_color: string;
   problem: string;
-  bad: {
-    title: string;
-    desc: string;
-  };
-  good: {
-    title: string;
-    body: { label: string; value: string }[];
-  };
+  bad_text: string;
+  good_text: string;
 }
 
-const BUG_PAIRS: BugPair[] = [
-  {
-    tag: 'Визуал',
-    tagColor: '#7F77DD',
-    problem: 'Неверный отступ в секции',
-    bad: {
-      title: '"Отступ слишком большой"',
-      desc: 'Нет конкретики: какой элемент, в какой секции, на каком устройстве, насколько большой. Разработчик не знает что исправлять.',
-    },
-    good: {
-      title: 'padding-top секции .features на 20px больше макета — десктоп 1920px',
-      body: [
-        { label: 'Где', value: 'Секция .features, десктоп (1920×1080, Chrome 124, Windows)' },
-        { label: 'Воспроизведение', value: 'Открыть страницу → DevTools → Elements → найти .features → проверить padding-top' },
-        { label: 'Что', value: 'padding-top: 80px, по макету Figma должно быть 60px — лишние 20px сверху' },
-        { label: 'Ожидалось', value: '.features { padding-top: 60px } согласно Figma-макету' },
-        { label: 'Пункт', value: 'Визуал → Отступы соответствуют макету' },
-      ],
-    },
-  },
-];
+interface GlossaryTerm {
+  id: number;
+  term: string;
+  definition: string;
+}
+
+const TAG_COLORS = ['#7F77DD', '#1D9E75', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
+
+function BugExampleForm({
+  initial, onSave, onCancel,
+}: {
+  initial?: BugExample;
+  onSave: (data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [tag, setTag] = useState(initial?.tag || 'Общее');
+  const [tagColor, setTagColor] = useState(initial?.tag_color || TAG_COLORS[0]);
+  const [problem, setProblem] = useState(initial?.problem || '');
+  const [badText, setBadText] = useState(initial?.bad_text || '');
+  const [goodText, setGoodText] = useState(initial?.good_text || '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!problem.trim() || !badText.trim() || !goodText.trim()) {
+      setError('Заполните проблему и оба примера');
+      return;
+    }
+    setError('');
+    setSaving(true);
+    try {
+      await onSave({ tag: tag.trim(), tag_color: tagColor, problem: problem.trim(), bad_text: badText.trim(), good_text: goodText.trim() });
+    } catch {
+      setError('Ошибка сохранения');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-5 win98-panel mb-5 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-pixel/60 text-xs font-sans mb-1.5">Тег категории</label>
+          <input className="pixel-input" value={tag} onChange={e => setTag(e.target.value)} placeholder="Например: Визуал" />
+        </div>
+        <div>
+          <label className="block text-pixel/60 text-xs font-sans mb-1.5">Цвет тега</label>
+          <div className="flex gap-2">
+            {TAG_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setTagColor(c)}
+                className="w-7 h-7 rounded cursor-pointer transition-transform"
+                style={{ background: c, outline: tagColor === c ? '3px solid #fff' : 'none', outlineOffset: 2, transform: tagColor === c ? 'scale(1.15)' : 'scale(1)' }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Проблема (короткое описание)</label>
+        <input className="pixel-input" value={problem} onChange={e => setProblem(e.target.value)} placeholder="Например: Неверный отступ в секции" />
+      </div>
+      <div>
+        <label className="block text-pixel/60 text-xs font-sans mb-1.5" style={{ color: '#e05252' }}>✗ Как писать НЕ надо</label>
+        <textarea className="pixel-input w-full resize-y" rows={3} value={badText} onChange={e => setBadText(e.target.value)} placeholder="Плохой пример баг-репорта" />
+      </div>
+      <div>
+        <label className="block text-pixel/60 text-xs font-sans mb-1.5" style={{ color: '#1D9E75' }}>✓ Как писать правильно</label>
+        <textarea className="pixel-input w-full resize-y" rows={5} value={goodText} onChange={e => setGoodText(e.target.value)} placeholder="Хороший пример баг-репорта" />
+      </div>
+      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
+          {saving ? 'Сохраняю...' : 'Сохранить'}
+        </button>
+        <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
+      </div>
+    </div>
+  );
+}
+
+function GlossaryForm({
+  initial, onSave, onCancel,
+}: {
+  initial?: GlossaryTerm;
+  onSave: (data: { term: string; definition: string }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [term, setTerm] = useState(initial?.term || '');
+  const [definition, setDefinition] = useState(initial?.definition || '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!term.trim() || !definition.trim()) { setError('Заполните термин и определение'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await onSave({ term: term.trim(), definition: definition.trim() });
+    } catch {
+      setError('Ошибка сохранения');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-5 win98-panel mb-5 space-y-3">
+      <div>
+        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Термин</label>
+        <input className="pixel-input" value={term} onChange={e => setTerm(e.target.value)} placeholder="Например: Regression" />
+      </div>
+      <div>
+        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Определение</label>
+        <textarea className="pixel-input w-full resize-y" rows={3} value={definition} onChange={e => setDefinition(e.target.value)} />
+      </div>
+      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
+          {saving ? 'Сохраняю...' : 'Сохранить'}
+        </button>
+        <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
+      </div>
+    </div>
+  );
+}
 
 export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) {
   const [tab, setTab] = useState<Tab>('examples');
+  const [loading, setLoading] = useState(true);
+  const [bugExamples, setBugExamples] = useState<BugExample[]>([]);
+  const [glossary, setGlossary] = useState<GlossaryTerm[]>([]);
+  const [canEdit, setCanEdit] = useState(user.role === 'lead' || user.role === 'admin');
+
+  const [addingExample, setAddingExample] = useState(false);
+  const [editingExampleId, setEditingExampleId] = useState<number | null>(null);
+  const [addingTerm, setAddingTerm] = useState(false);
+  const [editingTermId, setEditingTermId] = useState<number | null>(null);
+
+  useEffect(() => {
+    load();
+    if (user.role !== 'lead' && user.role !== 'admin') {
+      knowledgeApi.getMyPermissions().then(r => setCanEdit(r.data.includes('manage_knowledge_base'))).catch(() => {});
+    }
+  }, []);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [exRes, glRes] = await Promise.all([knowledgeApi.getBugExamples(), knowledgeApi.getGlossary()]);
+      setBugExamples(exRes.data);
+      setGlossary(glRes.data);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  const deleteExample = async (id: number) => {
+    if (!confirm('Удалить этот пример?')) return;
+    try { await knowledgeApi.deleteBugExample(id); setBugExamples(p => p.filter(e => e.id !== id)); } catch {}
+  };
+
+  const deleteTerm = async (id: number) => {
+    if (!confirm('Удалить этот термин?')) return;
+    try { await knowledgeApi.deleteGlossaryTerm(id); setGlossary(p => p.filter(g => g.id !== id)); } catch {}
+  };
 
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
     { id: 'examples', label: 'Примеры багов', icon: 'bug' },
@@ -66,12 +199,14 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
-        <div className="mb-8">
-          <h1 className="font-pixel text-primary mb-2 flex items-center gap-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-            <PixelIcon name="books" size={14} color="#1D9E75" />
-            Багодельня
-          </h1>
-          <p className="text-pixel/60 text-sm font-sans">База знаний тестировщика</p>
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="font-pixel text-primary mb-2 flex items-center gap-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
+              <PixelIcon name="books" size={14} color="#1D9E75" />
+              Багодельня
+            </h1>
+            <p className="text-pixel/60 text-sm font-sans">База знаний тестировщика</p>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -90,9 +225,26 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           ))}
         </div>
 
-        {/* ===== TAB: BUG EXAMPLES ===== */}
-        {tab === 'examples' && (
+        {loading && <SnailLoader />}
+
+        {!loading && tab === 'examples' && (
           <div>
+            {canEdit && !addingExample && (
+              <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5">
+                + Добавить пример
+              </button>
+            )}
+            {addingExample && (
+              <BugExampleForm
+                onSave={async (data) => {
+                  const res = await knowledgeApi.createBugExample(data);
+                  setBugExamples(p => [{ id: res.data.id, ...data }, ...p]);
+                  setAddingExample(false);
+                }}
+                onCancel={() => setAddingExample(false)}
+              />
+            )}
+
             {/* Column headers */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 px-1">
               <div className="flex items-center gap-2">
@@ -105,48 +257,57 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
               </div>
             </div>
 
-            {/* Pairs */}
+            {bugExamples.length === 0 && (
+              <p className="text-pixel/55 text-sm font-sans text-center py-8">Пока нет примеров</p>
+            )}
+
             <div className="space-y-5">
-              {BUG_PAIRS.map((pair, i) => (
-                <div key={i}>
-                  {/* Problem label */}
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <span
-                      className="text-xs font-sans px-2 py-0.5 rounded font-semibold"
-                      style={{ background: `${pair.tagColor}18`, color: pair.tagColor, fontSize: '0.65rem' }}
-                    >
-                      {pair.tag}
-                    </span>
-                    <span className="text-pixel/60 text-xs font-sans">{pair.problem}</span>
-                  </div>
-
-                  {/* Side-by-side cards */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    {/* BAD */}
-                    <div className="p-4 win98-panel-red flex flex-col gap-2">
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs font-pixel shrink-0 mt-0.5" style={{ color: '#e05252', fontSize: '0.5rem', lineHeight: 1.8 }}>✗ ПЛОХО</span>
-                      </div>
-                      <p className="text-pixel/75 text-xs font-sans font-semibold">{pair.bad.title}</p>
-                      <p className="text-pixel/60 text-xs font-sans leading-relaxed">{pair.bad.desc}</p>
-                    </div>
-
-                    {/* GOOD */}
-                    <div className="p-4 win98-panel-green flex flex-col gap-2">
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs font-pixel shrink-0 mt-0.5" style={{ color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8 }}>✓ ПРАВИЛЬНО</span>
-                      </div>
-                      <p className="text-pixel/80 text-xs font-sans font-semibold">{pair.good.title}</p>
-                      <div className="space-y-1 mt-1">
-                        {pair.good.body.map((row, j) => (
-                          <div key={j} className="flex gap-2 text-xs font-sans">
-                            <span className="shrink-0 font-semibold" style={{ color: '#1D9E75', minWidth: 68 }}>{row.label}:</span>
-                            <span style={{ color: 'rgba(232,232,208,0.6)' }}>{row.value}</span>
+              {bugExamples.map((pair) => (
+                <div key={pair.id}>
+                  {editingExampleId === pair.id ? (
+                    <BugExampleForm
+                      initial={pair}
+                      onSave={async (data) => {
+                        await knowledgeApi.updateBugExample(pair.id, data);
+                        setBugExamples(p => p.map(e => e.id === pair.id ? { ...e, ...data } : e));
+                        setEditingExampleId(null);
+                      }}
+                      onCancel={() => setEditingExampleId(null)}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <span
+                          className="text-xs font-sans px-2 py-0.5 rounded font-semibold"
+                          style={{ background: `${pair.tag_color}18`, color: pair.tag_color, fontSize: '0.65rem' }}
+                        >
+                          {pair.tag}
+                        </span>
+                        <span className="text-pixel/60 text-xs font-sans flex-1">{pair.problem}</span>
+                        {canEdit && (
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
+                              <PixelIcon name="pencil" size={11} color="currentColor" />
+                            </button>
+                            <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                              ✕
+                            </button>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div className="p-4 win98-panel-red flex flex-col gap-2">
+                          <span className="text-xs font-pixel shrink-0" style={{ color: '#e05252', fontSize: '0.5rem', lineHeight: 1.8 }}>✗ ПЛОХО</span>
+                          <p className="text-pixel/60 text-xs font-sans leading-relaxed whitespace-pre-line">{pair.bad_text}</p>
+                        </div>
+                        <div className="p-4 win98-panel-green flex flex-col gap-2">
+                          <span className="text-xs font-pixel shrink-0" style={{ color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8 }}>✓ ПРАВИЛЬНО</span>
+                          <p className="text-pixel/70 text-xs font-sans leading-relaxed whitespace-pre-line">{pair.good_text}</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -176,28 +337,74 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           </div>
         )}
 
-        {/* ===== TAB: GLOSSARY ===== */}
-        {tab === 'glossary' && (
+        {!loading && tab === 'glossary' && (
           <div>
-            <h2 className="font-pixel text-pixel/60 mb-6 flex items-center gap-2" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>
-              <PixelIcon name="books" size={12} color="currentColor" />
-              Словарь тестировщика
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-pixel text-pixel/60 flex items-center gap-2" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>
+                <PixelIcon name="books" size={12} color="currentColor" />
+                Словарь тестировщика
+              </h2>
+              {canEdit && !addingTerm && (
+                <button onClick={() => setAddingTerm(true)} className="btn-primary text-xs px-4 py-2">
+                  + Добавить термин
+                </button>
+              )}
+            </div>
+
+            {addingTerm && (
+              <GlossaryForm
+                onSave={async (data) => {
+                  const res = await knowledgeApi.createGlossaryTerm(data);
+                  setGlossary(p => [...p, { id: res.data.id, ...data }].sort((a, b) => a.term.localeCompare(b.term)));
+                  setAddingTerm(false);
+                }}
+                onCancel={() => setAddingTerm(false)}
+              />
+            )}
+
+            {glossary.length === 0 && (
+              <p className="text-pixel/55 text-sm font-sans text-center py-8">Пока нет терминов</p>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {GLOSSARY.map(item => (
-                <div
-                  key={item.term}
-                  className="p-4 win98-panel flex gap-4"
-                  style={{ outline: '1px solid rgba(29,158,117,0.28)', outlineOffset: '-3px' }}
-                >
-                  <div
-                    className="shrink-0 px-2 py-1 rounded text-xs font-pixel"
-                    style={{ background: 'rgba(29,158,117,0.15)', color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
-                  >
-                    {item.term}
+              {glossary.map(item => (
+                editingTermId === item.id ? (
+                  <div key={item.id} className="md:col-span-2">
+                    <GlossaryForm
+                      initial={item}
+                      onSave={async (data) => {
+                        await knowledgeApi.updateGlossaryTerm(item.id, data);
+                        setGlossary(p => p.map(g => g.id === item.id ? { ...g, ...data } : g).sort((a, b) => a.term.localeCompare(b.term)));
+                        setEditingTermId(null);
+                      }}
+                      onCancel={() => setEditingTermId(null)}
+                    />
                   </div>
-                  <p className="text-pixel/60 text-xs font-sans leading-relaxed">{item.def}</p>
-                </div>
+                ) : (
+                  <div
+                    key={item.id}
+                    className="p-4 win98-panel flex gap-4"
+                    style={{ outline: '1px solid rgba(29,158,117,0.28)', outlineOffset: '-3px' }}
+                  >
+                    <div
+                      className="shrink-0 px-2 py-1 rounded text-xs font-pixel"
+                      style={{ background: 'rgba(29,158,117,0.15)', color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
+                    >
+                      {item.term}
+                    </div>
+                    <p className="text-pixel/60 text-xs font-sans leading-relaxed flex-1">{item.definition}</p>
+                    {canEdit && (
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => setEditingTermId(item.id)} aria-label="Редактировать термин" className="btn-secondary text-xs px-2 py-0.5">
+                          <PixelIcon name="pencil" size={11} color="currentColor" />
+                        </button>
+                        <button onClick={() => deleteTerm(item.id)} aria-label="Удалить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
               ))}
             </div>
           </div>

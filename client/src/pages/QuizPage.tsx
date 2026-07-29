@@ -331,7 +331,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                       style={{
                         background: isCorrectAnswer && showExplanation ? '#1D9E75' : isWrongAnswer ? '#e05252' : isSelected ? '#EF9F27' : 'rgba(232,232,208,0.08)',
                         color: (isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? '#0f0f1a' : 'rgba(232,232,208,0.4)',
-                        fontSize: '0.45rem',
+                        fontSize: '0.62rem',
                         lineHeight: 1.8,
                       }}
                     >

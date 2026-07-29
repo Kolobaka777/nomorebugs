@@ -683,7 +683,7 @@
 .rpg-tab {
   padding: 7px 14px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 0.44rem;
+  font-size: 0.6rem;
   line-height: 1.6;
   background: #12121f;
   border-width: 2px;
@@ -716,7 +716,7 @@
   background: rgba(239,159,39,0.08);
   border: 2px solid rgba(239,159,39,0.35);
   font-family: 'Press Start 2P', monospace;
-  font-size: 0.5rem;
+  font-size: 0.62rem;
   color: #EF9F27;
   cursor: default;
 }
@@ -753,7 +753,7 @@
   border-top: 2px solid rgba(239,159,39,0.2);
   padding: 6px 16px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 0.5rem;
+  font-size: 0.62rem;
   color: rgba(232,232,208,0.5);
   letter-spacing: 0.06em;
 }

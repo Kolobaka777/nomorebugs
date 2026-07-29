@@ -10,7 +10,11 @@ import { API_BASE_URL as API_BASE } from '../config';
 import { authFetch } from '../auth';
 import { clickableProps } from '../utils/a11y';
 
-function isNew(createdAt: string): boolean {
+// A course is "NEW" while it's recent AND this user hasn't opened it yet —
+// the badge disappears the moment they view it (per-user, via the
+// custom_course_views table), not on a fixed timer alone.
+function isNew(createdAt: string, viewed: boolean): boolean {
+  if (viewed) return false;
   return Date.now() - new Date(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
@@ -118,14 +122,14 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       .then(data => { if (Array.isArray(data)) setCustomCourses(data); })
       .catch(() => {});
 
-    if (user.role === 'tester') {
-      testerApi.getLectures()
-        .then(r => setLectures(r.data))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Fetched for every role, not just testers — leads/admins get a
+    // read-only preview of the same catalog instead of a dead placeholder
+    // grid. Per-user status (active/locked/passed) only makes sense for
+    // testers, since only testers take quizzes — see isTester below.
+    testerApi.getLectures()
+      .then(r => setLectures(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -180,7 +184,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               <span className="flex items-center gap-2"><PixelIcon name="graduation" size={14} color="#1D9E75" /> Курсы</span>
             </h1>
             <p className="text-pixel/60 text-sm font-sans">
-              Каталог курсов · {(lectures.length > 0 ? lectures.length : 10) + customCourses.length} модулей
+              Каталог курсов · {lectures.length + customCourses.length} модулей
             </p>
           </div>
 
@@ -259,17 +263,24 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               const idx = lectures.indexOf(lecture); // original position, so the placeholder team-completion array still lines up after filtering
               const color = getSkillColor(lecture.skill_area);
               const tag = getTopicTag(lecture.skill_area);
-              const isPassed = lecture.status === 'passed';
-              const isActive = lecture.status === 'active';
-              const isLocked = lecture.status === 'locked';
+              // Per-user progress (locked/active/passed) only applies to
+              // testers — leads/admins don't take quizzes, so they get a
+              // flat, non-locked, non-clickable read-only preview instead
+              // of a misleading "locked" status computed from their own
+              // (always-empty) test history.
+              const isTester = user.role === 'tester';
+              const isPassed = isTester && lecture.status === 'passed';
+              const isActive = isTester && lecture.status === 'active';
+              const isLocked = isTester && lecture.status === 'locked';
+              const canOpen = isTester && (isActive || isPassed);
               const teamCount = teamCompleted[idx] || 0;
 
               return (
                 <div
                   key={lecture.id}
-                  onClick={() => (isActive || isPassed) && navigate(`/lecture/${lecture.id}/quiz`)}
-                  {...((isActive || isPassed) ? clickableProps(() => navigate(`/lecture/${lecture.id}/quiz`)) : {})}
-                  className={`overflow-hidden transition-all ${(isActive || isPassed) ? 'cursor-pointer hover:-translate-y-1' : ''}`}
+                  onClick={() => canOpen && navigate(`/lecture/${lecture.id}/quiz`)}
+                  {...(canOpen ? clickableProps(() => navigate(`/lecture/${lecture.id}/quiz`)) : {})}
+                  className={`overflow-hidden transition-all ${canOpen ? 'cursor-pointer hover:-translate-y-1' : ''}`}
                   style={{
                     background: '#1a1a2e',
                     borderTop:    '2px solid rgba(255,255,255,0.12)',
@@ -356,50 +367,12 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             })}
           </div>
         ) : (
-          /* Lead / no data view */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {[
-              { title: 'Основы HTML', area: 'HTML', order: 1 },
-              { title: 'Основы CSS', area: 'CSS', order: 2 },
-              { title: 'Основы DevTools', area: 'DevTools', order: 3 },
-              { title: 'Консоль и ошибки', area: 'Browser', order: 4 },
-              { title: 'Адаптивная верстка', area: 'Responsive', order: 5 },
-              { title: 'Отладка CSS', area: 'CSS', order: 6 },
-              { title: 'Вкладка Network', area: 'Network', order: 7 },
-              { title: 'JavaScript для QA', area: 'JavaScript', order: 8 },
-              { title: 'Описание дефектов', area: 'Bug', order: 9 },
-              { title: 'Продвинутое тестирование', area: 'Advanced', order: 10 },
-            ].map((l, idx) => {
-              const color = getSkillColor(l.area);
-              return (
-                <div
-                  key={idx}
-                  className="overflow-hidden"
-                  style={{
-                    background: '#1a1a2e',
-                    borderTop:    '2px solid rgba(255,255,255,0.12)',
-                    borderLeft:   '2px solid rgba(255,255,255,0.12)',
-                    borderBottom: '2px solid rgba(0,0,0,0.5)',
-                    borderRight:  '2px solid rgba(0,0,0,0.5)',
-                    outline: `2px solid ${color}30`,
-                    outlineOffset: '-4px',
-                  }}
-                >
-                  <CourseCover idx={idx} color={color} />
-                  <div className="p-4">
-                    <span
-                      className="text-xs font-sans font-semibold px-2 py-0.5 rounded mb-2 inline-block"
-                      style={{ background: `${color}20`, color }}
-                    >
-                      {getTopicTag(l.area)}
-                    </span>
-                    <h3 className="text-pixel font-sans font-semibold text-sm leading-snug mb-2">{l.title}</h3>
-                    <p className="text-pixel/60 text-xs font-sans">5 вопросов</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          !hasActiveFilters && customCourses.length === 0 && (
+            <div className="rounded-lg p-8 text-center" style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.1)' }}>
+              <PixelIcon name="graduation" size={22} color="rgba(232,232,208,0.3)" className="mb-3" />
+              <p className="text-pixel/60 font-sans text-sm">Курсы пока не добавлены</p>
+            </div>
+          )
         )}
 
         {/* ===== CUSTOM COURSES ===== */}
@@ -428,7 +401,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {filteredCustomCourses.map((cc: any) => {
                 const color = cc.color || '#1D9E75';
-                const courseIsNew = isNew(cc.created_at);
+                const courseIsNew = isNew(cc.created_at, !!cc.viewed);
                 const isDraft = !cc.is_published;
                 const isLead = user.role === 'lead';
 
