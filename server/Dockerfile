@@ -1,8 +1,4 @@
-FROM node:20-alpine
-
-# better-sqlite3 is a native module — if no prebuilt binary matches this
-# platform, npm falls back to compiling from source, which needs these.
-RUN apk add --no-cache python3 make g++
+FROM node:20
 
 WORKDIR /app
 
@@ -13,7 +9,6 @@ COPY . .
 
 # Persisted outside the image so the database survives a redeploy — see
 # docker-compose.yml, which mounts a volume here.
-#VOLUME /app/db
 
 ENV PORT=5001
 ENV DB_PATH=/app/db/learning_hub.db
