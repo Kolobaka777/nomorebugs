@@ -1,0 +1,32 @@
+services:
+  server:
+    build: ./server
+    restart: unless-stopped
+    ports:
+      - '5001:5001'
+    environment:
+      # Required — generate with:
+      #   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — see server/.env.example}
+      # The origin the client is actually served from in this deployment.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+    volumes:
+      - server-db:/app/db
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Must be reachable from the end user's browser, not just from
+        # inside this docker network — a relative /api path only works if
+        # something in front of both services (e.g. a shared reverse
+        # proxy) routes /api to the server container.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5001/api}
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    depends_on:
+      - server
+
+volumes:
+  server-db:

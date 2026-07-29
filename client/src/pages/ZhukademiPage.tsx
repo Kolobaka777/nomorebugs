@@ -4,7 +4,15 @@ import Navigation from '../components/Navigation';
 import BugSprite from '../components/BugSprite';
 import SnailLoader from '../components/SnailLoader';
 import { testerApi } from '../api';
-import { Lecture, DIFFICULTY_LABELS } from '../types';
+import { Lecture } from '../types';
+import PixelIcon from '../components/PixelIcon';
+import { API_BASE_URL as API_BASE } from '../config';
+import { authFetch } from '../auth';
+import { clickableProps } from '../utils/a11y';
+
+function isNew(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+}
 
 interface ZhukademiPageProps {
   user: any;
@@ -28,12 +36,6 @@ function getSkillColor(area: string): string {
     if (area.includes(key)) return SKILL_COLORS[key];
   }
   return '#e8e8d0';
-}
-
-function getDifficulty(orderNum: number): string {
-  if (orderNum <= 3) return '🐛 Личинка';
-  if (orderNum <= 7) return '🐞 Жук';
-  return '👑 Матёрый';
 }
 
 // Topic tags from skill_area
@@ -98,13 +100,24 @@ function CourseCover({ idx, color }: { idx: number; color: string }) {
   );
 }
 
+type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
+
 export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const navigate = useNavigate();
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
+  const [customCourses, setCustomCourses] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
+    // Fetch custom courses for all roles
+    authFetch(`${API_BASE}/custom-courses`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setCustomCourses(data); })
+      .catch(() => {});
+
     if (user.role === 'tester') {
       testerApi.getLectures()
         .then(r => setLectures(r.data))
@@ -124,58 +137,127 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     );
   }
 
-  const filters = ['all', 'Личинка', 'Жук', 'Матёрый'];
-  const filtered = filter === 'all'
-    ? lectures
-    : lectures.filter(l => getDifficulty(l.order_num).includes(filter));
-
   // Team completion count (hardcoded simulation for now — leads can't see individual lecture data)
   const teamCompleted = [3, 4, 2, 1, 4, 3, 2, 1, 1, 0];
+
+  // Filters apply across both the seeded-lecture catalog and custom courses,
+  // matched by title search + a shared tag vocabulary (topic tag for
+  // lectures, the course's own `tag` field for custom courses). Status
+  // filtering only makes sense for lectures — custom courses don't have a
+  // per-user aggregate status from this endpoint.
+  const availableTags = Array.from(new Set([
+    ...lectures.map(l => getTopicTag(l.skill_area)),
+    ...customCourses.map((cc: any) => cc.tag || 'Custom'),
+  ]));
+
+  const matchesSearch = (title: string) => !search.trim() || title.toLowerCase().includes(search.trim().toLowerCase());
+
+  const filteredLectures = lectures.filter(l =>
+    matchesSearch(l.title) &&
+    (!tagFilter || getTopicTag(l.skill_area) === tagFilter) &&
+    (statusFilter === 'all' || l.status === statusFilter)
+  );
+  const filteredCustomCourses = customCourses.filter((cc: any) =>
+    matchesSearch(cc.title) &&
+    (!tagFilter || (cc.tag || 'Custom') === tagFilter)
+  );
+  const hasActiveFilters = search.trim() !== '' || tagFilter !== null || statusFilter !== 'all';
+  const noResultsAtAll = hasActiveFilters && filteredLectures.length === 0 && filteredCustomCourses.length === 0
+    && (lectures.length > 0 || customCourses.length > 0);
 
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
       <Navigation user={user} onLogout={onLogout} />
 
-      <div className="max-w-7xl mx-auto px-6 py-8 fade-in">
+      <div className="max-w-7xl mx-auto px-6 pt-16 pb-8 fade-in">
         {/* ===== HEADER ===== */}
-        <div className="mb-8">
-          <h1
-            className="font-pixel text-primary mb-2"
-            style={{ fontSize: '0.8rem', lineHeight: 1.8 }}
-          >
-            🎓 Жукадemia
-          </h1>
-          <p className="text-pixel/50 text-sm font-sans">
-            Каталог курсов · {lectures.length > 0 ? lectures.length : 10} модулей
-          </p>
+        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <h1
+              className="font-pixel text-primary mb-2"
+              style={{ fontSize: '0.8rem', lineHeight: 1.8 }}
+            >
+              <span className="flex items-center gap-2"><PixelIcon name="graduation" size={14} color="#1D9E75" /> Курсы</span>
+            </h1>
+            <p className="text-pixel/60 text-sm font-sans">
+              Каталог курсов · {(lectures.length > 0 ? lectures.length : 10) + customCourses.length} модулей
+            </p>
+          </div>
+
+          {user.role === 'lead' && (
+            <button
+              onClick={() => navigate('/lead/course-builder')}
+              className="btn-primary flex items-center gap-2 px-5 py-2.5 font-bold text-sm"
+            >
+              <PixelIcon name="sparkle" size={13} color="currentColor" /> Создать курс
+            </button>
+          )}
         </div>
 
-        {/* ===== FILTER TABS ===== */}
-        <div className="flex gap-2 mb-8 flex-wrap">
-          {filters.map(f => (
+        {/* ===== FILTERS ===== */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="relative" style={{ minWidth: '220px' }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Поиск по названию..."
+              aria-label="Поиск курсов по названию"
+              className="w-full rounded pl-9 pr-3 py-2 font-sans text-sm"
+              style={{ background: '#1a1a2e', color: '#e8e8d0', border: '1px solid rgba(232,232,208,0.1)' }}
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <PixelIcon name="search" size={12} color="rgba(232,232,208,0.35)" />
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className="px-4 py-1.5 text-xs font-sans font-medium rounded transition-all cursor-pointer"
+              onClick={() => setTagFilter(null)}
+              className="text-xs font-sans font-semibold px-2.5 py-1 rounded transition-colors"
               style={{
-                background: filter === f ? '#1D9E75' : '#1a1a2e',
-                color: filter === f ? '#0f0f1a' : 'rgba(232,232,208,0.6)',
-                boxShadow: filter === f
-                  ? '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75'
-                  : '2px 0 0 0 rgba(232,232,208,0.1), -2px 0 0 0 rgba(232,232,208,0.1), 0 2px 0 0 rgba(232,232,208,0.1), 0 -2px 0 0 rgba(232,232,208,0.1)',
+                background: tagFilter === null ? '#1D9E75' : 'rgba(232,232,208,0.06)',
+                color: tagFilter === null ? '#0f0f1a' : 'rgba(232,232,208,0.5)',
               }}
             >
-              {f === 'all' ? 'Все' : f}
+              Все темы
             </button>
-          ))}
+            {availableTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setTagFilter(t => t === tag ? null : tag)}
+                className="text-xs font-sans font-semibold px-2.5 py-1 rounded transition-colors"
+                style={{
+                  background: tagFilter === tag ? getSkillColor(tag) : 'rgba(232,232,208,0.06)',
+                  color: tagFilter === tag ? '#0f0f1a' : 'rgba(232,232,208,0.5)',
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
+          {user.role === 'tester' && lectures.length > 0 && (
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+              aria-label="Фильтр по статусу лекции"
+              className="rounded px-2.5 py-2 font-sans text-xs outline-none"
+              style={{ background: '#1a1a2e', color: '#e8e8d0', border: '1px solid rgba(232,232,208,0.1)' }}
+            >
+              <option value="all">Любой статус</option>
+              <option value="active">Доступные</option>
+              <option value="locked">Закрытые</option>
+              <option value="passed">Пройденные</option>
+            </select>
+          )}
         </div>
 
         {/* ===== COURSE GRID ===== */}
         {lectures.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filtered.map((lecture, idx) => {
+            {filteredLectures.map((lecture) => {
+              const idx = lectures.indexOf(lecture); // original position, so the placeholder team-completion array still lines up after filtering
               const color = getSkillColor(lecture.skill_area);
-              const difficulty = getDifficulty(lecture.order_num);
               const tag = getTopicTag(lecture.skill_area);
               const isPassed = lecture.status === 'passed';
               const isActive = lecture.status === 'active';
@@ -185,15 +267,21 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               return (
                 <div
                   key={lecture.id}
-                  onClick={() => isActive && navigate(`/lecture/${lecture.id}/quiz`)}
-                  className={`rounded overflow-hidden transition-all ${isActive ? 'cursor-pointer hover:-translate-y-1' : ''}`}
+                  onClick={() => (isActive || isPassed) && navigate(`/lecture/${lecture.id}/quiz`)}
+                  {...((isActive || isPassed) ? clickableProps(() => navigate(`/lecture/${lecture.id}/quiz`)) : {})}
+                  className={`overflow-hidden transition-all ${(isActive || isPassed) ? 'cursor-pointer hover:-translate-y-1' : ''}`}
                   style={{
                     background: '#1a1a2e',
-                    boxShadow: isPassed
-                      ? `2px 0 0 0 ${color}, -2px 0 0 0 ${color}, 0 2px 0 0 ${color}, 0 -2px 0 0 ${color}`
+                    borderTop:    '2px solid rgba(255,255,255,0.12)',
+                    borderLeft:   '2px solid rgba(255,255,255,0.12)',
+                    borderBottom: '2px solid rgba(0,0,0,0.5)',
+                    borderRight:  '2px solid rgba(0,0,0,0.5)',
+                    outline: isPassed
+                      ? `2px solid ${color}55`
                       : isActive
-                      ? `2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27`
-                      : `2px 0 0 0 rgba(232,232,208,0.1), -2px 0 0 0 rgba(232,232,208,0.1), 0 2px 0 0 rgba(232,232,208,0.1), 0 -2px 0 0 rgba(232,232,208,0.1)`,
+                      ? '2px solid rgba(239,159,39,0.55)'
+                      : '2px solid rgba(232,232,208,0.06)',
+                    outlineOffset: '-4px',
                     opacity: isLocked ? 0.55 : 1,
                   }}
                 >
@@ -205,7 +293,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                         className="absolute inset-0 flex items-center justify-center"
                         style={{ background: 'rgba(15,15,26,0.6)' }}
                       >
-                        <span style={{ fontSize: '1.5rem' }}>🔒</span>
+                        <PixelIcon name="lock" size={24} color="rgba(232,232,208,0.4)" />
                       </div>
                     )}
                     {isPassed && (
@@ -228,7 +316,6 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       >
                         {tag}
                       </span>
-                      <span className="text-pixel/40 text-xs font-sans">{difficulty}</span>
                     </div>
 
                     {/* Title */}
@@ -245,7 +332,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                             style={{ width: `${lecture.score || 0}%`, height: '6px' }}
                           />
                         </div>
-                        <p className="text-pixel/40 text-xs font-sans mt-1">{lecture.score}%</p>
+                        <p className="text-pixel/60 text-xs font-sans mt-1">{lecture.score}%</p>
                       </div>
                     )}
 
@@ -254,7 +341,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       className="flex items-center justify-between pt-3"
                       style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}
                     >
-                      <span className="text-pixel/30 text-xs font-sans">
+                      <span className="text-pixel/55 text-xs font-sans">
                         👥 {teamCount}/{4} прошли
                       </span>
                       <div>
@@ -272,25 +359,30 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
           /* Lead / no data view */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {[
-              { title: 'HTML Basics & Structure', area: 'HTML', order: 1 },
-              { title: 'CSS Fundamentals & Layouts', area: 'CSS', order: 2 },
-              { title: 'Introduction to DevTools', area: 'DevTools', order: 3 },
-              { title: 'Browser Console & Errors', area: 'Browser', order: 4 },
-              { title: 'Responsive Design Testing', area: 'Responsive', order: 5 },
-              { title: 'CSS Debugging & Inspection', area: 'CSS', order: 6 },
-              { title: 'Network Tab & Performance', area: 'Network', order: 7 },
-              { title: 'JavaScript Basics for QA', area: 'JavaScript', order: 8 },
-              { title: 'Bug Reporting & Documentation', area: 'Bug', order: 9 },
-              { title: 'Advanced Testing Scenarios', area: 'Advanced', order: 10 },
+              { title: 'Основы HTML', area: 'HTML', order: 1 },
+              { title: 'Основы CSS', area: 'CSS', order: 2 },
+              { title: 'Основы DevTools', area: 'DevTools', order: 3 },
+              { title: 'Консоль и ошибки', area: 'Browser', order: 4 },
+              { title: 'Адаптивная верстка', area: 'Responsive', order: 5 },
+              { title: 'Отладка CSS', area: 'CSS', order: 6 },
+              { title: 'Вкладка Network', area: 'Network', order: 7 },
+              { title: 'JavaScript для QA', area: 'JavaScript', order: 8 },
+              { title: 'Описание дефектов', area: 'Bug', order: 9 },
+              { title: 'Продвинутое тестирование', area: 'Advanced', order: 10 },
             ].map((l, idx) => {
               const color = getSkillColor(l.area);
               return (
                 <div
                   key={idx}
-                  className="rounded overflow-hidden"
+                  className="overflow-hidden"
                   style={{
                     background: '#1a1a2e',
-                    boxShadow: `2px 0 0 0 ${color}40, -2px 0 0 0 ${color}40, 0 2px 0 0 ${color}40, 0 -2px 0 0 ${color}40`,
+                    borderTop:    '2px solid rgba(255,255,255,0.12)',
+                    borderLeft:   '2px solid rgba(255,255,255,0.12)',
+                    borderBottom: '2px solid rgba(0,0,0,0.5)',
+                    borderRight:  '2px solid rgba(0,0,0,0.5)',
+                    outline: `2px solid ${color}30`,
+                    outlineOffset: '-4px',
                   }}
                 >
                   <CourseCover idx={idx} color={color} />
@@ -302,11 +394,151 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       {getTopicTag(l.area)}
                     </span>
                     <h3 className="text-pixel font-sans font-semibold text-sm leading-snug mb-2">{l.title}</h3>
-                    <p className="text-pixel/40 text-xs font-sans">{getDifficulty(l.order)} · 5 вопросов</p>
+                    <p className="text-pixel/60 text-xs font-sans">5 вопросов</p>
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ===== CUSTOM COURSES ===== */}
+        {customCourses.length > 0 && filteredCustomCourses.length > 0 && (
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2
+                  className="font-pixel text-pixel mb-1"
+                  style={{ fontSize: '0.65rem', lineHeight: 1.8 }}
+                >
+                  <span className="flex items-center gap-2"><PixelIcon name="pin" size={12} color="currentColor" /> Дополнительные курсы</span>
+                </h2>
+                <p className="text-pixel/60 text-xs font-sans">Созданы лидом команды</p>
+              </div>
+              {user.role === 'lead' && (
+                <button
+                  onClick={() => navigate('/lead/course-builder')}
+                  className="btn-secondary text-xs px-3 py-1.5"
+                >
+                  + Создать ещё
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredCustomCourses.map((cc: any) => {
+                const color = cc.color || '#1D9E75';
+                const courseIsNew = isNew(cc.created_at);
+                const isDraft = !cc.is_published;
+                const isLead = user.role === 'lead';
+
+                return (
+                  <div
+                    key={cc.id}
+                    onClick={() => navigate(`/custom-course/${cc.id}`)}
+                    {...clickableProps(() => navigate(`/custom-course/${cc.id}`))}
+                    className="overflow-hidden cursor-pointer transition-all hover:-translate-y-1"
+                    style={{
+                      background: '#1a1a2e',
+                      borderTop:    '2px solid rgba(255,255,255,0.12)',
+                      borderLeft:   '2px solid rgba(255,255,255,0.12)',
+                      borderBottom: '2px solid rgba(0,0,0,0.5)',
+                      borderRight:  '2px solid rgba(0,0,0,0.5)',
+                      outline: `2px solid ${color}50`,
+                      outlineOffset: '-4px',
+                      opacity: isDraft && !isLead ? 0 : 1,
+                      pointerEvents: isDraft && !isLead ? 'none' : 'auto',
+                    }}
+                  >
+                    {/* Cover */}
+                    <div
+                      className="h-16 flex items-center justify-center text-2xl relative"
+                      style={{ background: `${color}12` }}
+                    >
+                      <PixelIcon name="books" size={28} color={color} />
+                      {isDraft && (
+                        <div
+                          className="absolute top-2 left-2 text-xs font-sans px-1.5 py-0.5 rounded"
+                          style={{ background: 'rgba(232,232,208,0.1)', color: 'rgba(232,232,208,0.6)' }}
+                        >
+                          черновик
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span
+                          className="text-xs font-sans font-semibold px-2 py-0.5 rounded"
+                          style={{ background: `${color}20`, color }}
+                        >
+                          {cc.tag || 'Custom'}
+                        </span>
+                        {courseIsNew && (
+                          <span
+                            className="text-xs font-sans font-bold px-2 py-0.5 rounded"
+                            style={{ background: '#EF9F27', color: '#0f0f1a' }}
+                          >
+                            NEW
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-pixel font-sans font-semibold text-sm leading-snug mb-3">
+                        {cc.title}
+                      </h3>
+                      <div
+                        className="flex items-center justify-between pt-3"
+                        style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}
+                      >
+                        <span className="text-pixel/55 text-xs font-sans truncate">
+                          <span className="flex items-center gap-1"><PixelIcon name="pencil" size={10} color="currentColor" />{cc.author_name}</span>
+                        </span>
+                        {isLead && (
+                          <button
+                            onClick={e => { e.stopPropagation(); navigate(`/lead/course-builder/${cc.id}`); }}
+                            aria-label="Редактировать курс"
+                            className="btn-secondary text-xs px-2 py-0.5 flex-shrink-0 ml-2"
+                          >
+                            <PixelIcon name="pencil" size={12} color="currentColor" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* No results for the current filters */}
+        {noResultsAtAll && (
+          <div className="mt-8 rounded-lg p-8 text-center" style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.1)' }}>
+            <PixelIcon name="search" size={22} color="rgba(232,232,208,0.3)" className="mb-3" />
+            <p className="text-pixel/60 font-sans text-sm mb-3">Ничего не найдено по текущим фильтрам</p>
+            <button
+              onClick={() => { setSearch(''); setTagFilter(null); setStatusFilter('all'); }}
+              className="btn-secondary text-xs px-4 py-2"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        )}
+
+        {/* Lead empty state */}
+        {user.role === 'lead' && customCourses.length === 0 && (
+          <div
+            className="mt-12 rounded-lg p-8 text-center"
+            style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.1)' }}
+          >
+            <p className="text-pixel/60 font-sans text-sm mb-4">Вы ещё не создали ни одного курса</p>
+            <button
+              onClick={() => navigate('/lead/course-builder')}
+              className="btn-primary px-6 py-2.5 font-bold text-sm"
+            >
+              <span className="flex items-center gap-2"><PixelIcon name="sparkle" size={13} color="currentColor" />Создать первый курс</span>
+            </button>
           </div>
         )}
       </div>

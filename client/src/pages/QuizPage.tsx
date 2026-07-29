@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { testerApi } from '../api';
 import { Question, QuestionExplanation } from '../types';
 import SnailLoader from '../components/SnailLoader';
+import PixelIcon from '../components/PixelIcon';
 
 interface QuizPageProps {
   user: any;
@@ -12,26 +13,48 @@ interface QuizPageProps {
 export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const { id: lectureId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const progressKey = `quiz_progress_${user.id}_${lectureId}`;
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [showExplanation, setShowExplanation] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<QuestionExplanation | null>(null);
+  const [explanationFailed, setExplanationFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     loadQuestions();
   }, [lectureId]);
 
   const loadQuestions = async () => {
+    setLoadError(false);
     try {
       const res = await testerApi.getQuestions(parseInt(lectureId!));
       setQuestions(res.data);
+
+      // Resume an interrupted attempt (e.g. connection drop, accidental
+      // navigation, browser crash) instead of silently discarding it.
+      try {
+        const saved = localStorage.getItem(progressKey);
+        if (saved) {
+          const savedAnswers: Record<number, string> = JSON.parse(saved);
+          setAnswers(savedAnswers);
+          const firstUnanswered = res.data.findIndex((q: Question) => !(q.id in savedAnswers));
+          setCurrentQuestionIdx(firstUnanswered === -1 ? res.data.length - 1 : firstUnanswered);
+        }
+      } catch {
+        // Corrupted saved progress shouldn't block starting a fresh attempt.
+        localStorage.removeItem(progressKey);
+      }
     } catch (err) {
       console.error(err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -39,15 +62,28 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
   const currentQuestion = questions[currentQuestionIdx];
 
-  const handleSelectAnswer = async (answer: string) => {
+  const handleSelectAnswer = async (answer: string, retrying = false) => {
     setSelectedAnswer(answer);
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: answer }));
+    setExplanationFailed(false);
+    const nextAnswers = { ...answers, [currentQuestion.id]: answer };
+    setAnswers(nextAnswers);
+    // Save immediately so a refresh/crash right after answering still resumes correctly.
+    localStorage.setItem(progressKey, JSON.stringify(nextAnswers));
+
     try {
       const res = await testerApi.getExplanation(parseInt(lectureId!), currentQuestion.id);
       setExplanation(res.data);
       setShowExplanation(true);
     } catch (err) {
       console.error(err);
+      if (!retrying) {
+        // One silent retry handles a transient blip without bothering the user.
+        return handleSelectAnswer(answer, true);
+      }
+      // The explanation is supplementary — don't let it block progress through the quiz.
+      setExplanation(null);
+      setExplanationFailed(true);
+      setShowExplanation(true);
     }
   };
 
@@ -57,6 +93,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
       setShowExplanation(false);
       setSelectedAnswer(null);
       setExplanation(null);
+      setExplanationFailed(false);
     } else {
       handleSubmitTest();
     }
@@ -64,11 +101,18 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
   const handleSubmitTest = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await testerApi.submitTest(parseInt(lectureId!), answers);
       setResult(res.data);
-    } catch (err) {
+      localStorage.removeItem(progressKey);
+    } catch (err: any) {
       console.error(err);
+      setSubmitError(
+        err.response
+          ? 'Не удалось отправить тест. Попробуй ещё раз.'
+          : 'Нет соединения с сервером. Ответы сохранены — попробуй ещё раз, когда связь восстановится.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +158,9 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                 : '4px 0 0 0 #e05252, -4px 0 0 0 #e05252, 0 4px 0 0 #e05252, 0 -4px 0 0 #e05252',
             }}
           >
-            <div className="text-5xl mb-4">{passed ? '🏆' : '💀'}</div>
+            <div className="mb-4 flex justify-center">
+              <PixelIcon name={passed ? 'trophy' : 'warning'} size={52} color={passed ? '#EF9F27' : '#e05252'} />
+            </div>
             <p
               className="font-pixel mb-2"
               style={{
@@ -135,7 +181,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
             >
               {score}%
             </p>
-            <p className="text-pixel/40 text-sm font-sans mb-8">
+            <p className="text-pixel/60 text-sm font-sans mb-8">
               {passed
                 ? 'Следующая лекция разблокирована!'
                 : 'Нужно минимум 60%. Попробуй ещё раз!'}
@@ -151,6 +197,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               {!passed && (
                 <button
                   onClick={() => {
+                    localStorage.removeItem(progressKey);
                     setResult(null);
                     setCurrentQuestionIdx(0);
                     setAnswers({});
@@ -160,7 +207,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                   }}
                   className="btn-secondary"
                 >
-                  🔄 Реанимация
+                  <span className="flex items-center gap-1"><PixelIcon name="wrench" size={12} color="currentColor" /> Реанимация</span>
                 </button>
               )}
             </div>
@@ -172,8 +219,15 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0f1a' }}>
-        <p className="text-pixel/40 font-sans">Вопросы не найдены</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#0f0f1a' }}>
+        <p className="text-pixel/60 font-sans">
+          {loadError ? 'Не удалось загрузить вопросы. Проверь соединение.' : 'Вопросы не найдены'}
+        </p>
+        {loadError && (
+          <button onClick={() => { setLoading(true); loadQuestions(); }} className="btn-primary text-xs px-4 py-2">
+            Попробовать снова
+          </button>
+        )}
       </div>
     );
   }
@@ -198,7 +252,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
       >
         <span className="font-pixel text-primary text-xs">baga-net</span>
         <div className="flex items-center gap-3">
-          <span className="text-pixel/40 text-xs font-sans">
+          <span className="text-pixel/60 text-xs font-sans">
             {currentQuestionIdx + 1}/{questions.length}
           </span>
           <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
@@ -218,7 +272,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
         {/* Question number */}
         <div className="flex items-center justify-between mb-4">
           <p
-            className="font-pixel text-pixel/30"
+            className="font-pixel text-pixel/55"
             style={{ fontSize: '0.55rem', lineHeight: 1.8 }}
           >
             ВОПРОС {currentQuestionIdx + 1}
@@ -292,6 +346,18 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
             })}
           </div>
 
+          {/* Explanation failed to load — don't block progress, just say so */}
+          {showExplanation && explanationFailed && (
+            <div
+              className="mt-6 p-4 rounded fade-in"
+              style={{ background: 'rgba(232,232,208,0.04)', boxShadow: '1px 0 0 0 rgba(232,232,208,0.15), -1px 0 0 0 rgba(232,232,208,0.15), 0 1px 0 0 rgba(232,232,208,0.15), 0 -1px 0 0 rgba(232,232,208,0.15)' }}
+            >
+              <p className="text-pixel/60 text-sm font-sans">
+                Не удалось загрузить объяснение — но можно двигаться дальше, ответ уже сохранён.
+              </p>
+            </div>
+          )}
+
           {/* Explanation */}
           {showExplanation && explanation && (
             <div
@@ -312,12 +378,22 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                 {isCorrect ? '✓ ВЕРНО!' : '✗ НЕВЕРНО'}
               </p>
               <p className="text-pixel/70 text-sm font-sans mb-2">{explanation.explanation}</p>
-              <p className="text-pixel/50 text-xs font-sans">
+              <p className="text-pixel/60 text-xs font-sans">
                 Правильный ответ:{' '}
                 <span className="text-primary font-semibold">
                   {explanation.correctAnswer.toUpperCase()}. {explanation.correctOption}
                 </span>
               </p>
+            </div>
+          )}
+
+          {/* Submit error — answers stay saved, retry doesn't lose anything */}
+          {submitError && (
+            <div
+              className="mt-4 p-4 rounded fade-in"
+              style={{ background: 'rgba(239,159,39,0.08)', boxShadow: '1px 0 0 0 #EF9F27, -1px 0 0 0 #EF9F27, 0 1px 0 0 #EF9F27, 0 -1px 0 0 #EF9F27' }}
+            >
+              <p className="text-sm font-sans" style={{ color: '#EF9F27' }}>{submitError}</p>
             </div>
           )}
 
@@ -329,7 +405,9 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               className="btn-primary w-full mt-6 disabled:opacity-50"
             >
               {submitting
-                ? <span className="pixel-pulse">🐌 ползём...</span>
+                ? <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> ползём...</span>
+                : submitError
+                ? 'Попробовать снова'
                 : currentQuestionIdx === questions.length - 1
                 ? 'Завершить тест'
                 : 'Следующий →'

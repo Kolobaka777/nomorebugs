@@ -1,4 +1,5 @@
 import { getLevel, getLevelXpPercent } from '../types';
+import PixelIcon, { IconName } from './PixelIcon';
 
 interface LevelBadgeProps {
   lecturesCompleted: number;
@@ -11,7 +12,7 @@ export default function LevelBadge({ lecturesCompleted, isLead = false, showXp =
   const level = getLevel(lecturesCompleted, isLead);
   const xpPercent = getLevelXpPercent(lecturesCompleted);
 
-  const emojiSize = size === 'sm' ? 'text-lg' : size === 'md' ? 'text-2xl' : 'text-4xl';
+  const iconSize = size === 'sm' ? 16 : size === 'md' ? 24 : 36;
   const nameSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[10px]' : 'text-xs';
 
   return (
@@ -23,13 +24,13 @@ export default function LevelBadge({ lecturesCompleted, isLead = false, showXp =
           boxShadow: '2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27',
         }}
       >
-        <span className={emojiSize}>{level.emoji}</span>
+        <PixelIcon name={level.icon as IconName} size={iconSize} color="#EF9F27" />
         <div>
           <p className={`font-pixel ${level.color} ${nameSize}`} style={{ lineHeight: 1.6 }}>
             {level.name}
           </p>
           {size !== 'sm' && (
-            <p className="text-pixel/40 text-xs font-sans">{lecturesCompleted}/10 курсов</p>
+            <p className="text-pixel/60 text-xs font-sans">{lecturesCompleted}/10 курсов</p>
           )}
         </div>
       </div>
@@ -42,7 +43,7 @@ export default function LevelBadge({ lecturesCompleted, isLead = false, showXp =
               style={{ width: `${xpPercent}%`, height: '8px' }}
             />
           </div>
-          <p className="text-pixel/40 text-xs font-sans mt-1 text-right">
+          <p className="text-pixel/60 text-xs font-sans mt-1 text-right">
             XP: {Math.round(xpPercent)}%
           </p>
         </div>

@@ -42,6 +42,22 @@
   ::-webkit-scrollbar-corner {
     background: #0f0f1a;
   }
+
+  /* Visible keyboard-focus ring, everywhere — several inputs/buttons across
+     the app set outline-none (Win98-bevel look) without an alternative focus
+     indicator, and several cards set an inline `outline` for decorative
+     status borders that would silently swallow a plain CSS outline (inline
+     styles always win on the same property). box-shadow is a separate
+     property that's free almost everywhere in this codebase, so it layers
+     on top of both cases instead of losing the specificity/inline fight. */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    box-shadow: 0 0 0 2px #0f0f1a, 0 0 0 4px #1D9E75;
+  }
 }
 
 @layer components {
@@ -59,55 +75,130 @@
     box-shadow: 2px 0 0 0 #e05252, -2px 0 0 0 #e05252, 0 2px 0 0 #e05252, 0 -2px 0 0 #e05252;
   }
 
-  /* ===== CARDS (RPG inventory slot style) ===== */
+  /* ===== CARDS — Win98 raised panel ===== */
   .card {
-    @apply bg-game-card p-4 rounded;
-    box-shadow: 2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75;
+    @apply bg-game-card p-4;
+    border-radius: 0;
+    border-top:    2px solid rgba(255,255,255,0.12);
+    border-left:   2px solid rgba(255,255,255,0.12);
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.5);
+    outline: 1px solid rgba(29,158,117,0.3);
+    outline-offset: -3px;
   }
   .card-amber {
-    @apply bg-game-card p-4 rounded;
-    box-shadow: 2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27;
+    @apply bg-game-card p-4;
+    border-radius: 0;
+    border-top:    2px solid rgba(255,255,255,0.12);
+    border-left:   2px solid rgba(255,255,255,0.12);
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.5);
+    outline: 1px solid rgba(239,159,39,0.3);
+    outline-offset: -3px;
   }
   .card-purple {
-    @apply bg-game-card p-4 rounded;
-    box-shadow: 2px 0 0 0 #7F77DD, -2px 0 0 0 #7F77DD, 0 2px 0 0 #7F77DD, 0 -2px 0 0 #7F77DD;
+    @apply bg-game-card p-4;
+    border-radius: 0;
+    border-top:    2px solid rgba(255,255,255,0.12);
+    border-left:   2px solid rgba(255,255,255,0.12);
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.5);
+    outline: 1px solid rgba(127,119,221,0.3);
+    outline-offset: -3px;
   }
 
-  /* ===== BUTTONS ===== */
+  /* ===== BUTTONS — Win98 raised bevel ===== */
   .btn-primary {
-    @apply px-4 py-2 bg-primary text-game font-sans font-semibold rounded transition-all duration-150 cursor-pointer;
-    box-shadow: 2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75;
+    @apply px-4 py-2 bg-primary text-game font-sans font-semibold cursor-pointer;
+    border-radius: 0;
+    border-top:    2px solid #3ddba0;
+    border-left:   2px solid #3ddba0;
+    border-bottom: 2px solid #0b4a32;
+    border-right:  2px solid #0b4a32;
+    box-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+    transition: filter 0.1s;
   }
   .btn-primary:hover:not(:disabled) {
-    transform: translate(-2px, -2px);
-    box-shadow: 4px 2px 0 0 #0f7a5a, -2px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75;
+    filter: brightness(1.08);
+    transform: none;
   }
   .btn-primary:active:not(:disabled) {
-    transform: translate(0, 0);
+    border-top:    2px solid #0b4a32;
+    border-left:   2px solid #0b4a32;
+    border-bottom: 2px solid #3ddba0;
+    border-right:  2px solid #3ddba0;
+    transform: translate(1px, 1px);
+    box-shadow: none;
   }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-amber {
-    @apply px-4 py-2 bg-amber text-game font-sans font-semibold rounded transition-all duration-150 cursor-pointer;
-    box-shadow: 2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27;
+    @apply px-4 py-2 bg-amber text-game font-sans font-semibold cursor-pointer;
+    border-radius: 0;
+    border-top:    2px solid #f5c065;
+    border-left:   2px solid #f5c065;
+    border-bottom: 2px solid #7a4d00;
+    border-right:  2px solid #7a4d00;
+    box-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+    transition: filter 0.1s;
   }
   .btn-amber:hover:not(:disabled) {
-    transform: translate(-2px, -2px);
-    box-shadow: 4px 2px 0 0 #c47e15, -2px 0 0 0 #EF9F27, 0 4px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27;
+    filter: brightness(1.08);
+    transform: none;
+  }
+  .btn-amber:active:not(:disabled) {
+    border-top:    2px solid #7a4d00;
+    border-left:   2px solid #7a4d00;
+    border-bottom: 2px solid #f5c065;
+    border-right:  2px solid #f5c065;
+    transform: translate(1px, 1px);
+    box-shadow: none;
   }
 
   .btn-secondary {
-    @apply px-4 py-2 bg-game-card text-pixel font-sans rounded transition-all duration-150 cursor-pointer border border-pixel/20;
+    @apply px-4 py-2 bg-game-card text-pixel font-sans cursor-pointer;
+    border-radius: 0;
+    border-top:    2px solid rgba(255,255,255,0.14);
+    border-left:   2px solid rgba(255,255,255,0.14);
+    border-bottom: 2px solid rgba(0,0,0,0.55);
+    border-right:  2px solid rgba(0,0,0,0.55);
+    box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+    transition: filter 0.1s;
   }
   .btn-secondary:hover:not(:disabled) {
-    @apply border-pixel/40 bg-pixel/5;
+    filter: brightness(1.1);
+    transform: none;
+  }
+  .btn-secondary:active:not(:disabled) {
+    border-top:    2px solid rgba(0,0,0,0.55);
+    border-left:   2px solid rgba(0,0,0,0.55);
+    border-bottom: 2px solid rgba(255,255,255,0.14);
+    border-right:  2px solid rgba(255,255,255,0.14);
+    transform: translate(1px, 1px);
+    box-shadow: none;
   }
 
   .btn-purple {
-    @apply px-4 py-2 bg-purple text-pixel font-sans font-semibold rounded transition-all duration-150 cursor-pointer;
-    box-shadow: 2px 0 0 0 #7F77DD, -2px 0 0 0 #7F77DD, 0 2px 0 0 #7F77DD, 0 -2px 0 0 #7F77DD;
+    @apply px-4 py-2 bg-purple text-pixel font-sans font-semibold cursor-pointer;
+    border-radius: 0;
+    border-top:    2px solid #b0aaf0;
+    border-left:   2px solid #b0aaf0;
+    border-bottom: 2px solid #352f7a;
+    border-right:  2px solid #352f7a;
+    box-shadow: 1px 1px 0 rgba(0,0,0,0.45);
+    transition: filter 0.1s;
   }
   .btn-purple:hover:not(:disabled) {
-    transform: translate(-2px, -2px);
+    filter: brightness(1.08);
+    transform: none;
+  }
+  .btn-purple:active:not(:disabled) {
+    border-top:    2px solid #352f7a;
+    border-left:   2px solid #352f7a;
+    border-bottom: 2px solid #b0aaf0;
+    border-right:  2px solid #b0aaf0;
+    transform: translate(1px, 1px);
+    box-shadow: none;
   }
 
   /* ===== XP / HP BARS ===== */
@@ -161,24 +252,36 @@
     line-height: 1.8;
   }
 
-  /* ===== STATUS BADGES ===== */
+  /* ===== STATUS BADGES — Win98 mini raised ===== */
   .badge-passed {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
+    @apply px-2 py-1 text-xs font-sans font-semibold;
+    border-radius: 0;
     background: rgba(29, 158, 117, 0.15);
     color: #1D9E75;
-    box-shadow: 1px 0 0 0 #1D9E75, -1px 0 0 0 #1D9E75, 0 1px 0 0 #1D9E75, 0 -1px 0 0 #1D9E75;
+    border-top:    1px solid #3ddba0;
+    border-left:   1px solid #3ddba0;
+    border-bottom: 1px solid #0b4a32;
+    border-right:  1px solid #0b4a32;
   }
   .badge-active {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
+    @apply px-2 py-1 text-xs font-sans font-semibold;
+    border-radius: 0;
     background: rgba(239, 159, 39, 0.15);
     color: #EF9F27;
-    box-shadow: 1px 0 0 0 #EF9F27, -1px 0 0 0 #EF9F27, 0 1px 0 0 #EF9F27, 0 -1px 0 0 #EF9F27;
+    border-top:    1px solid #f5c065;
+    border-left:   1px solid #f5c065;
+    border-bottom: 1px solid #7a4d00;
+    border-right:  1px solid #7a4d00;
   }
   .badge-locked {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
+    @apply px-2 py-1 text-xs font-sans font-semibold;
+    border-radius: 0;
     background: rgba(232, 232, 208, 0.05);
     color: rgba(232, 232, 208, 0.3);
-    box-shadow: 1px 0 0 0 rgba(232,232,208,0.2), -1px 0 0 0 rgba(232,232,208,0.2), 0 1px 0 0 rgba(232,232,208,0.2), 0 -1px 0 0 rgba(232,232,208,0.2);
+    border-top:    1px solid rgba(255,255,255,0.12);
+    border-left:   1px solid rgba(255,255,255,0.12);
+    border-bottom: 1px solid rgba(0,0,0,0.5);
+    border-right:  1px solid rgba(0,0,0,0.5);
   }
 
   /* ===== NAV LINK ===== */
@@ -196,7 +299,7 @@
 
   /* ===== TABS ===== */
   .tab-btn {
-    @apply px-4 py-2 text-sm font-sans font-medium transition-all duration-150 cursor-pointer border-b-2 border-transparent text-pixel/50;
+    @apply px-4 py-2 text-sm font-sans font-medium transition-all duration-150 cursor-pointer border-b-2 border-transparent text-pixel/60;
   }
   .tab-btn:hover {
     @apply text-pixel/80;
@@ -205,14 +308,90 @@
     @apply text-primary border-primary;
   }
 
-  /* ===== INPUTS ===== */
-  .pixel-input {
-    @apply w-full px-4 py-2 bg-game font-sans text-pixel rounded border border-pixel/20 focus:outline-none transition-all;
+  /* ===== WIN98 TABS (для страниц с inline-стилями) ===== */
+  .win98-tab {
+    padding: 6px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #1a1a2e;
+    border-top:    2px solid rgba(255,255,255,0.15);
+    border-left:   2px solid rgba(255,255,255,0.15);
+    border-bottom: 2px solid rgba(0,0,0,0.55);
+    border-right:  2px solid rgba(0,0,0,0.55);
+    color: rgba(232,232,208,0.45);
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: 0;
+    box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+    transition: color 0.1s, background 0.1s;
+  }
+  .win98-tab:hover:not(.win98-tab-active) {
+    color: rgba(232,232,208,0.8);
+    background: #20203c;
+  }
+  .win98-tab-active {
+    background: #1D9E75;
+    color: #0f0f1a;
+    font-weight: 600;
+    border-top:    2px solid #3ddba0;
+    border-left:   2px solid #3ddba0;
+    border-bottom: 2px solid #0b4a32;
+    border-right:  2px solid #0b4a32;
     box-shadow: none;
   }
+
+  /* ===== WIN98 PANELS (для inline-стилизованных блоков) ===== */
+  .win98-panel {
+    background: #1a1a2e;
+    border-top:    2px solid rgba(255,255,255,0.12);
+    border-left:   2px solid rgba(255,255,255,0.12);
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.5);
+    border-radius: 0;
+  }
+  .win98-panel-red {
+    background: #1a1a2e;
+    border-top:    2px solid rgba(255,255,255,0.08);
+    border-left:   3px solid #e05252;
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.4);
+    border-radius: 0;
+  }
+  .win98-panel-green {
+    background: #1a1a2e;
+    border-top:    2px solid rgba(255,255,255,0.08);
+    border-left:   3px solid #1D9E75;
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.4);
+    border-radius: 0;
+  }
+  .win98-panel-amber {
+    background: #1a1a2e;
+    border-top:    2px solid rgba(255,255,255,0.1);
+    border-left:   2px solid rgba(255,255,255,0.1);
+    border-bottom: 2px solid rgba(0,0,0,0.5);
+    border-right:  2px solid rgba(0,0,0,0.5);
+    outline: 1px solid rgba(239,159,39,0.22);
+    outline-offset: -3px;
+    border-radius: 0;
+  }
+
+  /* ===== INPUTS — Win98 sunken ===== */
+  .pixel-input {
+    @apply w-full px-3 py-2 bg-game font-sans text-pixel focus:outline-none;
+    border-radius: 0;
+    border-top:    2px solid rgba(0,0,0,0.55);
+    border-left:   2px solid rgba(0,0,0,0.55);
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+    border-right:  2px solid rgba(255,255,255,0.1);
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+    transition: none;
+  }
   .pixel-input:focus {
-    box-shadow: 0 0 0 2px #1D9E75;
-    border-color: transparent;
+    outline: 1px dotted #1D9E75;
+    outline-offset: -3px;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
   }
 }
 
@@ -426,48 +605,50 @@
   100% { transform: translateY(-24px) scale(0.96); opacity: 0; }
 }
 
-/* ===== CARD HOVER GLOW (RPG inventory) ===== */
+/* ===== CARD HOVER (Win98 raised — accent brightens) ===== */
 .card:hover {
-  box-shadow:
-    2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75,
-    0 0 12px rgba(29,158,117,0.18);
-  transition: box-shadow 0.15s ease;
+  outline: 1px solid rgba(29,158,117,0.55);
+  outline-offset: -3px;
 }
 .card-amber:hover {
-  box-shadow:
-    2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27,
-    0 0 12px rgba(239,159,39,0.18);
-  transition: box-shadow 0.15s ease;
+  outline: 1px solid rgba(239,159,39,0.55);
+  outline-offset: -3px;
 }
 
 /* ═══════════════════════════════════════════════════════════════
    HoMM / RPG GAME UI SYSTEM
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── RPG Panel (stone border + gold glow, HoMM 3 style) ── */
+/* ── RPG Panel — Win98 bevel frame ── */
 .rpg-panel {
   position: relative;
   background: #1a1a2e;
-  border: 3px solid #2a1f4f;
-  box-shadow:
-    0 0 0 1px rgba(239,159,39,0.18),
-    inset 0 0 0 1px rgba(232,232,208,0.03);
+  border-top:    2px solid rgba(255,255,255,0.1);
+  border-left:   2px solid rgba(255,255,255,0.1);
+  border-bottom: 2px solid rgba(0,0,0,0.5);
+  border-right:  2px solid rgba(0,0,0,0.5);
+  outline: 1px solid rgba(239,159,39,0.12);
+  outline-offset: -3px;
 }
 .rpg-panel-gold {
   position: relative;
   background: #1a1a2e;
-  border: 3px solid #7a5a10;
-  box-shadow:
-    0 0 0 1px rgba(239,159,39,0.45),
-    inset 0 0 0 1px rgba(239,159,39,0.07);
+  border-top:    2px solid #c8962a;
+  border-left:   2px solid #c8962a;
+  border-bottom: 2px solid #5a3e08;
+  border-right:  2px solid #5a3e08;
+  outline: 1px solid rgba(239,159,39,0.22);
+  outline-offset: -3px;
 }
 .rpg-panel-dark {
   position: relative;
   background: #0f0f1a;
-  border: 3px solid #1a1430;
-  box-shadow:
-    0 0 0 1px rgba(127,119,221,0.15),
-    inset 0 0 0 1px rgba(232,232,208,0.02);
+  border-top:    2px solid rgba(255,255,255,0.07);
+  border-left:   2px solid rgba(255,255,255,0.07);
+  border-bottom: 2px solid rgba(0,0,0,0.6);
+  border-right:  2px solid rgba(0,0,0,0.6);
+  outline: 1px solid rgba(127,119,221,0.1);
+  outline-offset: -3px;
 }
 
 /* ── Inventory Slot ── */
@@ -498,7 +679,7 @@
   animation: epic-badge-pulse 2.4s ease-in-out infinite;
 }
 
-/* ── RPG Tab buttons (beveled 3D, HoMM style) ── */
+/* ── RPG Tab buttons — Win98 bevel ── */
 .rpg-tab {
   padding: 7px 14px;
   font-family: 'Press Start 2P', monospace;
@@ -507,20 +688,23 @@
   background: #12121f;
   border-width: 2px;
   border-style: solid;
-  border-color: #2d2060 #0a0a15 #0a0a15 #2d2060;
+  /* top right bottom left */
+  border-color: rgba(255,255,255,0.14) rgba(0,0,0,0.55) rgba(0,0,0,0.55) rgba(255,255,255,0.14);
   color: rgba(232,232,208,0.4);
   cursor: pointer;
   transition: color 0.12s;
   white-space: nowrap;
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
 }
 .rpg-tab:hover:not(.rpg-tab-active) {
   color: rgba(232,232,208,0.7);
   background: #161630;
 }
 .rpg-tab-active {
-  border-color: #0a0a15 #2d2060 #2d2060 #0a0a15;
+  border-color: rgba(0,0,0,0.55) rgba(255,255,255,0.14) rgba(255,255,255,0.14) rgba(0,0,0,0.55);
   background: #1a1a2e;
   color: #EF9F27;
+  box-shadow: none;
 }
 
 /* ── Coin chip ── */

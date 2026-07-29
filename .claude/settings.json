@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "allow": [
+      "git status*",
+      "git diff*",
+      "git log*",
+      "find *",
+      "ls *",
+      "dir *",
+      "cat *",
+      "type *",
+
+      "npm *",
+      "pnpm *",
+      "yarn *",
+
+      "node *",
+      "npx *",
+
+      "eslint *",
+      "prettier *",
+      "tsc *",
+      "tsx *",
+
+      "vitest *",
+      "jest *",
+
+      "expo *",
+
+      "sqlite3 *",
+      "psql *",
+
+      "grep *",
+      "rg *",
+      "fd *"
+    ],
+
+    "deny": [
+      "git push*",
+      "git commit*",
+      "git reset*",
+      "git clean*",
+      "git checkout --*",
+      "git restore*",
+
+      "rm -rf *",
+      "del /s *",
+      "format *",
+
+      "curl *",
+      "wget *"
+    ]
+  }
+}

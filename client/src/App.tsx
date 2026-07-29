@@ -1,16 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
-import MoyaNora from './pages/MoyaNora';
-import UleyPage from './pages/UleyPage';
-import QuizPage from './pages/QuizPage';
+import RegisterPage from './pages/RegisterPage';
 import BaselineSurvey from './pages/BaselineSurvey';
-import HomePage from './pages/HomePage';
-import ZhukademiPage from './pages/ZhukademiPage';
-import BagodelnyaPage from './pages/BagodelnyaPage';
-import ZhukovodstvoPage from './pages/ZhukovodstvoPage';
 import AmbientSnail from './components/AmbientSnail';
 import ScrollBug from './components/ScrollBug';
+import InstallPrompt from './components/InstallPrompt';
+import OnboardingTour from './components/OnboardingTour';
+import {
+  getAccessToken, getStoredUser, getNeedsBaselineSurvey,
+  setSession, setNeedsBaselineSurvey, clearSession, serverLogout,
+  SESSION_EXPIRED_EVENT,
+} from './auth';
+import { identifyUser, resetAnalyticsUser } from './monitoring';
+
+// Everything past the login/baseline-survey gate is lazy-loaded — those two
+// are needed immediately at auth-boot time, but a tester logging in has no
+// reason to pay for the lead's course-builder bundle (and vice versa), and
+// the single bundle was already flagged (1.3MB) by Vite's own build warning.
+const MoyaNora = lazy(() => import('./pages/MoyaNora'));
+const UleyPage = lazy(() => import('./pages/UleyPage'));
+const QuizPage = lazy(() => import('./pages/QuizPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ZhukademiPage = lazy(() => import('./pages/ZhukademiPage'));
+const BagodelnyaPage = lazy(() => import('./pages/BagodelnyaPage'));
+const CustomCourseDetailPage = lazy(() => import('./pages/CustomCourseDetailPage'));
+const CustomCourseLearningPage = lazy(() => import('./pages/CustomCourseLearningPage'));
+const CourseBuilderPage = lazy(() => import('./pages/CourseBuilderPage'));
+const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
+const ChecklistFormPage = lazy(() => import('./pages/ChecklistFormPage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -19,46 +39,57 @@ interface AuthState {
   needsBaselineSurvey: boolean;
 }
 
+const loggedOutState: AuthState = { isAuthenticated: false, token: null, user: null, needsBaselineSurvey: false };
+
 function App() {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    token: null,
-    user: null,
-    needsBaselineSurvey: false,
-  });
+  const [authState, setAuthState] = useState<AuthState>(loggedOutState);
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+    const token = getAccessToken();
+    const user = getStoredUser();
     if (token && user) {
       setAuthState({
         isAuthenticated: true,
         token,
-        user: JSON.parse(user),
-        needsBaselineSurvey: localStorage.getItem('needsBaselineSurvey') === 'true',
+        user,
+        needsBaselineSurvey: getNeedsBaselineSurvey(),
       });
+      identifyUser(user);
     }
     setLoading(false);
   }, []);
 
-  const handleLogin = (token: string, user: any, needsBaselineSurvey: boolean) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('needsBaselineSurvey', String(needsBaselineSurvey));
+  // Fired by api.ts / auth.ts when the refresh token itself is missing,
+  // expired, or revoked — the session genuinely can't continue, so log out
+  // cleanly and tell the user why, instead of leaving broken UI state around.
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setAuthState(loggedOutState);
+      setSessionExpiredNotice(true);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, []);
+
+  const handleLogin = (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => {
+    setSession(token, refreshToken, user, needsBaselineSurvey);
+    setSessionExpiredNotice(false);
     setAuthState({ isAuthenticated: true, token, user, needsBaselineSurvey });
+    identifyUser(user);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('needsBaselineSurvey');
-    setAuthState({ isAuthenticated: false, token: null, user: null, needsBaselineSurvey: false });
+    serverLogout();
+    clearSession();
+    resetAnalyticsUser();
+    setAuthState(loggedOutState);
   };
 
   const handleBaselineSurveyComplete = () => {
     setAuthState(prev => ({ ...prev, needsBaselineSurvey: false }));
-    localStorage.setItem('needsBaselineSurvey', 'false');
+    setNeedsBaselineSurvey(false);
   };
 
   if (loading) {
@@ -76,7 +107,8 @@ function App() {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="*" element={<LoginPage onLogin={handleLogin} />} />
+          <Route path="/register" element={<RegisterPage onLogin={handleLogin} />} />
+          <Route path="*" element={<LoginPage onLogin={handleLogin} sessionExpired={sessionExpiredNotice} />} />
         </Routes>
       </BrowserRouter>
     );
@@ -100,31 +132,53 @@ function App() {
       {/* Global ambient decorations */}
       <AmbientSnail />
       <ScrollBug />
+      <InstallPrompt />
+      <OnboardingTour user={u} />
 
-      <Routes>
-        {/* ===== SHARED ROUTES ===== */}
-        <Route path="/"              element={<HomePage {...sharedProps} />} />
-        <Route path="/zhukademia"    element={<ZhukademiPage {...sharedProps} />} />
-        <Route path="/bagodelnya"    element={<BagodelnyaPage {...sharedProps} />} />
-        <Route path="/zhukovodstvo"  element={<ZhukovodstvoPage {...sharedProps} />} />
+      <Suspense fallback={
+        <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0f0f1a', lineHeight: 1.8 }}>
+          🐌 уже ползу...
+        </div>
+      }>
+        <Routes>
+          {/* ===== SHARED ROUTES ===== */}
+          <Route path="/"                        element={<HomePage {...sharedProps} />} />
+          <Route path="/zhukademia"              element={<ZhukademiPage {...sharedProps} />} />
+          <Route path="/bagodelnya"              element={<BagodelnyaPage {...sharedProps} />} />
+          <Route path="/custom-course/:id"       element={<CustomCourseDetailPage {...sharedProps} />} />
+          <Route path="/custom-course/:id/learn" element={<CustomCourseLearningPage {...sharedProps} />} />
+          <Route path="/lead/course-builder"     element={<CourseBuilderPage {...sharedProps} />} />
+          <Route path="/lead/course-builder/:id" element={<CourseBuilderPage {...sharedProps} />} />
+          <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} />
+          <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} />
+          <Route path="/help"                    element={<HelpPage {...sharedProps} />} />
 
-        {/* ===== TESTER ROUTES ===== */}
-        {u.role === 'tester' && (
-          <>
-            <Route path="/cabinet"            element={<MoyaNora {...sharedProps} />} />
-            <Route path="/lecture/:id/quiz"   element={<QuizPage {...sharedProps} />} />
-            <Route path="*"                   element={<Navigate to="/cabinet" replace />} />
-          </>
-        )}
+          {/* ===== TESTER ROUTES ===== */}
+          {u.role === 'tester' && (
+            <>
+              <Route path="/cabinet"            element={<MoyaNora {...sharedProps} />} />
+              <Route path="/lecture/:id/quiz"   element={<QuizPage {...sharedProps} />} />
+              <Route path="*"                   element={<Navigate to="/cabinet" replace />} />
+            </>
+          )}
 
-        {/* ===== LEAD ROUTES ===== */}
-        {u.role === 'lead' && (
-          <>
+          {/* ===== LEAD + ADMIN ROUTES ===== (admin can do everything lead
+              can — see requireRole()'s admin bypass server-side — so it
+              shares this branch rather than duplicating the route) */}
+          {(u.role === 'lead' || u.role === 'admin') && (
             <Route path="/dashboard" element={<UleyPage {...sharedProps} />} />
-            <Route path="*"          element={<Navigate to="/dashboard" replace />} />
-          </>
-        )}
-      </Routes>
+          )}
+
+          {/* ===== ADMIN-ONLY ROUTES ===== */}
+          {u.role === 'admin' && (
+            <Route path="/admin" element={<AdminPage {...sharedProps} />} />
+          )}
+
+          {(u.role === 'lead' || u.role === 'admin') && (
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          )}
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

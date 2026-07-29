@@ -1,0 +1,30 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Baseline hardening headers. CSP's connect-src needs the real API
+    # origin added here once one is chosen (see DEPLOYMENT.md) — left
+    # permissive (*) for now since the API URL is only known at build time
+    # via VITE_API_BASE_URL, not at nginx-config time.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src *; frame-ancestors 'none'" always;
+
+    # React Router uses client-side routing — any path that isn't a real
+    # file (e.g. /zhukademia) must still serve index.html, or a hard
+    # refresh/direct link on any non-root route would 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Vite fingerprints filenames in /assets, so these are safe to cache
+    # aggressively — a new deploy gets new filenames, not new content
+    # under an old one.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}

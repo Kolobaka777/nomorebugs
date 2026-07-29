@@ -27,10 +27,13 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('tester', 'lead')),
+    role TEXT NOT NULL,
     avatar_initials TEXT,
+    telegram_id TEXT,
+    telegram_username TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL;
 
   CREATE TABLE IF NOT EXISTS lectures (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,10 +146,16 @@ db.exec(`
 `);
 
 // ── Users ────────────────────────────────────────────────────────────────────
+const adminHash  = bcryptjs.hashSync('admin123', 10);
 const leadHash   = bcryptjs.hashSync('lead123', 10);
 const testerHash = bcryptjs.hashSync('test123', 10);
 
 const userIns = db.prepare(`INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)`);
+// Bootstrap admin — the only account that can grant roles to anyone else.
+// Self-registration always starts at 'tester'; every other role (including
+// this one, for any *further* admins) is granted from here on out via
+// PATCH /api/admin/users/:id/role, never by signing up as one.
+const adminId = userIns.run('admin@qa.com', adminHash,  'System Admin',    'admin',  'SA').lastInsertRowid;
 const leadId  = userIns.run('lead@qa.com',  leadHash,   'Alex Lead',       'lead',   'AL').lastInsertRowid;
 const nazarId = userIns.run('nazar@qa.com', testerHash, 'Nazariy Tester',  'tester', 'NT').lastInsertRowid;
 const glebId  = userIns.run('gleb@qa.com',  testerHash, 'Gleb Glebov',     'tester', 'GG').lastInsertRowid;
@@ -156,16 +165,16 @@ const vasyaId = userIns.run('vasya@qa.com', testerHash, 'Vasya Novice',    'test
 // ── Lectures ─────────────────────────────────────────────────────────────────
 const lecIns = db.prepare(`INSERT INTO lectures (title, order_num, skill_area) VALUES (?, ?, ?)`);
 const lectures = [
-  { title: 'HTML Basics & Structure',       skill: 'HTML structure'     },
-  { title: 'CSS Fundamentals & Layouts',    skill: 'CSS reading'        },
-  { title: 'Introduction to DevTools',      skill: 'DevTools'           },
-  { title: 'Browser Console & Errors',      skill: 'Console errors'     },
-  { title: 'Responsive Design Testing',     skill: 'HTML structure'     },
-  { title: 'CSS Debugging & Inspection',    skill: 'CSS reading'        },
-  { title: 'Network Tab & Performance',     skill: 'DevTools'           },
-  { title: 'JavaScript Basics for QA',      skill: 'Console errors'     },
-  { title: 'Bug Reporting & Documentation', skill: 'Bug report quality' },
-  { title: 'Advanced Testing Scenarios',    skill: 'Bug report quality' },
+  { title: 'Основы HTML',                   skill: 'HTML structure'     },
+  { title: 'Основы CSS',                    skill: 'CSS reading'        },
+  { title: 'Основы DevTools',               skill: 'DevTools'           },
+  { title: 'Консоль и ошибки',              skill: 'Console errors'     },
+  { title: 'Адаптивная верстка',            skill: 'HTML structure'     },
+  { title: 'Отладка CSS',                   skill: 'CSS reading'        },
+  { title: 'Вкладка Network',               skill: 'DevTools'           },
+  { title: 'JavaScript для QA',             skill: 'Console errors'     },
+  { title: 'Описание дефектов',             skill: 'Bug report quality' },
+  { title: 'Продвинутое тестирование',      skill: 'Bug report quality' },
 ];
 const lectureIds = lectures.map((l, i) => lecIns.run(l.title, i + 1, l.skill).lastInsertRowid);
 

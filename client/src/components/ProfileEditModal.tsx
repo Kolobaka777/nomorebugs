@@ -1,23 +1,23 @@
 import { useState, useRef } from 'react';
 import { testerApi } from '../api';
-import { FullProfile, Achievement, Lecture } from '../types';
+import { FullProfile, Lecture } from '../types';
 import PixelAvatar, { AVATAR_LIST, FRAME_LIST, BG_LIST, AvatarId, FrameId, BgId } from './PixelAvatar';
+import PixelIcon, { IconName } from './PixelIcon';
+import { useEscapeKey } from '../utils/a11y';
 
 const SPECIALIZATIONS = [
-  { value: 'HTML-жук',       label: '🌐 HTML-жук' },
-  { value: 'CSS-жук',        label: '🎨 CSS-жук' },
-  { value: 'DevTools-жук',   label: '🔍 DevTools-жук' },
-  { value: 'Консольный жук', label: '> Консольный жук' },
-  { value: 'Жук-репортёр',   label: '🐛 Жук-репортёр' },
-  { value: 'Сетевой жук',    label: '📡 Сетевой жук' },
-  { value: '',               label: '— Не выбрано —' },
+  { value: '',                    label: '— Не выбрано —' },
+  { value: 'Тестировщик',         label: 'Тестировщик' },
+  { value: 'Главный вайтолог',    label: 'Главный вайтолог' },
+  { value: 'Фиксик',              label: 'Фиксик' },
+  { value: 'Ловец опечаток',      label: 'Ловец опечаток' },
+  { value: 'Детектив ссылок',     label: 'Детектив ссылок' },
 ];
 
 type EditTab = 'main' | 'looks' | 'showcase';
 
 interface Props {
   profile: FullProfile;
-  achievements: Achievement[];
   passedLectures: Lecture[];
   unlockedFrames: string[];
   unlockedBgs: string[];
@@ -27,7 +27,6 @@ interface Props {
 
 export default function ProfileEditModal({
   profile,
-  achievements,
   passedLectures,
   unlockedFrames,
   unlockedBgs,
@@ -52,9 +51,9 @@ export default function ProfileEditModal({
   const [favLectureId, setFavLectureId]     = useState<number | null>(profile.favorite_lecture_id);
   const [customAvatar, setCustomAvatar]     = useState<string | null>(profile.custom_avatar);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEscapeKey(onClose);
 
-  const earnedAchs = achievements.filter(a => a.earned);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,10 +110,10 @@ export default function ProfileEditModal({
     display: 'block', marginBottom: 6, lineHeight: 1.8,
   };
 
-  const TABS: { id: EditTab; label: string }[] = [
-    { id: 'main',     label: '📝 Основное' },
-    { id: 'looks',    label: '🎨 Внешний вид' },
-    { id: 'showcase', label: '📌 Витрина' },
+  const TABS: { id: EditTab; label: string; icon: IconName }[] = [
+    { id: 'main',     label: 'Основное',    icon: 'memo'    },
+    { id: 'looks',    label: 'Внешний вид', icon: 'palette' },
+    // { id: 'showcase', label: 'Витрина',     icon: 'pin'     },
   ];
 
   return (
@@ -137,7 +136,8 @@ export default function ProfileEditModal({
           </p>
           <button
             onClick={onClose}
-            className="text-pixel/50 hover:text-pixel text-xl font-sans cursor-pointer"
+            aria-label="Закрыть окно профиля"
+            className="text-pixel/60 hover:text-pixel text-xl font-sans cursor-pointer"
           >×</button>
         </div>
 
@@ -153,7 +153,10 @@ export default function ProfileEditModal({
                 color: tab === t.id ? '#1D9E75' : 'rgba(232,232,208,0.4)',
               }}
             >
-              {t.label}
+              <span className="flex items-center justify-center gap-1.5">
+                <PixelIcon name={t.icon} size={11} color="currentColor" />
+                {t.label}
+              </span>
             </button>
           ))}
         </div>
@@ -172,7 +175,7 @@ export default function ProfileEditModal({
                   placeholder={profile.name}
                   style={inputStyle}
                 />
-                <p className="text-pixel/30 text-xs font-sans mt-1 text-right">{nickname.length}/40</p>
+                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{nickname.length}/40</p>
               </div>
 
               <div>
@@ -183,7 +186,7 @@ export default function ProfileEditModal({
                   placeholder="ловлю жуков с 2024..."
                   style={inputStyle}
                 />
-                <p className="text-pixel/30 text-xs font-sans mt-1 text-right">{statusQuote.length}/60</p>
+                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{statusQuote.length}/60</p>
               </div>
 
               <div>
@@ -208,11 +211,12 @@ export default function ProfileEditModal({
                   rows={3}
                   style={{ ...inputStyle, resize: 'none' }}
                 />
-                <p className="text-pixel/30 text-xs font-sans mt-1 text-right">{infoBox.length}/200</p>
+                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{infoBox.length}/200</p>
               </div>
 
+              {/* МОЙ АНЕКДОТ ПРО УЛИТКУ — скрыт
               <div>
-                <label style={labelStyle}>МОЙ АНЕКДОТ ПРО УЛИТКУ 🐌</label>
+                <label style={labelStyle} className="flex items-center gap-1.5">МОЙ АНЕКДОТ ПРО УЛИТКУ <PixelIcon name="snail" size={12} color="currentColor" /></label>
                 <textarea
                   value={snailJoke}
                   onChange={e => setSnailJoke(e.target.value.slice(0, 300))}
@@ -221,6 +225,7 @@ export default function ProfileEditModal({
                   style={{ ...inputStyle, resize: 'none' }}
                 />
               </div>
+              */}
 
               <div className="flex items-center justify-between">
                 <label style={{ ...labelStyle, marginBottom: 0 }}>ПУБЛИЧНЫЙ ПРОФИЛЬ</label>
@@ -234,7 +239,10 @@ export default function ProfileEditModal({
                     boxShadow: isPublic ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75' : 'none',
                   }}
                 >
-                  {isPublic ? '✓ ПУБЛИЧНЫЙ' : '🔒 ПРИВАТНЫЙ'}
+                  <span className="flex items-center gap-1.5">
+                    {isPublic ? '✓' : <PixelIcon name="lock" size={10} color="currentColor" />}
+                    {isPublic ? 'ПУБЛИЧНЫЙ' : 'ПРИВАТНЫЙ'}
+                  </span>
                 </button>
               </div>
             </>
@@ -260,7 +268,7 @@ export default function ProfileEditModal({
                       }}
                     >
                       <PixelAvatar id={av.id} size={40} />
-                      <span className="text-pixel/50 font-sans" style={{ fontSize: '0.6rem' }}>{av.name}</span>
+                      <span className="text-pixel/60 font-sans" style={{ fontSize: '0.6rem' }}>{av.name}</span>
                     </button>
                   ))}
 
@@ -278,9 +286,9 @@ export default function ProfileEditModal({
                   >
                     {customAvatar
                       ? <PixelAvatar id="custom" size={40} customSrc={customAvatar} />
-                      : <span style={{ fontSize: '1.5rem' }}>📸</span>
+                      : <PixelIcon name="camera" size={24} color="rgba(232,232,208,0.3)" />
                     }
-                    <span className="text-pixel/50 font-sans" style={{ fontSize: '0.6rem' }}>
+                    <span className="text-pixel/60 font-sans" style={{ fontSize: '0.6rem' }}>
                       {customAvatar ? 'Своя' : 'Загрузить'}
                     </span>
                   </button>
@@ -288,118 +296,48 @@ export default function ProfileEditModal({
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
               </div>
 
-              {/* Frame selector */}
+              {/* РАМКА АВАТАРА — скрыта
               <div>
                 <label style={labelStyle}>РАМКА АВАТАРА</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {FRAME_LIST.map(f => {
-                    const locked = !unlockedFrames.includes(f.id);
-                    return (
-                      <button
-                        key={f.id}
-                        onClick={() => !locked && setFrame(f.id)}
-                        disabled={locked}
-                        className="flex flex-col items-center gap-1 p-2 rounded transition-all"
-                        style={{
-                          cursor: locked ? 'not-allowed' : 'pointer',
-                          opacity: locked ? 0.4 : 1,
-                          background: frame === f.id ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                          boxShadow: frame === f.id
-                            ? '2px 0 0 0 #1D9E75,-2px 0 0 0 #1D9E75,0 2px 0 0 #1D9E75,0 -2px 0 0 #1D9E75'
-                            : 'none',
-                        }}
-                      >
-                        <PixelAvatar id="bug1" size={32} frame={f.id} />
-                        <span className="text-pixel/60 font-sans text-center" style={{ fontSize: '0.55rem' }}>
-                          {f.name}{locked ? ' 🔒' : ''}
-                        </span>
-                        {locked && (
-                          <span className="text-pixel/30 font-sans text-center" style={{ fontSize: '0.5rem' }}>
-                            {f.unlock}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {FRAME_LIST.map(f => { const locked = !unlockedFrames.includes(f.id); return (
+                    <button key={f.id} onClick={() => !locked && setFrame(f.id)} disabled={locked}
+                      className="flex flex-col items-center gap-1 p-2 rounded transition-all"
+                      style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.4 : 1,
+                        background: frame === f.id ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)' }}>
+                      <PixelAvatar id="bug1" size={32} frame={f.id} />
+                      <span className="text-pixel/60 font-sans text-center" style={{ fontSize: '0.55rem' }}>{f.name}</span>
+                    </button>
+                  );})}
                 </div>
               </div>
-
-              {/* Background selector */}
+              ФОН ПРОФИЛЯ — скрыт
               <div>
                 <label style={labelStyle}>ФОН ПРОФИЛЯ</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {BG_LIST.map(b => {
-                    const locked = !unlockedBgs.includes(b.id);
-                    return (
-                      <button
-                        key={b.id}
-                        onClick={() => !locked && setBg(b.id)}
-                        disabled={locked}
-                        className="flex flex-col items-center gap-1 p-2 rounded cursor-pointer transition-all"
-                        style={{
-                          ...b.style,
-                          cursor: locked ? 'not-allowed' : 'pointer',
-                          opacity: locked ? 0.45 : 1,
-                          border: bg === b.id ? '2px solid #1D9E75' : '2px solid transparent',
-                          minHeight: 56,
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <span className="font-pixel" style={{ fontSize: '0.45rem', color: '#e8e8d0' }}>
-                          {b.name}{locked ? ' 🔒' : ''}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {BG_LIST.map(b => { const locked = !unlockedBgs.includes(b.id); return (
+                    <button key={b.id} onClick={() => !locked && setBg(b.id)} disabled={locked}
+                      className="flex flex-col items-center gap-1 p-2 rounded cursor-pointer transition-all"
+                      style={{ ...b.style, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1,
+                        border: bg === b.id ? '2px solid #1D9E75' : '2px solid transparent', minHeight: 56, justifyContent: 'center' }}>
+                      <span className="font-pixel" style={{ fontSize: '0.45rem', color: '#e8e8d0' }}>{b.name}</span>
+                    </button>
+                  );})}
                 </div>
               </div>
+              */}
             </>
           )}
 
-          {/* ── SHOWCASE TAB ── */}
-          {tab === 'showcase' && (
+          {/* ── SHOWCASE TAB (скрыт) ── */}
+          {false && tab === 'showcase' && (
             <>
-              <div>
-                <label style={labelStyle}>ВИТРИНА ДОСТИЖЕНИЙ (выбери до 3)</label>
-                <p className="text-pixel/30 text-xs font-sans mb-4">
-                  Выбрано {showcase.length}/3
-                </p>
-                {earnedAchs.length === 0 ? (
-                  <p className="text-pixel/30 text-sm font-sans">Пока нет заработанных достижений</p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {earnedAchs.map(ach => {
-                      const selected = showcase.includes(ach.id);
-                      const locked   = !selected && showcase.length >= 3;
-                      return (
-                        <button
-                          key={ach.id}
-                          onClick={() => !locked && toggleShowcase(ach.id)}
-                          disabled={locked}
-                          className="flex items-center gap-3 p-3 rounded text-left transition-all"
-                          style={{
-                            cursor: locked ? 'not-allowed' : 'pointer',
-                            opacity: locked ? 0.4 : 1,
-                            background: selected ? 'rgba(239,159,39,0.1)' : 'rgba(232,232,208,0.04)',
-                            boxShadow: selected
-                              ? '2px 0 0 0 #EF9F27,-2px 0 0 0 #EF9F27,0 2px 0 0 #EF9F27,0 -2px 0 0 #EF9F27'
-                              : 'none',
-                          }}
-                        >
-                          <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{ach.icon}</span>
-                          <span className="text-pixel font-sans text-xs">{ach.name}</span>
-                          {selected && <span style={{ marginLeft: 'auto', color: '#EF9F27' }}>✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              {/* ВИТРИНА ДОСТИЖЕНИЙ скрыта */}
 
               <div>
                 <label style={labelStyle}>ИЗБРАННАЯ ЛЕКЦИЯ</label>
                 {passedLectures.length === 0 ? (
-                  <p className="text-pixel/30 text-sm font-sans">Пройди хотя бы одну лекцию</p>
+                  <p className="text-pixel/55 text-sm font-sans">Пройди хотя бы одну лекцию</p>
                 ) : (
                   <div className="space-y-2">
                     <button
@@ -407,7 +345,7 @@ export default function ProfileEditModal({
                       className="w-full p-2 rounded text-left text-xs font-sans transition-colors"
                       style={{
                         background: favLectureId === null ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                        color: 'rgba(232,232,208,0.5)',
+                        color: 'rgba(232,232,208,0.6)',
                         cursor: 'pointer',
                       }}
                     >

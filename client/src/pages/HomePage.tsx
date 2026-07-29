@@ -2,48 +2,22 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import BugSprite from '../components/BugSprite';
-import { statsApi, testerApi } from '../api';
-import { GlobalStats, Lecture } from '../types';
+import PixelIcon from '../components/PixelIcon';
+import { statsApi } from '../api';
+import { GlobalStats } from '../types';
 
 interface HomePageProps {
   user: any;
   onLogout: () => void;
 }
 
-const FEATURED_COURSE_INDICES = [0, 1, 2];
-
-const SKILL_COLORS: Record<string, string> = {
-  'HTML': '#1D9E75',
-  'CSS': '#7F77DD',
-  'DevTools': '#EF9F27',
-  'Browser': '#EF9F27',
-  'Responsive': '#7F77DD',
-  'Network': '#1D9E75',
-  'JavaScript': '#EF9F27',
-  'Bug': '#1D9E75',
-  'Advanced': '#e05252',
-};
-
-function getSkillColor(skillArea: string): string {
-  for (const key of Object.keys(SKILL_COLORS)) {
-    if (skillArea.includes(key)) return SKILL_COLORS[key];
-  }
-  return '#e8e8d0';
-}
-
 export default function HomePage({ user, onLogout }: HomePageProps) {
   const navigate = useNavigate();
   const [stats, setStats] = useState<GlobalStats>({ courses: 10, testers: 4, bugsCaught: 0 });
-  const [lectures, setLectures] = useState<Lecture[]>([]);
 
   useEffect(() => {
     statsApi.getGlobal().then(r => setStats(r.data)).catch(() => {});
-    if (user.role === 'tester') {
-      testerApi.getLectures().then(r => setLectures(r.data)).catch(() => {});
-    }
   }, []);
-
-  const featuredLectures = lectures.slice(0, 3);
 
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
@@ -117,210 +91,78 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
             className="text-pixel/60 font-sans text-lg mb-4"
             style={{ fontStyle: 'italic' }}
           >
-            "come in as a bug. leave as a feature."
+            "здесь мог бы быть ваш анекдот....."
           </p>
           <p
-            className="font-pixel text-pixel/20 text-xs mb-12"
+            className="font-pixel text-pixel/55 text-xs mb-12"
             style={{ lineHeight: 1.8 }}
           >
-            de[bug] starts here
+            здесь тоже...
           </p>
-
-          {/* CTA buttons */}
-          <div className="flex justify-center gap-4 flex-wrap">
-            <button
-              onClick={() => navigate(user.role === 'tester' ? '/cabinet' : '/dashboard')}
-              className="btn-amber"
-              style={{ fontSize: '14px', padding: '12px 28px' }}
-            >
-              Моя нора →
-            </button>
-            <button
-              onClick={() => navigate('/zhukademia')}
-              className="btn-primary"
-              style={{ fontSize: '14px', padding: '12px 28px' }}
-            >
-              Жукадemia
-            </button>
-          </div>
         </section>
 
-        {/* ===== STATS BAR ===== */}
-        <section className="max-w-7xl mx-auto px-6 mb-16">
-          <div
-            className="rounded p-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center"
-            style={{
-              background: '#1a1a2e',
-              boxShadow: '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75',
-            }}
-          >
-            <div>
-              <p className="font-pixel text-primary text-2xl mb-2" style={{ lineHeight: 1.6 }}>
-                {stats.courses}
-              </p>
-              <p className="text-pixel/50 text-sm font-sans">курсов</p>
-            </div>
-            <div style={{ borderLeft: '2px solid rgba(29,158,117,0.2)', borderRight: '2px solid rgba(29,158,117,0.2)' }}>
-              <p className="font-pixel text-amber text-2xl mb-2" style={{ lineHeight: 1.6 }}>
-                {stats.testers}
-              </p>
-              <p className="text-pixel/50 text-sm font-sans">тестировщиков</p>
-            </div>
-            <div>
-              <p className="font-pixel text-purple text-2xl mb-2" style={{ lineHeight: 1.6 }}>
-                {stats.bugsCaught}
-              </p>
-              <p className="text-pixel/50 text-sm font-sans">багов поймано</p>
-            </div>
-          </div>
-        </section>
-
-        {/* ===== FEATURED COURSES ===== */}
-        <section className="max-w-7xl mx-auto px-6 mb-16">
-          <h2
-            className="font-pixel text-pixel mb-8 text-center"
-            style={{ fontSize: '0.7rem', lineHeight: 1.8 }}
-          >
-            🐞 ПОПУЛЯРНЫЕ КУРСЫ
-          </h2>
-
-          {featuredLectures.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredLectures.map((lecture, idx) => {
-                const color = getSkillColor(lecture.skill_area);
-                return (
-                  <div
-                    key={lecture.id}
-                    className="p-5 rounded cursor-pointer transition-transform hover:-translate-y-1"
-                    style={{
-                      background: '#1a1a2e',
-                      boxShadow: `2px 0 0 0 ${color}, -2px 0 0 0 ${color}, 0 2px 0 0 ${color}, 0 -2px 0 0 ${color}`,
-                    }}
-                    onClick={() => navigate('/zhukademia')}
-                  >
-                    {/* Cover art */}
-                    <div
-                      className="w-full h-24 rounded mb-4 flex items-center justify-center"
-                      style={{ background: `${color}15` }}
-                    >
-                      <BugSprite size={48} color={idx % 3 === 0 ? 'teal' : idx % 3 === 1 ? 'amber' : 'teal'} />
-                    </div>
-
-                    {/* Tag */}
-                    <span
-                      className="text-xs font-sans font-semibold px-2 py-0.5 rounded mb-2 inline-block"
-                      style={{ background: `${color}20`, color }}
-                    >
-                      {lecture.skill_area}
-                    </span>
-
-                    <h3 className="text-pixel font-sans font-semibold text-sm mb-2 leading-snug">
-                      {lecture.title}
-                    </h3>
-
-                    {/* Difficulty */}
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-pixel/40 text-xs font-sans">
-                        {idx < 2 ? '🐛 Личинка' : '🫘 Куколка'}
-                      </span>
-                      {lecture.status === 'passed' && (
-                        <span className="badge-passed">сдан ✓</span>
-                      )}
-                      {lecture.status === 'active' && (
-                        <span className="badge-active">активна</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {['HTML & Структура', 'CSS Основы', 'DevTools'].map((title, idx) => (
-                <div
-                  key={idx}
-                  className="p-5 rounded cursor-pointer transition-transform hover:-translate-y-1"
-                  style={{
-                    background: '#1a1a2e',
-                    boxShadow: `2px 0 0 0 ${idx === 1 ? '#7F77DD' : '#1D9E75'}, -2px 0 0 0 ${idx === 1 ? '#7F77DD' : '#1D9E75'}, 0 2px 0 0 ${idx === 1 ? '#7F77DD' : '#1D9E75'}, 0 -2px 0 0 ${idx === 1 ? '#7F77DD' : '#1D9E75'}`,
-                  }}
-                  onClick={() => navigate('/zhukademia')}
-                >
-                  <div
-                    className="w-full h-24 rounded mb-4 flex items-center justify-center"
-                    style={{ background: 'rgba(29,158,117,0.08)' }}
-                  >
-                    <BugSprite size={48} color={idx % 2 === 0 ? 'teal' : 'amber'} />
-                  </div>
-                  <h3 className="text-pixel font-sans font-semibold text-sm mb-2">{title}</h3>
-                  <p className="text-pixel/40 text-xs font-sans">🐛 Личинка · 5 лекций</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="text-center mt-8">
-            <button
-              onClick={() => navigate('/zhukademia')}
-              className="btn-secondary"
-            >
-              Все курсы →
-            </button>
-          </div>
-        </section>
-
-        {/* ===== SECTIONS GRID ===== */}
-        <section className="max-w-7xl mx-auto px-6 mb-20">
-          <h2
-            className="font-pixel text-pixel mb-8 text-center"
-            style={{ fontSize: '0.7rem', lineHeight: 1.8 }}
-          >
-            🗺️ РАЗДЕЛЫ
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ===== STATS SECTION ===== */}
+        <section className="max-w-4xl mx-auto px-6 pb-16">
+          <div className="grid grid-cols-3 gap-4">
             {[
-              { icon: '🎓', name: 'Жукадemia', desc: 'Каталог курсов по QA', path: '/zhukademia', color: '#1D9E75' },
-              { icon: '📖', name: 'Багодельня', desc: 'Шаблоны, словарь, чеклисты', path: '/bagodelnya', color: '#7F77DD' },
-              { icon: '🗺️', name: 'Жуководство', desc: 'Дерево навыков QA', path: '/zhukovodstvo', color: '#EF9F27' },
-              {
-                icon: user.role === 'lead' ? '🐝' : '🐞',
-                name: user.role === 'lead' ? 'Улей' : 'Моя нора',
-                desc: user.role === 'lead' ? 'Команда и прогресс' : 'Личный кабинет',
-                path: user.role === 'lead' ? '/dashboard' : '/cabinet',
-                color: '#EF9F27',
-              },
+              { icon: 'books'     as const, label: 'Курсов',         value: stats.courses,    color: '#1D9E75' },
+              { icon: 'bug'       as const, label: 'Тестировщиков',  value: stats.testers,    color: '#7F77DD' },
+              { icon: 'clipboard' as const, label: 'Багов поймано',  value: stats.bugsCaught, color: '#EF9F27' },
             ].map(item => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className="p-5 rounded text-left transition-all hover:-translate-y-1 hover:scale-[1.02] cursor-pointer"
+              <div
+                key={item.label}
+                className="p-5 text-center"
                 style={{
                   background: '#1a1a2e',
-                  boxShadow: `2px 0 0 0 ${item.color}, -2px 0 0 0 ${item.color}, 0 2px 0 0 ${item.color}, 0 -2px 0 0 ${item.color}`,
+                  border: '2px solid rgba(29,158,117,0.12)',
+                  boxShadow: `0 0 0 1px ${item.color}10 inset`,
                 }}
               >
-                <span style={{ fontSize: '2rem' }}>{item.icon}</span>
-                <p
-                  className="font-pixel mt-3 mb-2"
-                  style={{ color: item.color, fontSize: '0.55rem', lineHeight: 1.8 }}
-                >
-                  {item.name}
+                <PixelIcon name={item.icon} size={20} color={item.color} style={{ margin: '0 auto 10px' }} />
+                <p className="font-pixel mb-1" style={{ color: item.color, fontSize: '1rem', lineHeight: 1.6 }}>
+                  {item.value}
                 </p>
-                <p className="text-pixel/50 text-xs font-sans">{item.desc}</p>
-              </button>
+                <p className="font-pixel" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.42rem', lineHeight: 1.8 }}>
+                  {item.label}
+                </p>
+              </div>
             ))}
           </div>
         </section>
 
-        {/* ===== FOOTER SLOGAN ===== */}
-        <footer className="text-center pb-12">
-          <p
-            className="font-pixel text-pixel/10 text-xs"
-            style={{ lineHeight: 1.8 }}
-          >
-            de[bug] starts here
-          </p>
-        </footer>
+        {/* ===== BOARD SECTION ===== */}
+        <section className="max-w-4xl mx-auto px-6 pb-20">
+          <div className="flex items-center gap-2 mb-4 px-1">
+            <PixelIcon name="antenna" size={12} color="rgba(232,232,208,0.2)" />
+            <span className="font-pixel" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.42rem', lineHeight: 1.8 }}>
+              ДОСКА
+            </span>
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <div
+                key={i}
+                className="px-4 py-3 flex items-center gap-4"
+                style={{
+                  background: '#1a1a2e',
+                  border: '1px solid rgba(29,158,117,0.08)',
+                }}
+              >
+                <div
+                  className="shrink-0 w-1.5 h-1.5"
+                  style={{ background: 'rgba(232,232,208,0.12)' }}
+                />
+                <p
+                  className="font-sans text-xs"
+                  style={{ color: 'rgba(232,232,208,0.55)' }}
+                >
+                  здесь появится объявление {i}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
       </div>
     </div>
   );

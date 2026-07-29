@@ -1,12 +1,17 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
 import BugSprite from '../components/BugSprite';
+import PixelIcon from '../components/PixelIcon';
+import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface LoginPageProps {
-  onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
+  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => void;
+  sessionExpired?: boolean;
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,7 +23,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setLoading(true);
     try {
       const { data } = await authApi.login(email, password);
-      onLogin(data.token, data.user, data.needsBaselineSurvey);
+      onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка входа');
     } finally {
@@ -60,7 +65,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           >
             baga-net
           </h1>
-          <p className="text-pixel/50 text-sm font-sans italic">
+          <p className="text-pixel/60 text-sm font-sans italic">
             "come in as a bug. leave as a feature."
           </p>
         </div>
@@ -81,6 +86,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {sessionExpired && !error && (
+              <div
+                className="px-4 py-3 rounded text-sm font-sans"
+                style={{
+                  background: 'rgba(239,159,39,0.1)',
+                  color: '#EF9F27',
+                  boxShadow: '1px 0 0 0 #EF9F27, -1px 0 0 0 #EF9F27, 0 1px 0 0 #EF9F27, 0 -1px 0 0 #EF9F27',
+                }}
+              >
+                Сессия истекла. Войди ещё раз.
+              </div>
+            )}
             {error && (
               <div
                 className="px-4 py-3 rounded text-sm font-sans"
@@ -129,12 +146,21 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading ? (
-                <span className="pixel-pulse">🐌 ползём...</span>
+                <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> ползём...</span>
               ) : (
                 'ВОЙТИ'
               )}
             </button>
           </form>
+
+          <button
+            onClick={() => navigate('/register')}
+            className="w-full text-center mt-4 text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
+          >
+            Нет аккаунта? Зарегистрироваться →
+          </button>
+
+          <TelegramLoginButton onLogin={onLogin} />
 
           {/* Creds hint */}
           <div
@@ -144,14 +170,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               border: '1px solid rgba(29,158,117,0.2)',
             }}
           >
-            <p className="text-pixel/40 text-xs font-sans mb-1 font-semibold">Тестовые аккаунты:</p>
-            <p className="text-pixel/40 text-xs font-sans">Lead: lead@qa.com / lead123</p>
-            <p className="text-pixel/40 text-xs font-sans">Tester: nazar@qa.com / test123</p>
+            <p className="text-pixel/60 text-xs font-sans mb-1 font-semibold">Тестовые аккаунты:</p>
+            <p className="text-pixel/60 text-xs font-sans">Admin: admin@qa.com / admin123</p>
+            <p className="text-pixel/60 text-xs font-sans">Lead: lead@qa.com / lead123</p>
+            <p className="text-pixel/60 text-xs font-sans">Tester: nazar@qa.com / test123</p>
           </div>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-pixel/20 text-xs font-pixel mt-6" style={{ lineHeight: 1.8 }}>
+        <p className="text-center text-pixel/55 text-xs font-pixel mt-6" style={{ lineHeight: 1.8 }}>
           de[bug] starts here
         </p>
       </div>

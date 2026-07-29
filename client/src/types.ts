@@ -48,7 +48,7 @@ export interface TeamMember {
   avgScore: number;
   skillGrowth: number;
   daysInactive: number;
-  isSnail: boolean;
+  needsCheckIn: boolean;
   lastActive?: string;
 }
 
@@ -65,15 +65,6 @@ export interface ActivityItem {
   created_at: string;
   name: string;
   lecture_title?: string;
-}
-
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  earned: boolean;
-  rarity?: 'common' | 'rare' | 'epic' | 'secret';
 }
 
 export interface RpgStats {
@@ -155,9 +146,18 @@ export interface GlobalStats {
   bugsCaught: number;
 }
 
+export interface LectureStat {
+  id: number;
+  title: string;
+  skill_area: string;
+  attempts: number;
+  avgScore: number | null;
+  passRate: number | null;
+}
+
 // ===== LEVEL SYSTEM =====
 export interface Level {
-  emoji: string;
+  icon: string;
   name: string;
   color: string;
   minCompleted: number;
@@ -165,12 +165,12 @@ export interface Level {
 }
 
 export function getLevel(completed: number, isLead = false): Level {
-  if (isLead) return { emoji: '👑🐝', name: 'Королева улья', color: 'text-amber', minCompleted: 0, maxCompleted: 10 };
-  if (completed === 0) return { emoji: '🥚', name: 'Яйцо', color: 'text-pixel/50', minCompleted: 0, maxCompleted: 1 };
-  if (completed <= 2) return { emoji: '🐛', name: 'Личинка', color: 'text-pixel', minCompleted: 1, maxCompleted: 3 };
-  if (completed <= 5) return { emoji: '🫘', name: 'Куколка', color: 'text-purple', minCompleted: 3, maxCompleted: 6 };
-  if (completed <= 9) return { emoji: '🐞', name: 'Жук', color: 'text-primary', minCompleted: 6, maxCompleted: 10 };
-  return { emoji: '👑', name: 'Матёрый жук', color: 'text-amber', minCompleted: 10, maxCompleted: 10 };
+  if (isLead) return { icon: 'crown', name: 'Королева улья', color: 'text-amber', minCompleted: 0, maxCompleted: 10 };
+  if (completed === 0) return { icon: 'seedling', name: 'Яйцо', color: 'text-pixel/60', minCompleted: 0, maxCompleted: 1 };
+  if (completed <= 2) return { icon: 'bug', name: 'Личинка', color: 'text-pixel', minCompleted: 1, maxCompleted: 3 };
+  if (completed <= 5) return { icon: 'gear', name: 'Куколка', color: 'text-purple', minCompleted: 3, maxCompleted: 6 };
+  if (completed <= 9) return { icon: 'bug', name: 'Жук', color: 'text-primary', minCompleted: 6, maxCompleted: 10 };
+  return { icon: 'crown', name: 'Матёрый жук', color: 'text-amber', minCompleted: 10, maxCompleted: 10 };
 }
 
 export function getLevelXpPercent(completed: number): number {
