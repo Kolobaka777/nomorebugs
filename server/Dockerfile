@@ -13,7 +13,7 @@ COPY . .
 
 # Persisted outside the image so the database survives a redeploy — see
 # docker-compose.yml, which mounts a volume here.
-VOLUME /app/db
+#VOLUME /app/db
 
 ENV PORT=5001
 ENV DB_PATH=/app/db/learning_hub.db
