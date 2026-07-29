@@ -10,8 +10,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — see server/.env.example}
       # The origin the client is actually served from in this deployment.
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      DB_PATH: /data/learning_hub.db
     volumes:
-      - server-db:/app/db
+      - server-db:/data
 
   client:
     build:

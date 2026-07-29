@@ -36,8 +36,12 @@ Two independent Railway services in one project, each built from this
 monorepo with its **Root Directory** set per-service:
 
 - **`server`** — Root Directory `server/`, builds `server/Dockerfile`,
-  config in `server/railway.json`. Has a **volume** mounted at `/app/db`
-  (matches `DB_PATH=/app/db/learning_hub.db` already set in the Dockerfile).
+  config in `server/railway.json`. Has a **volume** mounted at `/data`
+  (matches `DB_PATH=/data/learning_hub.db` already set in the Dockerfile).
+  **Do not mount the volume at `/app/db`** — that directory also holds
+  application code (`schema.js`, `seed.js`), and a volume mount replaces a
+  directory's contents entirely, so mounting there hides those files and
+  crashes the app with `ERR_MODULE_NOT_FOUND` on every boot.
   Exposes `GET /api/health` for Railway's healthcheck (added this
   iteration — checks the DB actually responds, not just that the process
   is alive).
@@ -72,7 +76,7 @@ monorepo with its **Root Directory** set per-service:
        optional, notification fallback for users with no Telegram linked.
      - `SENTRY_DSN` — optional, server-side error tracking. Get one from
        sentry.io (create a Node/Express project).
-   - Settings → Volumes → add a volume mounted at `/app/db`.
+   - Settings → Volumes → add a volume mounted at `/data`.
    - Deploy. Railway builds `server/Dockerfile` and assigns a domain like
      `qa-hub-api-production.up.railway.app`.
 
@@ -146,7 +150,7 @@ not wired up here.
 Manual backup before any risky change (e.g. right before a schema
 migration you're unsure about), same as before:
 ```bash
-railway run --service server -- sqlite3 /app/db/learning_hub.db ".backup /app/db/backup-$(date +%Y%m%d).db"
+railway run --service server -- sqlite3 /data/learning_hub.db ".backup /data/backup-$(date +%Y%m%d).db"
 ```
 
 ## Still open
