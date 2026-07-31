@@ -36,22 +36,41 @@ api.interceptors.response.use(
 export const authApi = {
   login: async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
-    const { token, refreshToken, user, needsBaselineSurvey } = res.data;
-    return { data: { token, refreshToken, user, needsBaselineSurvey } };
+    const { token, refreshToken, user, needsBaselineSurvey, mustChangePassword } = res.data;
+    return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
   },
 
   register: async (email: string, password: string, name: string) => {
     const res = await api.post('/auth/register', { email, password, name });
     const { token, refreshToken, user, needsBaselineSurvey } = res.data;
-    return { data: { token, refreshToken, user, needsBaselineSurvey } };
+    return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: false } };
   },
 
   logout: serverLogout,
+
+  changePassword: (current_password: string, new_password: string) =>
+    api.put('/me/password', { current_password, new_password }),
+
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, new_password: string) => api.post('/auth/reset-password', { token, new_password }),
 };
 
 export const adminApi = {
-  getUsers: () => api.get('/admin/users'),
+  getUsers: (params?: { archived?: boolean }) => api.get('/admin/users', { params: params?.archived ? { archived: '1' } : undefined }),
   setUserRole: (userId: number, role: string) => api.patch(`/admin/users/${userId}/role`, { role }),
+  resetPassword: (userId: number) => api.post(`/admin/users/${userId}/reset-password`),
+  archiveUser: (userId: number) => api.post(`/admin/users/${userId}/archive`),
+  restoreUser: (userId: number) => api.post(`/admin/users/${userId}/restore`),
+  getOverview: () => api.get('/admin/overview'),
+  getBonusCandidates: () => api.get('/admin/bonus-candidates'),
+
+  getTaskTypes: () => api.get('/admin/task-types'),
+  createTaskType: (name: string) => api.post('/admin/task-types', { name }),
+  deleteTaskType: (id: number) => api.delete(`/admin/task-types/${id}`),
+
+  getTrash: () => api.get('/admin/trash'),
+  restoreTrash: (type: string, id: number) => api.post(`/admin/trash/${type}/${id}/restore`),
+  purgeTrash: (type: string, id: number) => api.delete(`/admin/trash/${type}/${id}`),
 };
 
 export const telegramApi = {
@@ -87,8 +106,8 @@ export const testerApi = {
 
   getQuestions: (lectureId: number) => api.get(`/lectures/${lectureId}/questions`),
 
-  submitTest: (lectureId: number, answers: Record<number, string>) =>
-    api.post(`/lectures/${lectureId}/submit-test`, { answers }),
+  submitTest: (lectureId: number, answers: Record<number, string>, meta?: { questionTimes: Record<number, number>; tabSwitches: number }) =>
+    api.post(`/lectures/${lectureId}/submit-test`, { answers, meta }),
 
   getExplanation: (lectureId: number, questionId: number) =>
     api.get(`/lectures/${lectureId}/question/${questionId}/explanation`),
@@ -105,9 +124,19 @@ export const leadApi = {
 
   getBeforeAfter: () => api.get('/lead/before-after'),
 
-  getActivity: () => api.get('/lead/activity'),
+  getActivity: (params?: { offset?: number; user_id?: number }) => api.get('/lead/activity', { params }),
 
   getLectureStats: () => api.get('/lead/lecture-stats'),
+
+  awardBonus: (data: { user_id: number; amount: number; reason: string }) => api.post('/lead/award-bonus', data),
+  getBonusAwards: () => api.get('/lead/bonus-awards'),
+  getInternalRatings: () => api.get('/lead/internal-ratings'),
+
+  getArchivedTesters: () => api.get('/lead/archived-testers'),
+};
+
+export const rewardsApi = {
+  getMyPremiumPoints: () => api.get('/me/premium-points'),
 };
 
 export const statsApi = {
@@ -156,6 +185,9 @@ export const checklistApi = {
   updateMvtItems: (templateId: number, items: { id: number; in_mvt: number }[]) =>
     api.patch(`/checklists/templates/${templateId}/mvt`, { items }),
 
+  createTemplate: (data: { name: string; color: string; items: { category: string; text: string }[] }) =>
+    api.post('/checklists/templates', data),
+
   importTemplate: (file: File, name: string, color: string) => {
     const fd = new FormData();
     fd.append('file', file);
@@ -180,6 +212,14 @@ export const knowledgeApi = {
   deleteGlossaryTerm: (id: number) => api.delete(`/glossary/${id}`),
 
   getMyPermissions: () => api.get('/me/permissions'),
+};
+
+export const guidesApi = {
+  list: () => api.get('/guides'),
+  get: (id: number) => api.get(`/guides/${id}`),
+  create: (data: { title: string; category: string; content: string }) => api.post('/guides', data),
+  update: (id: number, data: { title: string; category: string; content: string }) => api.put(`/guides/${id}`, data),
+  remove: (id: number) => api.delete(`/guides/${id}`),
 };
 
 // Lead: scoped permission grants (e.g. letting a tester manage the knowledge base)

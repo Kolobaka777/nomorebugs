@@ -2,14 +2,17 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import BaselineSurvey from './pages/BaselineSurvey';
 import AmbientSnail from './components/AmbientSnail';
 import ScrollBug from './components/ScrollBug';
 import InstallPrompt from './components/InstallPrompt';
 import OnboardingTour from './components/OnboardingTour';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import {
-  getAccessToken, getStoredUser, getNeedsBaselineSurvey,
-  setSession, setNeedsBaselineSurvey, clearSession, serverLogout,
+  getAccessToken, getStoredUser, getNeedsBaselineSurvey, getMustChangePassword,
+  setSession, setNeedsBaselineSurvey, setMustChangePassword, clearSession, serverLogout,
   SESSION_EXPIRED_EVENT,
 } from './auth';
 import { identifyUser, resetAnalyticsUser } from './monitoring';
@@ -31,15 +34,18 @@ const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
 const ChecklistFormPage = lazy(() => import('./pages/ChecklistFormPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const GuidesPage = lazy(() => import('./pages/GuidesPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   user: any;
   needsBaselineSurvey: boolean;
+  mustChangePassword: boolean;
 }
 
-const loggedOutState: AuthState = { isAuthenticated: false, token: null, user: null, needsBaselineSurvey: false };
+const loggedOutState: AuthState = { isAuthenticated: false, token: null, user: null, needsBaselineSurvey: false, mustChangePassword: false };
 
 function App() {
   const [authState, setAuthState] = useState<AuthState>(loggedOutState);
@@ -55,6 +61,7 @@ function App() {
         token,
         user,
         needsBaselineSurvey: getNeedsBaselineSurvey(),
+        mustChangePassword: getMustChangePassword(),
       });
       identifyUser(user);
     }
@@ -73,11 +80,16 @@ function App() {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
-  const handleLogin = (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => {
-    setSession(token, refreshToken, user, needsBaselineSurvey);
+  const handleLogin = (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) => {
+    setSession(token, refreshToken, user, needsBaselineSurvey, mustChangePassword);
     setSessionExpiredNotice(false);
-    setAuthState({ isAuthenticated: true, token, user, needsBaselineSurvey });
+    setAuthState({ isAuthenticated: true, token, user, needsBaselineSurvey, mustChangePassword });
     identifyUser(user);
+  };
+
+  const handlePasswordChanged = () => {
+    setMustChangePassword(false);
+    setAuthState(prev => ({ ...prev, mustChangePassword: false }));
   };
 
   const handleLogout = () => {
@@ -108,9 +120,19 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/register" element={<RegisterPage onLogin={handleLogin} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="*" element={<LoginPage onLogin={handleLogin} sessionExpired={sessionExpiredNotice} />} />
         </Routes>
       </BrowserRouter>
+    );
+  }
+
+  if (authState.mustChangePassword) {
+    return (
+      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+        <ChangePasswordModal forced onDone={handlePasswordChanged} />
+      </div>
     );
   }
 
@@ -151,6 +173,7 @@ function App() {
           <Route path="/lead/course-builder/:id" element={<CourseBuilderPage {...sharedProps} />} />
           <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} />
           <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} />
+          <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />
           <Route path="/help"                    element={<HelpPage {...sharedProps} />} />
 
           {/* ===== TESTER ROUTES ===== */}
@@ -166,7 +189,10 @@ function App() {
               can — see requireRole()'s admin bypass server-side — so it
               shares this branch rather than duplicating the route) */}
           {(u.role === 'lead' || u.role === 'admin') && (
-            <Route path="/dashboard" element={<UleyPage {...sharedProps} />} />
+            <>
+              <Route path="/dashboard" element={<UleyPage {...sharedProps} />} />
+              <Route path="/profile" element={<ProfilePage {...sharedProps} />} />
+            </>
           )}
 
           {/* ===== ADMIN-ONLY ROUTES ===== */}

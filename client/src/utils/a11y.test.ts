@@ -32,6 +32,17 @@ describe('clickableProps', () => {
     props.onKeyDown({ key: 'a', preventDefault: vi.fn() } as any);
     expect(onActivate).not.toHaveBeenCalled();
   });
+
+  it('lets Space/Enter reach a nested text input instead of hijacking it (regression: typing a module name toggled the collapsible header and ate the space)', () => {
+    const onActivate = vi.fn();
+    const props = clickableProps(onActivate);
+    const preventDefault = vi.fn();
+    props.onKeyDown({ key: ' ', target: { tagName: 'INPUT' }, preventDefault } as any);
+    props.onKeyDown({ key: 'Enter', target: { tagName: 'TEXTAREA' }, preventDefault } as any);
+    props.onKeyDown({ key: ' ', target: { tagName: 'SELECT' }, preventDefault } as any);
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
 });
 
 describe('useEscapeKey', () => {

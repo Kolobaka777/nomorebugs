@@ -380,6 +380,31 @@ export function initDb() {
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL');
 
+  // Forces a change-password redirect on next login after an admin/lead
+  // resets someone's password to a temporary one — set on reset, cleared
+  // once the user picks their own.
+  if (!userCols.includes('must_change_password')) {
+    db.exec("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0");
+  }
+
+  // Deactivation is an archive, not a delete — every table with a user_id
+  // FK (test_results, checklist_submissions, activity_log, ...) stays
+  // completely intact; archiving only blocks login and hides the account
+  // from active-team views. NULL = active (the common case, so existing
+  // rows need no backfill).
+  if (!userCols.includes('archived_at')) {
+    db.exec("ALTER TABLE users ADD COLUMN archived_at DATETIME");
+  }
+
+  // Per-attempt quiz metadata: time spent per question and a soft
+  // tab-switch count, both surfaced to leads/admins as review signals (not
+  // auto-block — see the submit-test route for why). JSON blob rather than
+  // separate columns since its shape is purely for display, never queried.
+  const testResultCols = db.prepare("PRAGMA table_info(test_results)").all().map(c => c.name);
+  if (!testResultCols.includes('meta')) {
+    db.exec("ALTER TABLE test_results ADD COLUMN meta TEXT DEFAULT '{}'");
+  }
+
   // Knowledge base (Багодельня) — bug-report examples and glossary terms,
   // previously hardcoded in the client with no way to add/edit/delete.
   // created_by is nullable so a system-seeded row (the original hardcoded
@@ -422,7 +447,103 @@ export function initDb() {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (granted_by) REFERENCES users(id)
     );
+
+    -- "Forgot password" flow for accounts with no session at all. Only a
+    -- hash is stored, same rationale as refresh_tokens — single-use
+    -- (deleted on redemption), short-lived.
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- Lead/admin-editable articles replacing the Notion docs — a plain
+    -- safe-markdown-subset body (see GuidesPage's renderer), not raw HTML,
+    -- so there's no dangerouslySetInnerHTML/XSS surface to worry about.
+    CREATE TABLE IF NOT EXISTS guides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Общее',
+      content TEXT NOT NULL DEFAULT '',
+      created_by INTEGER,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    -- Admin-curated canonical list of checklist task types — previously
+    -- this was just "whatever distinct values happen to exist in
+    -- checklist_submissions.task_type", with no way to define the set up
+    -- front or clean up near-duplicate free-typed variants.
+    CREATE TABLE IF NOT EXISTS task_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- A lead-awarded bonus/recognition log, separate from the generic
+    -- activity_log so "who got a bonus, how much, why, when" can be
+    -- reported on directly without parsing free-text action strings.
+    -- Deliberately just bug_coins + a note, not real money — see
+    -- app.js's award-bonus route comment for why.
+    CREATE TABLE IF NOT EXISTS bonus_awards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      awarded_by INTEGER NOT NULL,
+      awarded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (awarded_by) REFERENCES users(id)
+    );
+
+    -- Automatic, lead/admin-only-visible score — NEVER exposed to the
+    -- tester it's about (see /api/me/premium-points, which deliberately
+    -- only ever reads bonus_awards, not this table). Awarded by the server
+    -- itself (submit-test / checklist submit routes) when a specific,
+    -- anti-cheat-checked quality/speed bar is cleared — see those routes'
+    -- comments for the exact rules. This is what powers a lead's "who's
+    -- quietly excellent" leaderboard, independent of anything a tester
+    -- could see and try to game directly.
+    CREATE TABLE IF NOT EXISTS internal_score_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      points INTEGER NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
+
+  // premium_points: the visible, "redeemable later" bonus balance a lead
+  // awards via /api/lead/award-bonus — deliberately separate from bug_coins
+  // (the cosmetic shop currency test/quiz completion already earns), since
+  // the two now mean different things: bug_coins buys profile cosmetics,
+  // premium_points is the ledger meant to eventually convert to something
+  // real-world (e.g. an отгул) — mixing them would make that conversion
+  // ambiguous ("how many of my coins are real vs. just shop currency?").
+  const profileCols = db.prepare("PRAGMA table_info(user_profiles)").all().map(c => c.name);
+  if (!profileCols.includes('premium_points')) {
+    db.exec("ALTER TABLE user_profiles ADD COLUMN premium_points INTEGER DEFAULT 0");
+  }
+
+  // Soft-delete (trash/recycle bin) for the content types most likely to
+  // suffer an "oops, deleted the wrong one" — see /api/admin/trash. A NULL
+  // deleted_at is the live row; every list/read route filters it out,
+  // every DELETE route sets it instead of removing the row, and a purge
+  // action (admin-only) does the real, permanent delete. Placed here,
+  // after all four tables are guaranteed to exist (bug_examples/
+  // glossary_terms/guides are created just above; custom_courses earlier).
+  for (const table of ['bug_examples', 'glossary_terms', 'guides', 'custom_courses']) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    if (!cols.includes('deleted_at')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at DATETIME`);
+    }
+  }
 
   // Seed the knowledge base once with the content that used to be
   // hardcoded, so existing users don't see it disappear when this becomes
@@ -539,15 +660,44 @@ export function initDb() {
     const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
     try { if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''"); } catch {}
 
-    // Check if preland template has full items (75 items) — if still old (9 items), reseed
+    // Check if preland template has full items (75 items) — if still old (9 items), reseed.
+    // Deleting checklist_items outright used to be able to fail with a
+    // FOREIGN KEY constraint error (foreign_keys is ON — see the users
+    // rebuild comment above) if any real submission had already recorded a
+    // checklist_item_results row against one of the old items, e.g. after
+    // restoring an old backup that predates this reseed. Clearing those
+    // results first (they belong to the stale 9-item version anyway — no
+    // longer meaningful once the items they reference are replaced) makes
+    // this safe regardless of what data exists.
     const prelandTpl = db.prepare("SELECT id FROM checklist_templates WHERE task_type = 'prelending'").get();
     if (prelandTpl) {
       const itemCount = db.prepare('SELECT COUNT(*) as c FROM checklist_items WHERE template_id = ?').get(prelandTpl.id);
       if (itemCount.c < 20) {
-        db.prepare('DELETE FROM checklist_items WHERE template_id = ?').run(prelandTpl.id);
-        seedPrelandItems(prelandTpl.id);
+        db.transaction(() => {
+          db.prepare(`
+            DELETE FROM checklist_item_results WHERE item_id IN (
+              SELECT id FROM checklist_items WHERE template_id = ?
+            )
+          `).run(prelandTpl.id);
+          db.prepare('DELETE FROM checklist_items WHERE template_id = ?').run(prelandTpl.id);
+          seedPrelandItems(prelandTpl.id);
+        })();
       }
     }
+  }
+
+  // One-time: seed the curated task_types list from whatever distinct
+  // values are already in use, so existing free-typed types don't vanish
+  // from the dropdown the moment this becomes an admin-curated list
+  // instead of "derived from history". Only runs while the table is empty.
+  const taskTypeCount = db.prepare('SELECT COUNT(*) as c FROM task_types').get().c;
+  if (taskTypeCount === 0) {
+    const existingTypes = new Set([
+      ...db.prepare("SELECT DISTINCT task_type FROM checklist_submissions WHERE task_type != ''").all().map(r => r.task_type),
+      ...db.prepare("SELECT DISTINCT task_type FROM checklist_templates WHERE task_type != ''").all().map(r => r.task_type),
+    ]);
+    const insTaskType = db.prepare('INSERT OR IGNORE INTO task_types (name) VALUES (?)');
+    for (const name of existingTypes) insTaskType.run(name);
   }
 
   // Indexes on every foreign-key / lookup column that gets JOINed or
@@ -568,6 +718,7 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_checklist_submissions_user_id ON checklist_submissions(user_id);
     CREATE INDEX IF NOT EXISTS idx_checklist_submissions_template_id ON checklist_submissions(template_id);
     CREATE INDEX IF NOT EXISTS idx_checklist_submissions_submitted_at ON checklist_submissions(submitted_at);
+    CREATE INDEX IF NOT EXISTS idx_checklist_submissions_task_type ON checklist_submissions(task_type);
     CREATE INDEX IF NOT EXISTS idx_checklist_item_results_submission_id ON checklist_item_results(submission_id);
     CREATE INDEX IF NOT EXISTS idx_checklist_item_results_item_id ON checklist_item_results(item_id);
     CREATE INDEX IF NOT EXISTS idx_course_time_tracking_user_id ON course_time_tracking(user_id);
@@ -583,6 +734,10 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_telegram_login_tokens_expires_at ON telegram_login_tokens(expires_at);
     CREATE INDEX IF NOT EXISTS idx_granted_permissions_user_id ON granted_permissions(user_id);
     CREATE INDEX IF NOT EXISTS idx_custom_course_views_course_id ON custom_course_views(course_id);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_guides_category ON guides(category);
+    CREATE INDEX IF NOT EXISTS idx_bonus_awards_user_id ON bonus_awards(user_id);
+    CREATE INDEX IF NOT EXISTS idx_internal_score_events_user_id ON internal_score_events(user_id);
   `);
 }
 

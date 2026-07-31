@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import { checklistApi } from '../api';
+import { checklistApi, knowledgeApi } from '../api';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { clickableProps, useEscapeKey } from '../utils/a11y';
+import { parseServerDate, localDayStartUTC, localDayEndUTC } from '../utils/date';
 
 interface Props { user: any; onLogout: () => void; }
 
@@ -73,7 +74,7 @@ function SubmissionDetailModal({ sub, onClose }: { sub: SubmissionDetail; onClos
           <div>
             <p className="text-pixel font-sans font-semibold text-sm">{sub.task_name}</p>
             <p className="text-pixel/60 text-xs font-sans mt-0.5">
-              {sub.tester_name} · {sub.template_name} · {new Date(sub.submitted_at).toLocaleDateString('ru-RU')}
+              {sub.tester_name} · {sub.template_name} · {parseServerDate(sub.submitted_at).toLocaleDateString('ru-RU')}
             </p>
             {(sub.content_author || sub.verska_author) && (
               <p className="text-pixel/55 text-xs font-sans mt-0.5">
@@ -297,7 +298,7 @@ function SubmissionsList({
                 {sub.tester_name} · {sub.template_name}
                 {sub.content_author && ` · К: ${sub.content_author}`}
                 {sub.verska_author && ` · В: ${sub.verska_author}`}
-                {' · '}{new Date(sub.submitted_at).toLocaleDateString('ru-RU')}
+                {' · '}{parseServerDate(sub.submitted_at).toLocaleDateString('ru-RU')}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -313,13 +314,249 @@ function SubmissionsList({
   );
 }
 
+function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
+  useEscapeKey(onClose);
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('#7F77DD');
+  const [items, setItems] = useState<{ category: string; text: string }[]>([{ category: 'Общее', text: '' }]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const COLORS = ['#1D9E75', '#7F77DD', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
+
+  const updateItem = (idx: number, field: 'category' | 'text', value: string) => {
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: value } : it));
+  };
+
+  const handleCreate = async () => {
+    if (!name.trim()) { setError('Введите название'); return; }
+    const cleanItems = items.filter(i => i.text.trim());
+    if (cleanItems.length === 0) { setError('Добавьте хотя бы один пункт'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await checklistApi.createTemplate({ name: name.trim(), color, items: cleanItems });
+      onCreated(res.data.id);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Ошибка создания');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ background: 'rgba(0,0,0,0.75)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-lg rounded p-6 max-h-[85vh] overflow-y-auto" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Новый чеклист вручную</p>
+          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-pixel/60 text-xs font-sans mb-2">Название шаблона *</label>
+            <input className="pixel-input" value={name} onChange={e => setName(e.target.value)} placeholder="Например: Быстрая проверка формы" />
+          </div>
+
+          <div>
+            <label className="block text-pixel/60 text-xs font-sans mb-2">Цвет</label>
+            <div className="flex gap-2">
+              {COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className="w-7 h-7 rounded cursor-pointer transition-transform"
+                  style={{ background: c, outline: color === c ? `3px solid #fff` : 'none', outlineOffset: 2, transform: color === c ? 'scale(1.2)' : 'scale(1)' }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-pixel/60 text-xs font-sans mb-2">Пункты проверки</label>
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <input
+                    className="pixel-input text-xs"
+                    style={{ width: 110 }}
+                    placeholder="Категория"
+                    value={item.category}
+                    onChange={e => updateItem(idx, 'category', e.target.value)}
+                  />
+                  <input
+                    className="pixel-input text-xs flex-1"
+                    placeholder="Текст пункта"
+                    value={item.text}
+                    onChange={e => updateItem(idx, 'text', e.target.value)}
+                  />
+                  <button
+                    onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
+                    className="text-xs shrink-0"
+                    style={{ color: '#e05252' }}
+                    aria-label="Удалить пункт"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setItems(prev => [...prev, { category: prev[prev.length - 1]?.category || 'Общее', text: '' }])}
+              className="btn-secondary text-xs px-3 py-1.5 mt-2"
+            >
+              + Пункт
+            </button>
+          </div>
+
+          {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+
+          <button
+            onClick={handleCreate}
+            disabled={loading}
+            className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
+            style={{ background: '#1D9E75', color: '#0f0f1a' }}
+          >
+            {loading ? '...' : 'Создать'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EXPORT_COLUMNS: { key: keyof Submission; label: string }[] = [
+  { key: 'tester_name', label: 'Тестировщик' },
+  { key: 'template_name', label: 'Чеклист' },
+  { key: 'task_type', label: 'Тип задачи' },
+  { key: 'task_name', label: 'Задача' },
+  { key: 'content_author', label: 'Автор контента' },
+  { key: 'verska_author', label: 'Автор вёрстки' },
+  { key: 'check_date', label: 'Дата проверки' },
+  { key: 'submitted_at', label: 'Дата отправки' },
+];
+
+// Exports the currently-filtered submission list (not just the visible
+// page) to Excel — loops through every page via the existing paginated
+// endpoint rather than needing a separate server export route.
+function ExportModal({ filters, onClose }: { filters: Record<string, string>; onClose: () => void }) {
+  useEscapeKey(onClose);
+  const [selected, setSelected] = useState<Set<string>>(new Set(EXPORT_COLUMNS.map(c => c.key)));
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (key: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const runExport = async () => {
+    if (selected.size === 0) { setError('Выберите хотя бы одну колонку'); return; }
+    setExporting(true);
+    setError('');
+    try {
+      const rows: Submission[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await checklistApi.getSubmissions({ ...filters, offset } as any);
+        rows.push(...res.data.rows);
+        hasMore = res.data.hasMore;
+        offset += 50;
+        if (offset > 5000) break; // sane upper bound, not a silent truncation in practice
+      }
+
+      const { default: ExcelJS } = await import('exceljs');
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Отчёт');
+      const cols = EXPORT_COLUMNS.filter(c => selected.has(c.key));
+      ws.columns = cols.map(c => ({ header: c.label, key: c.key, width: 24 }));
+      ws.addRow(cols.map(c => c.label));
+      for (const row of rows) {
+        ws.addRow(cols.map(c => {
+          if (c.key === 'submitted_at') return parseServerDate(row.submitted_at).toLocaleString('ru-RU');
+          return (row as any)[c.key] ?? '';
+        }));
+      }
+      // Ошибок/всего — always useful, appended regardless of column picker
+      // since it's not free-typed data like the others, just a derived count.
+      ws.getRow(1).values = [...cols.map(c => c.label), 'Ошибок/Всего'];
+      rows.forEach((row, i) => {
+        ws.getCell(i + 2, cols.length + 1).value = `${row.fail_count}/${row.total_items}`;
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `checklists_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      console.error(e);
+      setError('Не удалось сформировать отчёт');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ background: 'rgba(0,0,0,0.75)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md rounded p-6" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Экспорт отчёта</p>
+          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
+        </div>
+        <p className="text-pixel/50 text-xs font-sans mb-3">Экспортируются записи с учётом применённых фильтров истории. Выберите колонки:</p>
+        <div className="space-y-1.5 mb-4">
+          {EXPORT_COLUMNS.map(c => (
+            <label key={c.key} className="flex items-center gap-2 text-xs font-sans cursor-pointer" style={{ color: 'rgba(232,232,208,0.75)' }}>
+              <input type="checkbox" checked={selected.has(c.key)} onChange={() => toggle(c.key)} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+        {error && <p className="text-xs font-sans mb-3" style={{ color: '#e05252' }}>{error}</p>}
+        <button
+          onClick={runExport}
+          disabled={exporting}
+          className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
+          style={{ background: '#1D9E75', color: '#0f0f1a' }}
+        >
+          {exporting ? 'Формирую...' : '⬇ Скачать Excel'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ChecklistsPage({ user, onLogout }: Props) {
   const navigate = useNavigate();
-  const isLead = user.role === 'lead';
+  // "isLead" here really means "can see lead-only reporting" — admin gets
+  // everything lead does server-side (requireRole's admin bypass), so it
+  // has to be included here too or an admin silently loses the Отчёты tab
+  // and the manage-checklists buttons despite the server allowing them.
+  const isLead = user.role === 'lead' || user.role === 'admin';
+  const [canManageChecklists, setCanManageChecklists] = useState(isLead);
   const [tab, setTab] = useState<Tab>('checklists');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [justImportedId, setJustImportedId] = useState<number | null>(null);
 
   const [authors, setAuthors] = useState<{ contentAuthors: string[]; verskaAuthors: string[] }>({
@@ -360,6 +597,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
     loadTemplates();
     loadAuthors();
     checklistApi.getTaskTypes().then(r => setTaskTypes(r.data)).catch(() => {});
+    if (!isLead) {
+      knowledgeApi.getMyPermissions().then(r => setCanManageChecklists(r.data.includes('manage_checklists'))).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -370,8 +610,8 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   const statsFilters = () => ({
     template_id: statsFilterTpl || undefined,
     task_type: statsFilterType || undefined,
-    date_from: statsFilterFrom || undefined,
-    date_to: statsFilterTo || undefined,
+    date_from: statsFilterFrom ? localDayStartUTC(statsFilterFrom) : undefined,
+    date_to: statsFilterTo ? localDayEndUTC(statsFilterTo) : undefined,
   });
 
   const loadTemplates = async () => {
@@ -399,7 +639,14 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
     finally { setStatsLoading(false); }
   };
 
+  // Guards "Применить" against being clicked again (or Enter re-fired)
+  // before the previous request lands — without this, a slower earlier
+  // response can arrive after a faster later one and silently overwrite
+  // the list with results for the filters you've since changed away from.
+  const subsRequestRef = useRef(0);
+
   const loadSubmissions = async () => {
+    const requestId = ++subsRequestRef.current;
     setSubsLoading(true);
     try {
       const res = await checklistApi.getSubmissions({
@@ -408,14 +655,15 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         content_author: filterContent,
         verska_author: filterVerska,
         task_type: filterType,
-        date_from: filterFrom,
-        date_to: filterTo,
+        date_from: filterFrom ? localDayStartUTC(filterFrom) : undefined,
+        date_to: filterTo ? localDayEndUTC(filterTo) : undefined,
         sort,
       });
+      if (requestId !== subsRequestRef.current) return;
       setSubmissions(res.data.rows);
       setSubsHasMore(res.data.hasMore);
     } catch {}
-    finally { setSubsLoading(false); }
+    finally { if (requestId === subsRequestRef.current) setSubsLoading(false); }
   };
 
   const loadMoreSubmissions = async () => {
@@ -427,8 +675,8 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         content_author: filterContent,
         verska_author: filterVerska,
         task_type: filterType,
-        date_from: filterFrom,
-        date_to: filterTo,
+        date_from: filterFrom ? localDayStartUTC(filterFrom) : undefined,
+        date_to: filterTo ? localDayEndUTC(filterTo) : undefined,
         sort,
         offset: submissions.length,
       });
@@ -471,6 +719,32 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
           }}
         />
       )}
+      {showCreate && (
+        <CreateTemplateModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(id) => {
+            setShowCreate(false);
+            loadTemplates();
+            setJustImportedId(id);
+            setTimeout(() => setJustImportedId(null), 5000);
+          }}
+        />
+      )}
+      {showExport && (
+        <ExportModal
+          filters={{
+            template_id: filterTpl,
+            tester: filterTester,
+            content_author: filterContent,
+            verska_author: filterVerska,
+            task_type: filterType,
+            date_from: filterFrom ? localDayStartUTC(filterFrom) : '',
+            date_to: filterTo ? localDayEndUTC(filterTo) : '',
+            sort,
+          }}
+          onClose={() => setShowExport(false)}
+        />
+      )}
       {justImportedId !== null && (
         <div
           className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded text-sm font-sans font-semibold"
@@ -489,9 +763,16 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
             </h1>
             <p className="text-pixel/60 text-sm font-sans">Проверяй, отмечай, отправляй</p>
           </div>
-          <button onClick={() => setShowImport(true)} className="btn-primary text-xs py-2 px-4">
-            + Импорт Excel
-          </button>
+          {canManageChecklists && (
+            <div className="flex gap-2">
+              <button onClick={() => setShowCreate(true)} className="btn-secondary text-xs py-2 px-4">
+                + Вручную
+              </button>
+              <button onClick={() => setShowImport(true)} className="btn-primary text-xs py-2 px-4">
+                + Импорт Excel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tab buttons */}
@@ -671,11 +952,20 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
               <div className="flex gap-2">
                 <button
                   onClick={loadSubmissions}
+                  disabled={subsLoading}
                   aria-label="Применить фильтры поиска"
-                  className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer shrink-0 flex-1"
+                  className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer shrink-0 flex-1 disabled:opacity-50 disabled:cursor-default"
                 >
                   Применить
                 </button>
+                {isLead && (
+                  <button
+                    onClick={() => setShowExport(true)}
+                    className="btn-secondary px-3 py-1 text-xs font-sans cursor-pointer shrink-0"
+                  >
+                    ⬇ Экспорт
+                  </button>
+                )}
               </div>
             </div>
 

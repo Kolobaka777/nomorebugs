@@ -4,6 +4,7 @@ import { checklistApi } from '../api';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
+import { todayLocal } from '../utils/date';
 
 interface Props { user: any; onLogout: () => void; }
 
@@ -94,7 +95,7 @@ async function exportToExcel(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `checklist_${meta.taskName || template.name}_${meta.checkDate || new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `checklist_${meta.taskName || template.name}_${meta.checkDate || todayLocal()}.xlsx`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -237,7 +238,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
   const [contentAuthor, setContentAuthor] = useState('');
   const [verskaAuthor, setVerskaAuthor] = useState('');
   const [taskType, setTaskType] = useState('');
-  const [checkDate, setCheckDate] = useState(new Date().toISOString().slice(0, 10));
+  const [checkDate, setCheckDate] = useState(todayLocal());
 
   const [checkMode, setCheckMode] = useState<CheckMode>('full');
   const [results, setResults] = useState<Record<number, Status>>({});

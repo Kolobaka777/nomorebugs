@@ -140,11 +140,16 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
     expect(res.status).toBe(403);
   });
 
-  it('admin can delete a course they did not author', async () => {
+  it('admin can delete a course they did not author (soft-delete — see trash)', async () => {
     const res = await request(app)
       .delete(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(db.prepare('SELECT id FROM custom_courses WHERE id = ?').get(courseId)).toBeUndefined();
+    // Deletion is now a soft-delete (see /api/admin/trash) — the row stays,
+    // just marked deleted_at, and disappears from the normal list/detail routes.
+    const row = db.prepare('SELECT deleted_at FROM custom_courses WHERE id = ?').get(courseId);
+    expect(row.deleted_at).not.toBeNull();
+    const listed = await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(listed.status).toBe(404);
   });
 });

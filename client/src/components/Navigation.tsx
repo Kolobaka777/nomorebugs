@@ -2,9 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import PixelIcon from './PixelIcon';
 import TelegramLinkWidget from './TelegramLinkWidget';
-import ProfileEditModal from './ProfileEditModal';
-import { testerApi } from '../api';
-import { FullProfile } from '../types';
+import ChangePasswordModal from './ChangePasswordModal';
 
 interface NavigationProps {
   user: any;
@@ -16,46 +14,22 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  // Lead/admin profile editing — testers use the fuller /cabinet page
-  // instead (their whole gamified dashboard, not just this modal).
-  const [showProfileEdit, setShowProfileEdit] = useState(false);
-  const [profile, setProfile] = useState<FullProfile | null>(null);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
 
-  const openProfileEdit = () => {
-    setMenuOpen(false);
-    setShowProfileEdit(true);
-    if (!profile) {
-      testerApi.getProfileFull().then(r => setProfile(r.data)).catch(() => {});
-    }
-  };
-
+  // Testers get their full gamified /cabinet; lead/admin get the dedicated
+  // /profile page (see ProfilePage.tsx), which also hosts the same
+  // ProfileEditModal they used to open straight from this dropdown.
   const handleProfileClick = () => {
-    if (user.role === 'tester') {
-      navigate('/cabinet');
-      setMenuOpen(false);
-    } else {
-      openProfileEdit();
-    }
+    navigate(user.role === 'tester' ? '/cabinet' : '/profile');
+    setMenuOpen(false);
   };
-
-  const defaultProfile: FullProfile = {
-    id: user.id, email: user.email, name: user.name,
-    avatar_initials: user.avatar_initials,
-    created_at: new Date().toISOString(),
-    nickname: user.name, status_quote: '', specialization: '',
-    info_box: '', snail_joke: '', avatar_id: 'bug1',
-    avatar_frame: 'default', profile_bg: 'default',
-    showcase_badges: [], favorite_lecture_id: null, is_public: true,
-    custom_avatar: null, bug_coins: 0, purchased_items: [],
-    stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
-    streak: 0, cards: [], badges: [], craftable: [], favLecture: null,
-  } as FullProfile;
 
   const testerLinks = [
     { path: '/', label: 'Главная', tourId: 'nav-home' },
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
+    { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },
   ];
 
@@ -65,6 +39,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/dashboard', label: 'Команда', tourId: 'nav-team' },
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
+    { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },
   ];
 
@@ -176,6 +151,16 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 Мой профиль →
               </button>
 
+              <button
+                onClick={() => { setShowPasswordChange(true); setMenuOpen(false); }}
+                className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
+                style={{ color: 'rgba(232,232,208,0.7)' }}
+                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(29,158,117,0.08)'; (e.currentTarget).style.color = '#1D9E75'; }}
+                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(232,232,208,0.7)'; }}
+              >
+                Сменить пароль
+              </button>
+
               {/* Logout */}
               <button
                 onClick={() => { onLogout(); setMenuOpen(false); }}
@@ -191,14 +176,10 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
         </div>
       </div>
 
-      {showProfileEdit && (
-        <ProfileEditModal
-          profile={profile ?? defaultProfile}
-          passedLectures={[]}
-          unlockedFrames={['default', 'code']}
-          unlockedBgs={['default', 'forest', 'console']}
-          onSave={patch => setProfile(p => ({ ...(p ?? defaultProfile), ...patch }))}
-          onClose={() => setShowProfileEdit(false)}
+      {showPasswordChange && (
+        <ChangePasswordModal
+          onDone={() => setShowPasswordChange(false)}
+          onClose={() => setShowPasswordChange(false)}
         />
       )}
     </header>

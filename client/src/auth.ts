@@ -4,6 +4,7 @@ const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 const NEEDS_BASELINE_KEY = 'needsBaselineSurvey';
+const MUST_CHANGE_PASSWORD_KEY = 'mustChangePassword';
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -22,15 +23,24 @@ export function getNeedsBaselineSurvey(): boolean {
   return localStorage.getItem(NEEDS_BASELINE_KEY) === 'true';
 }
 
-export function setSession(token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) {
+export function getMustChangePassword(): boolean {
+  return localStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === 'true';
+}
+
+export function setSession(token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   localStorage.setItem(NEEDS_BASELINE_KEY, String(needsBaselineSurvey));
+  localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, String(mustChangePassword));
 }
 
 export function setNeedsBaselineSurvey(value: boolean) {
   localStorage.setItem(NEEDS_BASELINE_KEY, String(value));
+}
+
+export function setMustChangePassword(value: boolean) {
+  localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, String(value));
 }
 
 function setAccessToken(token: string) {
@@ -42,6 +52,7 @@ export function clearSession() {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(NEEDS_BASELINE_KEY);
+  localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export async function serverLogout(): Promise<void> {

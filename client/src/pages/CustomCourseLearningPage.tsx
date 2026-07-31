@@ -309,13 +309,19 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const navigate = useNavigate();
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadCourse = () => {
+    setLoading(true);
+    setLoadError(false);
     authFetch(`${API}/custom-courses/${id}`)
       .then(r => r.json())
       .then(data => { if (!data.error) setCourse(data); })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  useEffect(() => { loadCourse(); }, [id]);
 
   const allLessons: any[] = useMemo(() => {
     if (!course) return [];
@@ -405,8 +411,15 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     return (
       <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
         <Navigation user={user} onLogout={onLogout} />
-        <div className="flex items-center justify-center h-64">
-          <p className="font-sans text-pixel/60 text-sm">Курс не найден</p>
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <p className="font-sans text-pixel/60 text-sm">
+            {loadError ? 'Не удалось загрузить курс — проверьте соединение и попробуйте снова.' : 'Курс не найден'}
+          </p>
+          {loadError && (
+            <button onClick={loadCourse} className="text-primary font-sans text-sm hover:underline">
+              ↻ Повторить
+            </button>
+          )}
         </div>
       </div>
     );

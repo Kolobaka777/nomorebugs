@@ -5,7 +5,7 @@ import LevelBadge from '../components/LevelBadge';
 import SnailLoader from '../components/SnailLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
-import { testerApi, checklistApi } from '../api';
+import { testerApi, checklistApi, rewardsApi } from '../api';
 import {
   Lecture, TestHistoryItem, SKillChart,
   FullProfile, getLevel,
@@ -13,6 +13,7 @@ import {
 import { BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { clickableProps } from '../utils/a11y';
+import { parseServerDate } from '../utils/date';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; }
 
@@ -196,6 +197,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
   const [crafting, setCrafting]         = useState<string | null>(null);
   const [craftSuccess, setCraftSuccess] = useState<string | null>(null);
   const [buying, setBuying]             = useState<string | null>(null);
+  const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -211,6 +213,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
 
       // Load task counts from real server (silently skip if server is down)
       checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch(() => {});
+      rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch(() => {});
       setMetrics(metricsRes.data);
       setLectures(lecturesRes.data);
       setHistory(historyRes.data);
@@ -401,7 +404,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                 </span>
                 {profile?.created_at && (
                   <span style={{ color: 'rgba(232,232,208,0.55)' }}>
-                    В гильдии с {new Date(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    В гильдии с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                 )}
               </div>
@@ -411,6 +414,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
                 {[
                   { label: 'Пройдено',  value: completed,                        color: '#1D9E75' },
                   { label: 'Точность',  value: `${metrics?.averageScore || 0}%`,  color: '#EF9F27' },
+                  ...(premiumPoints ? [{ label: 'Премиальные баллы', value: premiumPoints.premium_points, color: '#7F77DD' }] : []),
                 ].map((m, i) => (
                   <div key={i} className="rpg-panel-dark p-2 text-center">
                     <p className="text-pixel/60 font-sans" style={{ fontSize: '0.55rem', lineHeight: 1.4 }}>{m.label}</p>

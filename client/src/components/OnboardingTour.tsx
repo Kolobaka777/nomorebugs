@@ -25,6 +25,17 @@ const LEAD_STEPS: Step[] = [
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
 ];
 
+const ADMIN_STEPS: Step[] = [
+  { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
+  { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
+  { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
+  { selector: '[data-tour="nav-checklists"]', title: 'Чеклисты', body: 'Проверки задач от тестировщиков и статистика по ним.' },
+  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
+  { selector: '[data-tour="nav-admin"]', title: 'Админка', body: 'Управление пользователями и ролями — доступно только администраторам.' },
+  { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
+  { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
+];
+
 interface Props {
   user: any;
 }
@@ -35,7 +46,7 @@ export default function OnboardingTour({ user }: Props) {
   const [active, setActive] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  const steps = user.role === 'lead' ? LEAD_STEPS : TESTER_STEPS;
+  const steps = user.role === 'admin' ? ADMIN_STEPS : user.role === 'lead' ? LEAD_STEPS : TESTER_STEPS;
 
   useEffect(() => {
     if (localStorage.getItem(storageKey)) return;

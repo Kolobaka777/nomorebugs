@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { testerApi } from '../api';
 import { Question, QuestionExplanation } from '../types';
 import SnailLoader from '../components/SnailLoader';
@@ -8,6 +8,20 @@ import PixelIcon from '../components/PixelIcon';
 interface QuizPageProps {
   user: any;
   onLogout: () => void;
+}
+
+// Fisher-Yates — used to shuffle question and answer-option display order
+// per attempt. Scoring is untouched by this: answers are always recorded
+// against the option's original key ('a'/'b'/'c'/'d'), never its display
+// position, so shuffling can't affect correctness — it only makes a
+// memorized "answer sequence" (shared between testers) useless.
+function shuffle<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 export default function QuizPage({ user, onLogout }: QuizPageProps) {
@@ -28,15 +42,35 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const [result, setResult] = useState<any>(null);
   const [loadError, setLoadError] = useState(false);
 
+  // Anti-cheat / review signals — never block submission, just give a lead
+  // something to look at. questionTimes: seconds spent per question id.
+  // tabSwitches: how many times the tab lost focus during the attempt
+  // (e.g. looking up an answer elsewhere). Both are soft signals shown next
+  // to the result, not an accusation — fast or tab-switching testers aren't
+  // necessarily cheating.
+  const questionTimesRef = useRef<Record<number, number>>({});
+  const questionStartRef = useRef<number>(Date.now());
+  const tabSwitchesRef = useRef(0);
+
   useEffect(() => {
     loadQuestions();
   }, [lectureId]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) tabSwitchesRef.current += 1;
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   const loadQuestions = async () => {
     setLoadError(false);
     try {
       const res = await testerApi.getQuestions(parseInt(lectureId!));
-      setQuestions(res.data);
+      const shuffled = shuffle<Question>(res.data);
+      setQuestions(shuffled);
+      questionStartRef.current = Date.now();
 
       // Resume an interrupted attempt (e.g. connection drop, accidental
       // navigation, browser crash) instead of silently discarding it.
@@ -45,8 +79,8 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
         if (saved) {
           const savedAnswers: Record<number, string> = JSON.parse(saved);
           setAnswers(savedAnswers);
-          const firstUnanswered = res.data.findIndex((q: Question) => !(q.id in savedAnswers));
-          setCurrentQuestionIdx(firstUnanswered === -1 ? res.data.length - 1 : firstUnanswered);
+          const firstUnanswered = shuffled.findIndex((q: Question) => !(q.id in savedAnswers));
+          setCurrentQuestionIdx(firstUnanswered === -1 ? shuffled.length - 1 : firstUnanswered);
         }
       } catch {
         // Corrupted saved progress shouldn't block starting a fresh attempt.
@@ -62,7 +96,23 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
   const currentQuestion = questions[currentQuestionIdx];
 
+  // Shuffled once per question (stable across re-renders of the same
+  // question via useMemo keyed on its id) — see the shuffle() comment above
+  // for why this can't affect scoring. Must be called unconditionally
+  // (before the loading/result/no-question early returns below) per the
+  // rules of hooks — guards internally instead of skipping the call.
+  const optionsArray = useMemo(() => currentQuestion ? shuffle([
+    { key: 'a', text: currentQuestion.option_a },
+    { key: 'b', text: currentQuestion.option_b },
+    { key: 'c', text: currentQuestion.option_c },
+    { key: 'd', text: currentQuestion.option_d },
+  ]) : [], [currentQuestion?.id]);
+
   const handleSelectAnswer = async (answer: string, retrying = false) => {
+    if (!retrying) {
+      const elapsed = Math.round((Date.now() - questionStartRef.current) / 1000);
+      questionTimesRef.current[currentQuestion.id] = (questionTimesRef.current[currentQuestion.id] || 0) + elapsed;
+    }
     setSelectedAnswer(answer);
     setExplanationFailed(false);
     const nextAnswers = { ...answers, [currentQuestion.id]: answer };
@@ -90,6 +140,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const handleNext = () => {
     if (currentQuestionIdx < questions.length - 1) {
       setCurrentQuestionIdx(prev => prev + 1);
+      questionStartRef.current = Date.now();
       setShowExplanation(false);
       setSelectedAnswer(null);
       setExplanation(null);
@@ -103,7 +154,10 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await testerApi.submitTest(parseInt(lectureId!), answers);
+      const res = await testerApi.submitTest(parseInt(lectureId!), answers, {
+        questionTimes: questionTimesRef.current,
+        tabSwitches: tabSwitchesRef.current,
+      });
       setResult(res.data);
       localStorage.removeItem(progressKey);
     } catch (err: any) {
@@ -233,13 +287,6 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   }
 
   const progPercent = ((currentQuestionIdx + 1) / questions.length) * 100;
-
-  const optionsArray = [
-    { key: 'a', text: currentQuestion.option_a },
-    { key: 'b', text: currentQuestion.option_b },
-    { key: 'c', text: currentQuestion.option_c },
-    { key: 'd', text: currentQuestion.option_d },
-  ];
 
   const isCorrect = explanation && selectedAnswer === explanation.correctAnswer;
 

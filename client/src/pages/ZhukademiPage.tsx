@@ -9,13 +9,14 @@ import PixelIcon from '../components/PixelIcon';
 import { API_BASE_URL as API_BASE } from '../config';
 import { authFetch } from '../auth';
 import { clickableProps } from '../utils/a11y';
+import { parseServerDate } from '../utils/date';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
 // custom_course_views table), not on a fixed timer alone.
 function isNew(createdAt: string, viewed: boolean): boolean {
   if (viewed) return false;
-  return Date.now() - new Date(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+  return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
 interface ZhukademiPageProps {

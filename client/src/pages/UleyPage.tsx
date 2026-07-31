@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import { leadApi, permissionsApi } from '../api';
+import { leadApi, permissionsApi, adminApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, LectureStat, getLevel } from '../types';
 import PixelIcon, { IconName } from '../components/PixelIcon';
+import { parseServerDate } from '../utils/date';
 
 interface UleyPageProps {
   user: any;
   onLogout: () => void;
 }
 
-type Tab = 'team' | 'before-after' | 'activity' | 'lectures';
+type Tab = 'team' | 'before-after' | 'activity' | 'lectures' | 'ratings';
+
+const PERMISSION_LABELS: Record<string, string> = {
+  manage_knowledge_base: 'Багодельня',
+  manage_courses: 'Курсы',
+  manage_checklists: 'Чек-листы',
+  manage_guides: 'Гайды',
+};
+const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
 
 const ACTION_LABELS: Record<string, string> = {
   passed_lecture: '✓ прошла лекцию',
@@ -28,13 +37,58 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [loading, setLoading] = useState(true);
 
   const [grants, setGrants] = useState<{ id: number; user_id: number; permission: string; expires_at: string | null }[]>([]);
-  const [grantingFor, setGrantingFor] = useState<number | null>(null);
-  const [grantExpiry, setGrantExpiry] = useState('never');
+  const [expiryByMember, setExpiryByMember] = useState<Record<number, string>>({});
+  const [resettingId, setResettingId] = useState<number | null>(null);
+  const [resetResult, setResetResult] = useState<{ id: number; message: string } | null>(null);
+  const [archivingId, setArchivingId] = useState<number | null>(null);
+  const [archived, setArchived] = useState<{ id: number; name: string; avatar_initials: string; archived_at: string }[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [ratings, setRatings] = useState<any[] | null>(null);
 
   useEffect(() => {
     loadData();
     loadGrants();
+    loadArchived();
   }, []);
+
+  useEffect(() => {
+    if (tab === 'ratings' && !ratings) {
+      leadApi.getInternalRatings().then(r => setRatings(r.data)).catch(() => {});
+    }
+  }, [tab]);
+
+  const loadArchived = async () => {
+    try {
+      const res = await leadApi.getArchivedTesters();
+      setArchived(res.data);
+    } catch {}
+  };
+
+  const archiveMember = async (memberId: number, name: string) => {
+    if (!confirm(`Архивировать «${name}»? Вход будет заблокирован, история (тесты, чек-листы) сохранится.`)) return;
+    setArchivingId(memberId);
+    try {
+      await adminApi.archiveUser(memberId);
+      loadData();
+      loadArchived();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Не удалось архивировать');
+    } finally {
+      setArchivingId(null);
+    }
+  };
+
+  const restoreMember = async (memberId: number) => {
+    setArchivingId(memberId);
+    try {
+      await adminApi.restoreUser(memberId);
+      loadData();
+      loadArchived();
+    } catch {
+    } finally {
+      setArchivingId(null);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -46,7 +100,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       ]);
       setTeam(teamRes.data);
       setSkillChart(chartRes.data);
-      setActivity(activityRes.data);
+      setActivity(activityRes.data.rows);
       setLectureStats(lectureStatsRes.data);
     } catch (err) {
       console.error(err);
@@ -69,16 +123,48 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     '30d': () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   };
 
-  const grantKnowledgeBaseAccess = async (userId: number) => {
+  const togglePermission = async (userId: number, permission: string, currentlyGranted: number | null) => {
     try {
-      await permissionsApi.grant({ user_id: userId, permission: 'manage_knowledge_base', expires_at: EXPIRY_OPTIONS[grantExpiry]() });
-      setGrantingFor(null);
+      if (currentlyGranted) {
+        await permissionsApi.revoke(currentlyGranted);
+      } else {
+        const expiry = expiryByMember[userId] || 'never';
+        await permissionsApi.grant({ user_id: userId, permission, expires_at: EXPIRY_OPTIONS[expiry]() });
+      }
       loadGrants();
     } catch {}
   };
 
-  const revokeGrant = async (grantId: number) => {
-    try { await permissionsApi.revoke(grantId); loadGrants(); } catch {}
+  const resetPassword = async (userId: number) => {
+    if (!confirm('Сбросить пароль этому сотруднику? Ему придёт новый временный пароль.')) return;
+    setResettingId(userId);
+    try {
+      const res = await adminApi.resetPassword(userId);
+      const { delivered, tempPassword } = res.data;
+      const message = delivered === 'none'
+        ? `Не удалось доставить автоматически. Временный пароль: ${tempPassword} — передай его сотруднику лично.`
+        : `Новый пароль отправлен через ${delivered === 'telegram' ? 'Telegram' : 'почту'}.`;
+      setResetResult({ id: userId, message });
+    } catch (err: any) {
+      setResetResult({ id: userId, message: err.response?.data?.error || 'Не удалось сбросить пароль' });
+    } finally {
+      setResettingId(null);
+    }
+  };
+
+  const awardBonus = async (userId: number) => {
+    const amountStr = prompt('Сколько баг-коинов начислить? (макс. 500)');
+    if (!amountStr) return;
+    const amount = parseInt(amountStr, 10);
+    if (!Number.isInteger(amount) || amount <= 0) { alert('Некорректная сумма'); return; }
+    const reason = prompt('За что премия?');
+    if (!reason?.trim()) return;
+    try {
+      await leadApi.awardBonus({ user_id: userId, amount, reason });
+      alert('Премия начислена!');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Не удалось начислить премию');
+    }
   };
 
   if (loading) {
@@ -102,6 +188,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     { id: 'team', label: 'Команда', icon: 'bee' },
     { id: 'before-after', label: 'До/После', icon: 'barchart' },
     { id: 'lectures', label: 'Лекции', icon: 'chartup' },
+    { id: 'ratings', label: 'Рейтинг', icon: 'trophy' },
     { id: 'activity', label: 'Жучиная нора', icon: 'bug' },
   ];
 
@@ -261,47 +348,104 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                     </p>
                   </div>
 
-                  {/* Scoped permission grant — lets this tester manage the
-                      knowledge base (Багодельня) without a full role change. */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
-                    {(() => {
-                      const grant = grants.find(g => g.user_id === member.id && g.permission === 'manage_knowledge_base');
-                      if (grant) {
+                  {/* Soft anti-cheat signals — never an accusation, just a
+                      "might be worth a look" flag for a lead to interpret. */}
+                  {(member.fastAnswers > 0 || member.tabSwitches > 0) && (
+                    <p className="text-xs font-sans mt-2" style={{ color: '#EF9F27' }}>
+                      {member.fastAnswers > 0 && `⚡ ${member.fastAnswers} слишком быстрых ответов`}
+                      {member.fastAnswers > 0 && member.tabSwitches > 0 && ' · '}
+                      {member.tabSwitches > 0 && `↔ ${member.tabSwitches} переключений вкладки во время тестов`}
+                    </p>
+                  )}
+
+                  {/* Scoped permissions — точечный доступ к разделам без
+                      полной смены роли. Отмеченный чекбокс = выдано. */}
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
+                    <div className="flex items-center gap-3 flex-wrap mb-2">
+                      {ALL_PERMISSIONS.map(perm => {
+                        const grant = grants.find(g => g.user_id === member.id && g.permission === perm);
                         return (
-                          <>
-                            <span className="text-xs font-sans px-2 py-0.5 rounded" style={{ background: 'rgba(29,158,117,0.12)', color: '#1D9E75' }}>
-                              ✏ Может редактировать Багодельню{grant.expires_at ? ` до ${new Date(grant.expires_at).toLocaleDateString('ru-RU')}` : ''}
-                            </span>
-                            <button onClick={() => revokeGrant(grant.id)} className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
-                              Отозвать
-                            </button>
-                          </>
+                          <label key={perm} className="flex items-center gap-1.5 text-xs font-sans cursor-pointer" style={{ color: grant ? '#1D9E75' : 'rgba(232,232,208,0.6)' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!grant}
+                              onChange={() => togglePermission(member.id, perm, grant?.id ?? null)}
+                            />
+                            {PERMISSION_LABELS[perm]}
+                            {grant?.expires_at && ` (до ${parseServerDate(grant.expires_at).toLocaleDateString('ru-RU')})`}
+                          </label>
                         );
-                      }
-                      if (grantingFor === member.id) {
-                        return (
-                          <>
-                            <select className="pixel-input text-xs" value={grantExpiry} onChange={e => setGrantExpiry(e.target.value)}>
-                              <option value="never">Без ограничения</option>
-                              <option value="24h">На 24 часа</option>
-                              <option value="7d">На 7 дней</option>
-                              <option value="30d">На 30 дней</option>
-                            </select>
-                            <button onClick={() => grantKnowledgeBaseAccess(member.id)} className="btn-primary text-xs px-3 py-1">Выдать</button>
-                            <button onClick={() => setGrantingFor(null)} className="btn-secondary text-xs px-3 py-1">Отмена</button>
-                          </>
-                        );
-                      }
-                      return (
-                        <button onClick={() => { setGrantingFor(member.id); setGrantExpiry('never'); }} className="btn-secondary text-xs px-3 py-1">
-                          + Доступ к Багодельне
-                        </button>
-                      );
-                    })()}
+                      })}
+                      <select
+                        className="pixel-input text-xs"
+                        style={{ width: 130 }}
+                        value={expiryByMember[member.id] || 'never'}
+                        onChange={e => setExpiryByMember(m => ({ ...m, [member.id]: e.target.value }))}
+                        title="Срок действия для следующей выдачи прав"
+                      >
+                        <option value="never">Без срока</option>
+                        <option value="24h">На 24 часа</option>
+                        <option value="7d">На 7 дней</option>
+                        <option value="30d">На 30 дней</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => resetPassword(member.id)}
+                        disabled={resettingId === member.id}
+                        className="btn-secondary text-xs px-3 py-1"
+                      >
+                        {resettingId === member.id ? '...' : '🔑 Сбросить пароль'}
+                      </button>
+                      <button onClick={() => awardBonus(member.id)} className="btn-secondary text-xs px-3 py-1">
+                        🏆 Премия
+                      </button>
+                      <button
+                        onClick={() => archiveMember(member.id, member.name)}
+                        disabled={archivingId === member.id}
+                        className="btn-secondary text-xs px-3 py-1"
+                        style={{ color: '#e05252' }}
+                      >
+                        {archivingId === member.id ? '...' : '🗄 Архивировать'}
+                      </button>
+                      {resetResult?.id === member.id && (
+                        <span className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>{resetResult.message}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {tab === 'team' && archived.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowArchived(p => !p)}
+              className="text-xs font-sans cursor-pointer"
+              style={{ color: 'rgba(232,232,208,0.5)' }}
+            >
+              {showArchived ? '▾' : '▸'} Архив ({archived.length})
+            </button>
+            {showArchived && (
+              <div className="space-y-1.5 mt-2">
+                {archived.map(a => (
+                  <div key={a.id} className="p-2.5 rounded flex items-center justify-between gap-3" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
+                    <span className="text-pixel/70 text-sm font-sans">{a.name}</span>
+                    <span className="text-pixel/40 text-xs font-sans">архивирован(а) {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}</span>
+                    <button
+                      onClick={() => restoreMember(a.id)}
+                      disabled={archivingId === a.id}
+                      className="btn-secondary text-xs px-3 py-1"
+                    >
+                      {archivingId === a.id ? '...' : '↺ Восстановить'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -393,6 +537,35 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
           </div>
         )}
 
+        {/* ===== TAB: INTERNAL RATINGS (hidden from testers) ===== */}
+        {tab === 'ratings' && (
+          <div>
+            <p className="text-pixel/60 text-xs font-sans mb-1">
+              Автоматический рейтинг качества + скорости — тестировщики его не видят.
+            </p>
+            <p className="text-pixel/45 text-xs font-sans mb-4">
+              Баллы начисляются только за результат ≥90% без единого подозрительно быстрого ответа и почти без переключений вкладки — списать и получить баллы не получится.
+            </p>
+            {ratings ? (
+              <div className="space-y-1.5">
+                {ratings.map((r: any, i: number) => (
+                  <div key={r.id} className="p-3 rounded flex items-center justify-between gap-3 flex-wrap" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-pixel/40 text-xs font-sans w-5">{i + 1}.</span>
+                      <span className="text-pixel text-sm font-sans font-semibold">{r.name}</span>
+                    </div>
+                    <span className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>
+                      {r.excellentQuizzes} отличных тестов · {r.cleanChecklists} чистых чеклистов · видимых баллов: {r.premiumPoints}
+                    </span>
+                    <span className="text-primary text-sm font-pixel font-semibold shrink-0">★ {r.hiddenScore}</span>
+                  </div>
+                ))}
+                {ratings.length === 0 && <p className="text-pixel/50 text-sm font-sans">Пока нет данных.</p>}
+              </div>
+            ) : <SnailLoader />}
+          </div>
+        )}
+
         {/* ===== TAB: ACTIVITY FEED ===== */}
         {tab === 'activity' && (
           <div>
@@ -432,7 +605,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                       </p>
                     </div>
                     <p className="text-pixel/55 text-xs font-sans shrink-0">
-                      {new Date(item.created_at).toLocaleString('ru-RU', {
+                      {parseServerDate(item.created_at).toLocaleString('ru-RU', {
                         month: 'short',
                         day: 'numeric',
                         hour: '2-digit',

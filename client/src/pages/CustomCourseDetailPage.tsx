@@ -5,6 +5,7 @@ import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
+import { parseServerDate } from '../utils/date';
 
 interface Props {
   user: any;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 function isNew(createdAt: string): boolean {
-  return Date.now() - new Date(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+  return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
 export default function CustomCourseDetailPage({ user, onLogout }: Props) {
@@ -20,15 +21,22 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
   const navigate = useNavigate();
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
     authFetch(`${API}/custom-courses/${id}`)
       .then(r => r.json())
       .then(data => { if (!data.error) setCourse(data); })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  useEffect(() => { load(); }, [id]);
 
   if (loading) {
     return (
@@ -44,10 +52,19 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
       <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
-          <p className="text-pixel/60 font-sans">Курс не найден</p>
-          <button onClick={() => navigate('/zhukademia')} className="mt-4 text-primary font-sans text-sm hover:underline">
-            ← К каталогу
-          </button>
+          <p className="text-pixel/60 font-sans">
+            {loadError ? 'Не удалось загрузить курс — проверьте соединение и попробуйте снова.' : 'Курс не найден'}
+          </p>
+          <div className="flex items-center justify-center gap-4 mt-4">
+            {loadError && (
+              <button onClick={load} className="text-primary font-sans text-sm hover:underline">
+                ↻ Повторить
+              </button>
+            )}
+            <button onClick={() => navigate('/zhukademia')} className="text-primary font-sans text-sm hover:underline">
+              ← К каталогу
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -55,23 +72,39 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
 
   const color = course.color || '#1D9E75';
   const courseIsNew = isNew(course.created_at);
-  const hasProgress = !!localStorage.getItem(`custom_course_progress_${user.id}_${id}`);
+  // Server truth (custom_lesson_progress), not localStorage — progress must
+  // survive a logout/new-device/redeploy, and a local-only flag can't do that.
+  const hasProgress = (course.modules || []).some((m: any) => (m.lessons || []).some((l: any) => l.completed));
 
   const totalLessons = (course.modules || []).reduce((acc: number, m: any) => acc + (m.lessons || []).filter((l: any) => l.type === 'lesson').length, 0);
   const totalTests = (course.modules || []).reduce((acc: number, m: any) => acc + (m.lessons || []).filter((l: any) => l.type === 'quiz').length, 0);
 
   const togglePublish = async () => {
+    setActionError('');
     setPublishing(true);
-    await authFetch(`${API}/custom-courses/${id}/publish`, { method: 'PATCH' });
-    setCourse((c: any) => ({ ...c, is_published: c.is_published ? 0 : 1 }));
-    setPublishing(false);
+    try {
+      const res = await authFetch(`${API}/custom-courses/${id}/publish`, { method: 'PATCH' });
+      if (!res.ok) throw new Error();
+      setCourse((c: any) => ({ ...c, is_published: c.is_published ? 0 : 1 }));
+    } catch {
+      setActionError('Не удалось изменить статус публикации. Попробуйте ещё раз.');
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const handleDelete = async () => {
     if (!confirm('Удалить курс? Это действие нельзя отменить.')) return;
+    setActionError('');
     setDeleting(true);
-    await authFetch(`${API}/custom-courses/${id}`, { method: 'DELETE' });
-    navigate('/zhukademia');
+    try {
+      const res = await authFetch(`${API}/custom-courses/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      navigate('/zhukademia');
+    } catch {
+      setActionError('Не удалось удалить курс. Попробуйте ещё раз.');
+      setDeleting(false);
+    }
   };
 
   return (
@@ -219,6 +252,9 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             {/* Lead controls */}
             {user.role === 'lead' && (
               <div className="space-y-2">
+                {actionError && (
+                  <p className="text-xs font-sans mb-1" style={{ color: '#e05252' }}>{actionError}</p>
+                )}
                 <button
                   onClick={() => navigate(`/custom-course/${id}/learn`)}
                   className="w-full py-2.5 rounded font-sans font-semibold text-sm transition-all"

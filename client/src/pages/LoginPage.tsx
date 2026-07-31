@@ -6,7 +6,7 @@ import PixelIcon from '../components/PixelIcon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface LoginPageProps {
-  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => void;
+  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword?: boolean) => void;
   sessionExpired?: boolean;
 }
 
@@ -23,7 +23,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
     setLoading(true);
     try {
       const { data } = await authApi.login(email, password);
-      onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey);
+      onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey, data.mustChangePassword);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка входа');
     } finally {
@@ -137,6 +137,13 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
                 placeholder="••••••"
                 disabled={loading}
               />
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="mt-2 text-pixel/50 text-xs font-sans cursor-pointer hover:text-pixel/70"
+              >
+                Забыли пароль?
+              </button>
             </div>
 
             <button
@@ -162,19 +169,23 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
 
           <TelegramLoginButton onLogin={onLogin} />
 
-          {/* Creds hint */}
-          <div
-            className="mt-6 p-3 rounded"
-            style={{
-              background: 'rgba(29,158,117,0.05)',
-              border: '1px solid rgba(29,158,117,0.2)',
-            }}
-          >
-            <p className="text-pixel/60 text-xs font-sans mb-1 font-semibold">Тестовые аккаунты:</p>
-            <p className="text-pixel/60 text-xs font-sans">Admin: admin@qa.com / admin123</p>
-            <p className="text-pixel/60 text-xs font-sans">Lead: lead@qa.com / lead123</p>
-            <p className="text-pixel/60 text-xs font-sans">Tester: nazar@qa.com / test123</p>
-          </div>
+          {/* Creds hint — dev-only. Vite strips this block (and the strings
+              in it) out of the production bundle entirely, so demo
+              passwords never ship to a real login screen. */}
+          {import.meta.env.DEV && (
+            <div
+              className="mt-6 p-3 rounded"
+              style={{
+                background: 'rgba(29,158,117,0.05)',
+                border: '1px solid rgba(29,158,117,0.2)',
+              }}
+            >
+              <p className="text-pixel/60 text-xs font-sans mb-1 font-semibold">Тестовые аккаунты (dev):</p>
+              <p className="text-pixel/60 text-xs font-sans">Admin: admin@qa.com / admin123</p>
+              <p className="text-pixel/60 text-xs font-sans">Lead: lead@qa.com / lead123</p>
+              <p className="text-pixel/60 text-xs font-sans">Tester: nazar@qa.com / test123</p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

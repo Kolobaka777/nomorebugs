@@ -5,6 +5,7 @@ import BugSprite from '../components/BugSprite';
 import PixelIcon from '../components/PixelIcon';
 import { statsApi, testerApi, leadApi } from '../api';
 import { GlobalStats, TestHistoryItem, TeamMember, ActivityItem } from '../types';
+import { timeAgo } from '../utils/date';
 
 interface HomePageProps {
   user: any;
@@ -17,17 +18,6 @@ const ACTION_LABELS: Record<string, string> = {
   login: 'вошёл(ла) в систему',
   completed_baseline: 'заполнил(а) анкету',
 };
-
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'только что';
-  if (mins < 60) return `${mins} мин назад`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ч назад`;
-  const days = Math.floor(hours / 24);
-  return `${days} дн назад`;
-}
 
 export default function HomePage({ user, onLogout }: HomePageProps) {
   const navigate = useNavigate();
@@ -53,7 +43,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
         .finally(() => setLoading(false));
     } else {
       Promise.all([leadApi.getTeam(), leadApi.getActivity()])
-        .then(([t, a]) => { setTeam(t.data); setActivity(a.data.slice(0, 6)); })
+        .then(([t, a]) => { setTeam(t.data); setActivity(a.data.rows.slice(0, 6)); })
         .catch(() => {})
         .finally(() => setLoading(false));
     }

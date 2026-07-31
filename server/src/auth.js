@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Sentry, isSentryEnabled } from './sentry.js';
+import { db } from '../db/schema.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -59,6 +60,15 @@ export function authMiddleware(req, res, next) {
   const decoded = verifyToken(token);
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  // A still-valid (not yet expired) access token issued before an admin
+  // archived this account would otherwise keep working for up to its full
+  // 15-minute TTL — checked here, not just at login, so archiving actually
+  // cuts access off immediately rather than "eventually".
+  const archived = db.prepare('SELECT archived_at FROM users WHERE id = ?').get(decoded.id);
+  if (!archived || archived.archived_at) {
+    return res.status(403).json({ error: 'Аккаунт деактивирован или не найден' });
   }
 
   req.user = decoded;

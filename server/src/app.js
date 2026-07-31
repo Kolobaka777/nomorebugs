@@ -18,7 +18,20 @@ import multer from 'multer';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { startBackupSchedule } from './backup.js';
+import { startBackupSchedule, runBackup } from './backup.js';
+
+// A snapshot taken right before initDb() runs its migrations — if a
+// migration ever goes wrong against real production data, this is the
+// point to restore from. Only in production (dev/test DBs are disposable),
+// and only best-effort: a backup failure must never block startup itself.
+if (process.env.NODE_ENV === 'production') {
+  try {
+    const dest = await runBackup();
+    if (dest) console.log(`Pre-migration safety backup written to ${dest}`);
+  } catch (err) {
+    console.error('Pre-migration backup failed (continuing startup anyway):', err.message);
+  }
+}
 
 initDb();
 
@@ -47,17 +60,66 @@ function isUniqueConstraintError(err) {
   return typeof err?.code === 'string' && err.code.startsWith('SQLITE_CONSTRAINT');
 }
 
-// Auto-seed users if DB is empty
+// SQLite's CURRENT_TIMESTAMP returns UTC time as "YYYY-MM-DD HH:MM:SS" with
+// no timezone marker. Node parses that non-standard, space-separated string
+// as LOCAL (server) time rather than UTC, which silently skews any Date
+// arithmetic done directly on a raw DB timestamp on a non-UTC host — e.g.
+// a team member's "days inactive" or a tester's own account-age stat.
+// Mirrors client/src/utils/date.ts's parseServerDate — keep both in sync.
+function parseDbDate(raw) {
+  if (!raw) return new Date(NaN);
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+  return new Date(hasZone ? raw : `${raw.replace(' ', 'T')}Z`);
+}
+
+// A custom course can be edited/published/deleted by whoever authored it,
+// or by an admin. Shared so the rule only has to change in one place.
+function canManageCourse(course, user) {
+  return course.created_by === user.id || user.role === 'admin';
+}
+
+// The real, permanent, cascading delete — only ever called from the trash
+// purge route (POST-soft-delete cleanup). A crash mid-cascade would
+// otherwise leave orphaned rows (quiz questions with no lesson, etc.), so
+// it's wrapped in one transaction.
+function hardDeleteCourse(courseId) {
+  db.transaction(() => {
+    const mods = db.prepare('SELECT id FROM custom_modules WHERE course_id = ?').all(courseId);
+    for (const m of mods) {
+      const lessons = db.prepare('SELECT id FROM custom_lessons WHERE module_id = ?').all(m.id);
+      for (const l of lessons) {
+        db.prepare('DELETE FROM custom_quiz_questions WHERE lesson_id = ?').run(l.id);
+        db.prepare('DELETE FROM custom_lesson_progress WHERE lesson_id = ?').run(l.id);
+      }
+      db.prepare('DELETE FROM custom_lessons WHERE module_id = ?').run(m.id);
+    }
+    db.prepare('DELETE FROM custom_modules WHERE course_id = ?').run(courseId);
+    db.prepare('DELETE FROM custom_course_views WHERE course_id = ?').run(courseId);
+    db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
+  })();
+}
+
+// Auto-seed demo users if DB is empty — dev/test convenience only. Gated out
+// of production so a wiped volume or fresh prod deploy never silently stands
+// up accounts with published, guessable passwords (lead123/test123). A real
+// production first-boot should create its own admin via ADMIN_EMAIL/
+// ADMIN_PASSWORD env vars instead (see below).
 (function seedUsersIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) as count FROM users').get();
-  if (count === 0) {
+  if (count === 0 && process.env.NODE_ENV !== 'production') {
     const ins = db.prepare('INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)');
     ins.run('lead@qa.com',  bcryptjs.hashSync('lead123', 10), 'Alex Lead',      'lead',   'AL');
     ins.run('nazar@qa.com', bcryptjs.hashSync('test123', 10), 'Nazariy Tester', 'tester', 'NT');
     ins.run('gleb@qa.com',  bcryptjs.hashSync('test123', 10), 'Gleb Glebov',    'tester', 'GG');
     ins.run('alena@qa.com', bcryptjs.hashSync('test123', 10), 'Alena Expert',   'tester', 'AE');
     ins.run('vasya@qa.com', bcryptjs.hashSync('test123', 10), 'Vasya Novice',   'tester', 'VN');
-    console.log('Users auto-seeded');
+    console.log('Users auto-seeded (non-production)');
+  } else if (count === 0 && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+    const ins = db.prepare('INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)');
+    ins.run(process.env.ADMIN_EMAIL, bcryptjs.hashSync(process.env.ADMIN_PASSWORD, 10), 'Admin', 'admin', 'AD');
+    console.log(`Production admin account created for ${process.env.ADMIN_EMAIL}`);
+  } else if (count === 0) {
+    console.warn('No users in database and NODE_ENV=production: set ADMIN_EMAIL/ADMIN_PASSWORD env vars to bootstrap the first account, or seed manually.');
   }
 })();
 
@@ -364,6 +426,9 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     if (!user || !passwordMatches) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (user.archived_at) {
+      return res.status(403).json({ error: 'Аккаунт деактивирован. Обратитесь к лиду или администратору.' });
+    }
 
     const token = generateAccessToken(user);
     const refresh = generateRefreshToken();
@@ -391,6 +456,7 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
       refreshToken: refresh.token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials },
       needsBaselineSurvey,
+      mustChangePassword: !!user.must_change_password,
     });
   } catch (err) {
     logError(err);
@@ -435,6 +501,156 @@ app.post('/api/auth/logout', logoutLimiter, (req, res) => {
         .run(hashToken(refreshToken));
     }
     res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== PASSWORD CHANGE / RESET ==============
+
+const passwordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток. Попробуйте снова через несколько минут.' },
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток. Попробуйте снова через несколько минут.' },
+});
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function validateNewPassword(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    return 'Пароль должен быть не короче 8 символов';
+  }
+  return null;
+}
+
+// Revokes every outstanding refresh token for a user — called on any
+// password change so a leaked/compromised session doesn't survive it.
+function revokeAllRefreshTokens(userId) {
+  db.prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL').run(userId);
+}
+
+function generateTempPassword() {
+  return crypto.randomBytes(9).toString('base64url'); // 12 chars, URL-safe
+}
+
+// Self-service — the account is already logged in and knows its current password.
+app.put('/api/me/password', authMiddleware, passwordChangeLimiter, (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !bcryptjs.compareSync(current_password || '', user.password)) {
+      return res.status(401).json({ error: 'Текущий пароль неверен' });
+    }
+    const validationError = validateNewPassword(new_password);
+    if (validationError) return res.status(400).json({ error: validationError });
+
+    db.prepare('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?')
+      .run(bcryptjs.hashSync(new_password, 10), user.id);
+    revokeAllRefreshTokens(user.id);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'password_changed');
+
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lead/admin — resets someone else's password to a random temporary one,
+// delivered via whichever notification channel they have (Telegram first,
+// email fallback — see notifyUser), and forces a change on next login. A
+// lead can only reset testers (mirrors the scoped-permission-grant rule);
+// admin can reset anyone. There is deliberately no "view current password"
+// endpoint — passwords are one-way hashed and unrecoverable by design, this
+// is the correct replacement for that.
+app.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (req.user.role === 'lead' && target.role !== 'tester') {
+      return res.status(403).json({ error: 'Лид может сбрасывать пароль только тестировщикам' });
+    }
+
+    const tempPassword = generateTempPassword();
+    db.prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?')
+      .run(bcryptjs.hashSync(tempPassword, 10), target.id);
+    revokeAllRefreshTokens(target.id);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+      .run(req.user.id, `password_reset:target=${target.id}`);
+
+    const delivered = notifyUser(
+      target, 'Сброс пароля',
+      `Твой пароль в baga-net сброшен администратором. Временный пароль: ${tempPassword}\nПри следующем входе нужно будет задать новый.`
+    );
+
+    res.json({ ok: true, delivered, tempPassword: delivered === 'none' ? tempPassword : undefined });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Public — no session yet. Always returns the same generic response
+// regardless of whether the email exists, so this can't be used to check
+// which addresses are registered.
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email обязателен' });
+
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
+    if (user && !user.email.endsWith('@telegram.local')) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
+      db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(user.id);
+      db.prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
+        .run(user.id, hashToken(token), expiresAt);
+
+      const appUrl = (allowedOrigins[0] || 'http://localhost:5173').replace(/\/$/, '');
+      const link = `${appUrl}/reset-password?token=${token}`;
+      notifyUser(user, 'Восстановление пароля', `Ссылка для сброса пароля в baga-net (действует 30 минут): ${link}\nЕсли это был не ты — просто проигнорируй это сообщение.`);
+    }
+
+    res.json({ ok: true, message: 'Если такой email зарегистрирован, на него (или в Telegram) отправлена ссылка для сброса пароля.' });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/reset-password', forgotPasswordLimiter, (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+    if (!token) return res.status(400).json({ error: 'Токен обязателен' });
+
+    const row = db.prepare('SELECT * FROM password_reset_tokens WHERE token_hash = ?').get(hashToken(token));
+    if (!row || new Date(row.expires_at) < new Date()) {
+      return res.status(401).json({ error: 'Ссылка недействительна или устарела' });
+    }
+    const validationError = validateNewPassword(new_password);
+    if (validationError) return res.status(400).json({ error: validationError });
+
+    db.prepare('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?')
+      .run(bcryptjs.hashSync(new_password, 10), row.user_id);
+    db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(row.user_id);
+    revokeAllRefreshTokens(row.user_id);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(row.user_id, 'password_reset_self_service');
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+    notifyUser(user, 'Пароль изменён', 'Пароль твоего аккаунта baga-net был только что изменён через восстановление доступа. Это был не ты? Срочно сообщи лиду.');
+
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -500,6 +716,7 @@ app.get('/api/tester/profile', authMiddleware, (req, res) => {
     const user = db.prepare('SELECT id, name, email, avatar_initials FROM users WHERE id = ?').get(req.user.id);
     res.json(user);
   } catch (err) {
+    logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -668,13 +885,14 @@ app.get('/api/lectures/:id/questions', authMiddleware, (req, res) => {
 
     res.json(questions);
   } catch (err) {
+    logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
   try {
-    const { answers } = req.body;
+    const { answers, meta } = req.body;
     const lectureId = req.params.id;
     const userId = req.user.id;
 
@@ -693,7 +911,8 @@ app.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
     }
 
     const questions = db.prepare(`
-      SELECT id, correct_answer FROM questions WHERE lecture_id = ? ORDER BY order_num
+      SELECT id, correct_answer, question_text, option_a, option_b, option_c, option_d
+      FROM questions WHERE lecture_id = ? ORDER BY order_num
     `).all(lectureId);
 
     let score = 0;
@@ -709,50 +928,76 @@ app.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
 
     score = Math.round(score);
 
-    db.prepare(`
-      INSERT OR REPLACE INTO test_results (user_id, lecture_id, score, answers)
-      VALUES (?, ?, ?, ?)
-    `).run(userId, lectureId, score, JSON.stringify(answersMap));
-
-    if (score >= 60) {
-      db.prepare(`
-        INSERT INTO activity_log (user_id, action, lecture_id)
-        VALUES (?, ?, ?)
-      `).run(userId, 'passed_lecture', lectureId);
-    } else {
-      db.prepare(`
-        INSERT INTO activity_log (user_id, action, lecture_id)
-        VALUES (?, ?, ?)
-      `).run(userId, 'failed_lecture', lectureId);
+    // Review signals only — never blocks or penalizes scoring. The
+    // threshold is per-question, derived from how much there actually is to
+    // read (question + all 4 options), not a flat number — a flat cutoff
+    // is trivial to game (just wait exactly 2.1s per question); tying it to
+    // word count means the minimum plausible time varies question to
+    // question in a way a cheater filling in memorized answers has no easy
+    // way to predict or spoof, while a genuinely fast, competent tester
+    // reading normally still clears it.
+    function minPlausibleSeconds(q) {
+      const text = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d].join(' ');
+      const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+      return Math.max(3, Math.ceil(wordCount / 3)); // ~3 words/sec fast-but-real reading pace
     }
+    const questionTimes = (meta?.questionTimes && typeof meta.questionTimes === 'object') ? meta.questionTimes : {};
+    const tabSwitches = Number.isInteger(meta?.tabSwitches) ? meta.tabSwitches : 0;
+    const fastAnswerCount = questions.filter(q => (questionTimes[q.id] ?? 999) < minPlausibleSeconds(q)).length;
+    const resultMeta = JSON.stringify({ questionTimes, tabSwitches, fastAnswerCount });
 
-    // Award trading card if passed
-    let cardDrop = null;
-    if (score >= 60) {
-      const lec = db.prepare('SELECT skill_area FROM lectures WHERE id = ?').get(lectureId);
-      if (lec) {
-        const rarity = score >= 90 ? 'epic' : score >= 75 ? 'rare' : 'common';
-        const inserted = db.prepare(
-          'INSERT OR IGNORE INTO user_cards (user_id, lecture_id, skill_area, rarity) VALUES (?,?,?,?)'
-        ).run(userId, lectureId, lec.skill_area, rarity);
-        if (inserted.changes > 0) {
-          cardDrop = { skill_area: lec.skill_area, rarity };
-        }
-        // Check if block is now craftable
-        const collected = db.prepare('SELECT COUNT(*) as c FROM user_cards WHERE user_id = ? AND skill_area = ?').get(userId, lec.skill_area)?.c || 0;
-        const total     = db.prepare('SELECT COUNT(*) as c FROM lectures WHERE skill_area = ?').get(lec.skill_area)?.c || 0;
-        const alreadyBadged = db.prepare('SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?').get(userId, lec.skill_area);
-        if (cardDrop) cardDrop.canCraft = (collected >= total) && !alreadyBadged;
-      }
-    }
-
-    // Award bug_coins
+    // Result, activity log, card award, and coin award must all land together
+    // or not at all — a crash mid-sequence used to be able to record a score
+    // with no card/coins granted for it.
     const coinsEarned = score >= 90 ? 25 : score >= 75 ? 18 : score >= 60 ? 10 : 3;
-    db.prepare(`
-      INSERT INTO user_profiles (user_id, bug_coins)
-      VALUES (?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET bug_coins = COALESCE(bug_coins, 0) + excluded.bug_coins
-    `).run(userId, coinsEarned);
+    let cardDrop = null;
+    db.transaction(() => {
+      db.prepare(`
+        INSERT OR REPLACE INTO test_results (user_id, lecture_id, score, answers, meta)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(userId, lectureId, score, JSON.stringify(answersMap), resultMeta);
+
+      db.prepare(`
+        INSERT INTO activity_log (user_id, action, lecture_id)
+        VALUES (?, ?, ?)
+      `).run(userId, score >= 60 ? 'passed_lecture' : 'failed_lecture', lectureId);
+
+      // Award trading card if passed
+      if (score >= 60) {
+        const lec = db.prepare('SELECT skill_area FROM lectures WHERE id = ?').get(lectureId);
+        if (lec) {
+          const rarity = score >= 90 ? 'epic' : score >= 75 ? 'rare' : 'common';
+          const inserted = db.prepare(
+            'INSERT OR IGNORE INTO user_cards (user_id, lecture_id, skill_area, rarity) VALUES (?,?,?,?)'
+          ).run(userId, lectureId, lec.skill_area, rarity);
+          if (inserted.changes > 0) {
+            cardDrop = { skill_area: lec.skill_area, rarity };
+          }
+          // Check if block is now craftable
+          const collected = db.prepare('SELECT COUNT(*) as c FROM user_cards WHERE user_id = ? AND skill_area = ?').get(userId, lec.skill_area)?.c || 0;
+          const total     = db.prepare('SELECT COUNT(*) as c FROM lectures WHERE skill_area = ?').get(lec.skill_area)?.c || 0;
+          const alreadyBadged = db.prepare('SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?').get(userId, lec.skill_area);
+          if (cardDrop) cardDrop.canCraft = (collected >= total) && !alreadyBadged;
+        }
+      }
+
+      // Award bug_coins
+      db.prepare(`
+        INSERT INTO user_profiles (user_id, bug_coins)
+        VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET bug_coins = COALESCE(bug_coins, 0) + excluded.bug_coins
+      `).run(userId, coinsEarned);
+
+      // Hidden quality+speed signal for a lead's internal-ratings view (see
+      // /api/lead/internal-ratings) — score AND speed both have to be
+      // genuinely good, and speed is disqualified entirely by even one
+      // suspiciously-fast answer or more than one tab-switch, so this can't
+      // be farmed by rushing through with memorized answers.
+      if (score >= 90 && fastAnswerCount === 0 && tabSwitches <= 1) {
+        db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
+          .run(userId, 5, `Отличный результат по лекции (${score}%), без признаков спешки`, 'auto_quiz_excellence');
+      }
+    })();
 
     res.json({ score, passed: score >= 60, cardDrop, coinsEarned });
   } catch (err) {
@@ -827,6 +1072,7 @@ app.get('/api/lectures/:id/question/:qid/explanation', authMiddleware, (req, res
       allOptions: options,
     });
   } catch (err) {
+    logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -878,6 +1124,21 @@ app.post('/api/tester/final-survey', authMiddleware, (req, res) => {
 
 // ============== LEAD DASHBOARD ==============
 
+// A lead-accessible view of archived testers — /api/admin/users (which
+// also lists archived accounts) is admin-only, and a lead needs to see who
+// they archived in order to restore them without going through admin.
+app.get('/api/lead/archived-testers', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const rows = db.prepare(
+      "SELECT id, name, avatar_initials, archived_at FROM users WHERE role = 'tester' AND archived_at IS NOT NULL ORDER BY archived_at DESC"
+    ).all();
+    res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     // Everything (including the baseline average, folded in as one more
@@ -895,14 +1156,31 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
         (SELECT (html_structure + css_reading + devtools + console_errors + bug_report_quality) / 5.0
          FROM baseline_survey WHERE user_id = u.id) as baselineAvg
       FROM users u
-      WHERE u.role = 'tester'
+      WHERE u.role = 'tester' AND u.archived_at IS NULL
       ORDER BY u.name
     `).all();
 
     const now = Date.now();
 
+    // Aggregated review signals (see submit-test's meta comment) — done in
+    // JS rather than SQLite JSON functions since `meta` is a free-form
+    // JSON-text column with no guarantee the JSON1 extension is compiled
+    // into every better-sqlite3 build this runs on.
+    const metaRows = db.prepare(
+      `SELECT user_id, meta FROM test_results WHERE user_id IN (${teamData.map(() => '?').join(',') || 'NULL'})`
+    ).all(...teamData.map(m => m.id));
+    const signalsByUser = {};
+    for (const row of metaRows) {
+      let parsed;
+      try { parsed = JSON.parse(row.meta || '{}'); } catch { parsed = {}; }
+      const s = signalsByUser[row.user_id] || { fastAnswers: 0, tabSwitches: 0 };
+      s.fastAnswers += parsed.fastAnswerCount || 0;
+      s.tabSwitches += parsed.tabSwitches || 0;
+      signalsByUser[row.user_id] = s;
+    }
+
     const team = teamData.map(({ baselineAvg, ...member }) => {
-      const lastActiveMs = member.lastActive ? new Date(member.lastActive).getTime() : 0;
+      const lastActiveMs = member.lastActive ? parseDbDate(member.lastActive).getTime() : 0;
       const daysInactive = member.lastActive
         ? Math.floor((now - lastActiveMs) / (1000 * 60 * 60 * 24))
         : 999;
@@ -920,6 +1198,8 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
         // Signals "might appreciate a check-in", not a judgment — kept as a
         // neutral flag so the UI layer can decide how (or whether) to surface it.
         needsCheckIn: daysInactive >= 7,
+        fastAnswers: signalsByUser[member.id]?.fastAnswers || 0,
+        tabSwitches: signalsByUser[member.id]?.tabSwitches || 0,
       };
     });
 
@@ -993,19 +1273,31 @@ app.get('/api/lead/lecture-stats', authMiddleware, requireRole('lead'), (req, re
 
 app.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res) => {
   try {
-    const activity = db.prepare(`
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    const userId = req.query.user_id ? parseInt(req.query.user_id, 10) : null;
+    // Small, fixed feed (Home page's "recent activity" widget) vs the full,
+    // pageable admin log — same query, different LIMIT/offset so one route
+    // serves both without duplicating the join.
+    const PAGE_SIZE = req.query.offset !== undefined || req.query.user_id ? 50 : 20;
+
+    const where = userId ? 'WHERE a.user_id = ?' : '';
+    const params = userId ? [userId] : [];
+
+    const rows = db.prepare(`
       SELECT
         a.id, a.action, a.created_at,
-        u.name,
+        u.id as user_id, u.name,
         l.title as lecture_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
       LEFT JOIN lectures l ON a.lecture_id = l.id
+      ${where}
       ORDER BY a.created_at DESC
-      LIMIT 20
-    `).all();
+      LIMIT ? OFFSET ?
+    `).all(...params, PAGE_SIZE + 1, offset);
 
-    res.json(activity);
+    const hasMore = rows.length > PAGE_SIZE;
+    res.json({ rows: rows.slice(0, PAGE_SIZE), hasMore });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -1036,7 +1328,7 @@ app.get('/api/tester/profile-full', authMiddleware, (req, res) => {
     const highScore     = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 80').get(userId)?.c || 0;
     const passedCount   = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 60').get(userId)?.c || 0;
 
-    const joined      = new Date(user.created_at);
+    const joined      = parseDbDate(user.created_at);
     const weeksActive = Math.max(1, Math.round((Date.now() - joined.getTime()) / (1000 * 60 * 60 * 24 * 7)));
 
     const stats = {
@@ -1186,6 +1478,7 @@ app.get('/api/tester/cards', authMiddleware, (req, res) => {
 
     res.json({ cards, badges, blocks });
   } catch (err) {
+    logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1258,14 +1551,27 @@ app.post('/api/checklists/submit', authMiddleware, (req, res) => {
       const insertResult = db.prepare(
         'INSERT INTO checklist_item_results (submission_id, item_id, status, note) VALUES (?, ?, ?, ?)'
       );
+      let checkedCount = 0;
+      let failCount = 0;
       for (const r of results) {
         if (r.item_id && r.status) {
           insertResult.run(sub.lastInsertRowid, r.item_id, r.status, (r.note || '').trim().slice(0, 1000));
+          checkedCount++;
+          if (r.status === 'fail') failCount++;
         }
       }
 
       db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
         .run(userId, `checklist_submitted:${template_id}`);
+
+      // Hidden quality signal (see submit-test's matching comment) — a
+      // meaningfully-sized checklist (5+ items actually checked) with zero
+      // fails found. Not "no bugs exist", just "thorough enough to be worth
+      // a lead's attention" — the actual QA judgment stays with the lead.
+      if (checkedCount >= 5 && failCount === 0) {
+        db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
+          .run(userId, 3, `Чистый прогон чеклиста (${checkedCount} пунктов, 0 ошибок)`, 'auto_checklist_clean');
+      }
 
       return sub.lastInsertRowid;
     })();
@@ -1295,8 +1601,14 @@ app.get('/api/checklists/submissions', authMiddleware, (req, res) => {
     // Filtered on submitted_at (a real, always-populated timestamp) rather
     // than check_date (free-typed by the tester, so unreliable format) —
     // see the task-types/date-range notes in ChecklistsPage.tsx.
-    if (date_from) { where.push('date(cs.submitted_at) >= date(?)'); params.push(date_from); }
-    if (date_to) { where.push('date(cs.submitted_at) <= date(?)'); params.push(date_to); }
+    // datetime(), not date() — date_from/date_to arrive as full UTC instants
+    // (the client converts the picked local calendar day to its UTC bounds
+    // before sending), and date() would truncate both sides back to a bare
+    // UTC calendar day, reintroducing the boundary mismatch this avoids.
+    // datetime() still accepts a bare "YYYY-MM-DD" as midnight UTC, so old
+    // callers/tests passing a plain date keep working unchanged.
+    if (date_from) { where.push('datetime(cs.submitted_at) >= datetime(?)'); params.push(date_from); }
+    if (date_to) { where.push('datetime(cs.submitted_at) <= datetime(?)'); params.push(date_to); }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -1350,12 +1662,46 @@ app.get('/api/checklists/authors', authMiddleware, (req, res) => {
 
 // All authenticated users: distinct task types actually used in submissions
 // (free-typed by testers, so this reflects real values — not a fixed enum).
+// The curated list (admin-managed — see /api/admin/task-types below), not
+// just whatever's been free-typed into submissions so far. A tester can
+// still type a one-off custom value at submit time (TaskTypeSelect on the
+// client keeps that escape hatch) — this only drives the suggested list.
 app.get('/api/checklists/task-types', authMiddleware, (req, res) => {
   try {
-    const types = db.prepare(
-      "SELECT DISTINCT task_type FROM checklist_submissions WHERE task_type != '' ORDER BY task_type"
-    ).all().map(r => r.task_type);
+    const types = db.prepare('SELECT name FROM task_types ORDER BY name').all().map(r => r.name);
     res.json(types);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/task-types', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    res.json(db.prepare('SELECT id, name FROM task_types ORDER BY name').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/task-types', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Укажите название типа задачи' });
+    const result = db.prepare('INSERT INTO task_types (name) VALUES (?)').run(name);
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    if (isUniqueConstraintError(err)) return res.status(409).json({ error: 'Такой тип уже существует' });
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/task-types/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    db.prepare('DELETE FROM task_types WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -1406,8 +1752,8 @@ app.get('/api/checklists/stats', authMiddleware, requireRole('lead'), (req, res)
     const subParams = [];
     if (template_id) { subFilters.push('cs.template_id = ?'); subParams.push(template_id); }
     if (task_type) { subFilters.push('cs.task_type = ?'); subParams.push(task_type); }
-    if (date_from) { subFilters.push('date(cs.submitted_at) >= date(?)'); subParams.push(date_from); }
-    if (date_to) { subFilters.push('date(cs.submitted_at) <= date(?)'); subParams.push(date_to); }
+    if (date_from) { subFilters.push('datetime(cs.submitted_at) >= datetime(?)'); subParams.push(date_from); }
+    if (date_to) { subFilters.push('datetime(cs.submitted_at) <= datetime(?)'); subParams.push(date_to); }
     const subWhere = subFilters.length ? 'WHERE ' + subFilters.join(' AND ') : '';
     const subWhereAnd = subFilters.length ? 'AND ' + subFilters.join(' AND ') : '';
 
@@ -1494,7 +1840,48 @@ function cellToString(v) {
   return String(v);
 }
 
-app.post('/api/checklists/templates/import', authMiddleware, requireRole('lead'), upload.single('file'), async (req, res) => {
+// Manual template creation — the alternative to Excel import for a lead/
+// admin who'd rather type a short checklist directly than build a
+// spreadsheet for it. Same validation and insert shape as the import route
+// below, just fed structured JSON instead of a parsed file.
+app.post('/api/checklists/templates', authMiddleware, requirePermission('manage_checklists'), (req, res) => {
+  try {
+    const templateName = (req.body.name || '').trim();
+    const templateColor = req.body.color || '#1D9E75';
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+
+    if (!templateName) return res.status(400).json({ error: 'Укажите название шаблона' });
+    const cleanItems = items
+      .map(i => ({ category: (i.category || 'Общее').trim() || 'Общее', text: (i.text || '').trim() }))
+      .filter(i => i.text);
+    if (cleanItems.length === 0) return res.status(400).json({ error: 'Добавьте хотя бы один пункт проверки' });
+
+    const tplId = db.transaction(() => {
+      const maxOrder = db.prepare('SELECT MAX(order_num) as m FROM checklist_templates').get();
+      const nextOrder = (maxOrder.m || 0) + 1;
+      const tpl = db.prepare(
+        'INSERT INTO checklist_templates (name, task_type, color, order_num) VALUES (?, ?, ?, ?)'
+      ).run(templateName, templateName.toLowerCase().replace(/\s+/g, '_'), templateColor, nextOrder);
+
+      const insertItem = db.prepare(
+        'INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)'
+      );
+      cleanItems.forEach((item, idx) => insertItem.run(tpl.lastInsertRowid, item.category, item.text, idx + 1));
+
+      return tpl.lastInsertRowid;
+    })();
+
+    res.json({ success: true, id: tplId, name: templateName, item_count: cleanItems.length });
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return res.status(409).json({ error: 'Шаблон с таким названием уже существует' });
+    }
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/checklists/templates/import', authMiddleware, requirePermission('manage_checklists'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
 
@@ -1570,21 +1957,28 @@ app.post('/api/checklists/templates/import', authMiddleware, requireRole('lead')
     const categoryNames = Object.keys(categoryBreakdown);
     const suspiciousFlatImport = categoryNames.length === 1 && categoryNames[0] === 'Общее' && items.length > 5;
 
-    const maxOrder = db.prepare('SELECT MAX(order_num) as m FROM checklist_templates').get();
-    const nextOrder = (maxOrder.m || 0) + 1;
+    // Template row + all its item rows must land together — a crash partway
+    // through a large import used to be able to leave an orphaned template
+    // with only some of its items.
+    const tplId = db.transaction(() => {
+      const maxOrder = db.prepare('SELECT MAX(order_num) as m FROM checklist_templates').get();
+      const nextOrder = (maxOrder.m || 0) + 1;
 
-    const tpl = db.prepare(
-      'INSERT INTO checklist_templates (name, task_type, color, order_num) VALUES (?, ?, ?, ?)'
-    ).run(templateName, templateName.toLowerCase().replace(/\s+/g, '_'), templateColor, nextOrder);
+      const tpl = db.prepare(
+        'INSERT INTO checklist_templates (name, task_type, color, order_num) VALUES (?, ?, ?, ?)'
+      ).run(templateName, templateName.toLowerCase().replace(/\s+/g, '_'), templateColor, nextOrder);
 
-    const insertItem = db.prepare(
-      'INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)'
-    );
-    items.forEach((item, idx) => insertItem.run(tpl.lastInsertRowid, item.category, item.text, idx + 1));
+      const insertItem = db.prepare(
+        'INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)'
+      );
+      items.forEach((item, idx) => insertItem.run(tpl.lastInsertRowid, item.category, item.text, idx + 1));
+
+      return tpl.lastInsertRowid;
+    })();
 
     res.json({
       success: true,
-      id: tpl.lastInsertRowid,
+      id: tplId,
       name: templateName,
       item_count: items.length,
       category_count: categoryNames.length,
@@ -1602,7 +1996,7 @@ app.post('/api/checklists/templates/import', authMiddleware, requireRole('lead')
 });
 
 // Lead: update in_mvt flags per item (MVT config)
-app.patch('/api/checklists/templates/:id/mvt', authMiddleware, requireRole('lead'), (req, res) => {
+app.patch('/api/checklists/templates/:id/mvt', authMiddleware, requirePermission('manage_checklists'), (req, res) => {
   try {
     const { items } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'Неверные данные' });
@@ -1648,7 +2042,7 @@ app.get('/api/custom-courses', authMiddleware, (req, res) => {
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
-        WHERE cc.created_by = ? OR cc.is_published = 1
+        WHERE (cc.created_by = ? OR cc.is_published = 1) AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id);
     } else {
@@ -1657,7 +2051,7 @@ app.get('/api/custom-courses', authMiddleware, (req, res) => {
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
-        WHERE cc.is_published = 1
+        WHERE cc.is_published = 1 AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id);
     }
@@ -1674,10 +2068,10 @@ app.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
     const course = db.prepare(`
       SELECT cc.*, u.name as author_name
       FROM custom_courses cc JOIN users u ON u.id = cc.created_by
-      WHERE cc.id = ?
+      WHERE cc.id = ? AND cc.deleted_at IS NULL
     `).get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
-    if (!course.is_published && course.created_by !== req.user.id && req.user.role !== 'admin') {
+    if (!course.is_published && !canManageCourse(course, req.user)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
@@ -1913,7 +2307,7 @@ function updateCourseModules(courseId, modules) {
 }
 
 // Create course (lead only)
-app.post('/api/custom-courses', authMiddleware, requireRole('lead'), (req, res) => {
+app.post('/api/custom-courses', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const { title, description, tag, color, requirements, modules, is_published } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
@@ -1946,11 +2340,11 @@ app.post('/api/custom-courses', authMiddleware, requireRole('lead'), (req, res) 
 });
 
 // Update course (lead, own only)
-app.put('/api/custom-courses/:id', authMiddleware, requireRole('lead'), (req, res) => {
+app.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
-    if (course.created_by !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Нет доступа' });
+    if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
     const { title, description, tag, color, requirements, modules, is_published } = req.body;
 
@@ -1982,29 +2376,18 @@ app.put('/api/custom-courses/:id', authMiddleware, requireRole('lead'), (req, re
 });
 
 // Delete course (lead, own only)
-app.delete('/api/custom-courses/:id', authMiddleware, requireRole('lead'), (req, res) => {
+// Soft-delete — moves the course to the trash (see /api/admin/trash)
+// instead of removing it. The full cascade delete this used to do inline
+// now only runs on a real purge (hardDeleteCourse, below), since a
+// trashed-but-not-yet-purged course still needs its modules/lessons intact
+// in case it gets restored.
+app.delete('/api/custom-courses/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
-    if (course.created_by !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Нет доступа' });
+    if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    // A crash mid-cascade would otherwise leave orphaned rows (e.g. quiz
-    // questions with no lesson, a course gone but its modules still there)
-    // — wrapped so the whole cascade commits or none of it does.
-    db.transaction(() => {
-      const mods = db.prepare('SELECT id FROM custom_modules WHERE course_id = ?').all(course.id);
-      for (const m of mods) {
-        const lessons = db.prepare('SELECT id FROM custom_lessons WHERE module_id = ?').all(m.id);
-        for (const l of lessons) {
-          db.prepare('DELETE FROM custom_quiz_questions WHERE lesson_id = ?').run(l.id);
-          db.prepare('DELETE FROM custom_lesson_progress WHERE lesson_id = ?').run(l.id);
-        }
-        db.prepare('DELETE FROM custom_lessons WHERE module_id = ?').run(m.id);
-      }
-      db.prepare('DELETE FROM custom_modules WHERE course_id = ?').run(course.id);
-      db.prepare('DELETE FROM custom_course_views WHERE course_id = ?').run(course.id);
-      db.prepare('DELETE FROM custom_courses WHERE id = ?').run(course.id);
-    })();
+    db.prepare('UPDATE custom_courses SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(course.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -2013,11 +2396,11 @@ app.delete('/api/custom-courses/:id', authMiddleware, requireRole('lead'), (req,
 });
 
 // Toggle publish
-app.patch('/api/custom-courses/:id/publish', authMiddleware, requireRole('lead'), (req, res) => {
+app.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
-    if (course.created_by !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Нет доступа' });
+    if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     const newStatus = course.is_published ? 0 : 1;
     db.prepare('UPDATE custom_courses SET is_published=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(newStatus, course.id);
 
@@ -2081,10 +2464,165 @@ app.get('/api/courses/time-stats', authMiddleware, requireRole('lead'), (req, re
 
 app.get('/api/admin/users', authMiddleware, requireRole('admin'), (req, res) => {
   try {
-    const users = db.prepare(
-      'SELECT id, email, name, role, avatar_initials, created_at FROM users ORDER BY created_at DESC'
-    ).all();
+    const archived = req.query.archived === '1';
+    const users = db.prepare(`
+      SELECT u.id, u.email, u.name, u.role, u.avatar_initials, u.created_at, u.archived_at,
+        u.telegram_id IS NOT NULL as has_telegram, u.must_change_password,
+        (SELECT MAX(a.created_at) FROM activity_log a WHERE a.user_id = u.id) as last_active
+      FROM users u
+      WHERE u.archived_at IS ${archived ? 'NOT NULL' : 'NULL'}
+      ORDER BY u.created_at DESC
+    `).all();
     res.json(users);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Archive — not delete. Every table with a user_id FK stays intact; this
+// only blocks login (see authMiddleware/POST /auth/login) and hides the
+// account from active-team views. A lead can archive/restore testers only
+// (mirrors the reset-password and permission-grant rules); admin can act
+// on anyone but themselves, and never the last remaining admin.
+app.post('/api/admin/users/:id/archive', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (req.user.role === 'lead' && target.role !== 'tester') {
+      return res.status(403).json({ error: 'Лид может архивировать только тестировщиков' });
+    }
+    if (targetId === req.user.id) return res.status(400).json({ error: 'Нельзя архивировать самого себя' });
+    if (target.role === 'admin') {
+      const otherAdmins = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'admin' AND id != ? AND archived_at IS NULL").get(targetId);
+      if (otherAdmins.c === 0) return res.status(400).json({ error: 'Нельзя архивировать последнего администратора' });
+    }
+
+    db.prepare('UPDATE users SET archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetId);
+    revokeAllRefreshTokens(targetId);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_archived:target=${targetId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/users/:id/restore', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (req.user.role === 'lead' && target.role !== 'tester') {
+      return res.status(403).json({ error: 'Лид может восстанавливать только тестировщиков' });
+    }
+    db.prepare('UPDATE users SET archived_at = NULL WHERE id = ?').run(targetId);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_restored:target=${targetId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== TRASH (soft-delete recovery) ==============
+// One shared "recycle bin" across the content types worth protecting from
+// an accidental delete — a course took real effort to build, a bug example/
+// glossary term/guide likewise. Checklist templates, permission grants,
+// etc. are deliberately NOT here: they're either trivial to recreate or
+// already have their own audit trail (activity_log) instead of needing
+// undo. Each entity's own DELETE route sets deleted_at instead of removing
+// the row (see /api/bug-examples, /api/glossary, /api/guides,
+// /api/custom-courses above); this just exposes that shared state as one
+// admin-facing list with restore/purge.
+const TRASH_TABLES = {
+  bug_examples: { label: 'Пример бага', titleCol: 'problem' },
+  glossary_terms: { label: 'Термин глоссария', titleCol: 'term' },
+  guides: { label: 'Гайд', titleCol: 'title' },
+  custom_courses: { label: 'Курс', titleCol: 'title' },
+};
+
+app.get('/api/admin/trash', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const items = [];
+    for (const [table, { label, titleCol }] of Object.entries(TRASH_TABLES)) {
+      const rows = db.prepare(
+        `SELECT id, ${titleCol} as title, deleted_at FROM ${table} WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`
+      ).all();
+      for (const r of rows) items.push({ type: table, typeLabel: label, id: r.id, title: r.title, deleted_at: r.deleted_at });
+    }
+    items.sort((a, b) => (a.deleted_at < b.deleted_at ? 1 : -1));
+    res.json(items);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/trash/:type/:id/restore', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (!TRASH_TABLES[type]) return res.status(400).json({ error: 'Неизвестный тип' });
+    db.prepare(`UPDATE ${type} SET deleted_at = NULL WHERE id = ?`).run(id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/trash/:type/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (!TRASH_TABLES[type]) return res.status(400).json({ error: 'Неизвестный тип' });
+    if (type === 'custom_courses') {
+      hardDeleteCourse(parseInt(id, 10));
+    } else {
+      db.prepare(`DELETE FROM ${type} WHERE id = ?`).run(id);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Site-wide counts an admin needs but a lead's team dashboard doesn't show
+// (that one's scoped to per-tester progress/scores) — registration mix,
+// engagement over the last week/month, and how much content exists.
+app.get('/api/admin/overview', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const byRole = db.prepare('SELECT role, COUNT(*) as c FROM users GROUP BY role').all();
+    const totalUsers = byRole.reduce((sum, r) => sum + r.c, 0);
+    const viaTelegram = db.prepare("SELECT COUNT(*) as c FROM users WHERE email LIKE '%@telegram.local'").get().c;
+
+    const active7d = db.prepare(
+      "SELECT COUNT(DISTINCT user_id) as c FROM activity_log WHERE created_at >= datetime('now', '-7 days')"
+    ).get().c;
+    const active30d = db.prepare(
+      "SELECT COUNT(DISTINCT user_id) as c FROM activity_log WHERE created_at >= datetime('now', '-30 days')"
+    ).get().c;
+
+    const totalSubmissions = db.prepare('SELECT COUNT(*) as c FROM checklist_submissions').get().c;
+    const totalCourses = db.prepare('SELECT COUNT(*) as c FROM custom_courses WHERE deleted_at IS NULL').get().c;
+    const totalGuides = db.prepare('SELECT COUNT(*) as c FROM guides WHERE deleted_at IS NULL').get().c;
+    const totalBugExamples = db.prepare('SELECT COUNT(*) as c FROM bug_examples WHERE deleted_at IS NULL').get().c;
+    const pendingPasswordResets = db.prepare('SELECT COUNT(*) as c FROM users WHERE must_change_password = 1').get().c;
+
+    res.json({
+      totalUsers,
+      byRole: Object.fromEntries(byRole.map(r => [r.role, r.c])),
+      viaTelegram,
+      viaEmail: totalUsers - viaTelegram,
+      active7d,
+      active30d,
+      totalSubmissions,
+      totalCourses,
+      totalGuides,
+      totalBugExamples,
+      pendingPasswordResets,
+    });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2147,12 +2685,20 @@ app.patch('/api/admin/users/:id/role', authMiddleware, requireRole('admin'), (re
 // permissions; a grant is one named capability, optionally time-limited,
 // revocable at any time, and never itself grants the ability to grant more
 // (only 'lead'/'admin' can call the grant/revoke endpoints below).
-const KNOWN_PERMISSIONS = ['manage_knowledge_base'];
+const KNOWN_PERMISSIONS = ['manage_knowledge_base', 'manage_courses', 'manage_checklists', 'manage_guides'];
 
 function hasPermission(userId, permission) {
+  // expires_at is stored exactly as the client sends it — normally a JS
+  // .toISOString() string ("...T...Z"), which sorts lexicographically
+  // *after* SQLite's own datetime('now') output ("YYYY-MM-DD HH:MM:SS", no
+  // "T"/"Z") for same-day values purely because 'T' (0x54) > ' ' (0x20).
+  // Comparing the raw strings made same-day grants look "not yet expired"
+  // for the rest of that calendar day even well past their real expiry
+  // time. datetime(...) re-parses both sides into the same canonical text
+  // format first, so the comparison reflects actual chronological order.
   const row = db.prepare(`
     SELECT 1 FROM granted_permissions
-    WHERE user_id = ? AND permission = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+    WHERE user_id = ? AND permission = ? AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
   `).get(userId, permission);
   return !!row;
 }
@@ -2178,7 +2724,7 @@ app.get('/api/me/permissions', authMiddleware, (req, res) => {
     }
     const rows = db.prepare(`
       SELECT permission FROM granted_permissions
-      WHERE user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+      WHERE user_id = ? AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
     `).all(req.user.id);
     res.json(rows.map(r => r.permission));
   } catch (err) {
@@ -2197,7 +2743,7 @@ app.get('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, res)
       FROM granted_permissions gp
       JOIN users u ON u.id = gp.user_id
       JOIN users gb ON gb.id = gp.granted_by
-      WHERE gp.expires_at IS NULL OR gp.expires_at > datetime('now')
+      WHERE gp.expires_at IS NULL OR datetime(gp.expires_at) > datetime('now')
       ORDER BY gp.granted_at DESC
     `).all();
     res.json(rows);
@@ -2253,11 +2799,139 @@ app.delete('/api/lead/permissions/:id', authMiddleware, requireRole('lead'), (re
   }
 });
 
+// ============== RECOGNITION / BONUSES ==============
+// Two separate ledgers, deliberately not mixed:
+//  - bonus_awards / premium_points: visible to the tester, lead-awarded,
+//    meant to eventually convert to something real-world (e.g. an отгул —
+//    that conversion itself is a manual, off-app decision for now).
+//  - internal_score_events: invisible to the tester, awarded automatically
+//    by the server itself when a quality+speed bar is cleared (see the
+//    submit-test and checklist-submit routes) — purely a signal for a lead
+//    to see who's quietly excellent, never shown to or gameable by the
+//    tester it's about.
+// Neither is real money — that's a payroll/accounting decision this app
+// deliberately doesn't process; see /api/admin/bonus-candidates for the
+// admin-facing report meant to inform (not replace) that human decision.
+const MAX_BONUS_AMOUNT = 500;
+
+app.post('/api/lead/award-bonus', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { user_id, amount, reason } = req.body;
+    const targetId = parseInt(user_id, 10);
+    const amt = parseInt(amount, 10);
+    if (!Number.isInteger(amt) || amt <= 0 || amt > MAX_BONUS_AMOUNT) {
+      return res.status(400).json({ error: `Сумма должна быть от 1 до ${MAX_BONUS_AMOUNT}` });
+    }
+    if (!reason?.trim()) return res.status(400).json({ error: 'Укажите причину премии' });
+
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (target.role !== 'tester') return res.status(400).json({ error: 'Премию можно начислить только тестировщику' });
+
+    db.transaction(() => {
+      db.prepare('INSERT INTO bonus_awards (user_id, amount, reason, awarded_by) VALUES (?, ?, ?, ?)')
+        .run(targetId, amt, reason.trim(), req.user.id);
+      db.prepare(`
+        INSERT INTO user_profiles (user_id, premium_points) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET premium_points = COALESCE(premium_points, 0) + excluded.premium_points
+      `).run(targetId, amt);
+    })();
+
+    notifyUser(target, 'Премия!', `Тебе начислено ${amt} премиальных баллов: «${reason.trim()}»`);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Self-service — the tester's own visible balance + history. Deliberately
+// only ever reads bonus_awards, never internal_score_events.
+app.get('/api/me/premium-points', authMiddleware, (req, res) => {
+  try {
+    const profile = db.prepare('SELECT premium_points FROM user_profiles WHERE user_id = ?').get(req.user.id);
+    const history = db.prepare(`
+      SELECT amount, reason, awarded_at, ab.name as awarded_by_name
+      FROM bonus_awards ba JOIN users ab ON ab.id = ba.awarded_by
+      WHERE ba.user_id = ? ORDER BY ba.awarded_at DESC LIMIT 20
+    `).all(req.user.id);
+    res.json({ premium_points: profile?.premium_points || 0, history });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lead-only — "who's quietly excellent". Ranked by the hidden auto-scored
+// points (quality+speed, anti-cheat-checked — see submit-test), with
+// visible premium_points shown alongside for context. Never reachable by a
+// tester about themselves.
+app.get('/api/lead/internal-ratings', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        u.id, u.name, u.avatar_initials,
+        (SELECT COALESCE(SUM(points), 0) FROM internal_score_events WHERE user_id = u.id) as hiddenScore,
+        (SELECT COALESCE(premium_points, 0) FROM user_profiles WHERE user_id = u.id) as premiumPoints,
+        (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_quiz_excellence') as excellentQuizzes,
+        (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_checklist_clean') as cleanChecklists
+      FROM users u
+      WHERE u.role = 'tester' AND u.archived_at IS NULL
+      ORDER BY hiddenScore DESC
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/lead/bonus-awards', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT ba.id, ba.amount, ba.reason, ba.awarded_at, u.name as user_name, ab.name as awarded_by_name
+      FROM bonus_awards ba
+      JOIN users u ON u.id = ba.user_id
+      JOIN users ab ON ab.id = ba.awarded_by
+      ORDER BY ba.awarded_at DESC
+      LIMIT 50
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: a ranked "who's earning it" report over the last 30 days — real
+// payroll/bonus decisions stay a human (admin) call, this just surfaces the
+// input data (pass rate, activity, checklist volume) instead of making
+// someone dig through raw tables to find it.
+app.get('/api/admin/bonus-candidates', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        u.id, u.name,
+        (SELECT COUNT(*) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as quizzesLast30d,
+        (SELECT AVG(score) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as avgScoreLast30d,
+        (SELECT COUNT(*) FROM checklist_submissions cs WHERE cs.user_id = u.id AND cs.submitted_at >= datetime('now', '-30 days')) as submissionsLast30d,
+        (SELECT COALESCE(SUM(ba.amount), 0) FROM bonus_awards ba WHERE ba.user_id = u.id) as totalBonusReceived
+      FROM users u
+      WHERE u.role = 'tester'
+      ORDER BY (submissionsLast30d + quizzesLast30d) DESC
+    `).all();
+    res.json(rows.map(r => ({ ...r, avgScoreLast30d: r.avgScoreLast30d ? Math.round(r.avgScoreLast30d) : null })));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ============== KNOWLEDGE BASE (Багодельня) ==============
 
 app.get('/api/bug-examples', authMiddleware, (req, res) => {
   try {
-    res.json(db.prepare('SELECT * FROM bug_examples ORDER BY created_at DESC').all());
+    res.json(db.prepare('SELECT * FROM bug_examples WHERE deleted_at IS NULL ORDER BY created_at DESC').all());
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2300,7 +2974,7 @@ app.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowl
 
 app.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    db.prepare('DELETE FROM bug_examples WHERE id = ?').run(req.params.id);
+    db.prepare('UPDATE bug_examples SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -2310,7 +2984,7 @@ app.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
 
 app.get('/api/glossary', authMiddleware, (req, res) => {
   try {
-    res.json(db.prepare('SELECT * FROM glossary_terms ORDER BY term ASC').all());
+    res.json(db.prepare('SELECT * FROM glossary_terms WHERE deleted_at IS NULL ORDER BY term ASC').all());
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2351,7 +3025,72 @@ app.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge
 
 app.delete('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    db.prepare('DELETE FROM glossary_terms WHERE id = ?').run(req.params.id);
+    db.prepare('UPDATE glossary_terms SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== GUIDES ==============
+// Lead/admin (or a granted tester — see manage_guides) editable articles,
+// meant to replace the team's external Notion docs. Content is a plain
+// safe-markdown-subset string (see client GuidesPage's renderer) — never
+// raw HTML, so there's no dangerouslySetInnerHTML/XSS surface.
+
+app.get('/api/guides', authMiddleware, (req, res) => {
+  try {
+    res.json(db.prepare('SELECT id, title, category, updated_at, created_at FROM guides WHERE deleted_at IS NULL ORDER BY category, title').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/guides/:id', authMiddleware, (req, res) => {
+  try {
+    const guide = db.prepare('SELECT * FROM guides WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!guide) return res.status(404).json({ error: 'Не найдено' });
+    res.json(guide);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/guides', authMiddleware, requirePermission('manage_guides'), (req, res) => {
+  try {
+    const { title, category, content } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
+    const result = db.prepare(
+      'INSERT INTO guides (title, category, content, created_by) VALUES (?, ?, ?, ?)'
+    ).run(title.trim(), (category || 'Общее').trim(), content || '', req.user.id);
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM guides WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Не найдено' });
+    const { title, category, content } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
+    db.prepare('UPDATE guides SET title = ?, category = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(title.trim(), (category || 'Общее').trim(), content || '', req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (req, res) => {
+  try {
+    db.prepare('UPDATE guides SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

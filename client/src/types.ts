@@ -50,6 +50,8 @@ export interface TeamMember {
   daysInactive: number;
   needsCheckIn: boolean;
   lastActive?: string;
+  fastAnswers: number;
+  tabSwitches: number;
 }
 
 export interface SKillChart {
