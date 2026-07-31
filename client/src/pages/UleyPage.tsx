@@ -300,7 +300,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
 
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
   const [savingNoteId, setSavingNoteId] = useState<number | null>(null);
-  const noteValue = (member: TeamMember) => noteDrafts[member.id] ?? member.lead_note;
+  const noteValue = (member: TeamMember) => noteDrafts[member.id] ?? member.lead_note ?? '';
   const saveNote = async (memberId: number) => {
     setSavingNoteId(memberId);
     try {
@@ -524,9 +524,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                       tell at a glance who's handling which kind of work. */}
                   <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
                     <p className="text-pixel/45 text-xs font-sans uppercase mb-2">Задачи</p>
-                    {member.taskCounts.length > 0 ? (
+                    {(member.taskCounts ?? []).length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
-                        {member.taskCounts.map(tc => (
+                        {(member.taskCounts ?? []).map(tc => (
                           <span
                             key={tc.name}
                             className="text-xs font-sans px-2 py-1 rounded"
@@ -553,7 +553,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                       placeholder="Например: сильна в вёрстке, можно доверять сложные вайты; иногда путает статусы задач..."
                       maxLength={2000}
                     />
-                    {noteValue(member) !== member.lead_note && (
+                    {noteValue(member) !== (member.lead_note ?? '') && (
                       <button
                         onClick={() => saveNote(member.id)}
                         disabled={savingNoteId === member.id}
