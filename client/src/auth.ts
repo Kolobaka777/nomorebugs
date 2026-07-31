@@ -43,6 +43,17 @@ export function setMustChangePassword(value: boolean) {
   localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, String(value));
 }
 
+// Patches the locally-stored user object (e.g. after a profile edit changes
+// the nickname shown in the nav) without touching tokens/session state.
+// Returns the merged object so the caller can push it into React state too —
+// localStorage alone doesn't trigger a re-render.
+export function updateStoredUser(patch: Record<string, any>): any {
+  const current = getStoredUser() || {};
+  const merged = { ...current, ...patch };
+  localStorage.setItem(USER_KEY, JSON.stringify(merged));
+  return merged;
+}
+
 function setAccessToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
 }

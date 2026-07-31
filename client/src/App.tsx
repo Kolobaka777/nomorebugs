@@ -13,7 +13,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 import {
   getAccessToken, getStoredUser, getNeedsBaselineSurvey, getMustChangePassword,
   setSession, setNeedsBaselineSurvey, setMustChangePassword, clearSession, serverLogout,
-  SESSION_EXPIRED_EVENT,
+  updateStoredUser, SESSION_EXPIRED_EVENT,
 } from './auth';
 import { identifyUser, resetAnalyticsUser } from './monitoring';
 
@@ -87,6 +87,15 @@ function App() {
     identifyUser(user);
   };
 
+  // Lets a page (ProfilePage, MoyaNora) push a change — right now just the
+  // display nickname — into the shared user object after a profile edit, so
+  // the nav dropdown reflects it immediately instead of showing whatever
+  // name was current at login until the next full page reload.
+  const handleUserUpdate = (patch: Record<string, any>) => {
+    const merged = updateStoredUser(patch);
+    setAuthState(prev => ({ ...prev, user: merged }));
+  };
+
   const handlePasswordChanged = () => {
     setMustChangePassword(false);
     setAuthState(prev => ({ ...prev, mustChangePassword: false }));
@@ -147,7 +156,7 @@ function App() {
   }
 
   const u = authState.user;
-  const sharedProps = { user: u, onLogout: handleLogout };
+  const sharedProps = { user: u, onLogout: handleLogout, onUserUpdate: handleUserUpdate };
 
   return (
     <BrowserRouter>

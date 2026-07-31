@@ -4,6 +4,7 @@ import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
 import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
+import { ROLE_LABELS } from '../utils/roles';
 
 interface AdminPageProps {
   user: any;
@@ -64,12 +65,6 @@ interface Overview {
 // the dropdown. Adding a role means updating both, same as any other
 // client/server contract.
 const ROLE_OPTIONS = ['tester', 'lead', 'admin'];
-
-const ROLE_LABELS: Record<string, string> = {
-  tester: 'Тестировщик',
-  lead: 'Тимлид',
-  admin: 'Админ',
-};
 
 const ACTION_LABELS: Record<string, string> = {
   passed_lecture: 'прошёл(ла) лекцию',

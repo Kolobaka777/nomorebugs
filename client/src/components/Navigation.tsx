@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import PixelIcon from './PixelIcon';
 import TelegramLinkWidget from './TelegramLinkWidget';
 import ChangePasswordModal from './ChangePasswordModal';
+import { ROLE_META } from '../utils/roles';
 
 interface NavigationProps {
   user: any;
@@ -51,11 +52,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
 
   const links = user.role === 'admin' ? adminLinks : user.role === 'lead' ? leadLinks : testerLinks;
 
-  const ROLE_META: Record<string, { label: string; icon: 'crown' | 'bug'; color: string }> = {
-    admin: { label: 'Админ', icon: 'crown', color: '#e05252' },
-    lead: { label: 'Лидер', icon: 'crown', color: '#EF9F27' },
-    tester: { label: 'Тестировщик', icon: 'bug', color: '#1D9E75' },
-  };
   const roleMeta = ROLE_META[user.role] || ROLE_META.tester;
 
   useEffect(() => {
@@ -129,7 +125,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
             >
               {/* User info header */}
               <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(29,158,117,0.15)' }}>
-                <p className="text-pixel text-xs font-sans font-medium leading-tight">{user.name}</p>
+                <p className="text-pixel text-xs font-sans font-medium leading-tight">{user.displayName || user.name}</p>
                 <p className="text-pixel/60 text-xs font-sans leading-tight mt-0.5 flex items-center gap-1">
                   <PixelIcon name={roleMeta.icon} size={10} color={roleMeta.color} />
                   {roleMeta.label}

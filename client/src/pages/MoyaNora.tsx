@@ -16,7 +16,7 @@ import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 
-interface MoyaNoraProps { user: any; onLogout: () => void; }
+interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
 type Tab = 'favorites' | 'notes' | 'btn3' | 'btn4';
 
@@ -183,7 +183,7 @@ function HLine({ passed }: { passed: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
+export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('favorites');
 
@@ -333,7 +333,10 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
           passedLectures={passedLectures}
           unlockedFrames={unlockedFrames}
           unlockedBgs={unlockedBgs}
-          onSave={patch => setProfile(p => p ? { ...p, ...patch } : p)}
+          onSave={patch => {
+            setProfile(p => p ? { ...p, ...patch } : p);
+            onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name });
+          }}
           onClose={() => setShowEdit(false)}
         />
       )}
