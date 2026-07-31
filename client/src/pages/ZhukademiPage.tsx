@@ -196,6 +196,10 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const hasActiveFilters = search.trim() !== '' || tagFilter !== null || statusFilter !== 'all';
   const noResultsAtAll = hasActiveFilters && filteredLectures.length === 0 && filteredCustomCourses.length === 0
     && (lectures.length > 0 || customCourses.length > 0);
+  // Genuinely nothing exists yet (no filters involved) — distinct from both
+  // the error state above and "no results for these filters" below, so it
+  // doesn't get mistaken for either.
+  const nothingExistsYet = !hasActiveFilters && lectures.length === 0 && customCourses.length === 0;
 
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
@@ -510,6 +514,13 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Genuinely nothing yet — not a load failure, not a filter mismatch */}
+        {nothingExistsYet && user.role !== 'lead' && (
+          <div className="mt-8 rounded-lg p-8 text-center" style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.1)' }}>
+            <p className="text-pixel/60 font-sans text-sm">Курсов пока нет — загляни попозже.</p>
           </div>
         )}
 

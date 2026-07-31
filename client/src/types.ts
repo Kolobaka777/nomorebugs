@@ -52,6 +52,8 @@ export interface TeamMember {
   lastActive?: string;
   fastAnswers: number;
   tabSwitches: number;
+  lead_note: string;
+  taskCounts: { name: string; task_type: string; color: string; count: number }[];
 }
 
 export interface SKillChart {
@@ -59,6 +61,12 @@ export interface SKillChart {
   before: number;
   after: number;
   delta: number;
+}
+
+export interface TesterSkillBreakdown {
+  id: number;
+  name: string;
+  skills: { skill: string; before: number | null; after: number | null; delta: number | null }[];
 }
 
 export interface ActivityItem {

@@ -263,9 +263,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
                 </div>
                 {renderMarkdown(selected.content)}
               </div>
-            ) : (
+            ) : !listError ? (
               <p className="text-pixel/50 text-sm font-sans">Выбери гайд слева.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

@@ -123,6 +123,7 @@ export const leadApi = {
   getTeam: () => api.get('/lead/team'),
 
   getBeforeAfter: () => api.get('/lead/before-after'),
+  getBeforeAfterByTester: () => api.get('/lead/before-after-by-tester'),
 
   getActivity: (params?: { offset?: number; user_id?: number }) => api.get('/lead/activity', { params }),
 
@@ -133,6 +134,8 @@ export const leadApi = {
   getInternalRatings: () => api.get('/lead/internal-ratings'),
 
   getArchivedTesters: () => api.get('/lead/archived-testers'),
+
+  updateTeamNote: (id: number, note: string) => api.patch(`/lead/team/${id}/note`, { note }),
 };
 
 export const rewardsApi = {

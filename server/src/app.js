@@ -1149,7 +1149,7 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
     // the old loop's "current" query was duplicating that exact value.
     const teamData = db.prepare(`
       SELECT
-        u.id, u.name, u.avatar_initials,
+        u.id, u.name, u.avatar_initials, u.lead_note,
         (SELECT COUNT(*) FROM test_results WHERE user_id = u.id AND score >= 60) as lecturesCompleted,
         (SELECT AVG(score) FROM test_results WHERE user_id = u.id) as avgScore,
         (SELECT MAX(created_at) FROM activity_log WHERE user_id = u.id) as lastActive,
@@ -1159,6 +1159,23 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
       WHERE u.role = 'tester' AND u.archived_at IS NULL
       ORDER BY u.name
     `).all();
+
+    // Per-member checklist task-type breakdown ("Прелендинг — 5, Оффер — 10
+    // ..."), same data the tester sees about themselves in "Моя нора" — one
+    // batched query for the whole team instead of one query per card.
+    const taskCountRows = db.prepare(`
+      SELECT cs.user_id, ct.name, ct.task_type, ct.color, COUNT(*) as count
+      FROM checklist_submissions cs
+      JOIN checklist_templates ct ON ct.id = cs.template_id
+      WHERE cs.user_id IN (${teamData.map(() => '?').join(',') || 'NULL'})
+      GROUP BY cs.user_id, ct.id
+      ORDER BY ct.order_num
+    `).all(...teamData.map(m => m.id));
+    const taskCountsByUser = {};
+    for (const row of taskCountRows) {
+      (taskCountsByUser[row.user_id] = taskCountsByUser[row.user_id] || [])
+        .push({ name: row.name, task_type: row.task_type, color: row.color, count: row.count });
+    }
 
     const now = Date.now();
 
@@ -1191,6 +1208,7 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
 
       return {
         ...member,
+        lead_note: member.lead_note || '',
         lecturesCompleted: member.lecturesCompleted || 0,
         avgScore: Math.round(member.avgScore || 0),
         skillGrowth,
@@ -1200,6 +1218,7 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
         needsCheckIn: daysInactive >= 7,
         fastAnswers: signalsByUser[member.id]?.fastAnswers || 0,
         tabSwitches: signalsByUser[member.id]?.tabSwitches || 0,
+        taskCounts: taskCountsByUser[member.id] || [],
       };
     });
 
@@ -1209,6 +1228,37 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+const MAX_LEAD_NOTE_LENGTH = 2000;
+
+// Private working notes a lead keeps about a tester — never exposed to the
+// tester (only /api/lead/team, a lead/admin-only route, ever returns it).
+app.patch('/api/lead/team/:id/note', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const note = String(req.body.note ?? '').slice(0, MAX_LEAD_NOTE_LENGTH);
+    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (target.role !== 'tester') return res.status(400).json({ error: 'Заметки доступны только для тестировщиков' });
+    db.prepare('UPDATE users SET lead_note = ? WHERE id = ?').run(note, targetId);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Baseline-survey column name -> the exact lectures.skill_area string it
+// corresponds to (see server/db/seed.js) — needed to join a tester's
+// self-rated starting point against their actual measured quiz performance
+// in that same topic.
+const SKILL_AREA_BY_COLUMN = {
+  html_structure: 'HTML structure',
+  css_reading: 'CSS reading',
+  devtools: 'DevTools',
+  console_errors: 'Console errors',
+  bug_report_quality: 'Bug report quality',
+};
 
 app.get('/api/lead/before-after', authMiddleware, requireRole('lead'), (req, res) => {
   try {
@@ -1232,6 +1282,56 @@ app.get('/api/lead/before-after', authMiddleware, requireRole('lead'), (req, res
     }
 
     res.json(chartData);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Per-tester breakdown of the same before/after comparison — the aggregate
+// chart above answers "is the team improving", this answers "which tester,
+// in which topic" (who's grown, who might need the topic re-explained).
+// "after" is the tester's own average quiz score in lectures tagged with
+// that skill_area, normalized to the same 1-5 scale as the baseline
+// self-rating (÷20) — not final_survey, which has no submission UI a
+// tester can actually reach, so it's empty for effectively everyone.
+app.get('/api/lead/before-after-by-tester', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const testers = db.prepare(
+      `SELECT id, name FROM users WHERE role = 'tester' AND archived_at IS NULL ORDER BY name`
+    ).all();
+
+    const baselines = db.prepare('SELECT * FROM baseline_survey').all();
+    const baselineByUser = Object.fromEntries(baselines.map(b => [b.user_id, b]));
+
+    const scoreRows = db.prepare(`
+      SELECT tr.user_id, l.skill_area, AVG(tr.score) as avg_score
+      FROM test_results tr
+      JOIN lectures l ON l.id = tr.lecture_id
+      GROUP BY tr.user_id, l.skill_area
+    `).all();
+    const scoresByUser = {};
+    for (const row of scoreRows) {
+      (scoresByUser[row.user_id] = scoresByUser[row.user_id] || {})[row.skill_area] = row.avg_score;
+    }
+
+    const byTester = testers.map(t => {
+      const baseline = baselineByUser[t.id];
+      const skills = Object.entries(SKILL_AREA_BY_COLUMN).map(([column, skillArea]) => {
+        const before = baseline ? baseline[column] : null;
+        const rawAfter = scoresByUser[t.id]?.[skillArea];
+        const after = rawAfter != null ? Math.round((rawAfter / 20) * 10) / 10 : null;
+        return {
+          skill: skillArea,
+          before: before ?? null,
+          after,
+          delta: before != null && after != null ? Math.round((after - before) * 10) / 10 : null,
+        };
+      });
+      return { id: t.id, name: t.name, skills };
+    });
+
+    res.json(byTester);
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

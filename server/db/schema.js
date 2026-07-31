@@ -396,6 +396,13 @@ export function initDb() {
     db.exec("ALTER TABLE users ADD COLUMN archived_at DATETIME");
   }
 
+  // Free-text characteristics a lead keeps about a tester — never shown to
+  // the tester themselves (only returned from lead/admin-only routes), a
+  // private working note rather than a profile field.
+  if (!userCols.includes('lead_note')) {
+    db.exec("ALTER TABLE users ADD COLUMN lead_note TEXT DEFAULT ''");
+  }
+
   // Per-attempt quiz metadata: time spent per question and a soft
   // tab-switch count, both surfaced to leads/admins as review signals (not
   // auto-block — see the submit-test route for why). JSON blob rather than

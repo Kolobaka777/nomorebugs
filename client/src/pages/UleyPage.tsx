@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import { leadApi, permissionsApi, adminApi } from '../api';
-import { TeamMember, SKillChart, ActivityItem, LectureStat, getLevel } from '../types';
+import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, getLevel } from '../types';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { parseServerDate } from '../utils/date';
 import { useEscapeKey } from '../utils/a11y';
@@ -167,6 +167,22 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     }
   }, [tab]);
 
+  const [byTester, setByTester] = useState<TesterSkillBreakdown[] | null>(null);
+  const [byTesterError, setByTesterError] = useState('');
+
+  const loadByTester = () => {
+    setByTesterError('');
+    leadApi.getBeforeAfterByTester()
+      .then(r => setByTester(r.data))
+      .catch((err: any) => setByTesterError(err.response?.data?.error || 'Не удалось загрузить разбивку по сотрудникам'));
+  };
+
+  useEffect(() => {
+    if (tab === 'before-after' && !byTester && !byTesterError) {
+      loadByTester();
+    }
+  }, [tab]);
+
   const loadArchived = async () => {
     try {
       const res = await leadApi.getArchivedTesters();
@@ -281,6 +297,22 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
 
   const [bonusTarget, setBonusTarget] = useState<{ id: number; name: string } | null>(null);
   const [bonusResult, setBonusResult] = useState<{ id: number; message: string } | null>(null);
+
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [savingNoteId, setSavingNoteId] = useState<number | null>(null);
+  const noteValue = (member: TeamMember) => noteDrafts[member.id] ?? member.lead_note;
+  const saveNote = async (memberId: number) => {
+    setSavingNoteId(memberId);
+    try {
+      const value = noteDrafts[memberId] ?? '';
+      await leadApi.updateTeamNote(memberId, value);
+      setTeam(t => t.map(m => m.id === memberId ? { ...m, lead_note: value } : m));
+    } catch (err: any) {
+      showApiError(err, 'Не удалось сохранить заметку');
+    } finally {
+      setSavingNoteId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -487,6 +519,51 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                     </p>
                   )}
 
+                  {/* Task-type breakdown — same data the tester sees about
+                      themselves in "Моя нора", surfaced here so a lead can
+                      tell at a glance who's handling which kind of work. */}
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
+                    <p className="text-pixel/45 text-xs font-sans uppercase mb-2">Задачи</p>
+                    {member.taskCounts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {member.taskCounts.map(tc => (
+                          <span
+                            key={tc.name}
+                            className="text-xs font-sans px-2 py-1 rounded"
+                            style={{ background: `${tc.color}20`, color: tc.color }}
+                          >
+                            {tc.name}: {tc.count}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-pixel/40 text-xs font-sans">Пока не отправлял(а) чек-листы</p>
+                    )}
+                  </div>
+
+                  {/* Private lead notes — free-text characteristics, never
+                      shown to the tester themselves (see /api/lead/team). */}
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
+                    <p className="text-pixel/45 text-xs font-sans uppercase mb-2">Заметки (видно только лиду/админу)</p>
+                    <textarea
+                      className="pixel-input w-full text-xs font-sans"
+                      style={{ minHeight: 56 }}
+                      value={noteValue(member)}
+                      onChange={e => setNoteDrafts(d => ({ ...d, [member.id]: e.target.value }))}
+                      placeholder="Например: сильна в вёрстке, можно доверять сложные вайты; иногда путает статусы задач..."
+                      maxLength={2000}
+                    />
+                    {noteValue(member) !== member.lead_note && (
+                      <button
+                        onClick={() => saveNote(member.id)}
+                        disabled={savingNoteId === member.id}
+                        className="btn-secondary text-xs px-3 py-1 mt-1.5"
+                      >
+                        {savingNoteId === member.id ? '...' : '💾 Сохранить заметку'}
+                      </button>
+                    )}
+                  </div>
+
                   {/* Scoped permissions — точечный доступ к разделам без
                       полной смены роли. Отмеченный чекбокс = выдано. */}
                   <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(232,232,208,0.05)' }}>
@@ -633,6 +710,65 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                 </div>
               </div>
             ))}
+
+            {/* Per-employee breakdown — the chart above answers "is the team
+                improving", this answers "who specifically, in which topic" —
+                so a lead can tell who's grown and who might need a topic
+                re-explained one-on-one. */}
+            <div className="mt-2">
+              <p className="text-pixel/60 text-xs font-sans mb-3">По сотрудникам — самооценка «до» против реального результата тестов «после» по той же теме</p>
+              {byTesterError ? (
+                <div className="card text-center py-6">
+                  <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{byTesterError}</p>
+                  <button onClick={loadByTester} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+                </div>
+              ) : byTester ? (
+                byTester.length === 0 ? (
+                  <p className="text-pixel/50 text-sm font-sans">В команде пока нет тестировщиков.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs font-sans" style={{ borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(232,232,208,0.1)' }}>
+                          <th className="text-left py-2 pr-3 text-pixel/50 font-normal">Тестировщик</th>
+                          {byTester[0]?.skills.map(s => (
+                            <th key={s.skill} className="text-center py-2 px-2 text-pixel/50 font-normal whitespace-nowrap">{s.skill}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {byTester.map(t => (
+                          <tr key={t.id} style={{ borderBottom: '1px solid rgba(232,232,208,0.05)' }}>
+                            <td className="py-2 pr-3 text-pixel font-semibold whitespace-nowrap">{t.name}</td>
+                            {t.skills.map(s => {
+                              const noData = s.after === null;
+                              // Green = grew since baseline; amber = still weak
+                              // (below the midpoint) even after taking the
+                              // related lectures — a candidate for a
+                              // one-on-one re-explanation; gray = no quiz
+                              // attempts in this topic yet.
+                              const needsHelp = !noData && (s.after as number) < 3;
+                              const color = noData ? 'rgba(232,232,208,0.35)' : needsHelp ? '#EF9F27' : (s.delta ?? 0) > 0 ? '#1D9E75' : 'rgba(232,232,208,0.6)';
+                              return (
+                                <td key={s.skill} className="text-center py-2 px-2" style={{ color }}>
+                                  {noData ? '—' : `${s.before ?? '—'} → ${s.after}`}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-pixel/40 text-xs font-sans mt-3">
+                      <span style={{ color: '#EF9F27' }}>●</span> результат ниже среднего даже после лекций — возможно, стоит объяснить тему ещё раз ·{' '}
+                      <span style={{ color: '#1D9E75' }}>●</span> заметный рост
+                    </p>
+                  </div>
+                )
+              ) : (
+                <SnailLoader />
+              )}
+            </div>
           </div>
         )}
 
