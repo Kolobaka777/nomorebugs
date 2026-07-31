@@ -7,6 +7,7 @@ import PixelAvatar from '../components/PixelAvatar';
 import { testerApi, leadApi, adminApi } from '../api';
 import { FullProfile } from '../types';
 import { parseServerDate } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 interface Props {
   user: any;
@@ -30,21 +31,28 @@ export default function ProfilePage({ user, onLogout }: Props) {
   const [roleStats, setRoleStats] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    testerApi.getProfileFull().then(r => setProfile(r.data)).catch(() => {}).finally(() => setLoading(false));
-    leadApi.getActivity({ user_id: user.id }).then(r => setActivity(r.data.rows.slice(0, 10))).catch(() => {});
+    testerApi.getProfileFull().then(r => setProfile(r.data))
+      // Falls back to `defaultProfile` below on failure — that fallback is
+      // deliberate (better than a blank page), but silently showing zeroed
+      // stats with no explanation reads as "you have no data" rather than
+      // "this failed to load", so it still needs a toast.
+      .catch((err: any) => showApiError(err, 'Не удалось загрузить профиль'))
+      .finally(() => setLoading(false));
+    leadApi.getActivity({ user_id: user.id }).then(r => setActivity(r.data.rows.slice(0, 10)))
+      .catch((err: any) => showApiError(err, 'Не удалось загрузить активность'));
 
     if (user.role === 'admin') {
       adminApi.getOverview().then(r => setRoleStats({
         'Всего пользователей': r.data.totalUsers,
         'Тестировщиков': r.data.byRole.tester || 0,
         'Активны за 7 дней': r.data.active7d,
-      })).catch(() => {});
+      })).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику'));
     } else if (user.role === 'lead') {
       leadApi.getTeam().then(r => setRoleStats({
         'Размер команды': r.data.length,
         'Средний балл команды': r.data.length ? Math.round(r.data.reduce((s: number, m: any) => s + m.avgScore, 0) / r.data.length) : 0,
         'Нужен чек-ин': r.data.filter((m: any) => m.needsCheckIn).length,
-      })).catch(() => {});
+      })).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику команды'));
     }
   }, []);
 

@@ -5,6 +5,8 @@ import { leadApi, permissionsApi, adminApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, LectureStat, getLevel } from '../types';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { parseServerDate } from '../utils/date';
+import { useEscapeKey } from '../utils/a11y';
+import { showApiError } from '../utils/toast';
 
 interface UleyPageProps {
   user: any;
@@ -12,6 +14,103 @@ interface UleyPageProps {
 }
 
 type Tab = 'team' | 'before-after' | 'activity' | 'lectures' | 'ratings';
+
+// Was two native browser prompt() calls back to back — worked, but looked
+// broken (an unstyled OS dialog titled with the raw production domain,
+// asking for two separate inputs one after another) and gave no real
+// feedback beyond a generic alert on failure. A proper modal, matching the
+// styling other forms in the app already use.
+const MAX_BONUS_AMOUNT = 500;
+
+function AwardBonusModal({
+  member,
+  onClose,
+  onAwarded,
+}: {
+  member: { id: number; name: string };
+  onClose: () => void;
+  onAwarded: (amount: number) => void;
+}) {
+  useEscapeKey(onClose);
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    const amt = parseInt(amount, 10);
+    if (!Number.isInteger(amt) || amt <= 0 || amt > MAX_BONUS_AMOUNT) {
+      setError(`Сумма должна быть от 1 до ${MAX_BONUS_AMOUNT}`);
+      return;
+    }
+    if (!reason.trim()) {
+      setError('Укажите причину премии');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await leadApi.awardBonus({ user_id: member.id, amount: amt, reason: reason.trim() });
+      onAwarded(amt);
+      onClose();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Не удалось начислить премию');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ background: 'rgba(0,0,0,0.75)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-sm rounded p-6" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>🏆 Премия · {member.name}</p>
+          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-pixel/60 text-xs font-sans mb-2">Сколько премиальных баллов начислить? (макс. {MAX_BONUS_AMOUNT})</label>
+            <input
+              className="pixel-input"
+              type="number"
+              min={1}
+              max={MAX_BONUS_AMOUNT}
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="Например: 50"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-pixel/60 text-xs font-sans mb-2">За что премия?</label>
+            <input
+              className="pixel-input"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Например: отличная неделя"
+            />
+          </div>
+
+          {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
+            style={{ background: '#1D9E75', color: '#0f0f1a' }}
+          >
+            {saving ? '...' : 'Начислить'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PERMISSION_LABELS: Record<string, string> = {
   manage_knowledge_base: 'Багодельня',
@@ -44,6 +143,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [archived, setArchived] = useState<{ id: number; name: string; avatar_initials: string; archived_at: string }[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [ratings, setRatings] = useState<any[] | null>(null);
+  const [ratingsError, setRatingsError] = useState('');
 
   useEffect(() => {
     loadData();
@@ -51,9 +151,19 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     loadArchived();
   }, []);
 
+  const loadRatings = () => {
+    setRatingsError('');
+    leadApi.getInternalRatings()
+      .then(r => setRatings(r.data))
+      // Previously a silent no-op on failure — the tab just spun forever
+      // with no way to tell "still loading" apart from "broken". Now the
+      // actual server message (or a generic fallback) shows, with a retry.
+      .catch((err: any) => setRatingsError(err.response?.data?.error || 'Не удалось загрузить рейтинг'));
+  };
+
   useEffect(() => {
-    if (tab === 'ratings' && !ratings) {
-      leadApi.getInternalRatings().then(r => setRatings(r.data)).catch(() => {});
+    if (tab === 'ratings' && !ratings && !ratingsError) {
+      loadRatings();
     }
   }, [tab]);
 
@@ -61,7 +171,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     try {
       const res = await leadApi.getArchivedTesters();
       setArchived(res.data);
-    } catch {}
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить архив сотрудников');
+    }
   };
 
   const archiveMember = async (memberId: number, name: string) => {
@@ -72,7 +184,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       loadData();
       loadArchived();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Не удалось архивировать');
+      showApiError(err, 'Не удалось архивировать');
     } finally {
       setArchivingId(null);
     }
@@ -84,13 +196,19 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       await adminApi.restoreUser(memberId);
       loadData();
       loadArchived();
-    } catch {
+    } catch (err: any) {
+      // Was a bare `catch {}` — clicking "Восстановить" and having it
+      // silently fail is indistinguishable from the button not working.
+      showApiError(err, 'Не удалось восстановить сотрудника');
     } finally {
       setArchivingId(null);
     }
   };
 
+  const [loadError, setLoadError] = useState('');
+
   const loadData = async () => {
+    setLoadError('');
     try {
       const [teamRes, chartRes, activityRes, lectureStatsRes] = await Promise.all([
         leadApi.getTeam(),
@@ -102,8 +220,11 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       setSkillChart(chartRes.data);
       setActivity(activityRes.data.rows);
       setLectureStats(lectureStatsRes.data);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // Used to just console.error and leave every stat at its zeroed
+      // default — "0% прогресс, 0 жуков в улье" looked like a genuinely
+      // empty team, not a failed request.
+      setLoadError(err.response?.data?.error || 'Не удалось загрузить данные команды');
     } finally {
       setLoading(false);
     }
@@ -113,7 +234,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     try {
       const res = await permissionsApi.list();
       setGrants(res.data);
-    } catch {}
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить права доступа');
+    }
   };
 
   const EXPIRY_OPTIONS: Record<string, () => string | null> = {
@@ -132,7 +255,11 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         await permissionsApi.grant({ user_id: userId, permission, expires_at: EXPIRY_OPTIONS[expiry]() });
       }
       loadGrants();
-    } catch {}
+    } catch (err: any) {
+      // Was silent — clicking a permission checkbox and having it fail
+      // with no feedback looks exactly like the checkbox did nothing.
+      showApiError(err, 'Не удалось изменить право доступа');
+    }
   };
 
   const resetPassword = async (userId: number) => {
@@ -152,26 +279,28 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     }
   };
 
-  const awardBonus = async (userId: number) => {
-    const amountStr = prompt('Сколько баг-коинов начислить? (макс. 500)');
-    if (!amountStr) return;
-    const amount = parseInt(amountStr, 10);
-    if (!Number.isInteger(amount) || amount <= 0) { alert('Некорректная сумма'); return; }
-    const reason = prompt('За что премия?');
-    if (!reason?.trim()) return;
-    try {
-      await leadApi.awardBonus({ user_id: userId, amount, reason });
-      alert('Премия начислена!');
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Не удалось начислить премию');
-    }
-  };
+  const [bonusTarget, setBonusTarget] = useState<{ id: number; name: string } | null>(null);
+  const [bonusResult, setBonusResult] = useState<{ id: number; message: string } | null>(null);
 
   if (loading) {
     return (
       <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+        <Navigation user={user} onLogout={onLogout} />
+        <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
+          <div className="card text-center py-10">
+            <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+            <button onClick={() => { setLoading(true); loadData(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -398,7 +527,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                       >
                         {resettingId === member.id ? '...' : '🔑 Сбросить пароль'}
                       </button>
-                      <button onClick={() => awardBonus(member.id)} className="btn-secondary text-xs px-3 py-1">
+                      <button onClick={() => setBonusTarget({ id: member.id, name: member.name })} className="btn-secondary text-xs px-3 py-1">
                         🏆 Премия
                       </button>
                       <button
@@ -412,12 +541,23 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                       {resetResult?.id === member.id && (
                         <span className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>{resetResult.message}</span>
                       )}
+                      {bonusResult?.id === member.id && (
+                        <span className="text-xs font-sans" style={{ color: '#1D9E75' }}>🏆 {bonusResult.message}</span>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
+        )}
+
+        {bonusTarget && (
+          <AwardBonusModal
+            member={bonusTarget}
+            onClose={() => setBonusTarget(null)}
+            onAwarded={(amt) => setBonusResult({ id: bonusTarget.id, message: `Начислено ${amt} баллов` })}
+          />
         )}
 
         {tab === 'team' && archived.length > 0 && (
@@ -546,7 +686,12 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             <p className="text-pixel/45 text-xs font-sans mb-4">
               Баллы начисляются только за результат ≥90% без единого подозрительно быстрого ответа и почти без переключений вкладки — списать и получить баллы не получится.
             </p>
-            {ratings ? (
+            {ratingsError ? (
+              <div className="card text-center py-8">
+                <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{ratingsError}</p>
+                <button onClick={loadRatings} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+              </div>
+            ) : ratings ? (
               <div className="space-y-1.5">
                 {ratings.map((r: any, i: number) => (
                   <div key={r.id} className="p-3 rounded flex items-center justify-between gap-3 flex-wrap" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
@@ -579,12 +724,12 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
               <span className="text-pixel/55 text-xs font-sans">последние 20 событий</span>
             </div>
             <div className="space-y-2">
-              {activity.length === 0 ? (
+              {(Array.isArray(activity) ? activity : []).length === 0 ? (
                 <div className="card text-center py-8">
                   <p className="text-pixel/60 text-sm font-sans">Нет активности</p>
                 </div>
               ) : (
-                activity.map(item => (
+                (Array.isArray(activity) ? activity : []).map(item => (
                   <div
                     key={item.id}
                     className="p-3 rounded flex items-start justify-between gap-4"

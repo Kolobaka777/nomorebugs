@@ -10,6 +10,7 @@ import { API_BASE_URL as API_BASE } from '../config';
 import { authFetch } from '../auth';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
@@ -115,29 +116,55 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    // Fetch custom courses for all roles
+  const loadLectures = () => {
+    setLoading(true);
+    setLoadError('');
+    // Fetch custom courses for all roles — a secondary section on this
+    // page, so a failure here just shows a toast rather than blocking the
+    // whole catalog.
     authFetch(`${API_BASE}/custom-courses`)
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setCustomCourses(data); })
-      .catch(() => {});
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(data?.error || 'Не удалось загрузить дополнительные курсы');
+        if (Array.isArray(data)) setCustomCourses(data);
+      })
+      .catch((err: any) => showApiError(err, 'Не удалось загрузить дополнительные курсы'));
 
     // Fetched for every role, not just testers — leads/admins get a
     // read-only preview of the same catalog instead of a dead placeholder
     // grid. Per-user status (active/locked/passed) only makes sense for
     // testers, since only testers take quizzes — see isTester below.
+    // This IS the page's main content, so a failure gets its own retryable
+    // error state instead of an empty catalog that looks like "no courses".
     testerApi.getLectures()
       .then(r => setLectures(r.data))
-      .catch(() => {})
+      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить курсы'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadLectures(); }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+        <Navigation user={user} onLogout={onLogout} />
+        <div className="max-w-6xl mx-auto px-6 pt-16 pb-8">
+          <div className="card text-center py-10">
+            <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+            <button onClick={loadLectures} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+          </div>
+        </div>
       </div>
     );
   }

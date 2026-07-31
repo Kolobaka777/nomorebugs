@@ -84,7 +84,7 @@ function renderMarkdown(content: string) {
   return blocks;
 }
 
-function GuideForm({ initial, onSave, onCancel }: { initial?: Guide; onSave: (data: { title: string; category: string; content: string }) => void; onCancel: () => void }) {
+function GuideForm({ initial, onSave, onCancel, error, saving }: { initial?: Guide; onSave: (data: { title: string; category: string; content: string }) => void; onCancel: () => void; error: string; saving: boolean }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [category, setCategory] = useState(initial?.category || 'Общее');
   const [content, setContent] = useState(initial?.content || '');
@@ -100,8 +100,11 @@ function GuideForm({ initial, onSave, onCancel }: { initial?: Guide; onSave: (da
         value={content}
         onChange={e => setContent(e.target.value)}
       />
+      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
-        <button onClick={() => onSave({ title, category, content })} className="btn-primary text-xs px-4 py-2">Сохранить</button>
+        <button onClick={() => onSave({ title, category, content })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
+          {saving ? '...' : 'Сохранить'}
+        </button>
         <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
       </div>
     </div>
@@ -115,9 +118,16 @@ export default function GuidesPage({ user, onLogout }: Props) {
   const [canEdit, setCanEdit] = useState(user.role === 'lead' || user.role === 'admin');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [listError, setListError] = useState('');
 
   const load = () => {
-    guidesApi.list().then(r => setGuides(r.data)).catch(() => {}).finally(() => setLoading(false));
+    setListError('');
+    guidesApi.list()
+      .then(r => setGuides(r.data))
+      .catch((err: any) => setListError(err.response?.data?.error || 'Не удалось загрузить гайды'))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -132,6 +142,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
   };
 
   const save = async (data: { title: string; category: string; content: string }) => {
+    if (!data.title.trim()) { setFormError('Укажите заголовок'); return; }
+    setSaving(true);
+    setFormError('');
     try {
       if (selected) {
         await guidesApi.update(selected.id, data);
@@ -143,7 +156,14 @@ export default function GuidesPage({ user, onLogout }: Props) {
       setCreating(false);
       setEditing(false);
       load();
-    } catch {}
+    } catch (err: any) {
+      // Was a bare `catch {}` — a failed save looked identical to nothing
+      // happening at all (form just sat there), which is exactly what was
+      // reported as "гайды не создаются". Now the real reason shows.
+      setFormError(err.response?.data?.error || 'Не удалось сохранить гайд');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: number) => {
@@ -152,7 +172,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
       await guidesApi.remove(id);
       setSelected(null);
       load();
-    } catch {}
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Не удалось удалить гайд');
+    }
   };
 
   const grouped = guides.reduce((acc: Record<string, GuideListItem[]>, g) => {
@@ -178,15 +200,22 @@ export default function GuidesPage({ user, onLogout }: Props) {
             <span className="flex items-center gap-2"><PixelIcon name="books" size={14} color="#1D9E75" /> Гайды</span>
           </h1>
           {canEdit && (
-            <button onClick={() => { setSelected(null); setCreating(true); setEditing(false); }} className="btn-primary text-xs px-4 py-2">
+            <button onClick={() => { setSelected(null); setFormError(''); setCreating(true); setEditing(false); }} className="btn-primary text-xs px-4 py-2">
               + Новый гайд
             </button>
           )}
         </div>
 
+        {listError && (
+          <div className="card text-center py-4 mb-6">
+            <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{listError}</p>
+            <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 space-y-4">
-            {Object.keys(grouped).length === 0 && (
+            {!listError && Object.keys(grouped).length === 0 && (
               <p className="text-pixel/50 text-sm font-sans">Гайдов пока нет{canEdit ? ' — добавь первый.' : '.'}</p>
             )}
             {Object.entries(grouped).map(([category, items]) => (
@@ -214,16 +243,16 @@ export default function GuidesPage({ user, onLogout }: Props) {
 
           <div className="lg:col-span-2">
             {creating ? (
-              <GuideForm onSave={save} onCancel={() => setCreating(false)} />
+              <GuideForm onSave={save} onCancel={() => setCreating(false)} error={formError} saving={saving} />
             ) : editing && selected ? (
-              <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} />
+              <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} error={formError} saving={saving} />
             ) : selected ? (
               <div className="p-6 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
                 <div className="flex items-start justify-between mb-2">
                   <p className="text-pixel/50 text-xs font-sans">{selected.category}</p>
                   {canEdit && (
                     <div className="flex gap-1.5 shrink-0">
-                      <button onClick={() => setEditing(true)} className="btn-secondary text-xs px-2 py-1">
+                      <button onClick={() => { setFormError(''); setEditing(true); }} className="btn-secondary text-xs px-2 py-1">
                         <PixelIcon name="pencil" size={11} color="currentColor" />
                       </button>
                       <button onClick={() => remove(selected.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}>

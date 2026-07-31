@@ -5,6 +5,7 @@ import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
 import { todayLocal } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 interface Props { user: any; onLogout: () => void; }
 
@@ -263,7 +264,9 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
         const tpl = tplRes.data.find((t: Template) => t.id === Number(typeId));
         if (tpl) setTemplate(tpl);
         setAuthors(authRes.data);
-      } catch {}
+      } catch (err: any) {
+        showApiError(err, 'Не удалось загрузить чеклист');
+      }
       finally { setLoading(false); }
     })();
   }, [typeId]);
@@ -316,8 +319,8 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
       } : prev);
       setEditingMvt(false);
       setPendingMvt({});
-    } catch {
-      alert('Ошибка сохранения МВТ');
+    } catch (err: any) {
+      showApiError(err, 'Не удалось сохранить МВТ');
     } finally {
       setSavingMvt(false);
     }
@@ -389,8 +392,8 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
         results: payload,
       });
       setDone(true);
-    } catch {
-      setError('Ошибка при отправке. Убедитесь, что сервер запущен.');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Ошибка при отправке. Убедитесь, что сервер запущен.');
     } finally {
       setSubmitting(false);
     }
@@ -409,7 +412,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
           </div>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => exportToExcel(tpl, { taskName, contentAuthor, verskaAuthor, taskType, checkDate }, results, user.name).catch(err => console.error('Excel export failed', err))}
+              onClick={() => exportToExcel(tpl, { taskName, contentAuthor, verskaAuthor, taskType, checkDate }, results, user.name).catch(err => showApiError(err, 'Не удалось сформировать Excel'))}
               className="px-4 py-2 text-xs font-sans font-semibold rounded cursor-pointer"
               style={{ background: '#1D9E75', color: '#0f0f1a' }}
             >⬇ Скачать Excel</button>
@@ -737,7 +740,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
               </button>
               {filledCount > 0 && (
                 <button
-                  onClick={() => exportToExcel(tpl, { taskName, contentAuthor, verskaAuthor, taskType, checkDate }, results, user.name).catch(err => console.error('Excel export failed', err))}
+                  onClick={() => exportToExcel(tpl, { taskName, contentAuthor, verskaAuthor, taskType, checkDate }, results, user.name).catch(err => showApiError(err, 'Не удалось сформировать Excel'))}
                   className="px-4 py-3 text-xs font-sans font-semibold rounded cursor-pointer transition-all"
                   style={{ background: 'rgba(29,158,117,0.12)', color: '#1D9E75', border: '2px solid rgba(29,158,117,0.3)' }}
                   title="Скачать как Excel (черновик)"

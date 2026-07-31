@@ -6,6 +6,7 @@ import PixelIcon from '../components/PixelIcon';
 import { statsApi, testerApi, leadApi } from '../api';
 import { GlobalStats, TestHistoryItem, TeamMember, ActivityItem } from '../types';
 import { timeAgo } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 interface HomePageProps {
   user: any;
@@ -34,17 +35,19 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   useEffect(() => {
-    statsApi.getGlobal().then(r => setStats(r.data)).catch(() => {});
+    statsApi.getGlobal().then(r => setStats(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику площадки'));
 
     if (isTester) {
       Promise.all([testerApi.getMetrics(), testerApi.getHistory()])
         .then(([m, h]) => { setMetrics(m.data); setHistory(h.data.slice(0, 5)); })
-        .catch(() => {})
+        // Was silent — a failure here left the widgets at their empty
+        // default, indistinguishable from "you haven't done anything yet".
+        .catch((err: any) => showApiError(err, 'Не удалось загрузить твои данные'))
         .finally(() => setLoading(false));
     } else {
       Promise.all([leadApi.getTeam(), leadApi.getActivity()])
         .then(([t, a]) => { setTeam(t.data); setActivity(a.data.rows.slice(0, 6)); })
-        .catch(() => {})
+        .catch((err: any) => showApiError(err, 'Не удалось загрузить данные команды'))
         .finally(() => setLoading(false));
     }
   }, [isTester]);

@@ -3,6 +3,7 @@ import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { knowledgeApi } from '../api';
+import { showApiError } from '../utils/toast';
 
 interface BagodelnyaPageProps {
   user: any;
@@ -52,8 +53,8 @@ function BugExampleForm({
     setSaving(true);
     try {
       await onSave({ tag: tag.trim(), tag_color: tagColor, problem: problem.trim(), bad_text: badText.trim(), good_text: goodText.trim() });
-    } catch {
-      setError('Ошибка сохранения');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Ошибка сохранения');
     } finally {
       setSaving(false);
     }
@@ -122,8 +123,8 @@ function GlossaryForm({
     setSaving(true);
     try {
       await onSave({ term: term.trim(), definition: definition.trim() });
-    } catch {
-      setError('Ошибка сохранения');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Ошибка сохранения');
     } finally {
       setSaving(false);
     }
@@ -161,6 +162,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
   const [editingExampleId, setEditingExampleId] = useState<number | null>(null);
   const [addingTerm, setAddingTerm] = useState(false);
   const [editingTermId, setEditingTermId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     load();
@@ -171,22 +173,38 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
 
   const load = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const [exRes, glRes] = await Promise.all([knowledgeApi.getBugExamples(), knowledgeApi.getGlossary()]);
       setBugExamples(exRes.data);
       setGlossary(glRes.data);
-    } catch {}
+    } catch (err: any) {
+      // Was a silent no-op — a failed load looked exactly like "no examples/
+      // terms yet" (both left the lists at their empty default), which is
+      // misleading rather than merely quiet.
+      setLoadError(err.response?.data?.error || 'Не удалось загрузить базу знаний');
+    }
     finally { setLoading(false); }
   };
 
   const deleteExample = async (id: number) => {
     if (!confirm('Удалить этот пример?')) return;
-    try { await knowledgeApi.deleteBugExample(id); setBugExamples(p => p.filter(e => e.id !== id)); } catch {}
+    try {
+      await knowledgeApi.deleteBugExample(id);
+      setBugExamples(p => p.filter(e => e.id !== id));
+    } catch (err: any) {
+      showApiError(err, 'Не удалось удалить пример');
+    }
   };
 
   const deleteTerm = async (id: number) => {
     if (!confirm('Удалить этот термин?')) return;
-    try { await knowledgeApi.deleteGlossaryTerm(id); setGlossary(p => p.filter(g => g.id !== id)); } catch {}
+    try {
+      await knowledgeApi.deleteGlossaryTerm(id);
+      setGlossary(p => p.filter(g => g.id !== id));
+    } catch (err: any) {
+      showApiError(err, 'Не удалось удалить термин');
+    }
   };
 
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
@@ -227,7 +245,14 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
 
         {loading && <SnailLoader />}
 
-        {!loading && tab === 'examples' && (
+        {!loading && loadError && (
+          <div className="card text-center py-8 mb-6">
+            <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{loadError}</p>
+            <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+          </div>
+        )}
+
+        {!loading && !loadError && tab === 'examples' && (
           <div>
             {canEdit && !addingExample && (
               <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5">
@@ -337,7 +362,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           </div>
         )}
 
-        {!loading && tab === 'glossary' && (
+        {!loading && !loadError && tab === 'glossary' && (
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-pixel text-pixel/60 flex items-center gap-2" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>

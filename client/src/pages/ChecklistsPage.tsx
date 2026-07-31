@@ -6,6 +6,7 @@ import { checklistApi, knowledgeApi } from '../api';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { clickableProps, useEscapeKey } from '../utils/a11y';
 import { parseServerDate, localDayStartUTC, localDayEndUTC } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 interface Props { user: any; onLogout: () => void; }
 
@@ -553,6 +554,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   const [canManageChecklists, setCanManageChecklists] = useState(isLead);
   const [tab, setTab] = useState<Tab>('checklists');
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesError, setTemplatesError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -616,10 +618,15 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
 
   const loadTemplates = async () => {
     setLoading(true);
+    setTemplatesError('');
     try {
       const res = await checklistApi.getTemplates();
       setTemplates(res.data);
-    } catch {}
+    } catch (err: any) {
+      // Used to leave `templates` at its empty default on failure — looked
+      // exactly like "no checklists exist yet".
+      setTemplatesError(err.response?.data?.error || 'Не удалось загрузить чеклисты');
+    }
     finally { setLoading(false); }
   };
 
@@ -627,7 +634,12 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
     try {
       const res = await checklistApi.getAuthors();
       setAuthors(res.data);
-    } catch {}
+    } catch (err: any) {
+      // Non-fatal: both author dropdowns already have a "ввести вручную"
+      // free-text fallback, so this degrades gracefully — but still worth
+      // a heads-up rather than pretending nothing happened.
+      showApiError(err, 'Не удалось загрузить список авторов');
+    }
   };
 
   const loadStats = async () => {
@@ -635,7 +647,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
     try {
       const res = await checklistApi.getStats(statsFilters());
       setStats(res.data);
-    } catch {}
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить отчёт');
+    }
     finally { setStatsLoading(false); }
   };
 
@@ -662,7 +676,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
       if (requestId !== subsRequestRef.current) return;
       setSubmissions(res.data.rows);
       setSubsHasMore(res.data.hasMore);
-    } catch {}
+    } catch (err: any) {
+      if (requestId === subsRequestRef.current) showApiError(err, 'Не удалось загрузить историю');
+    }
     finally { if (requestId === subsRequestRef.current) setSubsLoading(false); }
   };
 
@@ -682,7 +698,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
       });
       setSubmissions(prev => [...prev, ...res.data.rows]);
       setSubsHasMore(res.data.hasMore);
-    } catch {}
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить ещё');
+    }
     finally { setSubsLoadingMore(false); }
   };
 
@@ -690,7 +708,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
     try {
       const res = await checklistApi.getSubmissionDetail(id);
       setDetailSub(res.data);
-    } catch {}
+    } catch (err: any) {
+      showApiError(err, 'Не удалось открыть отправку');
+    }
   };
 
   const getCategories = (tpl: Template) => [...new Set(tpl.items.map(i => i.category))];
@@ -795,10 +815,15 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         {tab === 'checklists' && (
           <>
             {loading && <SnailLoader />}
-            {!loading && templates.length === 0 && (
+            {!loading && templatesError && (
+              <div className="p-8 rounded text-center" style={{ background: '#1a1a2e', border: '2px dashed rgba(224,82,82,0.3)' }}>
+                <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{templatesError}</p>
+                <button onClick={loadTemplates} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+              </div>
+            )}
+            {!loading && !templatesError && templates.length === 0 && (
               <div className="p-8 rounded text-center" style={{ background: '#1a1a2e', border: '2px dashed rgba(232,232,208,0.1)' }}>
-                <p className="text-pixel/60 text-sm font-sans mb-2">Сервер недоступен или нет чеклистов</p>
-                <p className="text-pixel/55 text-xs font-sans">Запусти <code className="text-pixel/60">npm run dev</code></p>
+                <p className="text-pixel/60 text-sm font-sans mb-2">Чеклистов пока нет</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1039,7 +1064,9 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                     try {
                       const res = await checklistApi.getStats({});
                       setStats(res.data);
-                    } catch {}
+                    } catch (err: any) {
+                      showApiError(err, 'Не удалось загрузить отчёт');
+                    }
                     finally { setStatsLoading(false); }
                   }}
                   className="btn-secondary px-3 py-1 text-xs font-sans cursor-pointer"

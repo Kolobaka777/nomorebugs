@@ -14,6 +14,7 @@ import { BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
+import { showApiError } from '../utils/toast';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; }
 
@@ -198,10 +199,12 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
   const [craftSuccess, setCraftSuccess] = useState<string | null>(null);
   const [buying, setBuying]             = useState<string | null>(null);
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
+    setLoadError('');
     try {
       const [metricsRes, lecturesRes, historyRes, baRes, profileRes] = await Promise.all([
         testerApi.getMetrics(),
@@ -211,16 +214,21 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
         testerApi.getProfileFull(),
       ]);
 
-      // Load task counts from real server (silently skip if server is down)
-      checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch(() => {});
-      rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch(() => {});
+      // Task counts / premium points are secondary widgets on this page —
+      // a toast on failure (rather than blocking the whole cabinet) is
+      // enough; the rest of the page still fully works without them.
+      checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
+      rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
       setMetrics(metricsRes.data);
       setLectures(lecturesRes.data);
       setHistory(historyRes.data);
       setBeforeAfter(baRes.data);
       setProfile(profileRes.data);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // This is the tester's main daily-use page — used to just log and
+      // leave everything at its empty default, which reads as "you have no
+      // progress yet" instead of "this failed to load".
+      setLoadError(err.response?.data?.error || 'Не удалось загрузить кабинет');
     } finally {
       setLoading(false);
     }
@@ -230,6 +238,18 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
       <Navigation user={user} onLogout={onLogout} />
       <SnailLoader />
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <Navigation user={user} onLogout={onLogout} />
+      <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
+        <div className="card text-center py-10">
+          <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+          <button onClick={() => { setLoading(true); loadAll(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
+        </div>
+      </div>
     </div>
   );
 
@@ -265,7 +285,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
       await loadAll();
       setTimeout(() => setCraftSuccess(null), 3000);
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Ошибка крафтинга');
+      showApiError(e, 'Ошибка крафтинга');
     } finally { setCrafting(null); }
   };
 
@@ -275,7 +295,7 @@ export default function MoyaNora({ user, onLogout }: MoyaNoraProps) {
       const res = await testerApi.buyShopItem(item_id);
       setProfile(p => p ? { ...p, bug_coins: res.data.newCoins, purchased_items: [...(p.purchased_items || []), item_id] } : p);
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Ошибка покупки');
+      showApiError(e, 'Ошибка покупки');
     } finally { setBuying(null); }
   };
 

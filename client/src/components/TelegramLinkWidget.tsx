@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
+import { showApiError } from '../utils/toast';
 
 type Status =
   | { phase: 'loading' }
@@ -54,8 +55,10 @@ export default function TelegramLinkWidget() {
     try {
       await telegramApi.unlink();
       setStatus({ phase: 'unlinked' });
-    } catch {
-      // Leave the displayed state as-is — the button just stays clickable to retry.
+    } catch (err: any) {
+      // Leave the displayed state as-is — the button just stays clickable to
+      // retry — but say why it didn't work instead of leaving it a mystery.
+      showApiError(err, 'Не удалось отвязать Telegram');
     }
   };
 
