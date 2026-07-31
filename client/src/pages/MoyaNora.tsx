@@ -224,6 +224,16 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       setHistory(historyRes.data);
       setBeforeAfter(baRes.data);
       setProfile(profileRes.data);
+      // The nav dropdown reads user.displayName from localStorage, which is
+      // only ever set at login or after actively editing the nickname here —
+      // without this, a nickname set in an earlier session (or on another
+      // device) keeps showing the real name in the nav even while this very
+      // page correctly shows the nickname, since the two read from different
+      // places.
+      const nickname = profileRes.data.nickname?.trim();
+      if (nickname && nickname !== user.name && nickname !== user.displayName) {
+        onUserUpdate?.({ displayName: nickname });
+      }
     } catch (err: any) {
       // This is the tester's main daily-use page — used to just log and
       // leave everything at its empty default, which reads as "you have no

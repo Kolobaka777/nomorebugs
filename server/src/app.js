@@ -398,7 +398,10 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     res.status(201).json({
       token,
       refreshToken: refresh.token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials },
+      // No profile row exists yet for a brand-new account, so there's no
+      // nickname to show — displayName stays unset and the client falls
+      // back to `name`, same as the login response below.
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null },
       needsBaselineSurvey: user.role === 'tester',
     });
   } catch (err) {
@@ -451,10 +454,18 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
       notifyUser(user, 'Новый вход', `Выполнен вход в аккаунт baga-net (${user.email}). Это был не ты? Смени пароль и сообщи лиду.`);
     }
 
+    // The nickname set on the profile page (e.g. "I'm BOSS") lives in
+    // user_profiles, not users — without this, the nav dropdown only ever
+    // learns about it if the account happens to visit /profile or /cabinet
+    // in the same browser session (see ProfilePage.tsx/MoyaNora.tsx syncing
+    // it via onUserUpdate after a fetch), so on a fresh login it silently
+    // showed the account's real name instead of the nickname everywhere else.
+    const profileRow = db.prepare('SELECT nickname FROM user_profiles WHERE user_id = ?').get(user.id);
+
     res.json({
       token,
       refreshToken: refresh.token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: profileRow?.nickname || null },
       needsBaselineSurvey,
       mustChangePassword: !!user.must_change_password,
     });

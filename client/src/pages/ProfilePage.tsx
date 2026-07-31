@@ -31,7 +31,19 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
   const [recentBonuses, setRecentBonuses] = useState<any[] | null>(null);
 
   useEffect(() => {
-    testerApi.getProfileFull().then(r => setProfile(r.data))
+    testerApi.getProfileFull().then(r => {
+      setProfile(r.data);
+      // The nav dropdown reads user.displayName from localStorage, which is
+      // only ever set at login or after actively editing the nickname here —
+      // without this, a nickname set in an earlier session (or on another
+      // device) keeps showing the real name in the nav even while this very
+      // page correctly shows the nickname, since the two read from different
+      // places.
+      const nickname = r.data.nickname?.trim();
+      if (nickname && nickname !== user.name && nickname !== user.displayName) {
+        onUserUpdate?.({ displayName: nickname });
+      }
+    })
       // Falls back to `defaultProfile` below on failure — that fallback is
       // deliberate (better than a blank page), but silently showing zeroed
       // stats with no explanation reads as "you have no data" rather than
