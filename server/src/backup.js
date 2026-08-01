@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { db } from '../db/schema.js';
+import { logError } from './sentry.js';
 
 // Writes into a subdirectory of wherever the live DB file lives — on
 // Railway that's the same mounted volume, so this protects against
@@ -58,9 +59,12 @@ let intervalHandle = null;
 // backup() would just error against a memory-only database anyway.
 export function startBackupSchedule() {
   if (!isBackupEnabled() || intervalHandle) return;
-  runBackup().catch(err => console.error('Initial DB backup failed:', err.message));
+  // Was a bare console.error — a backup silently failing for days (a full
+  // disk, a permissions change) had no chance of reaching anyone unless
+  // someone happened to be tailing Railway's logs at the time.
+  runBackup().catch(err => logError(err, { context: 'initial DB backup' }));
   intervalHandle = setInterval(() => {
-    runBackup().catch(err => console.error('Scheduled DB backup failed:', err.message));
+    runBackup().catch(err => logError(err, { context: 'scheduled DB backup' }));
   }, BACKUP_INTERVAL_MS);
   intervalHandle.unref();
 }

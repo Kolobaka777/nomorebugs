@@ -29,7 +29,7 @@ if (process.env.NODE_ENV === 'production') {
     const dest = await runBackup();
     if (dest) console.log(`Pre-migration safety backup written to ${dest}`);
   } catch (err) {
-    console.error('Pre-migration backup failed (continuing startup anyway):', err.message);
+    logError(err, { context: 'pre-migration safety backup' });
   }
 }
 
@@ -256,10 +256,17 @@ app.use(writeLimiter);
 // bare "process is up" check would miss.
 app.get('/api/health', (req, res) => {
   try {
-    db.prepare('SELECT 1').get();
+    // A read-only probe alone (just SELECT 1) can't catch a read-only
+    // volume or full disk — reads keep working fine right up until a write
+    // is attempted. This is exactly the failure mode that once let a broken
+    // deploy report "healthy" while every real write in the app crashed —
+    // see docker-entrypoint.sh's history. INSERT OR REPLACE into a
+    // single-row scratch table actually exercises a write, cheaply and
+    // without growing the DB.
+    db.prepare('INSERT OR REPLACE INTO _health_check (id, checked_at) VALUES (1, CURRENT_TIMESTAMP)').run();
     res.json({ status: 'ok' });
   } catch (err) {
-    console.error('Health check DB probe failed:', err);
+    logError(err);
     res.status(503).json({ status: 'error' });
   }
 });
@@ -410,12 +417,43 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
   }
 });
 
+// Per-account login lockout — see the comment inside the route below for
+// why this exists alongside loginLimiter's per-IP throttle.
+const failedLoginAttempts = new Map(); // emailKey -> { count, lockedUntil }
+const MAX_FAILED_LOGIN_ATTEMPTS = 8;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+function recordFailedLogin(emailKey) {
+  const entry = failedLoginAttempts.get(emailKey) || { count: 0, lockedUntil: 0 };
+  entry.count += 1;
+  if (entry.count >= MAX_FAILED_LOGIN_ATTEMPTS) {
+    entry.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+    entry.count = 0;
+  }
+  failedLoginAttempts.set(emailKey, entry);
+}
+
 app.post('/api/auth/login', loginLimiter, (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    // loginLimiter above only throttles per source IP — a distributed
+    // attacker (rotating IPs/a botnet) could still throw unlimited attempts
+    // at one specific account. Tracked by email regardless of whether the
+    // account actually exists, and with the exact same locked response
+    // either way, so this can't become a new email-enumeration signal on
+    // top of the timing one already guarded against below. In-memory and
+    // single-instance only (this app's documented numReplicas: 1
+    // constraint) — resets on a restart, an acceptable gap for an internal
+    // tool, not something an outside attacker can trigger on demand.
+    const emailKey = email.trim().toLowerCase();
+    const lockout = failedLoginAttempts.get(emailKey);
+    if (lockout?.lockedUntil && lockout.lockedUntil > Date.now()) {
+      return res.status(429).json({ error: 'Слишком много неудачных попыток входа. Попробуйте позже.' });
     }
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
@@ -427,8 +465,10 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     // despite the identical response body below.
     const passwordMatches = bcryptjs.compareSync(password, user?.password || DUMMY_PASSWORD_HASH);
     if (!user || !passwordMatches) {
+      recordFailedLogin(emailKey);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    failedLoginAttempts.delete(emailKey);
     if (user.archived_at) {
       return res.status(403).json({ error: 'Аккаунт деактивирован. Обратитесь к лиду или администратору.' });
     }
@@ -594,11 +634,16 @@ app.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('lea
     }
 
     const tempPassword = generateTempPassword();
-    db.prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?')
-      .run(bcryptjs.hashSync(tempPassword, 10), target.id);
-    revokeAllRefreshTokens(target.id);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-      .run(req.user.id, `password_reset:target=${target.id}`);
+    // A crash between the password update and revoking old refresh tokens
+    // used to be able to leave a stale session valid under the old password
+    // while a new temp password was already handed out under the new one.
+    db.transaction(() => {
+      db.prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?')
+        .run(bcryptjs.hashSync(tempPassword, 10), target.id);
+      revokeAllRefreshTokens(target.id);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+        .run(req.user.id, `password_reset:target=${target.id}`);
+    })();
 
     const delivered = notifyUser(
       target, 'Сброс пароля',
@@ -885,6 +930,16 @@ app.get('/api/stats', (req, res) => {
 
 // ============== QUIZ ENDPOINTS ==============
 
+// Tracks when a tester actually fetched a lecture's questions, so
+// submit-test can verify how long a quiz genuinely took server-side instead
+// of trusting the client-reported per-question timings (which a direct API
+// call could simply omit — see that route's comment). In-memory and
+// single-instance only (matches this app's numReplicas: 1 constraint,
+// documented in DEPLOYMENT.md); losing an entry on restart just means that
+// one in-flight quiz's speed can't be verified, which fails closed on
+// rewards below rather than blocking submission.
+const quizStartTimes = new Map();
+
 app.get('/api/lectures/:id/questions', authMiddleware, (req, res) => {
   try {
     const questions = db.prepare(`
@@ -893,6 +948,8 @@ app.get('/api/lectures/:id/questions', authMiddleware, (req, res) => {
       WHERE lecture_id = ?
       ORDER BY order_num
     `).all(req.params.id);
+
+    quizStartTimes.set(`${req.user.id}:${req.params.id}`, Date.now());
 
     res.json(questions);
   } catch (err) {
@@ -939,28 +996,52 @@ app.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
 
     score = Math.round(score);
 
-    // Review signals only — never blocks or penalizes scoring. The
-    // threshold is per-question, derived from how much there actually is to
-    // read (question + all 4 options), not a flat number — a flat cutoff
-    // is trivial to game (just wait exactly 2.1s per question); tying it to
-    // word count means the minimum plausible time varies question to
-    // question in a way a cheater filling in memorized answers has no easy
-    // way to predict or spoof, while a genuinely fast, competent tester
-    // reading normally still clears it.
+    // Whether coins / hidden-rating credit are even eligible on this
+    // submission — checked before the write below replaces the row.
+    // Resubmitting an already-attempted lecture still updates the score
+    // record and can still unlock the next lecture as before, but no
+    // longer re-grants coins or hidden-rating points every time —
+    // previously a passed lecture could be resubmitted indefinitely to
+    // farm both without bound.
+    const isFirstSubmission = !db.prepare(
+      'SELECT 1 FROM test_results WHERE user_id = ? AND lecture_id = ?'
+    ).get(userId, lectureId);
+
+    // Per-question minimum-plausible-read time — used below to verify pace
+    // server-side instead of trusting the client's own report of it.
     function minPlausibleSeconds(q) {
       const text = [q.question_text, q.option_a, q.option_b, q.option_c, q.option_d].join(' ');
       const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
       return Math.max(3, Math.ceil(wordCount / 3)); // ~3 words/sec fast-but-real reading pace
     }
-    const questionTimes = (meta?.questionTimes && typeof meta.questionTimes === 'object') ? meta.questionTimes : {};
+
+    // The "how fast did they actually go" signal used to come entirely from
+    // client-reported meta.questionTimes — a direct API call could just
+    // omit meta (a missing per-question time defaulted to 999, i.e. "not
+    // fast"), which both unconditionally passed the hidden-rating gate
+    // below AND hid the exact same fastAnswerCount from the lead-facing
+    // "soft flag" a lead would otherwise notice it by. Total elapsed time
+    // is measured server-side instead, from when this tester actually
+    // fetched the lecture's questions (see GET /api/lectures/:id/questions)
+    // to now — a number the client has no way to inflate. Anything that
+    // can't be verified this way (no recorded fetch — a direct submit that
+    // skipped fetching first, or a server restart mid-quiz) is treated as
+    // unverified pace rather than trusted, both for the flag and for reward
+    // eligibility below.
+    const startKey = `${userId}:${lectureId}`;
+    const startedAt = quizStartTimes.get(startKey);
+    quizStartTimes.delete(startKey);
+    const totalMinPlausibleSeconds = questions.reduce((sum, q) => sum + minPlausibleSeconds(q), 0);
+    const serverElapsedSeconds = startedAt != null ? (Date.now() - startedAt) / 1000 : null;
+    const verifiedHonestPace = serverElapsedSeconds !== null && serverElapsedSeconds >= totalMinPlausibleSeconds;
+    const fastAnswerCount = verifiedHonestPace ? 0 : questions.length;
     const tabSwitches = Number.isInteger(meta?.tabSwitches) ? meta.tabSwitches : 0;
-    const fastAnswerCount = questions.filter(q => (questionTimes[q.id] ?? 999) < minPlausibleSeconds(q)).length;
-    const resultMeta = JSON.stringify({ questionTimes, tabSwitches, fastAnswerCount });
+    const resultMeta = JSON.stringify({ tabSwitches, fastAnswerCount, serverElapsedSeconds, totalMinPlausibleSeconds });
 
     // Result, activity log, card award, and coin award must all land together
     // or not at all — a crash mid-sequence used to be able to record a score
     // with no card/coins granted for it.
-    const coinsEarned = score >= 90 ? 25 : score >= 75 ? 18 : score >= 60 ? 10 : 3;
+    const coinsEarned = isFirstSubmission ? (score >= 90 ? 25 : score >= 75 ? 18 : score >= 60 ? 10 : 3) : 0;
     let cardDrop = null;
     db.transaction(() => {
       db.prepare(`
@@ -992,19 +1073,22 @@ app.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
         }
       }
 
-      // Award bug_coins
-      db.prepare(`
-        INSERT INTO user_profiles (user_id, bug_coins)
-        VALUES (?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET bug_coins = COALESCE(bug_coins, 0) + excluded.bug_coins
-      `).run(userId, coinsEarned);
+      // Award bug_coins — first attempt at this lecture only, see isFirstSubmission above.
+      if (isFirstSubmission) {
+        db.prepare(`
+          INSERT INTO user_profiles (user_id, bug_coins)
+          VALUES (?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET bug_coins = COALESCE(bug_coins, 0) + excluded.bug_coins
+        `).run(userId, coinsEarned);
+      }
 
       // Hidden quality+speed signal for a lead's internal-ratings view (see
-      // /api/lead/internal-ratings) — score AND speed both have to be
-      // genuinely good, and speed is disqualified entirely by even one
-      // suspiciously-fast answer or more than one tab-switch, so this can't
-      // be farmed by rushing through with memorized answers.
-      if (score >= 90 && fastAnswerCount === 0 && tabSwitches <= 1) {
+      // /api/lead/internal-ratings) — score and pace both have to be
+      // genuinely good (pace is now verified server-side, see above), pace
+      // is disqualified entirely by more than one tab-switch, and this only
+      // ever fires once per lecture (isFirstSubmission) so it can't be
+      // farmed by repeatedly resubmitting an already-passed lecture.
+      if (isFirstSubmission && score >= 90 && verifiedHonestPace && tabSwitches <= 1) {
         db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
           .run(userId, 5, `Отличный результат по лекции (${score}%), без признаков спешки`, 'auto_quiz_excellence');
       }
@@ -1090,8 +1174,29 @@ app.get('/api/lectures/:id/question/:qid/explanation', authMiddleware, (req, res
 
 // ============== BASELINE/FINAL SURVEY ==============
 
+// The table itself has a CHECK(1-5) constraint on every one of these
+// columns, which already blocks genuinely out-of-range abuse (a request
+// would just 500 on the constraint violation) — this is purely so a bad
+// request gets a clear 400 instead of an opaque server error, and so a
+// non-integer like 3.5 (which the CHECK's numeric bounds alone don't catch,
+// since SQLite's INTEGER affinity keeps a non-whole REAL as-is) can't quietly
+// skew the before/after skill dashboards with a value nobody could have
+// actually picked in the UI's 1-5 radio buttons.
+function validateSurveyAnswers(body) {
+  for (const field of ['html_structure', 'css_reading', 'devtools', 'console_errors', 'bug_report_quality']) {
+    const value = body[field];
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      return `Поле "${field}" должно быть целым числом от 1 до 5`;
+    }
+  }
+  return null;
+}
+
 app.post('/api/tester/baseline-survey', authMiddleware, (req, res) => {
   try {
+    const validationError = validateSurveyAnswers(req.body);
+    if (validationError) return res.status(400).json({ error: validationError });
+
     const { html_structure, css_reading, devtools, console_errors, bug_report_quality } = req.body;
     const userId = req.user.id;
 
@@ -1118,6 +1223,9 @@ app.post('/api/tester/baseline-survey', authMiddleware, (req, res) => {
 
 app.post('/api/tester/final-survey', authMiddleware, (req, res) => {
   try {
+    const validationError = validateSurveyAnswers(req.body);
+    if (validationError) return res.status(400).json({ error: validationError });
+
     const { html_structure, css_reading, devtools, console_errors, bug_report_quality } = req.body;
     const userId = req.user.id;
 
@@ -1621,6 +1729,10 @@ app.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+// See the 'auto_checklist_clean' award below — caps the hidden-rating
+// credit for a clean checklist run at this many per rolling 24h per tester.
+const MAX_CHECKLIST_QUALITY_AWARDS_PER_DAY = 5;
+
 app.get('/api/checklists/templates', authMiddleware, (req, res) => {
   try {
     const templates = db.prepare('SELECT * FROM checklist_templates ORDER BY order_num').all();
@@ -1679,9 +1791,21 @@ app.post('/api/checklists/submit', authMiddleware, (req, res) => {
       // meaningfully-sized checklist (5+ items actually checked) with zero
       // fails found. Not "no bugs exist", just "thorough enough to be worth
       // a lead's attention" — the actual QA judgment stays with the lead.
+      // Unlike a lecture, a checklist submission has no natural identity to
+      // dedupe on (task_name is free-typed and unreliable, and testers
+      // legitimately submit many distinct real checklists over time) — so
+      // instead of a one-time-ever gate, this caps how many times this
+      // credit can land per day, closing the "resubmit the same trivial
+      // checklist on a loop" farm without blocking genuine, spread-out work.
       if (checkedCount >= 5 && failCount === 0) {
-        db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
-          .run(userId, 3, `Чистый прогон чеклиста (${checkedCount} пунктов, 0 ошибок)`, 'auto_checklist_clean');
+        const recentCleanAwards = db.prepare(
+          `SELECT COUNT(*) as c FROM internal_score_events
+           WHERE user_id = ? AND source = 'auto_checklist_clean' AND created_at >= datetime('now', '-1 day')`
+        ).get(userId)?.c || 0;
+        if (recentCleanAwards < MAX_CHECKLIST_QUALITY_AWARDS_PER_DAY) {
+          db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
+            .run(userId, 3, `Чистый прогон чеклиста (${checkedCount} пунктов, 0 ошибок)`, 'auto_checklist_clean');
+        }
       }
 
       return sub.lastInsertRowid;
@@ -2524,20 +2648,29 @@ app.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermission('
 
 // ============== COURSE TIME TRACKING ==============
 
+// Upper bound on a single course's self-reported time — this is purely a
+// client-reported engagement metric a lead sees on /api/courses/time-stats
+// (there's no server-side start timestamp to check it against), so nothing
+// stops it being an arbitrary number; this at least keeps one bogus/buggy
+// report from skewing that view with an implausible value (a course
+// realistically takes at most a few hours, not weeks).
+const MAX_COURSE_SECONDS_SPENT = 6 * 60 * 60; // 6 hours
+
 app.post('/api/courses/time-track', authMiddleware, (req, res) => {
   try {
     const { course_id, seconds_spent } = req.body;
     const userId = req.user.id;
-    if (!course_id || typeof seconds_spent !== 'number') {
+    if (!course_id || typeof seconds_spent !== 'number' || !Number.isFinite(seconds_spent) || seconds_spent < 0) {
       return res.status(400).json({ error: 'Неверные данные' });
     }
+    const clampedSeconds = Math.min(seconds_spent, MAX_COURSE_SECONDS_SPENT);
     db.prepare(`
       INSERT INTO course_time_tracking (user_id, course_id, seconds_spent, completed_at)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id, course_id) DO UPDATE SET
         seconds_spent = excluded.seconds_spent,
         completed_at = excluded.completed_at
-    `).run(userId, course_id, seconds_spent);
+    `).run(userId, course_id, clampedSeconds);
     db.prepare('INSERT INTO activity_log (user_id, action, lecture_id) VALUES (?, ?, ?)')
       .run(userId, 'course_completed', course_id);
     res.json({ ok: true });
@@ -2610,9 +2743,14 @@ app.post('/api/admin/users/:id/archive', authMiddleware, requireRole('lead'), (r
       if (otherAdmins.c === 0) return res.status(400).json({ error: 'Нельзя архивировать последнего администратора' });
     }
 
-    db.prepare('UPDATE users SET archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetId);
-    revokeAllRefreshTokens(targetId);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_archived:target=${targetId}`);
+    // A crash mid-sequence used to be able to archive the account (blocking
+    // login) while leaving its existing session tokens still valid, or vice
+    // versa — archiving with no audit trail of who did it or when.
+    db.transaction(() => {
+      db.prepare('UPDATE users SET archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetId);
+      revokeAllRefreshTokens(targetId);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_archived:target=${targetId}`);
+    })();
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -2628,8 +2766,10 @@ app.post('/api/admin/users/:id/restore', authMiddleware, requireRole('lead'), (r
     if (req.user.role === 'lead' && target.role !== 'tester') {
       return res.status(403).json({ error: 'Лид может восстанавливать только тестировщиков' });
     }
-    db.prepare('UPDATE users SET archived_at = NULL WHERE id = ?').run(targetId);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_restored:target=${targetId}`);
+    db.transaction(() => {
+      db.prepare('UPDATE users SET archived_at = NULL WHERE id = ?').run(targetId);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_restored:target=${targetId}`);
+    })();
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -2767,15 +2907,18 @@ app.patch('/api/admin/users/:id/role', authMiddleware, requireRole('admin'), (re
       }
     }
 
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, targetId);
-
     // activity_log rows are otherwise always "this is what user_id did" —
     // role changes are the one place that's ambiguous (the row could
     // reasonably describe the target or the actor), and there was
     // previously no record at all of *which admin* made a given change.
     // Logged under the acting admin's id, action string carries the target.
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-      .run(req.user.id, `admin_role_change:target=${targetId}:new_role=${role}`);
+    // Wrapped so a crash between the two can't leave a role change with no
+    // record of who made it.
+    db.transaction(() => {
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, targetId);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+        .run(req.user.id, `admin_role_change:target=${targetId}:new_role=${role}`);
+    })();
 
     const updatedTarget = db.prepare('SELECT id, email, name, role, telegram_id FROM users WHERE id = ?').get(targetId);
     notifyUser(updatedTarget, 'Роль изменена', `Твоя роль в baga-net изменена на "${role}".`);
@@ -2873,22 +3016,27 @@ app.post('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, res
       return res.status(400).json({ error: `Неизвестное право. Допустимые: ${KNOWN_PERMISSIONS.join(', ')}` });
     }
     const targetId = parseInt(user_id, 10);
-    const target = db.prepare('SELECT id, role, name, telegram_id FROM users WHERE id = ?').get(targetId);
+    const target = db.prepare('SELECT id, role, name, telegram_id, archived_at FROM users WHERE id = ?').get(targetId);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
     if (target.role !== 'tester') return res.status(400).json({ error: 'Права можно выдавать только тестировщикам — лид и админ уже имеют полный доступ' });
+    if (target.archived_at) return res.status(400).json({ error: 'Сотрудник архивирован — сначала восстановите аккаунт' });
 
     // Replace any existing grant of the same permission for this user
-    // instead of stacking duplicates.
-    db.prepare('DELETE FROM granted_permissions WHERE user_id = ? AND permission = ?').run(targetId, permission);
-    const result = db.prepare(
-      'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
-    ).run(targetId, permission, req.user.id, expires_at || null);
-
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-      .run(req.user.id, `permission_granted:target=${targetId}:permission=${permission}`);
+    // instead of stacking duplicates — wrapped so a crash between the
+    // delete and the insert can't leave the user with neither (a request
+    // mid-flight would silently drop an access grant that should exist).
+    const grantId = db.transaction(() => {
+      db.prepare('DELETE FROM granted_permissions WHERE user_id = ? AND permission = ?').run(targetId, permission);
+      const result = db.prepare(
+        'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
+      ).run(targetId, permission, req.user.id, expires_at || null);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+        .run(req.user.id, `permission_granted:target=${targetId}:permission=${permission}`);
+      return result.lastInsertRowid;
+    })();
     notifyUser(target, 'Новые права', `Тебе выдано право «${permission}» в baga-net.`);
 
-    res.json({ ok: true, id: result.lastInsertRowid });
+    res.json({ ok: true, id: grantId });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2900,9 +3048,11 @@ app.delete('/api/lead/permissions/:id', authMiddleware, requireRole('lead'), (re
   try {
     const grant = db.prepare('SELECT * FROM granted_permissions WHERE id = ?').get(req.params.id);
     if (!grant) return res.status(404).json({ error: 'Не найдено' });
-    db.prepare('DELETE FROM granted_permissions WHERE id = ?').run(req.params.id);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-      .run(req.user.id, `permission_revoked:target=${grant.user_id}:permission=${grant.permission}`);
+    db.transaction(() => {
+      db.prepare('DELETE FROM granted_permissions WHERE id = ?').run(req.params.id);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
+        .run(req.user.id, `permission_revoked:target=${grant.user_id}:permission=${grant.permission}`);
+    })();
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -2938,6 +3088,7 @@ app.post('/api/lead/award-bonus', authMiddleware, requireRole('lead'), (req, res
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
     if (target.role !== 'tester') return res.status(400).json({ error: 'Премию можно начислить только тестировщику' });
+    if (target.archived_at) return res.status(400).json({ error: 'Сотрудник архивирован — сначала восстановите аккаунт' });
 
     db.transaction(() => {
       db.prepare('INSERT INTO bonus_awards (user_id, amount, reason, awarded_by) VALUES (?, ?, ?, ?)')

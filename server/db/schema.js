@@ -87,6 +87,16 @@ export function initDb() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    -- Single-row scratch table /api/health writes to on every check — a
+    -- read-only probe (SELECT 1) can't catch a read-only volume/disk-full
+    -- condition the way a real write can; this is exactly the failure mode
+    -- that once let a broken deploy look "healthy" while the app crash-
+    -- looped on every actual write. Never grows: always the same row (id=1).
+    CREATE TABLE IF NOT EXISTS _health_check (
+      id INTEGER PRIMARY KEY,
+      checked_at DATETIME
+    );
+
     CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -363,9 +373,18 @@ export function initDb() {
     }
   }
 
-  // Migrations: add columns to existing tables safely
-  try { db.exec('ALTER TABLE user_profiles ADD COLUMN bug_coins INTEGER DEFAULT 0'); } catch {}
-  try { db.exec('ALTER TABLE user_profiles ADD COLUMN purchased_items TEXT DEFAULT \'[]\''); } catch {}
+  // Migrations: add columns to existing tables safely. Guarded by an
+  // explicit column check rather than a blanket try/catch — a bare catch{}
+  // here would hide any real migration failure (not just "column already
+  // exists"), letting the server boot on a silently broken schema instead
+  // of failing loudly the way every other migration below does.
+  const userProfileCols = db.prepare("PRAGMA table_info(user_profiles)").all().map(c => c.name);
+  if (!userProfileCols.includes('bug_coins')) {
+    db.exec('ALTER TABLE user_profiles ADD COLUMN bug_coins INTEGER DEFAULT 0');
+  }
+  if (!userProfileCols.includes('purchased_items')) {
+    db.exec('ALTER TABLE user_profiles ADD COLUMN purchased_items TEXT DEFAULT \'[]\'');
+  }
 
   // Telegram linkage. SQLite's ALTER TABLE ADD COLUMN can't declare UNIQUE
   // inline, so uniqueness is enforced via a separate partial index instead
@@ -651,21 +670,25 @@ export function initDb() {
     `);
     seedChecklistTemplates();
   } else {
-    // Ensure submissions has new columns (safe migration)
+    // Ensure submissions has new columns (safe migration — the column-check
+    // guard is what makes this safe to re-run, not a try/catch swallowing
+    // whatever error comes back; a bare catch{} here would hide a genuine
+    // migration failure instead of failing loudly, same reasoning as the
+    // user_profiles migration above).
     const subCols = db.prepare("PRAGMA table_info(checklist_submissions)").all().map(c => c.name);
-    try { if (!subCols.includes('content_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN content_author TEXT DEFAULT ''"); } catch {}
-    try { if (!subCols.includes('verska_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN verska_author TEXT DEFAULT ''"); } catch {}
-    try { if (!subCols.includes('task_type')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN task_type TEXT DEFAULT ''"); } catch {}
-    try { if (!subCols.includes('check_date')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN check_date TEXT DEFAULT ''"); } catch {}
+    if (!subCols.includes('content_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN content_author TEXT DEFAULT ''");
+    if (!subCols.includes('verska_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN verska_author TEXT DEFAULT ''");
+    if (!subCols.includes('task_type')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN task_type TEXT DEFAULT ''");
+    if (!subCols.includes('check_date')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN check_date TEXT DEFAULT ''");
 
     // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
-    try { if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1'); } catch {}
+    if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1');
 
     // Migration: optional free-text note per failed item — lets a tester
     // describe what actually went wrong instead of just a bare fail flag,
     // so reporting can show more than "this item failed N times".
     const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
-    try { if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''"); } catch {}
+    if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''");
 
     // Check if preland template has full items (75 items) — if still old (9 items), reseed.
     // Deleting checklist_items outright used to be able to fail with a

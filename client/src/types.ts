@@ -52,8 +52,13 @@ export interface TeamMember {
   lastActive?: string;
   fastAnswers: number;
   tabSwitches: number;
-  lead_note: string;
-  taskCounts: { name: string; task_type: string; color: string; count: number }[];
+  // Optional, not just documentation — the server has shipped a build that
+  // doesn't send these yet more than once (a stale/rolled-back deploy), and
+  // marking them required here type-checked clean while UleyPage.tsx still
+  // crashed at runtime on `.length` of an undefined value. Optional forces
+  // every consumer to actually handle the missing case.
+  lead_note?: string;
+  taskCounts?: { name: string; task_type: string; color: string; count: number }[];
 }
 
 export interface SKillChart {

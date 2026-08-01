@@ -74,6 +74,30 @@ describe('admin/lead password reset', () => {
       .set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(403);
   });
+
+  it('a token with must_change_password set is blocked from other routes server-side, not just nagged client-side', async () => {
+    const login = await request(app).post('/api/auth/login').send({ email: 'tester@test.local', password: 'knowntemppass123' });
+    const tempToken = login.body.token;
+
+    const blocked = await request(app).get('/api/guides').set('Authorization', `Bearer ${tempToken}`);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.code).toBe('MUST_CHANGE_PASSWORD');
+
+    // The one route the forced-change prompt itself needs stays reachable.
+    const changed = await request(app)
+      .put('/api/me/password')
+      .set('Authorization', `Bearer ${tempToken}`)
+      .send({ current_password: 'knowntemppass123', new_password: 'freshpassword123' });
+    expect(changed.status).toBe(200);
+    expect(db.prepare('SELECT must_change_password FROM users WHERE id = ?').get(testerId).must_change_password).toBe(0);
+
+    // Later tests in this file reuse `testerToken` against a now-changed
+    // password (and a must_change_password flag that's since cleared) —
+    // refresh it so the rest of the suite isn't left holding a token that's
+    // still (correctly) locked out.
+    const relogin = await request(app).post('/api/auth/login').send({ email: 'tester@test.local', password: 'freshpassword123' });
+    testerToken = relogin.body.token;
+  });
 });
 
 describe('forgot-password / reset-password (public)', () => {

@@ -66,9 +66,18 @@ export function authMiddleware(req, res, next) {
   // archived this account would otherwise keep working for up to its full
   // 15-minute TTL — checked here, not just at login, so archiving actually
   // cuts access off immediately rather than "eventually".
-  const archived = db.prepare('SELECT archived_at FROM users WHERE id = ?').get(decoded.id);
-  if (!archived || archived.archived_at) {
+  const userRow = db.prepare('SELECT archived_at, must_change_password FROM users WHERE id = ?').get(decoded.id);
+  if (!userRow || userRow.archived_at) {
     return res.status(403).json({ error: 'Аккаунт деактивирован или не найден' });
+  }
+
+  // The client shows a full-screen forced password-change prompt after a
+  // lead/admin reset and renders nothing else until it's done — but that
+  // was only ever a client-side nag: a direct API call could ignore it
+  // indefinitely and keep using the temporary password. Enforced here too,
+  // with the one route the prompt itself needs left reachable.
+  if (userRow.must_change_password && req.path !== '/api/me/password') {
+    return res.status(403).json({ error: 'Сначала нужно сменить временный пароль', code: 'MUST_CHANGE_PASSWORD' });
   }
 
   req.user = decoded;
