@@ -385,6 +385,14 @@ export function initDb() {
   if (!userProfileCols.includes('purchased_items')) {
     db.exec('ALTER TABLE user_profiles ADD COLUMN purchased_items TEXT DEFAULT \'[]\'');
   }
+  // Optional, self-reported — purely so activity text and generated
+  // messages can pick a grammatically correct Russian verb ending
+  // ("сделал"/"сделала") instead of the "(-а)"-suffix hack used when this
+  // is unset. NULL means "not specified"; nothing degrades if it stays
+  // that way, text just falls back to the old slash-notation form.
+  if (!userProfileCols.includes('gender')) {
+    db.exec("ALTER TABLE user_profiles ADD COLUMN gender TEXT DEFAULT NULL");
+  }
 
   // Telegram linkage. SQLite's ALTER TABLE ADD COLUMN can't declare UNIQUE
   // inline, so uniqueness is enforced via a separate partial index instead

@@ -5,6 +5,7 @@ import PixelIcon from '../components/PixelIcon';
 import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { ROLE_LABELS } from '../utils/roles';
+import { formatActivityAction } from '../utils/activity';
 
 interface AdminPageProps {
   user: any;
@@ -43,6 +44,7 @@ interface ActivityRow {
   created_at: string;
   user_id: number;
   name: string;
+  gender?: 'male' | 'female' | null;
   lecture_title: string | null;
 }
 
@@ -66,25 +68,18 @@ interface Overview {
 // client/server contract.
 const ROLE_OPTIONS = ['tester', 'lead', 'admin'];
 
-const ACTION_LABELS: Record<string, string> = {
-  passed_lecture: 'прошёл(ла) лекцию',
-  failed_lecture: 'не прошёл(ла) лекцию',
-  login: 'вошёл(ла) в систему',
-  register: 'зарегистрировался(лась)',
-  register_telegram: 'зарегистрировался(лась) через Telegram',
-  login_telegram: 'вошёл(ла) через Telegram',
-  completed_baseline: 'заполнил(а) анкету',
-  password_changed: 'сменил(а) пароль',
-  password_reset_self_service: 'сбросил(а) пароль через восстановление',
-};
-
-function actionLabel(action: string): string {
-  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
-  if (action.startsWith('permission_granted:')) return 'выдал(а) права';
-  if (action.startsWith('permission_revoked:')) return 'отозвал(а) права';
-  if (action.startsWith('password_reset:')) return 'сбросил(а) пароль сотруднику';
-  if (action.startsWith('checklist_submitted:')) return 'отправил(а) чек-лист';
-  return action;
+// Was its own hand-rolled map here, duplicating (and drifting from —
+// permission grants/revokes didn't even say who or what permission)
+// utils/activity.ts's formatActivityAction. That one is capitalized for
+// standalone use elsewhere (ProfilePage, UleyPage); lowercased here to read
+// naturally after the actor's name on the same line.
+function actionLabel(row: ActivityRow, nameById: Record<number, string>): string {
+  const formatted = formatActivityAction(row.action, {
+    lectureTitle: row.lecture_title,
+    nameById,
+    gender: row.gender,
+  });
+  return formatted.charAt(0).toLowerCase() + formatted.slice(1);
 }
 
 type Tab = 'users' | 'activity' | 'analytics' | 'settings' | 'trash';
@@ -320,6 +315,10 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     );
   }
 
+  // For resolving a permission/role-change/archive action's *target* name —
+  // the activity log only stores their id (see utils/activity.ts).
+  const usersNameById = Object.fromEntries(users.map(u => [u.id, u.name]));
+
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
       <Navigation user={user} onLogout={onLogout} />
@@ -466,7 +465,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
               {activity.map(row => (
                 <div key={row.id} className="p-2.5 rounded flex items-center justify-between gap-3" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
                   <p className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.75)' }}>
-                    <span className="font-semibold text-pixel">{row.name}</span> {actionLabel(row.action)}
+                    <span className="font-semibold text-pixel">{row.name}</span> {actionLabel(row, usersNameById)}
                     {row.lecture_title && <span className="text-pixel/50"> — {row.lecture_title}</span>}
                   </p>
                   <span className="text-pixel/40 text-xs font-sans shrink-0">{parseServerDate(row.created_at).toLocaleString('ru-RU')}</span>

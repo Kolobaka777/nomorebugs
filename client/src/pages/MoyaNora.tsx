@@ -6,6 +6,7 @@ import SnailLoader from '../components/SnailLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
 import { testerApi, checklistApi, rewardsApi } from '../api';
+import { formatActivityAction } from '../utils/activity';
 import {
   Lecture, TestHistoryItem, SKillChart,
   FullProfile, getLevel,
@@ -18,7 +19,7 @@ import { showApiError } from '../utils/toast';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
-type Tab = 'favorites' | 'notes' | 'btn3' | 'btn4';
+type Tab = 'favorites' | 'notes' | 'collection' | 'activity';
 
 // ── Daily facts ───────────────────────────────────────────────────────────────
 const SNAIL_FACTS = [
@@ -199,6 +200,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [craftSuccess, setCraftSuccess] = useState<string | null>(null);
   const [buying, setBuying]             = useState<string | null>(null);
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
+  const [myActivity, setMyActivity] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => { loadAll(); }, []);
@@ -219,6 +221,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       // enough; the rest of the page still fully works without them.
       checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
       rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
+      testerApi.getMyActivity().then(r => setMyActivity(r.data.rows)).catch((err: any) => showApiError(err, 'Не удалось загрузить историю активности'));
       setMetrics(metricsRes.data);
       setLectures(lecturesRes.data);
       setHistory(historyRes.data);
@@ -233,6 +236,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       const nickname = profileRes.data.nickname?.trim();
       if (nickname && nickname !== user.name && nickname !== user.displayName) {
         onUserUpdate?.({ displayName: nickname });
+      }
+      // Same staleness problem as displayName above — gender set on another
+      // device/session wouldn't otherwise reach the localStorage user object
+      // that HomePage etc. read it from.
+      if (profileRes.data.gender !== undefined && profileRes.data.gender !== user.gender) {
+        onUserUpdate?.({ gender: profileRes.data.gender });
       }
     } catch (err: any) {
       // This is the tester's main daily-use page — used to just log and
@@ -314,10 +323,10 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const row1LastPass = row1.length > 0 && row1[row1.length - 1].status === 'passed';
 
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
-    { id: 'favorites', label: 'Избранное', icon: 'star'   },
-    { id: 'notes',     label: 'Заметки',   icon: 'memo'   },
-    { id: 'btn3',      label: 'Кнопка',    icon: 'floppy' },
-    { id: 'btn4',      label: 'Кнопка',    icon: 'gear'   },
+    { id: 'favorites',  label: 'Избранное',   icon: 'star'      },
+    { id: 'notes',      label: 'Заметки',     icon: 'memo'      },
+    { id: 'collection', label: 'Коллекция',   icon: 'floppy'    },
+    { id: 'activity',   label: 'Активность',  icon: 'clipboard' },
   ];
 
   const defaultProfile = {
@@ -328,7 +337,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     info_box: '', snail_joke: '', avatar_id: 'bug1',
     avatar_frame: 'default', profile_bg: 'default',
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
-    custom_avatar: null, bug_coins: 0, purchased_items: [],
+    custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
     streak: 0, cards: [], badges: [], craftable: [], favLecture: null,
   } as FullProfile;
@@ -345,7 +354,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           unlockedBgs={unlockedBgs}
           onSave={patch => {
             setProfile(p => p ? { ...p, ...patch } : p);
-            onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name });
+            onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name, gender: patch.gender ?? null });
           }}
           onClose={() => setShowEdit(false)}
         />
@@ -519,6 +528,23 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             </div>
           </div>
 
+          {/* RPG stats — computed server-side from real quiz performance
+              (accuracy, high-score rate, pace, consistency, volume) but
+              previously never rendered anywhere; Stars/StatRow already
+              existed for exactly this, just unused. */}
+          {profile?.stats && (
+            <>
+              <div className="rpg-divider" />
+              <div className="px-5 py-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                <StatRow label="ИНТ"  value={profile.stats.int}     max={10} color="#7F77DD" />
+                <StatRow label="ВНИМ" value={profile.stats.per}     max={10} color="#EF9F27" />
+                <StatRow label="СКОР" value={profile.stats.spd}     max={10} color="#1D9E75" />
+                <StatRow label="ЗАЩ"  value={profile.stats.def}     max={10} color="#e05252" />
+                <StatRow label="МОЩЬ" value={profile.stats.bug_pwr} max={20} color="#EF9F27" />
+              </div>
+            </>
+          )}
+
           {/* Info box */}
           {profile?.info_box && (
             <>
@@ -602,20 +628,92 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            BTN3
+            COLLECTION — trading cards (earned per passed lecture) and
+            badges crafted from a complete skill-area set. Both were fully
+            built server- and client-side (routes, handleCraft, styling)
+            but never actually rendered anywhere on this page.
         ══════════════════════════════════════════════════════════ */}
-        {tab === 'btn3' && (
-          <RpgPanel variant="dark" className="text-center py-16">
-            <p className="text-pixel/55 text-xs font-sans">Раздел в разработке</p>
-          </RpgPanel>
+        {tab === 'collection' && (
+          <div className="space-y-5">
+            <div>
+              <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>КАРТОЧКИ</p>
+              {(profile?.cards?.length ?? 0) === 0 ? (
+                <RpgPanel variant="dark" className="text-center py-8">
+                  <PixelIcon name="floppy" size={24} color="rgba(232,232,208,0.08)" />
+                  <p className="text-pixel/55 text-xs font-sans mt-2">Пройди лекцию — получишь первую карточку</p>
+                </RpgPanel>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {profile!.cards.map(c => {
+                    const color = RARITY_COLORS[c.rarity];
+                    return (
+                      <div key={c.id} className="rpg-panel-dark p-3" style={{ borderColor: `${color}40` }}>
+                        <p className="font-pixel mb-1" style={{ fontSize: '0.55rem', color, lineHeight: 1.6 }}>{RARITY_LABEL[c.rarity] || 'CARD'}</p>
+                        <p className="text-pixel text-xs font-sans font-semibold">{c.skill_area}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>ЗНАЧКИ</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(profile?.badges ?? []).map(b => {
+                  const meta = BADGE_META[b.badge_id];
+                  return (
+                    <div key={b.id} className="rpg-panel-dark p-3 flex items-center gap-2">
+                      <PixelIcon name={meta?.icon || 'bug'} size={16} color={meta?.color || '#1D9E75'} />
+                      <span className="text-pixel text-xs font-sans font-semibold">{meta?.name || b.badge_id}</span>
+                    </div>
+                  );
+                })}
+                {(profile?.craftable ?? []).map(skill_area => (
+                  <div key={skill_area} className="rpg-panel-dark p-3 flex items-center justify-between gap-2" style={{ borderColor: 'rgba(239,159,39,0.4)' }}>
+                    <span className="text-pixel/70 text-xs font-sans">Собран весь набор «{skill_area}»</span>
+                    <button
+                      onClick={() => handleCraft(skill_area)}
+                      disabled={crafting === skill_area}
+                      className="btn-amber text-xs px-3 py-1.5 shrink-0 cursor-pointer"
+                    >
+                      {crafting === skill_area ? '...' : craftSuccess === skill_area ? '✓ Готово' : 'Скрафтить'}
+                    </button>
+                  </div>
+                ))}
+                {(profile?.badges?.length ?? 0) === 0 && (profile?.craftable?.length ?? 0) === 0 && (
+                  <RpgPanel variant="dark" className="text-center py-8 sm:col-span-2">
+                    <PixelIcon name="gear" size={24} color="rgba(232,232,208,0.08)" />
+                    <p className="text-pixel/55 text-xs font-sans mt-2">Собери все карточки одной темы, чтобы скрафтить значок</p>
+                  </RpgPanel>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            BTN4
+            ACTIVITY — a personal history feed, the same idea leads
+            already had for their own profile (see ProfilePage.tsx),
+            testers just had nowhere to see their own.
         ══════════════════════════════════════════════════════════ */}
-        {tab === 'btn4' && (
-          <RpgPanel variant="dark" className="text-center py-16">
-            <p className="text-pixel/55 text-xs font-sans">Раздел в разработке</p>
+        {tab === 'activity' && (
+          <RpgPanel variant="dark" className={myActivity.length === 0 ? 'text-center py-16' : 'p-4'}>
+            {myActivity.length === 0 ? (
+              <>
+                <PixelIcon name="clipboard" size={28} color="rgba(232,232,208,0.08)" />
+                <p className="text-pixel/55 text-xs font-sans mt-3">Пока нет активности</p>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                {myActivity.map(a => (
+                  <div key={a.id} className="flex items-center justify-between text-xs font-sans" style={{ color: 'rgba(232,232,208,0.7)' }}>
+                    <span>{formatActivityAction(a.action, { lectureTitle: a.lecture_title, gender: profile?.gender })}</span>
+                    <span className="text-pixel/40 shrink-0">{parseServerDate(a.created_at).toLocaleString('ru-RU')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </RpgPanel>
         )}
 

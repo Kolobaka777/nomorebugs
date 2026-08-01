@@ -100,6 +100,8 @@ export const testerApi = {
 
   getBeforeAfter: () => api.get('/tester/before-after'),
 
+  getMyActivity: () => api.get('/me/activity'),
+
   getCards: () => api.get('/tester/cards'),
 
   craftBadge: (skill_area: string) => api.post('/tester/craft-badge', { skill_area }),

@@ -7,18 +7,12 @@ import { statsApi, testerApi, leadApi } from '../api';
 import { GlobalStats, TestHistoryItem, TeamMember, ActivityItem } from '../types';
 import { timeAgo } from '../utils/date';
 import { showApiError } from '../utils/toast';
+import { formatActivityAction } from '../utils/activity';
 
 interface HomePageProps {
   user: any;
   onLogout: () => void;
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  passed_lecture: 'прошёл(а) лекцию',
-  failed_lecture: 'не прошёл(а) лекцию',
-  login: 'вошёл(ла) в систему',
-  completed_baseline: 'заполнил(а) анкету',
-};
 
 export default function HomePage({ user, onLogout }: HomePageProps) {
   const navigate = useNavigate();
@@ -53,6 +47,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
   }, [isTester]);
 
   const needsCheckIn = team.filter(t => t.needsCheckIn);
+  const teamNameById = Object.fromEntries(team.map(t => [t.id, t.name]));
 
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
@@ -114,7 +109,9 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                   <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>ПОСЛЕДНИЕ РЕЗУЛЬТАТЫ</p>
                   {!loading && history.length === 0 && (
                     <div className="p-6 text-center rounded" style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.1)' }}>
-                      <p className="text-pixel/55 text-sm font-sans mb-3">Ты ещё не прошёл(а) ни одной лекции</p>
+                      <p className="text-pixel/55 text-sm font-sans mb-3">
+                        Ты ещё не {user.gender === 'female' ? 'прошла' : user.gender === 'male' ? 'прошёл' : 'прошёл(а)'} ни одной лекции
+                      </p>
                       <button onClick={() => navigate('/zhukademia')} className="btn-primary text-xs px-4 py-2">Начать первую лекцию →</button>
                     </div>
                   )}
@@ -171,8 +168,16 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                         <div className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(29,158,117,0.4)' }} />
                         <p className="flex-1 text-xs font-sans" style={{ color: 'rgba(232,232,208,0.7)' }}>
                           <span className="font-semibold text-pixel">{a.name}</span>{' '}
-                          {ACTION_LABELS[a.action] || a.action}
-                          {a.lecture_title && <span className="text-pixel/55"> · {a.lecture_title}</span>}
+                          {(() => {
+                            // formatActivityAction already folds the lecture
+                            // title into the sentence for pass/fail actions
+                            // (the only ones that ever have one) — appending
+                            // it again separately used to duplicate it.
+                            const formatted = formatActivityAction(a.action, {
+                              lectureTitle: a.lecture_title, nameById: teamNameById, gender: a.gender,
+                            });
+                            return formatted.charAt(0).toLowerCase() + formatted.slice(1);
+                          })()}
                         </p>
                         <span className="text-pixel/45 text-xs font-sans shrink-0">{timeAgo(a.created_at)}</span>
                       </div>

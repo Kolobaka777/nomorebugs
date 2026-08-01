@@ -141,7 +141,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [resettingId, setResettingId] = useState<number | null>(null);
   const [resetResult, setResetResult] = useState<{ id: number; message: string } | null>(null);
   const [archivingId, setArchivingId] = useState<number | null>(null);
-  const [archived, setArchived] = useState<{ id: number; name: string; avatar_initials: string; archived_at: string }[]>([]);
+  const [archived, setArchived] = useState<{ id: number; name: string; avatar_initials: string; archived_at: string; gender?: 'male' | 'female' | null }[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [ratings, setRatings] = useState<any[] | null>(null);
   const [ratingsError, setRatingsError] = useState('');
@@ -417,7 +417,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
               </p>
               <p className="text-pixel/60 text-sm font-sans mt-1">
                 {team.filter(m => m.needsCheckIn).map(m => m.name).join(', ')} —{' '}
-                {checkInCount === 1 ? 'не заходил(а) неделю или больше' : 'не заходили неделю или больше'}. Может, дело в чём-то,
+                {checkInCount === 1
+                  ? (team.find(m => m.needsCheckIn)?.gender === 'female' ? 'не заходила' : team.find(m => m.needsCheckIn)?.gender === 'male' ? 'не заходил' : 'не заходил(а)') + ' неделю или больше'
+                  : 'не заходили неделю или больше'}. Может, дело в чём-то,
                 чем можно помочь — недельная тишина не всегда про лень.
               </p>
             </div>
@@ -541,7 +543,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-pixel/40 text-xs font-sans">Пока не отправлял(а) чек-листы</p>
+                      <p className="text-pixel/40 text-xs font-sans">
+                        Пока не {member.gender === 'female' ? 'отправляла' : member.gender === 'male' ? 'отправлял' : 'отправлял(а)'} чек-листы
+                      </p>
                     )}
                   </div>
 
@@ -655,7 +659,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                 {archived.map(a => (
                   <div key={a.id} className="p-2.5 rounded flex items-center justify-between gap-3" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
                     <span className="text-pixel/70 text-sm font-sans">{a.name}</span>
-                    <span className="text-pixel/40 text-xs font-sans">архивирован(а) {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}</span>
+                    <span className="text-pixel/40 text-xs font-sans">
+                      {a.gender === 'female' ? 'архивирована' : a.gender === 'male' ? 'архивирован' : 'архивирован(а)'} {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}
+                    </span>
                     <button
                       onClick={() => restoreMember(a.id)}
                       disabled={archivingId === a.id}

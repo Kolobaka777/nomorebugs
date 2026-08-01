@@ -50,6 +50,10 @@ export default function ProfileEditModal({
   const [showcase, setShowcase]             = useState<string[]>(profile.showcase_badges || []);
   const [favLectureId, setFavLectureId]     = useState<number | null>(profile.favorite_lecture_id);
   const [customAvatar, setCustomAvatar]     = useState<string | null>(profile.custom_avatar);
+  // Purely for correctly-gendered verb endings elsewhere (activity feeds,
+  // "Ты прошёл/прошла..." on the home page) — never shown to anyone else as
+  // an identity field, and "не указывать" is a real, first-class option.
+  const [gender, setGender]                 = useState<'male' | 'female' | null>(profile.gender ?? null);
 
   useEscapeKey(onClose);
 
@@ -83,14 +87,14 @@ export default function ProfileEditModal({
         info_box: infoBox, snail_joke: snailJoke, is_public: isPublic,
         avatar_id: avatarId, avatar_frame: frame, profile_bg: bg,
         showcase_badges: showcase, favorite_lecture_id: favLectureId,
-        custom_avatar: customAvatar,
+        custom_avatar: customAvatar, gender,
       });
       onSave({
         nickname, status_quote: statusQuote, specialization: spec,
         info_box: infoBox, snail_joke: snailJoke, is_public: isPublic,
         avatar_id: avatarId, avatar_frame: frame, profile_bg: bg,
         showcase_badges: showcase, favorite_lecture_id: favLectureId,
-        custom_avatar: customAvatar,
+        custom_avatar: customAvatar, gender,
       });
       onClose();
     } catch (e: any) {
@@ -226,6 +230,32 @@ export default function ProfileEditModal({
                 />
               </div>
               */}
+
+              <div>
+                <label style={labelStyle}>ПОЛ (для «прошёл»/«прошла» и т.п. в тексте)</label>
+                <div className="flex gap-2">
+                  {([
+                    { value: 'male' as const, label: 'Мужской' },
+                    { value: 'female' as const, label: 'Женский' },
+                    { value: null, label: 'Не указывать' },
+                  ]).map(opt => (
+                    <button
+                      key={String(opt.value)}
+                      onClick={() => setGender(opt.value)}
+                      className="flex-1 py-2 rounded text-xs font-sans cursor-pointer transition-colors"
+                      style={{
+                        background: gender === opt.value ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
+                        color: gender === opt.value ? '#1D9E75' : 'rgba(232,232,208,0.5)',
+                        boxShadow: gender === opt.value
+                          ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75'
+                          : 'none',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex items-center justify-between">
                 <label style={{ ...labelStyle, marginBottom: 0 }}>ПУБЛИЧНЫЙ ПРОФИЛЬ</label>

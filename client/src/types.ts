@@ -40,10 +40,13 @@ export interface QuestionExplanation {
   };
 }
 
+export type Gender = 'male' | 'female' | null;
+
 export interface TeamMember {
   id: number;
   name: string;
   avatar_initials: string;
+  gender?: Gender;
   lecturesCompleted: number;
   avgScore: number;
   skillGrowth: number;
@@ -79,6 +82,7 @@ export interface ActivityItem {
   action: string;
   created_at: string;
   name: string;
+  gender?: Gender;
   lecture_title?: string;
 }
 
@@ -132,6 +136,7 @@ export interface FullProfile {
   favorite_lecture_id: number | null;
   is_public: boolean;
   custom_avatar: string | null;
+  gender: Gender;
   // currency
   bug_coins: number;
   purchased_items: string[];

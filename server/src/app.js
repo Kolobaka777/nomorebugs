@@ -500,12 +500,19 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     // in the same browser session (see ProfilePage.tsx/MoyaNora.tsx syncing
     // it via onUserUpdate after a fetch), so on a fresh login it silently
     // showed the account's real name instead of the nickname everywhere else.
-    const profileRow = db.prepare('SELECT nickname FROM user_profiles WHERE user_id = ?').get(user.id);
+    // gender rides along the same way, for the same reason — it's needed
+    // wherever the client renders text about "you" (e.g. HomePage's "Ты
+    // ещё не прошёл(а)..."), and living in user_profiles means a fresh
+    // login is the only point that reaches it without an extra fetch.
+    const profileRow = db.prepare('SELECT nickname, gender FROM user_profiles WHERE user_id = ?').get(user.id);
 
     res.json({
       token,
       refreshToken: refresh.token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: profileRow?.nickname || null },
+      user: {
+        id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials,
+        displayName: profileRow?.nickname || null, gender: profileRow?.gender || null,
+      },
       needsBaselineSurvey,
       mustChangePassword: !!user.must_change_password,
     });
@@ -1248,9 +1255,11 @@ app.post('/api/tester/final-survey', authMiddleware, (req, res) => {
 // they archived in order to restore them without going through admin.
 app.get('/api/lead/archived-testers', authMiddleware, requireRole('lead'), (req, res) => {
   try {
-    const rows = db.prepare(
-      "SELECT id, name, avatar_initials, archived_at FROM users WHERE role = 'tester' AND archived_at IS NOT NULL ORDER BY archived_at DESC"
-    ).all();
+    const rows = db.prepare(`
+      SELECT u.id, u.name, u.avatar_initials, u.archived_at,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender
+      FROM users u WHERE u.role = 'tester' AND u.archived_at IS NOT NULL ORDER BY u.archived_at DESC
+    `).all();
     res.json(rows);
   } catch (err) {
     logError(err);
@@ -1269,6 +1278,7 @@ app.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => {
     const teamData = db.prepare(`
       SELECT
         u.id, u.name, u.avatar_initials, u.lead_note,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         (SELECT COUNT(*) FROM test_results WHERE user_id = u.id AND score >= 60) as lecturesCompleted,
         (SELECT AVG(score) FROM test_results WHERE user_id = u.id) as avgScore,
         (SELECT MAX(created_at) FROM activity_log WHERE user_id = u.id) as lastActive,
@@ -1515,6 +1525,7 @@ app.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res) =>
       SELECT
         a.id, a.action, a.created_at,
         u.id as user_id, u.name,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         l.title as lecture_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
@@ -1526,6 +1537,32 @@ app.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res) =>
 
     const hasMore = rows.length > PAGE_SIZE;
     res.json({ rows: rows.slice(0, PAGE_SIZE), hasMore });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Self-scoped equivalent of /api/lead/activity above (same shape, same
+// query minus the role gate) — that route is lead/admin-only, so a tester
+// had no way to see their own activity history anywhere in the app.
+app.get('/api/me/activity', authMiddleware, (req, res) => {
+  try {
+    const PAGE_SIZE = 20;
+    const rows = db.prepare(`
+      SELECT
+        a.id, a.action, a.created_at,
+        u.id as user_id, u.name,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+        l.title as lecture_title
+      FROM activity_log a
+      JOIN users u ON a.user_id = u.id
+      LEFT JOIN lectures l ON a.lecture_id = l.id
+      WHERE a.user_id = ?
+      ORDER BY a.created_at DESC
+      LIMIT ?
+    `).all(req.user.id, PAGE_SIZE);
+    res.json({ rows });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -1616,6 +1653,7 @@ app.get('/api/tester/profile-full', authMiddleware, (req, res) => {
       avatar_frame:       profile.avatar_frame || 'default',
       profile_bg:         profile.profile_bg   || 'default',
       showcase_badges:    JSON.parse(profile.showcase_badges || '[]'),
+      gender:             profile.gender || null,
       favorite_lecture_id: profile.favorite_lecture_id || null,
       is_public:          profile.is_public !== undefined ? !!profile.is_public : true,
       custom_avatar:      profile.custom_avatar || null,
@@ -1635,12 +1673,15 @@ app.put('/api/tester/profile', authMiddleware, (req, res) => {
     const {
       nickname, status_quote, specialization, info_box, snail_joke,
       avatar_id, avatar_frame, profile_bg, showcase_badges,
-      favorite_lecture_id, is_public, custom_avatar,
+      favorite_lecture_id, is_public, custom_avatar, gender,
     } = req.body;
 
     if (nickname && nickname.length > 40)   return res.status(400).json({ error: 'Ник слишком длинный (макс 40)' });
     if (status_quote && status_quote.length > 60) return res.status(400).json({ error: 'Цитата слишком длинная (макс 60)' });
     if (info_box && info_box.length > 200)  return res.status(400).json({ error: 'Инфобокс слишком длинный (макс 200)' });
+    if (gender !== undefined && gender !== null && gender !== 'male' && gender !== 'female') {
+      return res.status(400).json({ error: 'Некорректное значение пола' });
+    }
     // The client already enforces a 2MB cap before upload, but that's
     // trivially bypassable via a direct API call — base64 inflates the
     // original bytes by ~4/3, so allow a bit of headroom above the raw
@@ -1656,8 +1697,8 @@ app.put('/api/tester/profile', authMiddleware, (req, res) => {
     db.prepare(`
       INSERT INTO user_profiles
         (user_id, nickname, status_quote, specialization, info_box, snail_joke,
-         avatar_id, avatar_frame, profile_bg, showcase_badges, favorite_lecture_id, is_public, custom_avatar)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+         avatar_id, avatar_frame, profile_bg, showcase_badges, favorite_lecture_id, is_public, custom_avatar, gender)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(user_id) DO UPDATE SET
         nickname            = excluded.nickname,
         status_quote        = excluded.status_quote,
@@ -1670,7 +1711,8 @@ app.put('/api/tester/profile', authMiddleware, (req, res) => {
         showcase_badges     = excluded.showcase_badges,
         favorite_lecture_id = excluded.favorite_lecture_id,
         is_public           = excluded.is_public,
-        custom_avatar       = excluded.custom_avatar
+        custom_avatar       = excluded.custom_avatar,
+        gender              = excluded.gender
     `).run(
       userId,
       nickname || null, status_quote || null, specialization || null,
@@ -1678,7 +1720,7 @@ app.put('/api/tester/profile', authMiddleware, (req, res) => {
       avatar_id || 'bug1', avatar_frame || 'default', profile_bg || 'default',
       JSON.stringify(showcase_badges || []),
       favorite_lecture_id || null, is_public ? 1 : 0,
-      custom_avatar || null,
+      custom_avatar || null, gender || null,
     );
 
     res.json({ success: true });

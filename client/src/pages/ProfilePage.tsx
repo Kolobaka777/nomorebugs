@@ -49,6 +49,12 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
       if (nickname && nickname !== user.name && nickname !== user.displayName) {
         onUserUpdate?.({ displayName: nickname });
       }
+      // Same staleness problem as displayName — gender set on another
+      // device/session wouldn't otherwise reach the localStorage user
+      // object that HomePage etc. read it from.
+      if (r.data.gender !== undefined && r.data.gender !== user.gender) {
+        onUserUpdate?.({ gender: r.data.gender });
+      }
     })
       // Falls back to `defaultProfile` below on failure — that fallback is
       // deliberate (better than a blank page), but silently showing zeroed
@@ -90,7 +96,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
     info_box: '', snail_joke: '', avatar_id: 'bug1',
     avatar_frame: 'default', profile_bg: 'default',
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
-    custom_avatar: null, bug_coins: 0, purchased_items: [],
+    custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
     streak: 0, cards: [], badges: [], craftable: [], favLecture: null,
   } as FullProfile;
@@ -196,7 +202,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             <div className="space-y-1.5">
               {activity.map(a => (
                 <div key={a.id} className="flex items-center justify-between text-xs font-sans" style={{ color: 'rgba(232,232,208,0.7)' }}>
-                  <span>{formatActivityAction(a.action, { lectureTitle: a.lecture_title, nameById })}</span>
+                  <span>{formatActivityAction(a.action, { lectureTitle: a.lecture_title, nameById, gender: shown.gender })}</span>
                   <span className="text-pixel/40 shrink-0">{parseServerDate(a.created_at).toLocaleString('ru-RU')}</span>
                 </div>
               ))}
@@ -216,7 +222,10 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             // Keeps the nav dropdown's name in sync — it reads the shared
             // user object, not this page's own profile state, so without
             // this it kept showing the login-time name after a nickname edit.
-            onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name });
+            // gender rides along the same way — it's read from `user` in
+            // several places (see HomePage's own-activity text) that don't
+            // otherwise refetch the profile.
+            onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name, gender: patch.gender ?? null });
           }}
           onClose={() => setEditing(false)}
         />

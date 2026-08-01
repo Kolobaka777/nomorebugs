@@ -497,7 +497,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
         const current = await authFetch(`${API}/custom-courses/${id}`).then(r => r.json()).catch(() => null);
         if (current && !current.error && loadedUpdatedAt && current.updated_at !== loadedUpdatedAt) {
           const proceed = window.confirm(
-            'Курс был изменён после того, как ты его открыл(а) (кто-то ещё сохранил изменения). ' +
+            'Курс был изменён с момента открытия тобой этой страницы (кто-то ещё сохранил изменения). ' +
             'Сохранить твою версию поверх текущей?'
           );
           if (!proceed) { setSaving(false); return; }

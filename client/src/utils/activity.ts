@@ -3,7 +3,10 @@
 // readable Russian sentence. Server-side action strings are a compact,
 // grep-able audit-log format (see server/src/app.js) — never meant to be
 // shown to a user as-is, but several feeds (ProfilePage's "Моя активность",
-// UleyPage's "Жучиная нора") did exactly that before this existed.
+// UleyPage's "Жучиная нора", AdminPage's activity log) did exactly that, or
+// hedged the verb ending with a "(-а)" hack, before this existed.
+
+import { Gender } from '../types';
 
 const PERMISSION_LABELS: Record<string, string> = {
   manage_knowledge_base: 'Багодельня',
@@ -18,6 +21,16 @@ const ROLE_LABELS: Record<string, string> = {
   tester: 'Тестировщик',
 };
 
+// Picks the grammatically correct participle when the actor's gender is
+// known; otherwise falls back to "Masc/Fem" rather than a suffix hack —
+// most of these verbs are irregular (прошёл→прошла, not "прошёл(-а)"), so a
+// real fallback needs both full forms, not a stitched-together guess.
+function verb(masculine: string, feminine: string, gender: Gender | undefined): string {
+  if (gender === 'male') return masculine;
+  if (gender === 'female') return feminine;
+  return `${masculine}/${feminine}`;
+}
+
 interface FormatOptions {
   lectureTitle?: string | null;
   // Best-effort id → name lookup (e.g. from a team roster already loaded on
@@ -25,45 +38,59 @@ interface FormatOptions {
   // to "#id" when the id isn't in the map (still far better than the raw
   // action string).
   nameById?: Record<number, string>;
+  // Gender of whoever performed *this specific* action — resolve per-row
+  // from wherever the caller has it (team roster, the viewed profile's own
+  // gender, etc.), not a single fixed value for the whole feed.
+  gender?: Gender;
 }
 
 export function formatActivityAction(action: string, opts: FormatOptions = {}): string {
   const who = (id: string) => opts.nameById?.[Number(id)] || `#${id}`;
+  const g = opts.gender;
 
   switch (action) {
-    case 'login': return 'Вошёл(-шла) в систему';
-    case 'register': return 'Зарегистрировался(-лась)';
-    case 'completed_baseline': return 'Заполнил(а) анкету "до"';
-    case 'passed_lecture': return `Прошёл(шла) лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
-    case 'failed_lecture': return `Не прошёл(шла) лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
-    case 'course_completed': return 'Прошёл(шла) курс';
+    case 'login': return `${verb('Вошёл', 'Вошла', g)} в систему`;
+    case 'register': return verb('Зарегистрировался', 'Зарегистрировалась', g);
+    case 'completed_baseline': return `${verb('Заполнил', 'Заполнила', g)} анкету "до"`;
+    case 'passed_lecture': return `${verb('Прошёл', 'Прошла', g)} лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
+    case 'failed_lecture': return `${verb('Не прошёл', 'Не прошла', g)} лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
+    case 'course_completed': return `${verb('Прошёл', 'Прошла', g)} курс`;
   }
 
   let m: RegExpMatchArray | null;
 
   if ((m = action.match(/^permission_granted:target=(\d+):permission=(.+)$/))) {
-    return `Выдал(а) право «${PERMISSION_LABELS[m[2]] || m[2]}» сотруднику ${who(m[1])}`;
+    return `${verb('Выдал', 'Выдала', g)} право «${PERMISSION_LABELS[m[2]] || m[2]}» сотруднику ${who(m[1])}`;
   }
   if ((m = action.match(/^permission_revoked:target=(\d+):permission=(.+)$/))) {
-    return `Забрал(а) право «${PERMISSION_LABELS[m[2]] || m[2]}» у сотрудника ${who(m[1])}`;
+    return `${verb('Забрал', 'Забрала', g)} право «${PERMISSION_LABELS[m[2]] || m[2]}» у сотрудника ${who(m[1])}`;
   }
   if ((m = action.match(/^user_archived:target=(\d+)$/))) {
-    return `Архивировал(а) сотрудника ${who(m[1])}`;
+    return `${verb('Архивировал', 'Архивировала', g)} сотрудника ${who(m[1])}`;
   }
   if ((m = action.match(/^user_restored:target=(\d+)$/))) {
-    return `Восстановил(а) сотрудника ${who(m[1])}`;
+    return `${verb('Восстановил', 'Восстановила', g)} сотрудника ${who(m[1])}`;
   }
   if ((m = action.match(/^password_reset:target=(\d+)$/))) {
-    return `Сбросил(а) пароль сотруднику ${who(m[1])}`;
+    return `${verb('Сбросил', 'Сбросила', g)} пароль сотруднику ${who(m[1])}`;
   }
   if ((m = action.match(/^admin_role_change:target=(\d+):new_role=(.+)$/))) {
-    return `Изменил(а) роль сотрудника ${who(m[1])} на «${ROLE_LABELS[m[2]] || m[2]}»`;
+    return `${verb('Изменил', 'Изменила', g)} роль сотрудника ${who(m[1])} на «${ROLE_LABELS[m[2]] || m[2]}»`;
   }
   if (action.match(/^checklist_submitted:/)) {
-    return 'Отправил(а) чек-лист';
+    return `${verb('Отправил', 'Отправила', g)} чек-лист`;
   }
   if ((m = action.match(/^crafted_badge:(.+)$/))) {
-    return `Скрафтил(а) значок «${m[1]}»`;
+    return `${verb('Скрафтил', 'Скрафтила', g)} значок «${m[1]}»`;
+  }
+  // A few actions logged by non-activity routes (see server/src/app.js) —
+  // covering these here too so AdminPage's full log (which shows every
+  // action, not just the common ones) doesn't fall back to a raw string.
+  switch (action) {
+    case 'register_telegram': return `${verb('Зарегистрировался', 'Зарегистрировалась', g)} через Telegram`;
+    case 'login_telegram': return `${verb('Вошёл', 'Вошла', g)} через Telegram`;
+    case 'password_changed': return `${verb('Сменил', 'Сменила', g)} пароль`;
+    case 'password_reset_self_service': return `${verb('Сбросил', 'Сбросила', g)} пароль через восстановление`;
   }
 
   // Unknown action — show it plainly rather than hiding it silently, so a
