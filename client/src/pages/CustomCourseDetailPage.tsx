@@ -223,6 +223,39 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 </div>
               </section>
             )}
+
+            {/* Per-tester progress — lead/admin only (server omits
+                progressByTester for everyone else). Previously there was no
+                way to see who on the team had actually engaged with a
+                course short of asking them. */}
+            {course.progressByTester && (
+              <section
+                className="rounded-lg p-6"
+                style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}
+              >
+                <h2 className="font-pixel text-pixel mb-4" style={{ fontSize: '0.65rem', lineHeight: 2 }}>Прогресс команды</h2>
+                {course.progressByTester.length === 0 ? (
+                  <p className="text-pixel/50 text-sm font-sans">В команде пока нет тестировщиков.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {course.progressByTester.map((t: any) => {
+                      const pct = t.totalLessons > 0 ? Math.round((t.completedLessons / t.totalLessons) * 100) : 0;
+                      return (
+                        <div key={t.id} className="flex items-center gap-3">
+                          <span className="text-pixel font-sans text-sm w-32 truncate shrink-0">{t.name}</span>
+                          <div className="xp-bar-track flex-1">
+                            <div className="xp-bar-fill" style={{ width: `${pct}%`, background: t.finished ? color : undefined }} />
+                          </div>
+                          <span className="text-pixel/55 text-xs font-sans w-20 text-right shrink-0">
+                            {t.finished ? '✓ пройден' : `${t.completedLessons}/${t.totalLessons}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           {/* Right */}

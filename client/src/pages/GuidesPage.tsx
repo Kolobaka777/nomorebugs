@@ -264,7 +264,16 @@ export default function GuidesPage({ user, onLogout }: Props) {
                 {renderMarkdown(selected.content)}
               </div>
             ) : !listError ? (
-              <p className="text-pixel/50 text-sm font-sans">Выбери гайд слева.</p>
+              <div
+                className="h-full min-h-[280px] rounded flex flex-col items-center justify-center text-center p-8"
+                style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.12)' }}
+              >
+                <PixelIcon name="books" size={28} color="rgba(232,232,208,0.25)" className="mb-3" />
+                <p className="text-pixel/60 text-sm font-sans">Выбери гайд слева, чтобы посмотреть его тут.</p>
+                {Object.keys(grouped).length === 0 && (
+                  <p className="text-pixel/40 text-xs font-sans mt-1">Гайдов пока нет — начни с любого раздела.</p>
+                )}
+              </div>
             ) : null}
           </div>
         </div>

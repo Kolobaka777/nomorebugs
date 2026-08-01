@@ -10,6 +10,7 @@ import { FullProfile } from '../types';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { ROLE_LABELS } from '../utils/roles';
+import { formatActivityAction } from '../utils/activity';
 
 interface Props {
   user: any;
@@ -29,6 +30,11 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
   const [roleStats, setRoleStats] = useState<Record<string, number> | null>(null);
   const [needsCheckIn, setNeedsCheckIn] = useState<{ id: number; name: string }[]>([]);
   const [recentBonuses, setRecentBonuses] = useState<any[] | null>(null);
+  // Activity actions like "permission_granted:target=4:..." only name their
+  // target by id — resolved to a real name here (best-effort; falls back to
+  // "#id" for anyone not in this map) so "Моя активность" below reads like
+  // a sentence instead of a raw log line.
+  const [nameById, setNameById] = useState<Record<number, string>>({});
 
   useEffect(() => {
     testerApi.getProfileFull().then(r => {
@@ -59,6 +65,8 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         'Тестировщиков': r.data.byRole.tester || 0,
         'Активны за 7 дней': r.data.active7d,
       })).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику'));
+      adminApi.getUsers().then(r => setNameById(Object.fromEntries(r.data.map((u: any) => [u.id, u.name]))))
+        .catch(() => {}); // Purely cosmetic (activity-feed name resolution) — silent fallback to "#id" is fine.
     } else if (user.role === 'lead') {
       leadApi.getTeam().then(r => {
         setRoleStats({
@@ -67,6 +75,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
           'Нужен чек-ин': r.data.filter((m: any) => m.needsCheckIn).length,
         });
         setNeedsCheckIn(r.data.filter((m: any) => m.needsCheckIn).map((m: any) => ({ id: m.id, name: m.name })));
+        setNameById(Object.fromEntries(r.data.map((m: any) => [m.id, m.name])));
       }).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику команды'));
       leadApi.getBonusAwards().then(r => setRecentBonuses(r.data.slice(0, 5)))
         .catch((err: any) => showApiError(err, 'Не удалось загрузить историю премий'));
@@ -187,7 +196,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             <div className="space-y-1.5">
               {activity.map(a => (
                 <div key={a.id} className="flex items-center justify-between text-xs font-sans" style={{ color: 'rgba(232,232,208,0.7)' }}>
-                  <span>{a.action}{a.lecture_title ? ` — ${a.lecture_title}` : ''}</span>
+                  <span>{formatActivityAction(a.action, { lectureTitle: a.lecture_title, nameById })}</span>
                   <span className="text-pixel/40 shrink-0">{parseServerDate(a.created_at).toLocaleString('ru-RU')}</span>
                 </div>
               ))}

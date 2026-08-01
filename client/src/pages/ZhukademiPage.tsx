@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import BugSprite from '../components/BugSprite';
 import SnailLoader from '../components/SnailLoader';
-import { testerApi } from '../api';
+import { testerApi, leadApi } from '../api';
 import { Lecture } from '../types';
 import PixelIcon from '../components/PixelIcon';
 import { API_BASE_URL as API_BASE } from '../config';
@@ -117,6 +117,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [loadError, setLoadError] = useState('');
+  // Real per-lecture pass counts, lead/admin only — see loadLectures below.
+  const [lectureStatsById, setLectureStatsById] = useState<Record<number, { passedCount: number; totalTesters: number }>>({});
 
   const loadLectures = () => {
     setLoading(true);
@@ -142,6 +144,18 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       .then(r => setLectures(r.data))
       .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить курсы'))
       .finally(() => setLoading(false));
+
+    // Real "X/Y team members passed this" — replaces what used to be a
+    // hardcoded, made-up array shown to every role regardless of whether it
+    // meant anything. Lead/admin-only endpoint, so only fetched for them;
+    // a failure here just means the count doesn't show, not a page error.
+    if (user.role === 'lead' || user.role === 'admin') {
+      leadApi.getLectureStats().then(r => {
+        const byId: Record<number, { passedCount: number; totalTesters: number }> = {};
+        for (const s of r.data) byId[s.id] = { passedCount: s.passedCount, totalTesters: s.totalTesters };
+        setLectureStatsById(byId);
+      }).catch(() => {});
+    }
   };
 
   useEffect(() => { loadLectures(); }, []);
@@ -168,9 +182,6 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       </div>
     );
   }
-
-  // Team completion count (hardcoded simulation for now — leads can't see individual lecture data)
-  const teamCompleted = [3, 4, 2, 1, 4, 3, 2, 1, 1, 0];
 
   // Filters apply across both the seeded-lecture catalog and custom courses,
   // matched by title search + a shared tag vocabulary (topic tag for
@@ -292,7 +303,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
         {lectures.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredLectures.map((lecture) => {
-              const idx = lectures.indexOf(lecture); // original position, so the placeholder team-completion array still lines up after filtering
+              const idx = lectures.indexOf(lecture);
               const color = getSkillColor(lecture.skill_area);
               const tag = getTopicTag(lecture.skill_area);
               // Per-user progress (locked/active/passed) only applies to
@@ -305,7 +316,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               const isActive = isTester && lecture.status === 'active';
               const isLocked = isTester && lecture.status === 'locked';
               const canOpen = isTester && (isActive || isPassed);
-              const teamCount = teamCompleted[idx] || 0;
+              const stats = lectureStatsById[lecture.id];
 
               return (
                 <div
@@ -385,7 +396,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}
                     >
                       <span className="text-pixel/55 text-xs font-sans">
-                        👥 {teamCount}/{4} прошли
+                        {stats ? `👥 ${stats.passedCount}/${stats.totalTesters} прошли` : ''}
                       </span>
                       <div>
                         {isPassed && <span className="badge-passed">сдан</span>}
@@ -498,6 +509,10 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       >
                         <span className="text-pixel/55 text-xs font-sans truncate">
                           <span className="flex items-center gap-1"><PixelIcon name="pencil" size={10} color="currentColor" />{cc.author_name}</span>
+                          {/* Lead-only field from the server (см. /api/custom-courses) — absent for testers/admin-as-viewer, so this line just doesn't render for them. */}
+                          {cc.completedCount !== undefined && (
+                            <span className="block mt-0.5">👥 {cc.completedCount}/{cc.totalTesters} прошли</span>
+                          )}
                         </span>
                         {isLead && (
                           <button

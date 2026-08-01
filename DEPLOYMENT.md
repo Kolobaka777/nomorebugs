@@ -69,6 +69,14 @@ monorepo with its **Root Directory** set per-service:
      - `CORS_ORIGIN` — the client's Railway URL once it exists (step 4 —
        circular, so come back and set this after the client service is up).
      - `NODE_ENV=production`
+     - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — **required for a first production
+       boot with an empty database.** The dev/test auto-seeded demo accounts
+       (lead@qa.com etc., published passwords) are deliberately disabled
+       once `NODE_ENV=production` — without these two set, a fresh deploy
+       comes up with zero accounts and nobody can log in at all. Only used
+       once, on the very first boot against an empty `users` table; set a
+       real password here, and change it via the app once logged in (these
+       env vars aren't read again after that first boot).
      - `TELEGRAM_BOT_TOKEN` — optional. Enables Telegram login/registration
        and notifications; without it the feature self-disables (button
        hides client-side, endpoints 503). Get one from @BotFather.
@@ -152,6 +160,38 @@ migration you're unsure about), same as before:
 ```bash
 railway run --service server -- sqlite3 /data/learning_hub.db ".backup /data/backup-$(date +%Y%m%d).db"
 ```
+
+### Restoring from a backup
+
+Backups existing is not the same as being able to restore from one under
+pressure — this has never actually been exercised end-to-end, so treat it
+as a starting runbook to verify (ideally on a throwaway volume first), not
+a guarantee.
+
+1. **List what's available:**
+   ```bash
+   railway run --service server -- ls -la /data/backups
+   ```
+2. **Scale the server service to 0 replicas first** (Railway dashboard →
+   server service → Settings → a running app writing to the DB at the same
+   moment a restore happens underneath it is how you turn one bad table
+   into two).
+3. **Restore the chosen backup over the live DB**, via sqlite3's own
+   `.restore` (the inverse of the `.backup` command already used above —
+   goes through SQLite's backup API rather than a raw file copy, so it
+   can't leave the live DB half-written):
+   ```bash
+   railway run --service server -- sqlite3 /data/learning_hub.db ".restore /data/backups/<chosen-backup-file>.db"
+   ```
+4. **Clear any stale WAL/SHM sidecars** left over from the *pre-restore*
+   live DB — otherwise they can get replayed against the just-restored
+   file, silently reintroducing exactly what the restore was meant to undo:
+   ```bash
+   railway run --service server -- sh -c 'rm -f /data/learning_hub.db-wal /data/learning_hub.db-shm'
+   ```
+5. **Scale the server back to 1 replica.** Confirm with
+   `curl https://<server-domain>/api/health` and a real login before
+   telling anyone it's back.
 
 ## Still open
 

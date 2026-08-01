@@ -7,6 +7,7 @@ import PixelIcon, { IconName } from '../components/PixelIcon';
 import { parseServerDate } from '../utils/date';
 import { useEscapeKey } from '../utils/a11y';
 import { showApiError } from '../utils/toast';
+import { formatActivityAction } from '../utils/activity';
 
 interface UleyPageProps {
   user: any;
@@ -144,6 +145,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [showArchived, setShowArchived] = useState(false);
   const [ratings, setRatings] = useState<any[] | null>(null);
   const [ratingsError, setRatingsError] = useState('');
+  const [expandedRatingId, setExpandedRatingId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -336,6 +338,8 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       </div>
     );
   }
+
+  const teamNameById = Object.fromEntries(team.map(m => [m.id, m.name]));
 
   const avgProgress = team.length
     ? Math.round(team.reduce((acc, m) => acc + (m.lecturesCompleted / 10) * 100, 0) / team.length)
@@ -819,9 +823,11 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             <p className="text-pixel/60 text-xs font-sans mb-1">
               Автоматический рейтинг качества + скорости — тестировщики его не видят.
             </p>
-            <p className="text-pixel/45 text-xs font-sans mb-4">
-              Баллы начисляются только за результат ≥90% без единого подозрительно быстрого ответа и почти без переключений вкладки — списать и получить баллы не получится.
-            </p>
+            <div className="text-pixel/45 text-xs font-sans mb-4 space-y-1">
+              <p>⭐ <b>+5 баллов</b> — лекция сдана на ≥90%, без единого подозрительно быстрого ответа и без переключений вкладки во время теста.</p>
+              <p>⭐ <b>+3 балла</b> — чек-лист из 5+ пунктов пройден без единого «fail» (максимум 5 раз в день за один и тот же тип задачи, чтобы нельзя было фармить повторной отправкой).</p>
+              <p>Списать баллы, срезав угол, не получится — начисление идёт только по серверной проверке, не по тому, что прислал браузер.</p>
+            </div>
             {ratingsError ? (
               <div className="card text-center py-8">
                 <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{ratingsError}</p>
@@ -829,18 +835,43 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
               </div>
             ) : ratings ? (
               <div className="space-y-1.5">
-                {ratings.map((r: any, i: number) => (
-                  <div key={r.id} className="p-3 rounded flex items-center justify-between gap-3 flex-wrap" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-pixel/40 text-xs font-sans w-5">{i + 1}.</span>
-                      <span className="text-pixel text-sm font-sans font-semibold">{r.name}</span>
+                {ratings.map((r: any, i: number) => {
+                  const expanded = expandedRatingId === r.id;
+                  return (
+                    <div key={r.id} className="rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+                      <button
+                        onClick={() => setExpandedRatingId(expanded ? null : r.id)}
+                        className="w-full p-3 flex items-center justify-between gap-3 flex-wrap text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-pixel/40 text-xs font-sans w-5">{i + 1}.</span>
+                          <span className="text-pixel text-sm font-sans font-semibold">{r.name}</span>
+                          <span className="text-pixel/40 text-xs font-sans">{expanded ? '▾' : '▸'}</span>
+                        </div>
+                        <span className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>
+                          {r.excellentQuizzes} отличных тестов · {r.cleanChecklists} чистых чеклистов · видимых баллов: {r.premiumPoints}
+                        </span>
+                        <span className="text-primary text-sm font-pixel font-semibold shrink-0">★ {r.hiddenScore}</span>
+                      </button>
+                      {expanded && (
+                        <div className="px-3 pb-3 pt-1" style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}>
+                          {r.recentEvents?.length > 0 ? (
+                            <div className="space-y-1 mt-2">
+                              {r.recentEvents.map((e: any, ei: number) => (
+                                <div key={ei} className="flex items-center justify-between gap-3 text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>
+                                  <span>+{e.points} — {e.reason}</span>
+                                  <span className="text-pixel/40 shrink-0">{parseServerDate(e.created_at).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-pixel/40 text-xs font-sans mt-2">Пока нет начислений.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.6)' }}>
-                      {r.excellentQuizzes} отличных тестов · {r.cleanChecklists} чистых чеклистов · видимых баллов: {r.premiumPoints}
-                    </span>
-                    <span className="text-primary text-sm font-pixel font-semibold shrink-0">★ {r.hiddenScore}</span>
-                  </div>
-                ))}
+                  );
+                })}
                 {ratings.length === 0 && <p className="text-pixel/50 text-sm font-sans">Пока нет данных.</p>}
               </div>
             ) : <SnailLoader />}
@@ -881,8 +912,13 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-pixel font-sans font-semibold text-sm">{item.name}</p>
                       <p className="text-pixel/60 text-xs font-sans">
-                        {ACTION_LABELS[item.action] || item.action}
-                        {item.lecture_title ? `: "${item.lecture_title}"` : ''}
+                        {ACTION_LABELS[item.action]
+                          ? `${ACTION_LABELS[item.action]}${item.lecture_title ? `: "${item.lecture_title}"` : ''}`
+                          // Everything besides the 4 common actions above
+                          // (permission grants, archiving, role changes...)
+                          // used to fall back to the raw "permission_granted:
+                          // target=4:permission=manage_checklists" log string.
+                          : formatActivityAction(item.action, { lectureTitle: item.lecture_title, nameById: teamNameById })}
                       </p>
                     </div>
                     <p className="text-pixel/55 text-xs font-sans shrink-0">

@@ -1476,6 +1476,13 @@ app.get('/api/lead/lecture-stats', authMiddleware, requireRole('lead'), (req, re
       ORDER BY l.order_num
     `).all();
 
+    // "how many of the team actually passed this" — used to be a
+    // hardcoded, made-up array on the client (ZhukademiPage's course
+    // cards), unrelated to any real data. totalTesters is the same for
+    // every row; repeated per-row rather than changing this route's
+    // existing bare-array response shape.
+    const totalTesters = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'tester' AND archived_at IS NULL").get().c;
+
     res.json(rows.map(r => ({
       id: r.id,
       title: r.title,
@@ -1483,6 +1490,8 @@ app.get('/api/lead/lecture-stats', authMiddleware, requireRole('lead'), (req, re
       attempts: r.attempts,
       avgScore: r.attempts > 0 ? Math.round(r.avg_score * 10) / 10 : null,
       passRate: r.attempts > 0 ? Math.round((r.passed_count / r.attempts) * 100) : null,
+      passedCount: r.passed_count,
+      totalTesters,
     })));
   } catch (err) {
     logError(err);
@@ -2274,12 +2283,15 @@ app.get('/api/custom-courses', authMiddleware, (req, res) => {
     if (req.user.role === 'lead') {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
-          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
+          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
+          (SELECT COUNT(DISTINCT ctt.user_id) FROM course_time_tracking ctt WHERE ctt.course_id = cc.id) as completedCount
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
         WHERE (cc.created_by = ? OR cc.is_published = 1) AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id);
+      const totalTesters = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'tester' AND archived_at IS NULL").get().c;
+      rows = rows.map(r => ({ ...r, totalTesters }));
     } else {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
@@ -2354,7 +2366,30 @@ app.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
       mod.lessons = lessonsByModule.get(mod.id) || [];
     }
 
-    res.json({ ...course, modules });
+    // Lead/admin get to see who on the team has actually engaged with this
+    // course, not just an aggregate — "click into a course, see the people
+    // and their progress" was previously nowhere in the app.
+    let progressByTester;
+    if (req.user.role === 'lead' || req.user.role === 'admin') {
+      const testers = db.prepare("SELECT id, name, avatar_initials FROM users WHERE role = 'tester' AND archived_at IS NULL ORDER BY name").all();
+      const lessonProgressRows = lessonIds.length
+        ? db.prepare(`SELECT user_id, COUNT(*) as c FROM custom_lesson_progress WHERE lesson_id IN (${lessonIds.map(() => '?').join(',')}) GROUP BY user_id`).all(...lessonIds)
+        : [];
+      const completedLessonsByUser = Object.fromEntries(lessonProgressRows.map(r => [r.user_id, r.c]));
+      const finishedRows = db.prepare('SELECT user_id, completed_at FROM course_time_tracking WHERE course_id = ?').all(course.id);
+      const finishedAtByUser = Object.fromEntries(finishedRows.map(r => [r.user_id, r.completed_at]));
+      progressByTester = testers.map(t => ({
+        id: t.id,
+        name: t.name,
+        avatar_initials: t.avatar_initials,
+        completedLessons: completedLessonsByUser[t.id] || 0,
+        totalLessons: lessonIds.length,
+        finished: !!finishedAtByUser[t.id],
+        finishedAt: finishedAtByUser[t.id] || null,
+      }));
+    }
+
+    res.json({ ...course, modules, ...(progressByTester ? { progressByTester } : {}) });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -3141,7 +3176,28 @@ app.get('/api/lead/internal-ratings', authMiddleware, requireRole('lead'), (req,
       WHERE u.role = 'tester' AND u.archived_at IS NULL
       ORDER BY hiddenScore DESC
     `).all();
-    res.json(rows);
+
+    // The star score alone answers "who", never "for what" — a lead had no
+    // way to see what specifically earned it beyond the two bucket counts
+    // above. Each event's own `reason` text (set at award time — see
+    // submit-test / checklists.submit) already says exactly what happened,
+    // just nowhere surfaced. Capped per tester so this stays one query
+    // instead of N, and doesn't return an unbounded history.
+    const RECENT_EVENTS_PER_TESTER = 10;
+    const eventRows = rows.length
+      ? db.prepare(`
+          SELECT user_id, points, reason, source, created_at FROM internal_score_events
+          WHERE user_id IN (${rows.map(() => '?').join(',')})
+          ORDER BY created_at DESC
+        `).all(...rows.map(r => r.id))
+      : [];
+    const eventsByUser = {};
+    for (const e of eventRows) {
+      (eventsByUser[e.user_id] = eventsByUser[e.user_id] || []);
+      if (eventsByUser[e.user_id].length < RECENT_EVENTS_PER_TESTER) eventsByUser[e.user_id].push(e);
+    }
+
+    res.json(rows.map(r => ({ ...r, recentEvents: eventsByUser[r.id] || [] })));
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

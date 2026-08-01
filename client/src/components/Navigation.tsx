@@ -4,6 +4,7 @@ import PixelIcon from './PixelIcon';
 import TelegramLinkWidget from './TelegramLinkWidget';
 import ChangePasswordModal from './ChangePasswordModal';
 import { ROLE_META } from '../utils/roles';
+import { computeInitials } from '../utils/initials';
 
 interface NavigationProps {
   user: any;
@@ -110,7 +111,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
               ...(menuOpen ? { outline: '2px solid #EF9F27', outlineOffset: 2 } : {}),
             }}
           >
-            {user.avatar_initials}
+            {computeInitials(user.displayName || user.name)}
           </button>
 
           {menuOpen && (
