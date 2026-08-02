@@ -82,7 +82,15 @@ function actionLabel(row: ActivityRow, nameById: Record<number, string>): string
   return formatted.charAt(0).toLowerCase() + formatted.slice(1);
 }
 
-type Tab = 'users' | 'activity' | 'analytics' | 'settings' | 'trash';
+type Tab = 'users' | 'activity' | 'analytics' | 'settings' | 'lectures' | 'trash';
+
+interface AdminLecture {
+  id: number;
+  title: string;
+  skill_area: string;
+  order_num: number;
+  video_url: string | null;
+}
 
 export default function AdminPage({ user, onLogout }: AdminPageProps) {
   const [tab, setTab] = useState<Tab>('users');
@@ -109,6 +117,11 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
 
   const [trash, setTrash] = useState<TrashItem[] | null>(null);
 
+  const [lectures, setLectures] = useState<AdminLecture[] | null>(null);
+  const [videoDrafts, setVideoDrafts] = useState<Record<number, string>>({});
+  const [savingVideoId, setSavingVideoId] = useState<number | null>(null);
+  const [videoWarning, setVideoWarning] = useState<{ id: number; message: string } | null>(null);
+
   useEffect(() => {
     load(showArchived);
   }, [showArchived]);
@@ -118,8 +131,35 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     if (tab === 'analytics' && !overview) loadOverview();
     if (tab === 'analytics' && !bonusCandidates) loadBonusCandidates();
     if (tab === 'settings' && !taskTypes) loadTaskTypes();
+    if (tab === 'lectures' && !lectures) loadLectures();
     if (tab === 'trash' && !trash) loadTrash();
   }, [tab]);
+
+  const loadLectures = async () => {
+    try {
+      const res = await leadApi.getLectures();
+      setLectures(res.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Не удалось загрузить лекции');
+    }
+  };
+
+  const videoValue = (lecture: AdminLecture) => videoDrafts[lecture.id] ?? lecture.video_url ?? '';
+
+  const saveLectureVideo = async (lecture: AdminLecture) => {
+    const value = videoValue(lecture).trim() || null;
+    setSavingVideoId(lecture.id);
+    setVideoWarning(null);
+    try {
+      const res = await leadApi.setLectureVideo(lecture.id, value);
+      setLectures(ls => ls ? ls.map(l => l.id === lecture.id ? { ...l, video_url: value } : l) : ls);
+      if (res.data.warning) setVideoWarning({ id: lecture.id, message: res.data.warning });
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Не удалось сохранить ссылку');
+    } finally {
+      setSavingVideoId(null);
+    }
+  };
 
   // Guards against a fast double-toggle of "Показать архив": if the first
   // request (say, archived=false) is slower to come back than the second
@@ -330,7 +370,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {(['users', 'activity', 'analytics', 'settings', 'trash'] as Tab[]).map(t => (
+          {(['users', 'activity', 'analytics', 'settings', 'lectures', 'trash'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -340,7 +380,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                 color: tab === t ? '#0f0f1a' : 'rgba(232,232,208,0.7)',
               }}
             >
-              {t === 'users' ? 'Пользователи' : t === 'activity' ? 'Активность' : t === 'analytics' ? 'Аналитика' : t === 'settings' ? 'Настройки' : 'Корзина'}
+              {t === 'users' ? 'Пользователи' : t === 'activity' ? 'Активность' : t === 'analytics' ? 'Аналитика' : t === 'settings' ? 'Настройки' : t === 'lectures' ? 'Лекции' : 'Корзина'}
             </button>
           ))}
         </div>
@@ -559,6 +599,45 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   <button onClick={addTaskType} className="btn-primary text-xs px-4 py-2 shrink-0">Добавить</button>
                 </div>
               </>
+            ) : <SnailLoader />}
+          </div>
+        )}
+
+        {tab === 'lectures' && (
+          <div>
+            <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Видео к лекциям</h2>
+            <p className="text-pixel/50 text-xs font-sans mb-3">
+              Вставь ссылку на запись (YouTube, Google Диск, VK Видео или Яндекс.Диск) — она появится наверху лекции для тестировщиков.
+              Загрузка файлов не поддерживается: сервер хранит только ссылку.
+            </p>
+            {lectures ? (
+              <div className="space-y-2">
+                {lectures.map(lecture => (
+                  <div key={lecture.id} className="p-3 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-pixel text-sm font-sans font-semibold flex-1 min-w-[160px]">
+                        {lecture.order_num}. {lecture.title}
+                      </span>
+                      <input
+                        className="pixel-input text-xs flex-1 min-w-[220px]"
+                        placeholder="https://youtube.com/watch?v=..."
+                        value={videoValue(lecture)}
+                        onChange={e => setVideoDrafts(d => ({ ...d, [lecture.id]: e.target.value }))}
+                      />
+                      <button
+                        onClick={() => saveLectureVideo(lecture)}
+                        disabled={savingVideoId === lecture.id}
+                        className="btn-secondary text-xs px-3 py-1.5 shrink-0 disabled:opacity-50"
+                      >
+                        {savingVideoId === lecture.id ? '...' : 'Сохранить'}
+                      </button>
+                    </div>
+                    {videoWarning?.id === lecture.id && (
+                      <p className="text-xs font-sans mt-2" style={{ color: '#EF9F27' }}>{videoWarning.message}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : <SnailLoader />}
           </div>
         )}

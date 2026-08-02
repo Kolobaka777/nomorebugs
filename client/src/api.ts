@@ -40,8 +40,8 @@ export const authApi = {
     return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
   },
 
-  register: async (email: string, password: string, name: string) => {
-    const res = await api.post('/auth/register', { email, password, name });
+  register: async (email: string, password: string, name: string, gender: 'male' | 'female' | null = null) => {
+    const res = await api.post('/auth/register', { email, password, name, gender });
     const { token, refreshToken, user, needsBaselineSurvey } = res.data;
     return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: false } };
   },
@@ -106,6 +106,8 @@ export const testerApi = {
 
   craftBadge: (skill_area: string) => api.post('/tester/craft-badge', { skill_area }),
 
+  getLecture: (lectureId: number) => api.get(`/lectures/${lectureId}`),
+
   getQuestions: (lectureId: number) => api.get(`/lectures/${lectureId}/questions`),
 
   submitTest: (lectureId: number, answers: Record<number, string>, meta?: { questionTimes: Record<number, number>; tabSwitches: number }) =>
@@ -138,6 +140,42 @@ export const leadApi = {
   getArchivedTesters: () => api.get('/lead/archived-testers'),
 
   updateTeamNote: (id: number, note: string) => api.patch(`/lead/team/${id}/note`, { note }),
+
+  updatePresence: (id: number, data: { work_start?: string | null; work_end?: string | null; work_days?: string; timezone?: string; status?: string; birthday?: string | null }) =>
+    api.patch(`/lead/team/${id}/presence`, data),
+  addLeave: (id: number, data: { type: string; start_date: string; end_date?: string | null; note?: string }) =>
+    api.post(`/lead/team/${id}/leave`, data),
+  removeLeave: (id: number, leaveId: number) => api.delete(`/lead/team/${id}/leave/${leaveId}`),
+
+  setDeadlineOverride: (courseId: number, data: { user_id: number; deadline_at: string; reason?: string }) =>
+    api.post(`/custom-courses/${courseId}/deadline-override`, data),
+  removeDeadlineOverride: (courseId: number, userId: number) =>
+    api.delete(`/custom-courses/${courseId}/deadline-override/${userId}`),
+
+  getLectures: () => api.get('/admin/lectures'),
+  setLectureVideo: (id: number, video_url: string | null) => api.patch(`/admin/lectures/${id}/video`, { video_url }),
+};
+
+export const presenceApi = {
+  getTeam: () => api.get('/team/presence'),
+  updateMe: (data: { work_start?: string | null; work_end?: string | null; work_days?: string; timezone?: string; status?: string; birthday?: string | null }) =>
+    api.patch('/me/presence', data),
+  addLeave: (data: { type: string; start_date: string; end_date?: string | null; note?: string }) =>
+    api.post('/me/leave', data),
+  removeLeave: (id: number) => api.delete(`/me/leave/${id}`),
+};
+
+export const teamApi = {
+  getNews: () => api.get('/team/news'),
+};
+
+export const suggestionsApi = {
+  list: () => api.get('/suggestions'),
+  create: (data: { type: string; text: string; is_anonymous: boolean }) => api.post('/suggestions', data),
+  like: (id: number) => api.post(`/suggestions/${id}/like`),
+  unlike: (id: number) => api.delete(`/suggestions/${id}/like`),
+  setStatus: (id: number, status: string) => api.patch(`/suggestions/${id}/status`, { status }),
+  remove: (id: number) => api.delete(`/suggestions/${id}`),
 };
 
 export const rewardsApi = {

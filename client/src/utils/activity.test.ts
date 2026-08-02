@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatActivityAction } from './activity';
+import { formatActivityAction, formatTeamEvent } from './activity';
 
 describe('formatActivityAction', () => {
   it('falls back to a masc/fem slash form when gender is unknown', () => {
@@ -47,5 +47,36 @@ describe('formatActivityAction', () => {
 
   it('falls back to the raw string for a genuinely unknown action, instead of hiding it', () => {
     expect(formatActivityAction('some_future_action:whatever')).toBe('some_future_action:whatever');
+  });
+});
+
+describe('formatTeamEvent', () => {
+  const base = { id: 1, created_at: '2026-01-01T00:00:00Z', user_id: 5, name: 'Nazariy', avatar_initials: 'NT' };
+
+  it('formats member_joined with gender-correct participle', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'member_joined', gender: 'male' }))
+      .toBe('Nazariy присоединился к команде');
+    expect(formatTeamEvent({ ...base, event_type: 'member_joined', gender: 'female' }))
+      .toBe('Nazariy присоединилась к команде');
+    expect(formatTeamEvent({ ...base, event_type: 'member_joined', gender: null }))
+      .toBe('Nazariy присоединился/присоединилась к команде');
+  });
+
+  it('embeds the guide/course title when present', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'guide_published', gender: 'male', guide_title: 'DevTools 101' }))
+      .toBe('Nazariy опубликовал гайд «DevTools 101»');
+    expect(formatTeamEvent({ ...base, event_type: 'course_published', gender: 'female', course_title: 'CSS Basics' }))
+      .toBe('Nazariy опубликовала курс «CSS Basics»');
+  });
+
+  it('formats a birthday item without needing gender', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'birthday', gender: null })).toBe('У Nazariy сегодня день рождения 🎂');
+  });
+
+  it('formats leave start/end with the leave type and gendered verb', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'leave_started', gender: 'male', leave_type: 'vacation' }))
+      .toBe('Nazariy ушёл в отпуск');
+    expect(formatTeamEvent({ ...base, event_type: 'leave_ended', gender: 'female' }))
+      .toBe('Nazariy вернулась из отпуска');
   });
 });

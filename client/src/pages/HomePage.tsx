@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import BugSprite from '../components/BugSprite';
 import PixelIcon from '../components/PixelIcon';
-import { statsApi, testerApi, leadApi } from '../api';
-import { GlobalStats, TestHistoryItem, TeamMember, ActivityItem } from '../types';
+import { statsApi, testerApi, leadApi, teamApi } from '../api';
+import { GlobalStats, TestHistoryItem, TeamMember, ActivityItem, TeamNewsItem } from '../types';
 import { timeAgo } from '../utils/date';
 import { showApiError } from '../utils/toast';
-import { formatActivityAction } from '../utils/activity';
+import { formatActivityAction, formatTeamEvent } from '../utils/activity';
 
 interface HomePageProps {
   user: any;
@@ -28,8 +28,14 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
 
+  // Visible to every role, unlike the lead-only audit feed above — "новый
+  // человек в команде / новый гайд / ДР / отпуск" is genuinely team news,
+  // not a private log.
+  const [news, setNews] = useState<TeamNewsItem[]>([]);
+
   useEffect(() => {
     statsApi.getGlobal().then(r => setStats(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику площадки'));
+    teamApi.getNews().then(r => setNews(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить новости команды'));
 
     if (isTester) {
       Promise.all([testerApi.getMetrics(), testerApi.getHistory()])
@@ -214,6 +220,30 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                 ))}
               </div>
             </div>
+
+            {news.length > 0 && (
+              <div>
+                <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>НОВОСТИ КОМАНДЫ</p>
+                <div className="space-y-2">
+                  {news.slice(0, 6).map(item => (
+                    <div key={item.id} className="px-4 py-3 flex items-start gap-3 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(29,158,117,0.08)' }}>
+                      <PixelIcon
+                        name={
+                          item.event_type === 'birthday' ? 'star' :
+                          item.event_type === 'member_joined' ? 'bee' :
+                          item.event_type === 'guide_published' ? 'books' :
+                          item.event_type === 'course_published' ? 'graduation' :
+                          'bug'
+                        }
+                        size={13}
+                        color="#EF9F27"
+                      />
+                      <p className="flex-1 text-xs font-sans" style={{ color: 'rgba(232,232,208,0.7)' }}>{formatTeamEvent(item)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>СТАТИСТИКА ПЛОЩАДКИ</p>

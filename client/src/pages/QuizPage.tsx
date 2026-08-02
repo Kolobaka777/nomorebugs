@@ -15,6 +15,17 @@ interface QuizPageProps {
 // against the option's original key ('a'/'b'/'c'/'d'), never its display
 // position, so shuffling can't affect correctness — it only makes a
 // memorized "answer sequence" (shared between testers) useless.
+// YouTube/Drive embed reliably cross-domain; VK/Яндекс.Диск links don't
+// have a dependable universal iframe pattern, so those just get an
+// external "open" link instead of a possibly-broken embed.
+function toEmbedUrl(url: string): string | null {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const drive = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+  if (drive) return `https://drive.google.com/file/d/${drive[1]}/preview`;
+  return null;
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -30,6 +41,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const progressKey = `quiz_progress_${user.id}_${lectureId}`;
 
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [showExplanation, setShowExplanation] = useState(false);
@@ -67,6 +79,11 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const loadQuestions = async () => {
     setLoadError(false);
     try {
+      // Kept as a separate request from getQuestions (whose response is a
+      // bare question array, not an object) rather than folding video_url
+      // into it — reshaping that response would be a breaking change for
+      // every existing caller.
+      testerApi.getLecture(parseInt(lectureId!)).then(r => setVideoUrl(r.data.video_url || null)).catch(() => {});
       const res = await testerApi.getQuestions(parseInt(lectureId!));
       const shuffled = shuffle<Question>(res.data);
       setQuestions(shuffled);
@@ -316,6 +333,36 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
       {/* Content */}
       <div className="flex-1 max-w-3xl mx-auto w-full px-6 py-8">
+        {/* Video — shown once, above the first question */}
+        {currentQuestionIdx === 0 && videoUrl && (() => {
+          const embed = toEmbedUrl(videoUrl);
+          return (
+            <div className="mb-6 rounded overflow-hidden" style={{ boxShadow: '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75' }}>
+              {embed ? (
+                <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+                  <iframe
+                    src={embed}
+                    title="Видео лекции"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+                  />
+                </div>
+              ) : (
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-4"
+                  style={{ background: '#1a1a2e', color: '#1D9E75' }}
+                >
+                  <PixelIcon name="camera" size={14} color="currentColor" /> Открыть видео лекции →
+                </a>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Question number */}
         <div className="flex items-center justify-between mb-4">
           <p

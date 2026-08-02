@@ -32,6 +32,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
+    { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },
   ];
 
@@ -42,6 +43,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
+    { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },
   ];
 

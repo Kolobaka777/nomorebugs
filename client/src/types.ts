@@ -14,6 +14,7 @@ export interface Lecture {
   score?: number;
   passed?: number;
   status: 'locked' | 'active' | 'passed';
+  video_url?: string | null;
 }
 
 export interface Question {
@@ -211,6 +212,66 @@ export const TOPIC_TAGS: Record<string, string> = {
   'Network': '#1D9E75',
   'AIO': '#e8e8d0',
 };
+
+// ===== PRESENCE ("работают сейчас") =====
+export type LeaveType = 'vacation' | 'sick' | 'day_off' | 'other';
+export type PresenceStatus = 'active' | 'remote' | 'other';
+
+export interface PresenceEntry {
+  id: number;
+  name: string;
+  avatar_initials: string;
+  gender: Gender;
+  status: PresenceStatus;
+  workStart: string | null;
+  workEnd: string | null;
+  workDays: string;
+  timezone: string;
+  birthday: string | null; // 'MM-DD', year deliberately not collected
+  isWorkingNow: boolean | null; // null = hours not configured yet
+  currentLeave: { id: number; type: LeaveType; end_date: string | null; note: string } | null;
+}
+
+// ===== TEAM NEWS FEED =====
+export type TeamEventType = 'member_joined' | 'guide_published' | 'course_published' | 'birthday' | 'leave_started' | 'leave_ended';
+
+export interface TeamNewsItem {
+  id: number | string;
+  event_type: TeamEventType;
+  created_at: string;
+  user_id: number;
+  name: string;
+  avatar_initials: string;
+  gender: Gender;
+  guide_title?: string | null;
+  course_title?: string | null;
+  leave_type?: LeaveType;
+}
+
+// ===== SUGGESTION / IDEAS BOARD =====
+export type SuggestionType = 'idea' | 'suggestion' | 'complaint';
+export type SuggestionStatus = 'new' | 'reviewed' | 'implemented' | 'declined';
+
+export interface Suggestion {
+  id: number;
+  type: SuggestionType;
+  text: string;
+  status: SuggestionStatus;
+  created_at: string;
+  is_anonymous: boolean;
+  user_id: number | null; // null when anonymous and viewer isn't a lead
+  author_name: string | null;
+  likeCount: number;
+  likedByMe: boolean;
+}
+
+// ===== COURSE DEADLINE OVERRIDES =====
+export interface CourseDeadlineOverride {
+  user_id: number;
+  name: string;
+  deadline_at: string;
+  reason: string;
+}
 
 export const DIFFICULTY_LABELS: Record<number, string> = {
   1: 'Личинка',

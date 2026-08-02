@@ -139,6 +139,7 @@ function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, repl
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     isNew = true;
     db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'register_telegram');
+    db.prepare('INSERT INTO team_events (event_type, user_id) VALUES (?, ?)').run('member_joined', user.id);
   } else if (user.telegram_username !== tgUsername) {
     // Auto-capture: a Telegram @username can change any time; keep it
     // current on every login, not just at first-link.

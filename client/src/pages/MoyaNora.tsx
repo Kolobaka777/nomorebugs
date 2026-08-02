@@ -5,11 +5,11 @@ import LevelBadge from '../components/LevelBadge';
 import SnailLoader from '../components/SnailLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
-import { testerApi, checklistApi, rewardsApi } from '../api';
+import { testerApi, checklistApi, rewardsApi, presenceApi } from '../api';
 import { formatActivityAction } from '../utils/activity';
 import {
   Lecture, TestHistoryItem, SKillChart,
-  FullProfile, getLevel,
+  FullProfile, getLevel, PresenceEntry,
 } from '../types';
 import { BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
 import PixelIcon, { IconName } from '../components/PixelIcon';
@@ -39,6 +39,9 @@ const SNAIL_FACTS = [
 
 // ── Rarity ───────────────────────────────────────────────────────────────────
 const RARITY_COLORS = { common: '#1D9E75', rare: '#7F77DD', epic: '#EF9F27' };
+
+const WEEKDAY_LABELS: [string, string][] = [['1', 'Пн'], ['2', 'Вт'], ['3', 'Ср'], ['4', 'Чт'], ['5', 'Пт'], ['6', 'Сб'], ['7', 'Вс']];
+const LEAVE_LABELS: Record<string, string> = { vacation: 'Отпуск', sick: 'Больничный', day_off: 'Отгул', other: 'Другое' };
 const RARITY_LABEL  = { common: '',       rare: 'RARE',    epic: 'EPIC'   };
 
 // ── Badge metadata ────────────────────────────────────────────────────────────
@@ -202,6 +205,35 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
   const [myActivity, setMyActivity] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
+  const [myPresence, setMyPresence] = useState<PresenceEntry | null>(null);
+  const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow', status: 'active', birthday: '' });
+  const [savingPresence, setSavingPresence] = useState(false);
+
+  const togglePresenceDay = (d: string) => setPresenceForm(f => {
+    const days = new Set(f.days);
+    if (days.has(d)) days.delete(d); else days.add(d);
+    return { ...f, days };
+  });
+
+  const savePresence = async () => {
+    setSavingPresence(true);
+    try {
+      await presenceApi.updateMe({
+        work_start: presenceForm.work_start || null,
+        work_end: presenceForm.work_end || null,
+        work_days: Array.from(presenceForm.days).join(',') || '1,2,3,4,5',
+        timezone: presenceForm.timezone,
+        status: presenceForm.status,
+        birthday: presenceForm.birthday || null,
+      });
+      const res = await presenceApi.getTeam();
+      setMyPresence(res.data.find((p: PresenceEntry) => p.id === user.id) || null);
+    } catch (err: any) {
+      showApiError(err, 'Не удалось сохранить рабочее время');
+    } finally {
+      setSavingPresence(false);
+    }
+  };
 
   useEffect(() => { loadAll(); }, []);
 
@@ -222,6 +254,20 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
       rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
       testerApi.getMyActivity().then(r => setMyActivity(r.data.rows)).catch((err: any) => showApiError(err, 'Не удалось загрузить историю активности'));
+      presenceApi.getTeam().then(r => {
+        const mine = r.data.find((p: PresenceEntry) => p.id === user.id) || null;
+        setMyPresence(mine);
+        if (mine) {
+          setPresenceForm({
+            work_start: mine.workStart || '',
+            work_end: mine.workEnd || '',
+            days: new Set((mine.workDays || '1,2,3,4,5').split(',')),
+            timezone: mine.timezone || 'Europe/Moscow',
+            status: mine.status || 'active',
+            birthday: mine.birthday || '',
+          });
+        }
+      }).catch((err: any) => showApiError(err, 'Не удалось загрузить рабочее время'));
       setMetrics(metricsRes.data);
       setLectures(lecturesRes.data);
       setHistory(historyRes.data);
@@ -555,6 +601,68 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </p>
               </div>
             </>
+          )}
+        </RpgPanel>
+
+        {/* ══════════════════════════════════════════════════════════
+            МОЁ РАБОЧЕЕ ВРЕМЯ — powers "работают сейчас" on Улей and the
+            team news feed's vacation start/end items.
+        ══════════════════════════════════════════════════════════ */}
+        <RpgPanel variant="dark" className="p-4 mb-5">
+          <p className="font-pixel mb-3" style={{ color: '#1D9E75', fontSize: '0.6rem', lineHeight: 1.8 }}>МОЁ РАБОЧЕЕ ВРЕМЯ</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <div>
+              <label className="block text-pixel/50 text-[11px] font-sans mb-1">Начало</label>
+              <input type="time" value={presenceForm.work_start} onChange={e => setPresenceForm(f => ({ ...f, work_start: e.target.value }))} className="pixel-input" />
+            </div>
+            <div>
+              <label className="block text-pixel/50 text-[11px] font-sans mb-1">Конец</label>
+              <input type="time" value={presenceForm.work_end} onChange={e => setPresenceForm(f => ({ ...f, work_end: e.target.value }))} className="pixel-input" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-pixel/50 text-[11px] font-sans mb-1">Часовой пояс</label>
+              <input value={presenceForm.timezone} onChange={e => setPresenceForm(f => ({ ...f, timezone: e.target.value }))} className="pixel-input" placeholder="Europe/Moscow" />
+            </div>
+            <div>
+              <label className="block text-pixel/50 text-[11px] font-sans mb-1">Статус</label>
+              <select value={presenceForm.status} onChange={e => setPresenceForm(f => ({ ...f, status: e.target.value }))} className="pixel-input">
+                <option value="active">На месте</option>
+                <option value="remote">Удалённо</option>
+                <option value="other">Другое</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-pixel/50 text-[11px] font-sans mb-1">День рождения (ММ-ДД)</label>
+              <input
+                value={presenceForm.birthday}
+                onChange={e => setPresenceForm(f => ({ ...f, birthday: e.target.value }))}
+                className="pixel-input"
+                placeholder="08-15"
+                maxLength={5}
+              />
+            </div>
+          </div>
+          <div className="flex gap-1 mb-3">
+            {WEEKDAY_LABELS.map(([d, label]) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => togglePresenceDay(d)}
+                className="flex-1 py-1.5 rounded text-xs font-sans cursor-pointer"
+                style={{ background: presenceForm.days.has(d) ? 'rgba(29,158,117,0.2)' : 'rgba(232,232,208,0.04)', color: presenceForm.days.has(d) ? '#1D9E75' : 'rgba(232,232,208,0.4)' }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button onClick={savePresence} disabled={savingPresence} className="btn-secondary text-xs px-4 py-2 disabled:opacity-50">
+            {savingPresence ? '...' : 'Сохранить'}
+          </button>
+          {myPresence?.currentLeave && (
+            <p className="text-xs font-sans mt-3" style={{ color: '#EF9F27' }}>
+              Сейчас отмечено: {LEAVE_LABELS[myPresence.currentLeave.type]}
+              {myPresence.currentLeave.end_date ? ` до ${myPresence.currentLeave.end_date}` : ' (без даты окончания)'} — изменить может тимлид.
+            </p>
           )}
         </RpgPanel>
 

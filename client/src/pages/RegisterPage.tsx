@@ -15,6 +15,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [gender, setGender] = useState<'male' | 'female' | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +34,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
 
     setLoading(true);
     try {
-      const { data } = await authApi.register(email, password, name);
+      const { data } = await authApi.register(email, password, name, gender);
       onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка регистрации');
@@ -158,6 +159,36 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
                 placeholder="••••••••"
                 disabled={loading}
               />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
+                Пол
+              </label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'male' as const, label: 'Мужской' },
+                  { value: 'female' as const, label: 'Женский' },
+                  { value: null, label: 'Не указывать' },
+                ]).map(opt => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setGender(opt.value)}
+                    disabled={loading}
+                    className="flex-1 py-2 rounded text-xs font-sans cursor-pointer transition-colors"
+                    style={{
+                      background: gender === opt.value ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
+                      color: gender === opt.value ? '#1D9E75' : 'rgba(232,232,208,0.5)',
+                      boxShadow: gender === opt.value
+                        ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75'
+                        : 'none',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <button

@@ -5,6 +5,7 @@ import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
+import { leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 
 interface Props {
@@ -16,6 +17,17 @@ function isNew(createdAt: string): boolean {
   return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
+function deadlineInfo(deadline: string | null): { label: string; color: string } | null {
+  if (!deadline) return null;
+  const due = parseServerDate(deadline).getTime();
+  const diffDays = Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000));
+  const dateStr = parseServerDate(deadline).toLocaleDateString('ru-RU');
+  if (diffDays < 0) return { label: `Дедлайн просрочен (${dateStr})`, color: '#e05252' };
+  if (diffDays === 0) return { label: 'Дедлайн сегодня', color: '#EF9F27' };
+  if (diffDays <= 3) return { label: `Дедлайн через ${diffDays} дн.`, color: '#EF9F27' };
+  return { label: `Дедлайн: ${dateStr}`, color: 'rgba(232,232,208,0.6)' };
+}
+
 export default function CustomCourseDetailPage({ user, onLogout }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -25,6 +37,36 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [deadlineEditFor, setDeadlineEditFor] = useState<number | null>(null);
+  const [deadlineDraft, setDeadlineDraft] = useState('');
+  const [savingDeadline, setSavingDeadline] = useState(false);
+
+  const saveDeadlineOverride = async (userId: number) => {
+    if (!deadlineDraft) return;
+    setSavingDeadline(true);
+    try {
+      await leadApi.setDeadlineOverride(Number(id), { user_id: userId, deadline_at: deadlineDraft });
+      setDeadlineEditFor(null);
+      load();
+    } catch {
+      setActionError('Не удалось продлить дедлайн');
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
+
+  const removeDeadlineOverride = async (userId: number) => {
+    setSavingDeadline(true);
+    try {
+      await leadApi.removeDeadlineOverride(Number(id), userId);
+      setDeadlineEditFor(null);
+      load();
+    } catch {
+      setActionError('Не удалось сбросить дедлайн');
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
 
   const load = () => {
     setLoading(true);
@@ -162,6 +204,14 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                     черновик
                   </span>
                 )}
+                {(() => {
+                  const info = deadlineInfo(course.effectiveDeadline);
+                  return info ? (
+                    <span className="inline-block text-xs font-sans px-2 py-0.5 rounded" style={{ background: `${info.color}20`, color: info.color }}>
+                      {info.label}
+                    </span>
+                  ) : null;
+                })()}
               </div>
 
               <h1 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
@@ -240,6 +290,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                   <div className="space-y-2">
                     {course.progressByTester.map((t: any) => {
                       const pct = t.totalLessons > 0 ? Math.round((t.completedLessons / t.totalLessons) * 100) : 0;
+                      const override = (course.deadlineOverrides || []).find((o: any) => o.user_id === t.id);
                       return (
                         <div key={t.id} className="flex items-center gap-3">
                           <span className="text-pixel font-sans text-sm w-32 truncate shrink-0">{t.name}</span>
@@ -249,6 +300,31 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                           <span className="text-pixel/55 text-xs font-sans w-20 text-right shrink-0">
                             {t.finished ? '✓ пройден' : `${t.completedLessons}/${t.totalLessons}`}
                           </span>
+                          {deadlineEditFor === t.id ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                type="date"
+                                value={deadlineDraft}
+                                onChange={e => setDeadlineDraft(e.target.value)}
+                                className="pixel-input text-xs"
+                                style={{ width: 130, padding: '2px 6px' }}
+                              />
+                              <button onClick={() => saveDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-sans cursor-pointer" style={{ color }}>✓</button>
+                              <button onClick={() => setDeadlineEditFor(null)} className="text-xs font-sans cursor-pointer text-pixel/40">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setDeadlineEditFor(t.id); setDeadlineDraft(override?.deadline_at?.slice(0, 10) || course.deadline_at?.slice(0, 10) || ''); }}
+                              className="text-xs font-sans cursor-pointer shrink-0 hover:underline"
+                              style={{ color: override ? '#EF9F27' : 'rgba(232,232,208,0.4)' }}
+                              title="Продлить дедлайн для этого сотрудника"
+                            >
+                              🕒{override ? ` до ${override.deadline_at.slice(0, 10)}` : ''}
+                            </button>
+                          )}
+                          {override && deadlineEditFor !== t.id && (
+                            <button onClick={() => removeDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-sans cursor-pointer text-pixel/30 hover:text-pixel/60 shrink-0" title="Сбросить к дедлайну по умолчанию">↺</button>
+                          )}
                         </div>
                       );
                     })}

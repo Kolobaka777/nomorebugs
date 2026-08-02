@@ -55,6 +55,7 @@ interface FormState {
   tag: string;
   color: string;
   requirements: string;
+  deadline_at: string; // 'YYYY-MM-DD', empty = no deadline
   modules: BModule[];
 }
 
@@ -427,6 +428,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     tag: 'Custom',
     color: '#1D9E75',
     requirements: '',
+    deadline_at: '',
     modules: [emptyModule()],
   });
   const [saving, setSaving] = useState(false);
@@ -452,6 +454,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           tag: data.tag || 'Custom',
           color: data.color || '#1D9E75',
           requirements: data.requirements || '',
+          deadline_at: data.deadline_at ? String(data.deadline_at).slice(0, 10) : '',
           modules: (data.modules || []).map((m: any) => ({
             // Same reasoning as lessons below: reusing the real DB id lets
             // the server diff modules on save instead of deleting and
@@ -507,6 +510,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
       const body = {
         ...form,
         is_published: publish ? 1 : 0,
+        deadline_at: form.deadline_at || null,
         modules: form.modules.map(m => ({
           _id: m._id,
           title: m.title,
@@ -661,6 +665,19 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                   className="w-full rounded px-3 py-2 font-sans text-xs resize-none outline-none"
                   style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.75)', border: '1px solid rgba(232,232,208,0.1)', lineHeight: 1.7 }}
                 />
+              </div>
+
+              {/* Deadline */}
+              <div className="mt-4">
+                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Дедлайн прохождения (необязательно)</label>
+                <input
+                  type="date"
+                  value={form.deadline_at}
+                  onChange={e => setForm(f => ({ ...f, deadline_at: e.target.value }))}
+                  className="rounded px-3 py-2 font-sans text-xs outline-none"
+                  style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.75)', border: '1px solid rgba(232,232,208,0.1)' }}
+                />
+                <p className="text-pixel/45 text-xs font-sans mt-1">Для отдельных сотрудников дедлайн можно продлить на странице курса.</p>
               </div>
             </div>
 

@@ -6,7 +6,7 @@
 // UleyPage's "Жучиная нора", AdminPage's activity log) did exactly that, or
 // hedged the verb ending with a "(-а)" hack, before this existed.
 
-import { Gender } from '../types';
+import { Gender, TeamNewsItem } from '../types';
 
 const PERMISSION_LABELS: Record<string, string> = {
   manage_knowledge_base: 'Багодельня',
@@ -96,4 +96,25 @@ export function formatActivityAction(action: string, opts: FormatOptions = {}): 
   // Unknown action — show it plainly rather than hiding it silently, so a
   // future new action type is at least visible (if ugly) instead of vanishing.
   return action;
+}
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+  vacation: 'отпуск', sick: 'больничный', day_off: 'отгул', other: 'отсутствие',
+};
+
+// Team news feed items (GET /api/team/news) have a genuinely different shape
+// from activity_log rows (event_type + optional guide/course/leave fields,
+// no free-text action string to parse) — a sibling formatter rather than
+// another branch in formatActivityAction above.
+export function formatTeamEvent(item: TeamNewsItem): string {
+  const g = item.gender;
+  switch (item.event_type) {
+    case 'member_joined': return `${item.name} ${verb('присоединился', 'присоединилась', g)} к команде`;
+    case 'guide_published': return `${item.name} ${verb('опубликовал', 'опубликовала', g)} гайд${item.guide_title ? ` «${item.guide_title}»` : ''}`;
+    case 'course_published': return `${item.name} ${verb('опубликовал', 'опубликовала', g)} курс${item.course_title ? ` «${item.course_title}»` : ''}`;
+    case 'birthday': return `У ${item.name} сегодня день рождения 🎂`;
+    case 'leave_started': return `${item.name} ${verb('ушёл', 'ушла', g)} в ${LEAVE_TYPE_LABELS[item.leave_type || 'other']}`;
+    case 'leave_ended': return `${item.name} ${verb('вернулся', 'вернулась', g)} из отпуска`;
+    default: return item.event_type;
+  }
 }

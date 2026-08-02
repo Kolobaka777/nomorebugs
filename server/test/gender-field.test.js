@@ -60,3 +60,31 @@ describe('optional gender field — used only to conjugate activity-feed text co
     expect(member.gender).toBe('male');
   });
 });
+
+describe('gender can also be set at registration time, not just via profile edit', () => {
+  it('accepts a gender at signup and returns it immediately in the register response', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'genderatreg@test.local', password: 'password123', name: 'Gender At Reg', gender: 'female',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.user.gender).toBe('female');
+
+    const login = await request(app).post('/api/auth/login').send({ email: 'genderatreg@test.local', password: 'password123' });
+    expect(login.body.user.gender).toBe('female');
+  });
+
+  it('registering with no gender at all still works and defaults to null', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'nogenderatreg@test.local', password: 'password123', name: 'No Gender At Reg',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.user.gender).toBeNull();
+  });
+
+  it('rejects an invalid gender at registration', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'badgenderatreg@test.local', password: 'password123', name: 'Bad Gender At Reg', gender: 'robot',
+    });
+    expect(res.status).toBe(400);
+  });
+});

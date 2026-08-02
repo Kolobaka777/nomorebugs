@@ -232,7 +232,7 @@ export default function ProfileEditModal({
               */}
 
               <div>
-                <label style={labelStyle}>ПОЛ (для «прошёл»/«прошла» и т.п. в тексте)</label>
+                <label style={labelStyle}>ПОЛ</label>
                 <div className="flex gap-2">
                   {([
                     { value: 'male' as const, label: 'Мужской' },

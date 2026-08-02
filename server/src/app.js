@@ -19,6 +19,7 @@ import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { startBackupSchedule, runBackup } from './backup.js';
+import { LEAVE_TYPES, STATUS_VALUES, computeIsWorkingNow, todayInTimezone, todayMonthDayInTimezone } from './presence.js';
 
 // A snapshot taken right before initDb() runs its migrations — if a
 // migration ever goes wrong against real production data, this is the
@@ -339,6 +340,8 @@ const telegramPollLimiter = rateLimit({
 });
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Precomputed (cost 10, matching real user hashes) — used only so a login
 // attempt against a nonexistent email still pays a real bcrypt comparison
@@ -358,7 +361,7 @@ function initialsFromName(name) {
 // logged in" identically.
 app.post('/api/auth/register', registerLimiter, (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, gender } = req.body;
 
     if (!email || !password || !name?.trim()) {
       return res.status(400).json({ error: 'Email, пароль и имя обязательны' });
@@ -371,6 +374,9 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     }
     if (name.trim().length > 60) {
       return res.status(400).json({ error: 'Имя слишком длинное (макс 60)' });
+    }
+    if (gender !== undefined && gender !== null && gender !== 'male' && gender !== 'female') {
+      return res.status(400).json({ error: 'Некорректное значение пола' });
     }
 
     const passwordHash = bcryptjs.hashSync(password, 10);
@@ -394,7 +400,15 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     db.prepare('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
       .run(user.id, refresh.hash, refresh.expiresAt.toISOString());
 
+    // Safe partial insert — every other user_profiles column has a default,
+    // so this just creates the row with gender set (or skips it entirely
+    // when unspecified, same as before this field existed).
+    if (gender === 'male' || gender === 'female') {
+      db.prepare('INSERT INTO user_profiles (user_id, gender) VALUES (?, ?)').run(user.id, gender);
+    }
+
     db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'register');
+    db.prepare('INSERT INTO team_events (event_type, user_id) VALUES (?, ?)').run('member_joined', user.id);
 
     // Fire-and-forget — Telegram if linked (it never is at this point for a
     // fresh email/password signup, so this realistically goes to the SMTP
@@ -405,10 +419,7 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     res.status(201).json({
       token,
       refreshToken: refresh.token,
-      // No profile row exists yet for a brand-new account, so there's no
-      // nickname to show — displayName stays unset and the client falls
-      // back to `name`, same as the login response below.
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null, gender: gender ?? null },
       needsBaselineSurvey: user.role === 'tester',
     });
   } catch (err) {
@@ -947,6 +958,21 @@ app.get('/api/stats', (req, res) => {
 // rewards below rather than blocking submission.
 const quizStartTimes = new Map();
 
+// Lightweight lecture metadata (currently just video_url) — kept as its own
+// endpoint rather than folded into GET /api/lectures/:id/questions, whose
+// response is consumed as a bare question array today; reshaping that would
+// be a breaking change for every existing caller.
+app.get('/api/lectures/:id', authMiddleware, (req, res) => {
+  try {
+    const lecture = db.prepare('SELECT id, title, skill_area, video_url FROM lectures WHERE id = ?').get(req.params.id);
+    if (!lecture) return res.status(404).json({ error: 'Не найдено' });
+    res.json(lecture);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/lectures/:id/questions', authMiddleware, (req, res) => {
   try {
     const questions = db.prepare(`
@@ -1377,6 +1403,181 @@ app.patch('/api/lead/team/:id/note', authMiddleware, requireRole('lead'), (req, 
   }
 });
 
+// ============== PRESENCE ("работают сейчас") ==============
+
+const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+function upsertPresence(userId, { work_start, work_end, work_days, timezone, status, birthday }) {
+  let days = '1,2,3,4,5';
+  if (work_days) {
+    const parsed = String(work_days).split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 7);
+    if (parsed.length) days = parsed.join(',');
+  }
+  db.prepare(`
+    INSERT INTO user_profiles (user_id, work_start, work_end, work_days, timezone, status, birthday)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      work_start = excluded.work_start,
+      work_end   = excluded.work_end,
+      work_days  = excluded.work_days,
+      timezone   = excluded.timezone,
+      status     = excluded.status,
+      birthday   = excluded.birthday
+  `).run(userId, work_start || null, work_end || null, days, timezone || 'Europe/Moscow', status || 'active', birthday || null);
+}
+
+function validatePresenceBody(body) {
+  const { work_start, work_end, status, birthday } = body;
+  if (status !== undefined && status !== null && !STATUS_VALUES.includes(status)) {
+    return 'Некорректный статус';
+  }
+  if (work_start !== undefined && work_start !== null && !TIME_RE.test(work_start)) {
+    return 'Некорректное время начала (формат ЧЧ:ММ)';
+  }
+  if (work_end !== undefined && work_end !== null && !TIME_RE.test(work_end)) {
+    return 'Некорректное время окончания (формат ЧЧ:ММ)';
+  }
+  if (birthday !== undefined && birthday !== null && !BIRTHDAY_RE.test(birthday)) {
+    return 'Некорректная дата рождения (формат ММ-ДД)';
+  }
+  return null;
+}
+
+// Visible to every authenticated role, not just leads — "who's around right
+// now" is useful to a tester too, not just management.
+app.get('/api/team/presence', authMiddleware, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT u.id, u.name, u.avatar_initials,
+        p.gender, p.status, p.work_start, p.work_end, p.work_days, p.timezone, p.birthday
+      FROM users u
+      LEFT JOIN user_profiles p ON p.user_id = u.id
+      WHERE u.archived_at IS NULL
+      ORDER BY u.name
+    `).all();
+
+    // Small table, whole team at most — cheaper and simpler to filter
+    // "currently active" leave in JS (per-user timezone) than to express a
+    // per-row-timezone-aware date comparison in SQL.
+    const leaves = db.prepare('SELECT * FROM leave_periods').all();
+    const leavesByUser = {};
+    for (const l of leaves) (leavesByUser[l.user_id] = leavesByUser[l.user_id] || []).push(l);
+
+    const result = rows.map((u) => {
+      const tz = u.timezone || 'Europe/Moscow';
+      const today = todayInTimezone(tz);
+      const currentLeave = (leavesByUser[u.id] || []).find(
+        (l) => l.start_date <= today && (!l.end_date || l.end_date >= today)
+      ) || null;
+      return {
+        id: u.id,
+        name: u.name,
+        avatar_initials: u.avatar_initials,
+        gender: u.gender || null,
+        status: u.status || 'active',
+        workStart: u.work_start || null,
+        workEnd: u.work_end || null,
+        workDays: u.work_days || '1,2,3,4,5',
+        timezone: tz,
+        birthday: u.birthday || null,
+        isWorkingNow: computeIsWorkingNow({ work_start: u.work_start, work_end: u.work_end, work_days: u.work_days, timezone: tz }),
+        currentLeave: currentLeave ? { id: currentLeave.id, type: currentLeave.type, end_date: currentLeave.end_date, note: currentLeave.note } : null,
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/me/presence', authMiddleware, (req, res) => {
+  try {
+    const error = validatePresenceBody(req.body);
+    if (error) return res.status(400).json({ error });
+    upsertPresence(req.user.id, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/me/leave', authMiddleware, (req, res) => {
+  try {
+    const { type, start_date, end_date, note } = req.body;
+    if (!LEAVE_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип отсутствия' });
+    if (!DATE_RE.test(start_date || '')) return res.status(400).json({ error: 'Некорректная дата начала' });
+    if (end_date && !DATE_RE.test(end_date)) return res.status(400).json({ error: 'Некорректная дата окончания' });
+    const id = db.prepare(
+      'INSERT INTO leave_periods (user_id, type, start_date, end_date, note, created_by) VALUES (?,?,?,?,?,?)'
+    ).run(req.user.id, type, start_date, end_date || null, String(note || '').slice(0, 300), req.user.id).lastInsertRowid;
+    res.status(201).json({ id });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/me/leave/:id', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM leave_periods WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Нет доступа' });
+    db.prepare('DELETE FROM leave_periods WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/lead/team/:id/presence', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const target = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    const error = validatePresenceBody(req.body);
+    if (error) return res.status(400).json({ error });
+    upsertPresence(targetId, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/lead/team/:id/leave', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const target = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    const { type, start_date, end_date, note } = req.body;
+    if (!LEAVE_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип отсутствия' });
+    if (!DATE_RE.test(start_date || '')) return res.status(400).json({ error: 'Некорректная дата начала' });
+    if (end_date && !DATE_RE.test(end_date)) return res.status(400).json({ error: 'Некорректная дата окончания' });
+    const id = db.prepare(
+      'INSERT INTO leave_periods (user_id, type, start_date, end_date, note, created_by) VALUES (?,?,?,?,?,?)'
+    ).run(targetId, type, start_date, end_date || null, String(note || '').slice(0, 300), req.user.id).lastInsertRowid;
+    res.status(201).json({ id });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/lead/team/:id/leave/:leaveId', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM leave_periods WHERE id = ? AND user_id = ?').get(req.params.leaveId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    db.prepare('DELETE FROM leave_periods WHERE id = ?').run(req.params.leaveId);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Baseline-survey column name -> the exact lectures.skill_area string it
 // corresponds to (see server/db/seed.js) — needed to join a tester's
 // self-rated starting point against their actual measured quiz performance
@@ -1563,6 +1764,77 @@ app.get('/api/me/activity', authMiddleware, (req, res) => {
       LIMIT ?
     `).all(req.user.id, PAGE_SIZE);
     res.json({ rows });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Team-wide "what's new" feed — deliberately separate from activity_log
+// (see team_events' schema.js comment). Visible to every role, unlike
+// /api/lead/activity which is a private audit trail. Birthdays and
+// leave-starts/ends aren't stored rows — they're computed here, live,
+// against each user's own timezone, since there's no cron job in this
+// codebase to stamp them at the right moment.
+app.get('/api/team/news', authMiddleware, (req, res) => {
+  try {
+    const stored = db.prepare(`
+      SELECT te.id, te.event_type, te.ref_id, te.created_at, u.id as user_id, u.name, u.avatar_initials,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+        g.title as guide_title, cc.title as course_title
+      FROM team_events te
+      JOIN users u ON u.id = te.user_id
+      LEFT JOIN guides g ON te.ref_id = g.id AND te.event_type = 'guide_published'
+      LEFT JOIN custom_courses cc ON te.ref_id = cc.id AND te.event_type = 'course_published'
+      ORDER BY te.created_at DESC
+      LIMIT 30
+    `).all();
+
+    const activeUsers = db.prepare(`
+      SELECT u.id, u.name, u.avatar_initials,
+        p.gender, p.birthday, p.timezone
+      FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+      WHERE u.archived_at IS NULL
+    `).all();
+
+    const virtual = [];
+    const nowIso = new Date().toISOString();
+    for (const u of activeUsers) {
+      if (u.birthday && u.birthday === todayMonthDayInTimezone(u.timezone)) {
+        virtual.push({
+          id: `birthday-${u.id}`, event_type: 'birthday', created_at: nowIso,
+          user_id: u.id, name: u.name, avatar_initials: u.avatar_initials, gender: u.gender || null,
+        });
+      }
+    }
+
+    const leaves = db.prepare(`
+      SELECT lp.*, u.name, u.avatar_initials,
+        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+        (SELECT timezone FROM user_profiles WHERE user_id = u.id) as timezone
+      FROM leave_periods lp JOIN users u ON u.id = lp.user_id
+      WHERE u.archived_at IS NULL
+    `).all();
+    for (const l of leaves) {
+      const today = todayInTimezone(l.timezone);
+      if (l.start_date === today) {
+        virtual.push({
+          id: `leave-start-${l.id}`, event_type: 'leave_started', created_at: nowIso,
+          user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
+          leave_type: l.type,
+        });
+      }
+      if (l.end_date === today) {
+        virtual.push({
+          id: `leave-end-${l.id}`, event_type: 'leave_ended', created_at: nowIso,
+          user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
+          leave_type: l.type,
+        });
+      }
+    }
+
+    const merged = [...virtual, ...stored].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(merged.slice(0, 30));
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -1962,6 +2234,44 @@ app.get('/api/checklists/task-types', authMiddleware, (req, res) => {
   }
 });
 
+// ============== LECTURES (admin) ==============
+// Video is always a pasted link (YouTube/Drive/VK/Яндекс.Диск) — Railway's
+// disk is ephemeral, so a real file upload would just be lost on the next
+// deploy. There is no lecture-creation UI in this app (lectures are only
+// ever seeded via db/seed.js) — this only lets a lead attach/replace the
+// video link on an existing lecture.
+const KNOWN_VIDEO_HOSTS = /youtube\.com|youtu\.be|drive\.google\.com|vk\.com|vkvideo\.ru|disk\.yandex\./i;
+
+app.get('/api/admin/lectures', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    res.json(db.prepare('SELECT id, title, skill_area, order_num, video_url FROM lectures ORDER BY order_num').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/admin/lectures/:id/video', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { video_url } = req.body;
+    if (video_url && !/^https:\/\//i.test(video_url)) {
+      return res.status(400).json({ error: 'Ссылка должна начинаться с https://' });
+    }
+    const lecture = db.prepare('SELECT id FROM lectures WHERE id = ?').get(req.params.id);
+    if (!lecture) return res.status(404).json({ error: 'Лекция не найдена' });
+    db.prepare('UPDATE lectures SET video_url = ? WHERE id = ?').run(video_url || null, lecture.id);
+    res.json({
+      ok: true,
+      warning: video_url && !KNOWN_VIDEO_HOSTS.test(video_url)
+        ? 'Ссылка сохранена, но её хост не из привычного списка (YouTube/Google Диск/VK/Яндекс.Диск) — проверь, что она открывается.'
+        : null,
+    });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/admin/task-types', authMiddleware, requireRole('admin'), (req, res) => {
   try {
     res.json(db.prepare('SELECT id, name FROM task_types ORDER BY name').all());
@@ -2326,23 +2636,25 @@ app.get('/api/custom-courses', authMiddleware, (req, res) => {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
-          (SELECT COUNT(DISTINCT ctt.user_id) FROM course_time_tracking ctt WHERE ctt.course_id = cc.id) as completedCount
+          (SELECT COUNT(DISTINCT ctt.user_id) FROM course_time_tracking ctt WHERE ctt.course_id = cc.id) as completedCount,
+          COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
         WHERE (cc.created_by = ? OR cc.is_published = 1) AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
-      `).all(req.user.id, req.user.id);
+      `).all(req.user.id, req.user.id, req.user.id);
       const totalTesters = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'tester' AND archived_at IS NULL").get().c;
       rows = rows.map(r => ({ ...r, totalTesters }));
     } else {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
-          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed
+          EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
+          COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
         WHERE cc.is_published = 1 AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
-      `).all(req.user.id);
+      `).all(req.user.id, req.user.id);
     }
     res.json(rows);
   } catch (err) {
@@ -2412,6 +2724,7 @@ app.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
     // course, not just an aggregate — "click into a course, see the people
     // and their progress" was previously nowhere in the app.
     let progressByTester;
+    let deadlineOverrides;
     if (req.user.role === 'lead' || req.user.role === 'admin') {
       const testers = db.prepare("SELECT id, name, avatar_initials FROM users WHERE role = 'tester' AND archived_at IS NULL ORDER BY name").all();
       const lessonProgressRows = lessonIds.length
@@ -2429,9 +2742,24 @@ app.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
         finished: !!finishedAtByUser[t.id],
         finishedAt: finishedAtByUser[t.id] || null,
       }));
+      deadlineOverrides = db.prepare(`
+        SELECT o.user_id, o.deadline_at, o.reason, u.name
+        FROM course_deadline_overrides o JOIN users u ON u.id = o.user_id
+        WHERE o.course_id = ?
+      `).all(course.id);
     }
 
-    res.json({ ...course, modules, ...(progressByTester ? { progressByTester } : {}) });
+    const effectiveDeadline = db.prepare(
+      'SELECT deadline_at FROM course_deadline_overrides WHERE course_id = ? AND user_id = ?'
+    ).get(course.id, req.user.id)?.deadline_at || course.deadline_at || null;
+
+    res.json({
+      ...course,
+      modules,
+      effectiveDeadline,
+      ...(progressByTester ? { progressByTester } : {}),
+      ...(deadlineOverrides ? { deadlineOverrides } : {}),
+    });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2621,7 +2949,7 @@ function updateCourseModules(courseId, modules) {
 // Create course (lead only)
 app.post('/api/custom-courses', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
-    const { title, description, tag, color, requirements, modules, is_published } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
 
     // insertCourseModules is many individual statements across modules,
@@ -2629,8 +2957,8 @@ app.post('/api/custom-courses', authMiddleware, requirePermission('manage_course
     // can't leave a course with, say, a module but no lessons in it.
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
-        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, created_by, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).run(
         title.trim(),
         description || '',
@@ -2638,11 +2966,17 @@ app.post('/api/custom-courses', authMiddleware, requirePermission('manage_course
         color || '#1D9E75',
         requirements || '',
         is_published ? 1 : 0,
+        deadline_at || null,
         req.user.id
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
     })();
+
+    if (is_published) {
+      db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
+        .run('course_published', req.user.id, courseId);
+    }
 
     res.json({ id: courseId });
   } catch (err) {
@@ -2658,20 +2992,22 @@ app.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_cou
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    const { title, description, tag, color, requirements, modules, is_published } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
+    const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
 
     // updateCourseModules is a diff (update/insert/delete across modules,
     // lessons, and quiz questions) — a crash partway through would leave
     // the course in a genuinely broken half-edited state, not just a
     // failed request, so this needs to be all-or-nothing.
     db.transaction(() => {
-      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
+      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, deadline_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
         title?.trim() || course.title,
         description ?? course.description,
         tag || course.tag,
         color || course.color,
         requirements ?? course.requirements,
-        is_published !== undefined ? (is_published ? 1 : 0) : course.is_published,
+        newPublishedFlag,
+        deadline_at !== undefined ? (deadline_at || null) : course.deadline_at,
         course.id
       );
 
@@ -2679,6 +3015,13 @@ app.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_cou
         updateCourseModules(course.id, modules);
       }
     })();
+
+    // Only the 0->1 transition is "news" — every other edit already
+    // mutates updated_at without needing its own feed item.
+    if (!course.is_published && newPublishedFlag) {
+      db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
+        .run('course_published', req.user.id, course.id);
+    }
 
     res.json({ ok: true });
   } catch (err) {
@@ -2715,8 +3058,52 @@ app.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermission('
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     const newStatus = course.is_published ? 0 : 1;
     db.prepare('UPDATE custom_courses SET is_published=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(newStatus, course.id);
+    if (newStatus === 1) {
+      db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
+        .run('course_published', req.user.id, course.id);
+    }
 
     res.json({ is_published: newStatus });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Per-user deadline override — e.g. someone was on vacation when a course's
+// default deadline passed. Upsert (one override per course+user, editing an
+// existing extension just replaces it) rather than a history of overrides.
+app.post('/api/custom-courses/:id/deadline-override', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+  try {
+    const course = db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Не найдено' });
+    const { user_id, deadline_at, reason } = req.body;
+    const target = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (!deadline_at) return res.status(400).json({ error: 'Укажите дедлайн' });
+
+    db.prepare(`
+      INSERT INTO course_deadline_overrides (course_id, user_id, deadline_at, reason, set_by)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(course_id, user_id) DO UPDATE SET
+        deadline_at = excluded.deadline_at,
+        reason      = excluded.reason,
+        set_by      = excluded.set_by,
+        set_at      = CURRENT_TIMESTAMP
+    `).run(course.id, user_id, deadline_at, String(reason || '').slice(0, 300), req.user.id);
+
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/custom-courses/:id/deadline-override/:userId', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+  try {
+    db.prepare('DELETE FROM course_deadline_overrides WHERE course_id = ? AND user_id = ?')
+      .run(req.params.id, req.params.userId);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -2869,6 +3256,7 @@ const TRASH_TABLES = {
   glossary_terms: { label: 'Термин глоссария', titleCol: 'term' },
   guides: { label: 'Гайд', titleCol: 'title' },
   custom_courses: { label: 'Курс', titleCol: 'title' },
+  suggestions: { label: 'Предложение', titleCol: 'text' },
 };
 
 app.get('/api/admin/trash', authMiddleware, requireRole('admin'), (req, res) => {
@@ -2906,6 +3294,9 @@ app.delete('/api/admin/trash/:type/:id', authMiddleware, requireRole('admin'), (
     if (!TRASH_TABLES[type]) return res.status(400).json({ error: 'Неизвестный тип' });
     if (type === 'custom_courses') {
       hardDeleteCourse(parseInt(id, 10));
+    } else if (type === 'suggestions') {
+      db.prepare('DELETE FROM suggestion_likes WHERE suggestion_id = ?').run(id);
+      db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
     } else {
       db.prepare(`DELETE FROM ${type} WHERE id = ?`).run(id);
     }
@@ -3426,6 +3817,9 @@ app.post('/api/guides', authMiddleware, requirePermission('manage_guides'), (req
     const result = db.prepare(
       'INSERT INTO guides (title, category, content, created_by) VALUES (?, ?, ?, ?)'
     ).run(title.trim(), (category || 'Общее').trim(), content || '', req.user.id);
+    // Guides have no draft/publish toggle — creation is publishing.
+    db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
+      .run('guide_published', req.user.id, result.lastInsertRowid);
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -3451,6 +3845,105 @@ app.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (
 app.delete('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (req, res) => {
   try {
     db.prepare('UPDATE guides SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== SUGGESTIONS / IDEAS BOARD ==============
+// The real author (user_id) is always stored — is_anonymous only controls
+// what OTHER testers see (below); leads/admins always get the real name
+// plus the flag itself, so they know who to credit without accidentally
+// outing an anonymous poster to the rest of the team.
+const SUGGESTION_TYPES = ['idea', 'suggestion', 'complaint'];
+const SUGGESTION_STATUSES = ['new', 'reviewed', 'implemented', 'declined'];
+const MAX_SUGGESTION_LENGTH = 2000;
+
+app.get('/api/suggestions', authMiddleware, (req, res) => {
+  try {
+    const isLead = req.user.role === 'lead' || req.user.role === 'admin';
+    const rows = db.prepare(`
+      SELECT s.id, s.type, s.text, s.status, s.created_at, s.is_anonymous,
+        ${isLead ? 's.user_id' : '(CASE WHEN s.is_anonymous THEN NULL ELSE s.user_id END)'} as user_id,
+        ${isLead ? 'u.name' : '(CASE WHEN s.is_anonymous THEN NULL ELSE u.name END)'} as author_name,
+        (SELECT COUNT(*) FROM suggestion_likes WHERE suggestion_id = s.id) as likeCount,
+        EXISTS(SELECT 1 FROM suggestion_likes WHERE suggestion_id = s.id AND user_id = ?) as likedByMe
+      FROM suggestions s JOIN users u ON u.id = s.user_id
+      WHERE s.deleted_at IS NULL
+      ORDER BY s.created_at DESC
+    `).all(req.user.id);
+    res.json(rows.map(r => ({ ...r, is_anonymous: !!r.is_anonymous, likedByMe: !!r.likedByMe })));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/suggestions', authMiddleware, (req, res) => {
+  try {
+    const { type, text, is_anonymous } = req.body;
+    if (!SUGGESTION_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип' });
+    if (!text?.trim()) return res.status(400).json({ error: 'Напиши текст предложения' });
+    if (text.trim().length > MAX_SUGGESTION_LENGTH) {
+      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SUGGESTION_LENGTH})` });
+    }
+
+    const id = db.prepare(
+      'INSERT INTO suggestions (user_id, type, text, is_anonymous) VALUES (?, ?, ?, ?)'
+    ).run(req.user.id, type, text.trim(), is_anonymous ? 1 : 0).lastInsertRowid;
+
+    // Fan-out — notifyUser is single-target only, so a small loop over every
+    // lead/admin is the natural place for this; no telegram.js change needed.
+    const leads = db.prepare("SELECT * FROM users WHERE role IN ('lead','admin') AND archived_at IS NULL").all();
+    const preview = text.trim().slice(0, 200);
+    for (const lead of leads) {
+      notifyUser(lead, 'Новая идея от команды', `Поступило новое предложение (${type}): "${preview}"`);
+    }
+
+    res.status(201).json({ id });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/suggestions/:id/like', authMiddleware, (req, res) => {
+  try {
+    db.prepare('INSERT OR IGNORE INTO suggestion_likes (suggestion_id, user_id) VALUES (?, ?)').run(req.params.id, req.user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/suggestions/:id/like', authMiddleware, (req, res) => {
+  try {
+    db.prepare('DELETE FROM suggestion_likes WHERE suggestion_id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/suggestions/:id/status', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!SUGGESTION_STATUSES.includes(status)) return res.status(400).json({ error: 'Некорректный статус' });
+    db.prepare('UPDATE suggestions SET status = ? WHERE id = ?').run(status, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/suggestions/:id', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    db.prepare('UPDATE suggestions SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

@@ -394,6 +394,119 @@ export function initDb() {
     db.exec("ALTER TABLE user_profiles ADD COLUMN gender TEXT DEFAULT NULL");
   }
 
+  // Presence: working hours, leave, and per-user calendar info. Powers the
+  // "работают сейчас" team block and the news feed's birthday/vacation
+  // items. All additive/nullable — accounts that never touch this see no
+  // change in behavior.
+  if (!userProfileCols.includes('birthday')) {
+    db.exec(`
+      ALTER TABLE user_profiles ADD COLUMN birthday TEXT DEFAULT NULL;
+      ALTER TABLE user_profiles ADD COLUMN timezone TEXT DEFAULT 'Europe/Moscow';
+      ALTER TABLE user_profiles ADD COLUMN work_start TEXT DEFAULT NULL;
+      ALTER TABLE user_profiles ADD COLUMN work_end TEXT DEFAULT NULL;
+      ALTER TABLE user_profiles ADD COLUMN work_days TEXT DEFAULT '1,2,3,4,5';
+      ALTER TABLE user_profiles ADD COLUMN status TEXT DEFAULT 'active';
+    `);
+  }
+
+  // A real table rather than a status flag: lets a lead schedule a
+  // vacation ahead of time (not just flip a flag on the day it starts), and
+  // lets the news feed detect "starts/ends today" by comparing dates
+  // instead of relying on someone remembering to toggle a flag by hand.
+  // user_profiles.status only ever holds 'active'/'remote'/'other' —
+  // anything with a date range (vacation/sick/day off) lives here instead.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leave_periods (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'vacation',
+      start_date TEXT NOT NULL,
+      end_date TEXT,
+      note TEXT DEFAULT '',
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+  `);
+
+  // Team news feed — deliberately separate from activity_log. That table's
+  // lecture_id target column and formatActivityAction parser are built
+  // specifically around lecture actions (login/password/badge/etc) and
+  // stay the private per-user audit trail; team_events is the public
+  // "what's new" feed. Narrow on purpose (three actual event types) —
+  // birthdays/leave starting-or-ending are computed live at read time from
+  // user_profiles.birthday / leave_periods instead of stored here (see
+  // GET /api/team/news), since there's no cron job in this codebase to
+  // stamp them at the right moment.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS team_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      ref_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
+  // Course deadlines (Жукадеми / custom_courses only — the older seeded
+  // lecture track has no per-course structure to hang a deadline off).
+  const customCourseColsForDeadline = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
+  if (!customCourseColsForDeadline.includes('deadline_at')) {
+    db.exec("ALTER TABLE custom_courses ADD COLUMN deadline_at DATETIME DEFAULT NULL");
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_deadline_overrides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      deadline_at DATETIME NOT NULL,
+      reason TEXT DEFAULT '',
+      set_by INTEGER NOT NULL,
+      set_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (course_id) REFERENCES custom_courses(id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (set_by) REFERENCES users(id),
+      UNIQUE(course_id, user_id)
+    );
+  `);
+
+  // Video links on lectures — a pasted URL (YouTube/Drive/VK/Яндекс.Диск),
+  // never a raw file upload: Railway's disk is ephemeral and would lose an
+  // uploaded video on the next deploy.
+  const lectureColsForVideo = db.prepare("PRAGMA table_info(lectures)").all().map(c => c.name);
+  if (!lectureColsForVideo.includes('video_url')) {
+    db.exec("ALTER TABLE lectures ADD COLUMN video_url TEXT DEFAULT NULL");
+  }
+
+  // Suggestion / ideas board. The real author (user_id) is always stored —
+  // is_anonymous only controls what OTHER testers see (GET /api/suggestions
+  // nulls the author out for them); leads/admins always see the real name
+  // plus the flag itself, so they know who to credit without accidentally
+  // outing an anonymous poster to the rest of the team.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'idea',
+      text TEXT NOT NULL,
+      is_anonymous INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'new',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS suggestion_likes (
+      suggestion_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (suggestion_id, user_id),
+      FOREIGN KEY (suggestion_id) REFERENCES suggestions(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
   // Telegram linkage. SQLite's ALTER TABLE ADD COLUMN can't declare UNIQUE
   // inline, so uniqueness is enforced via a separate partial index instead
   // (partial so any number of NULLs — i.e. accounts with no Telegram linked
@@ -776,6 +889,12 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_guides_category ON guides(category);
     CREATE INDEX IF NOT EXISTS idx_bonus_awards_user_id ON bonus_awards(user_id);
     CREATE INDEX IF NOT EXISTS idx_internal_score_events_user_id ON internal_score_events(user_id);
+    CREATE INDEX IF NOT EXISTS idx_leave_periods_user_id ON leave_periods(user_id);
+    CREATE INDEX IF NOT EXISTS idx_leave_periods_start_date ON leave_periods(start_date);
+    CREATE INDEX IF NOT EXISTS idx_team_events_created_at ON team_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_course_deadline_overrides_course_id ON course_deadline_overrides(course_id);
+    CREATE INDEX IF NOT EXISTS idx_suggestions_created_at ON suggestions(created_at);
+    CREATE INDEX IF NOT EXISTS idx_suggestion_likes_suggestion_id ON suggestion_likes(suggestion_id);
   `);
 }
 

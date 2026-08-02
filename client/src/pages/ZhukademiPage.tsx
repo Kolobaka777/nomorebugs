@@ -20,6 +20,14 @@ function isNew(createdAt: string, viewed: boolean): boolean {
   return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
+function deadlineChip(deadline: string | null | undefined): { label: string; color: string } | null {
+  if (!deadline) return null;
+  const diffDays = Math.ceil((parseServerDate(deadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (diffDays < 0) return { label: 'Дедлайн прошёл', color: '#e05252' };
+  if (diffDays <= 3) return { label: `Дедлайн через ${diffDays} дн.`, color: '#EF9F27' };
+  return { label: `До ${parseServerDate(deadline).toLocaleDateString('ru-RU')}`, color: 'rgba(232,232,208,0.5)' };
+}
+
 interface ZhukademiPageProps {
   user: any;
   onLogout: () => void;
@@ -499,6 +507,14 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                             NEW
                           </span>
                         )}
+                        {(() => {
+                          const chip = deadlineChip(cc.effectiveDeadline);
+                          return chip ? (
+                            <span className="text-xs font-sans px-2 py-0.5 rounded" style={{ background: `${chip.color}20`, color: chip.color }}>
+                              {chip.label}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <h3 className="text-pixel font-sans font-semibold text-sm leading-snug mb-3">
                         {cc.title}
