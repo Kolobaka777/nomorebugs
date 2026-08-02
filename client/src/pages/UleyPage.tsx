@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import { leadApi, permissionsApi, adminApi, presenceApi } from '../api';
-import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, getLevel, PresenceEntry, LeaveType, PresenceStatus } from '../types';
+import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, getLevel, PresenceEntry, LeaveType } from '../types';
 import PixelIcon, { IconName } from '../components/PixelIcon';
 import { parseServerDate } from '../utils/date';
 import { useEscapeKey } from '../utils/a11y';
 import { showApiError } from '../utils/toast';
 import { formatActivityAction } from '../utils/activity';
+import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 
 interface UleyPageProps {
   user: any;
@@ -114,7 +116,6 @@ function AwardBonusModal({
 }
 
 const WEEKDAY_LABELS: [string, string][] = [['1', 'Пн'], ['2', 'Вт'], ['3', 'Ср'], ['4', 'Чт'], ['5', 'Пт'], ['6', 'Сб'], ['7', 'Вс']];
-const STATUS_LABELS: Record<string, string> = { active: 'На месте', remote: 'Удалённо', other: 'Другое' };
 const LEAVE_LABELS: Record<LeaveType, string> = { vacation: 'Отпуск', sick: 'Больничный', day_off: 'Отгул', other: 'Другое' };
 
 // Lets a lead configure a tester's working hours/status and schedule leave
@@ -136,7 +137,6 @@ function PresenceEditModal({
   const [workEnd, setWorkEnd] = useState(entry?.workEnd || '');
   const [days, setDays] = useState<Set<string>>(new Set((entry?.workDays || '1,2,3,4,5').split(',')));
   const [timezone, setTimezone] = useState(entry?.timezone || 'Europe/Moscow');
-  const [status, setStatus] = useState(entry?.status || 'active');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -161,7 +161,6 @@ function PresenceEditModal({
         work_end: workEnd || null,
         work_days: Array.from(days).join(',') || '1,2,3,4,5',
         timezone,
-        status,
       });
       onSaved();
     } catch (err: any) {
@@ -215,11 +214,17 @@ function PresenceEditModal({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-pixel/60 text-xs font-sans mb-1">Начало</label>
-              <input type="time" value={workStart} onChange={e => setWorkStart(e.target.value)} className="pixel-input" />
+              <select value={workStart} onChange={e => setWorkStart(e.target.value)} className="pixel-input">
+                <option value="">—</option>
+                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-pixel/60 text-xs font-sans mb-1">Конец</label>
-              <input type="time" value={workEnd} onChange={e => setWorkEnd(e.target.value)} className="pixel-input" />
+              <select value={workEnd} onChange={e => setWorkEnd(e.target.value)} className="pixel-input">
+                <option value="">—</option>
+                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
             </div>
           </div>
 
@@ -241,23 +246,9 @@ function PresenceEditModal({
 
           <div>
             <label className="block text-pixel/60 text-xs font-sans mb-1">Часовой пояс</label>
-            <input value={timezone} onChange={e => setTimezone(e.target.value)} className="pixel-input" placeholder="Europe/Moscow" />
-          </div>
-
-          <div>
-            <label className="block text-pixel/60 text-xs font-sans mb-1">Статус</label>
-            <div className="flex gap-2">
-              {(Object.keys(STATUS_LABELS) as PresenceStatus[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className="flex-1 py-2 rounded text-xs font-sans cursor-pointer"
-                  style={{ background: status === s ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)', color: status === s ? '#1D9E75' : 'rgba(232,232,208,0.5)' }}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
+            <select value={timezone} onChange={e => setTimezone(e.target.value)} className="pixel-input">
+              {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+            </select>
           </div>
 
           {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
@@ -326,10 +317,14 @@ const PERMISSION_LABELS: Record<string, string> = {
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
 
 export default function UleyPage({ user, onLogout }: UleyPageProps) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('team');
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [skillChart, setSkillChart] = useState<SKillChart[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityOffset, setActivityOffset] = useState(0);
+  const [activityHasMore, setActivityHasMore] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [lectureStats, setLectureStats] = useState<LectureStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -394,6 +389,20 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     }
   }, [tab]);
 
+  const loadMoreActivity = async () => {
+    setActivityLoading(true);
+    try {
+      const res = await leadApi.getActivity({ offset: activityOffset });
+      setActivity(prev => [...prev, ...res.data.rows]);
+      setActivityHasMore(res.data.hasMore);
+      setActivityOffset(o => o + res.data.rows.length);
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить ещё активность');
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   const loadArchived = async () => {
     try {
       const res = await leadApi.getArchivedTesters();
@@ -440,12 +449,14 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       const [teamRes, chartRes, activityRes, lectureStatsRes] = await Promise.all([
         leadApi.getTeam(),
         leadApi.getBeforeAfter(),
-        leadApi.getActivity(),
+        leadApi.getActivity({ offset: 0 }),
         leadApi.getLectureStats(),
       ]);
       setTeam(teamRes.data);
       setSkillChart(chartRes.data);
       setActivity(activityRes.data.rows);
+      setActivityHasMore(activityRes.data.hasMore);
+      setActivityOffset(activityRes.data.rows.length);
       setLectureStats(lectureStatsRes.data);
     } catch (err: any) {
       // Used to just console.error and leave every stat at its zeroed
@@ -713,7 +724,12 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                         {member.avatar_initials}
                       </div>
                       <div>
-                        <p className="text-pixel font-sans font-semibold text-sm">{member.name}</p>
+                        <p
+                          className="text-pixel font-sans font-semibold text-sm cursor-pointer hover:underline"
+                          onClick={() => navigate(`/profile/${member.id}`)}
+                        >
+                          {member.name}
+                        </p>
                         <p className="text-pixel/60 text-xs font-sans">
                           <span className="flex items-center gap-1"><PixelIcon name={lvl.icon as IconName} size={12} color="currentColor" />{lvl.name}</span>
                         </p>
@@ -1141,7 +1157,6 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
               >
                 <span className="flex items-center gap-2"><PixelIcon name="bug" size={12} color="currentColor" />Жучиная нора</span>
               </h2>
-              <span className="text-pixel/55 text-xs font-sans">последние 20 событий</span>
             </div>
             <div className="space-y-2">
               {(Array.isArray(activity) ? activity : []).length === 0 ? (
@@ -1180,6 +1195,13 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
                 ))
               )}
             </div>
+            {activityHasMore && (
+              <div className="text-center mt-4">
+                <button onClick={loadMoreActivity} disabled={activityLoading} className="btn-secondary text-xs px-4 py-2 disabled:opacity-50">
+                  {activityLoading ? '...' : 'Показать ещё'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

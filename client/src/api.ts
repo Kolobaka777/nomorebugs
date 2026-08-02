@@ -166,16 +166,26 @@ export const presenceApi = {
 };
 
 export const teamApi = {
-  getNews: () => api.get('/team/news'),
+  getNews: (params?: { offset?: number }) => api.get('/team/news', { params }),
+};
+
+export const usersApi = {
+  getProfile: (id: number) => api.get(`/users/${id}/profile`),
 };
 
 export const suggestionsApi = {
   list: () => api.get('/suggestions'),
   create: (data: { type: string; text: string; is_anonymous: boolean }) => api.post('/suggestions', data),
+  update: (id: number, data: { type: string; text: string; is_anonymous: boolean }) => api.put(`/suggestions/${id}`, data),
   like: (id: number) => api.post(`/suggestions/${id}/like`),
   unlike: (id: number) => api.delete(`/suggestions/${id}/like`),
   setStatus: (id: number, status: string) => api.patch(`/suggestions/${id}/status`, { status }),
+  setFolder: (id: number, folder_id: number | null) => api.patch(`/suggestions/${id}/folder`, { folder_id }),
   remove: (id: number) => api.delete(`/suggestions/${id}`),
+
+  getFolders: () => api.get('/lead/suggestion-folders'),
+  createFolder: (name: string) => api.post('/lead/suggestion-folders', { name }),
+  removeFolder: (id: number) => api.delete(`/lead/suggestion-folders/${id}`),
 };
 
 export const rewardsApi = {

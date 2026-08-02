@@ -233,7 +233,7 @@ export interface PresenceEntry {
 }
 
 // ===== TEAM NEWS FEED =====
-export type TeamEventType = 'member_joined' | 'guide_published' | 'course_published' | 'birthday' | 'leave_started' | 'leave_ended';
+export type TeamEventType = 'member_joined' | 'guide_published' | 'course_published' | 'lecture_video_added' | 'birthday' | 'leave_started' | 'leave_ended';
 
 export interface TeamNewsItem {
   id: number | string;
@@ -245,6 +245,7 @@ export interface TeamNewsItem {
   gender: Gender;
   guide_title?: string | null;
   course_title?: string | null;
+  lecture_title?: string | null;
   leave_type?: LeaveType;
 }
 
@@ -263,6 +264,30 @@ export interface Suggestion {
   author_name: string | null;
   likeCount: number;
   likedByMe: boolean;
+  // Lead-only — never present in a tester's view of the list.
+  folder_id?: number | null;
+  folder_name?: string | null;
+}
+
+export interface PublicProfileHidden {
+  id: number;
+  name: string;
+  avatar_initials: string;
+  avatar_id: string;
+  avatar_frame: string;
+  custom_avatar: string | null;
+  is_public: false;
+}
+
+export type PublicProfile =
+  | (FullProfile & { workStart: string | null; workEnd: string | null; workDays: string; timezone: string })
+  | PublicProfileHidden;
+
+export interface SuggestionFolder {
+  id: number;
+  name: string;
+  created_by: number;
+  created_at: string;
 }
 
 // ===== COURSE DEADLINE OVERRIDES =====

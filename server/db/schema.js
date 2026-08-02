@@ -507,6 +507,26 @@ export function initDb() {
     );
   `);
 
+  // Lead-only private organization for the suggestion board — e.g.
+  // "Доработка сервисов", "По срочности". Deliberately never exposed to
+  // testers (GET /api/suggestions only selects folder_id in the lead
+  // branch of that query) — this is the lead's own sorting, not a public
+  // taxonomy, which is why it's a separate lead-managed table rather than
+  // author-settable tags.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS suggestion_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+  `);
+  const suggestionCols = db.prepare("PRAGMA table_info(suggestions)").all().map(c => c.name);
+  if (!suggestionCols.includes('folder_id')) {
+    db.exec("ALTER TABLE suggestions ADD COLUMN folder_id INTEGER DEFAULT NULL REFERENCES suggestion_folders(id)");
+  }
+
   // Telegram linkage. SQLite's ALTER TABLE ADD COLUMN can't declare UNIQUE
   // inline, so uniqueness is enforced via a separate partial index instead
   // (partial so any number of NULLs — i.e. accounts with no Telegram linked

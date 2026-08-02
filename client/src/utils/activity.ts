@@ -112,6 +112,7 @@ export function formatTeamEvent(item: TeamNewsItem): string {
     case 'member_joined': return `${item.name} ${verb('присоединился', 'присоединилась', g)} к команде`;
     case 'guide_published': return `${item.name} ${verb('опубликовал', 'опубликовала', g)} гайд${item.guide_title ? ` «${item.guide_title}»` : ''}`;
     case 'course_published': return `${item.name} ${verb('опубликовал', 'опубликовала', g)} курс${item.course_title ? ` «${item.course_title}»` : ''}`;
+    case 'lecture_video_added': return `Добавлено видео к лекции${item.lecture_title ? ` «${item.lecture_title}»` : ''}`;
     case 'birthday': return `У ${item.name} сегодня день рождения 🎂`;
     case 'leave_started': return `${item.name} ${verb('ушёл', 'ушла', g)} в ${LEAVE_TYPE_LABELS[item.leave_type || 'other']}`;
     case 'leave_ended': return `${item.name} ${verb('вернулся', 'вернулась', g)} из отпуска`;

@@ -36,6 +36,8 @@ const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
 const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage'));
+const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'));
+const NewsPage = lazy(() => import('./pages/NewsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 interface AuthState {
@@ -185,6 +187,8 @@ function App() {
           <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} />
           <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />
           <Route path="/suggestions"             element={<SuggestionsPage {...sharedProps} />} />
+          <Route path="/profile/:id"             element={<PublicProfilePage {...sharedProps} />} />
+          <Route path="/news"                    element={<NewsPage {...sharedProps} />} />
           <Route path="/help"                    element={<HelpPage {...sharedProps} />} />
 
           {/* ===== TESTER ROUTES ===== */}

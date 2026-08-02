@@ -28,6 +28,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
 
   const testerLinks = [
     { path: '/', label: 'Главная', tourId: 'nav-home' },
+    { path: '/news', label: 'Новости', tourId: 'nav-news' },
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
@@ -38,6 +39,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
 
   const leadLinks = [
     { path: '/', label: 'Главная', tourId: 'nav-home' },
+    { path: '/news', label: 'Новости', tourId: 'nav-news' },
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
     { path: '/dashboard', label: 'Команда', tourId: 'nav-team' },
     { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },

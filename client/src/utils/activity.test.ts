@@ -69,6 +69,13 @@ describe('formatTeamEvent', () => {
       .toBe('Nazariy опубликовала курс «CSS Basics»');
   });
 
+  it('formats lecture_video_added without needing gender, embedding the lecture title', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'lecture_video_added', gender: null, lecture_title: 'HTML basics' }))
+      .toBe('Добавлено видео к лекции «HTML basics»');
+    expect(formatTeamEvent({ ...base, event_type: 'lecture_video_added', gender: null }))
+      .toBe('Добавлено видео к лекции');
+  });
+
   it('formats a birthday item without needing gender', () => {
     expect(formatTeamEvent({ ...base, event_type: 'birthday', gender: null })).toBe('У Nazariy сегодня день рождения 🎂');
   });

@@ -16,6 +16,7 @@ import PixelIcon, { IconName } from '../components/PixelIcon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
+import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
@@ -206,7 +207,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [myActivity, setMyActivity] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
   const [myPresence, setMyPresence] = useState<PresenceEntry | null>(null);
-  const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow', status: 'active', birthday: '' });
+  const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow', birthday: '' });
   const [savingPresence, setSavingPresence] = useState(false);
 
   const togglePresenceDay = (d: string) => setPresenceForm(f => {
@@ -223,7 +224,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         work_end: presenceForm.work_end || null,
         work_days: Array.from(presenceForm.days).join(',') || '1,2,3,4,5',
         timezone: presenceForm.timezone,
-        status: presenceForm.status,
         birthday: presenceForm.birthday || null,
       });
       const res = await presenceApi.getTeam();
@@ -263,7 +263,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             work_end: mine.workEnd || '',
             days: new Set((mine.workDays || '1,2,3,4,5').split(',')),
             timezone: mine.timezone || 'Europe/Moscow',
-            status: mine.status || 'active',
             birthday: mine.birthday || '',
           });
         }
@@ -613,22 +612,22 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
             <div>
               <label className="block text-pixel/50 text-[11px] font-sans mb-1">Начало</label>
-              <input type="time" value={presenceForm.work_start} onChange={e => setPresenceForm(f => ({ ...f, work_start: e.target.value }))} className="pixel-input" />
+              <select value={presenceForm.work_start} onChange={e => setPresenceForm(f => ({ ...f, work_start: e.target.value }))} className="pixel-input">
+                <option value="">—</option>
+                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-pixel/50 text-[11px] font-sans mb-1">Конец</label>
-              <input type="time" value={presenceForm.work_end} onChange={e => setPresenceForm(f => ({ ...f, work_end: e.target.value }))} className="pixel-input" />
+              <select value={presenceForm.work_end} onChange={e => setPresenceForm(f => ({ ...f, work_end: e.target.value }))} className="pixel-input">
+                <option value="">—</option>
+                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
             </div>
             <div className="col-span-2 sm:col-span-1">
               <label className="block text-pixel/50 text-[11px] font-sans mb-1">Часовой пояс</label>
-              <input value={presenceForm.timezone} onChange={e => setPresenceForm(f => ({ ...f, timezone: e.target.value }))} className="pixel-input" placeholder="Europe/Moscow" />
-            </div>
-            <div>
-              <label className="block text-pixel/50 text-[11px] font-sans mb-1">Статус</label>
-              <select value={presenceForm.status} onChange={e => setPresenceForm(f => ({ ...f, status: e.target.value }))} className="pixel-input">
-                <option value="active">На месте</option>
-                <option value="remote">Удалённо</option>
-                <option value="other">Другое</option>
+              <select value={presenceForm.timezone} onChange={e => setPresenceForm(f => ({ ...f, timezone: e.target.value }))} className="pixel-input">
+                {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
               </select>
             </div>
             <div>

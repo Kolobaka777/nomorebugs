@@ -1778,63 +1778,74 @@ app.get('/api/me/activity', authMiddleware, (req, res) => {
 // codebase to stamp them at the right moment.
 app.get('/api/team/news', authMiddleware, (req, res) => {
   try {
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    const PAGE_SIZE = 30;
+
     const stored = db.prepare(`
       SELECT te.id, te.event_type, te.ref_id, te.created_at, u.id as user_id, u.name, u.avatar_initials,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
-        g.title as guide_title, cc.title as course_title
+        g.title as guide_title, cc.title as course_title, l.title as lecture_title
       FROM team_events te
       JOIN users u ON u.id = te.user_id
       LEFT JOIN guides g ON te.ref_id = g.id AND te.event_type = 'guide_published'
       LEFT JOIN custom_courses cc ON te.ref_id = cc.id AND te.event_type = 'course_published'
+      LEFT JOIN lectures l ON te.ref_id = l.id AND te.event_type = 'lecture_video_added'
       ORDER BY te.created_at DESC
-      LIMIT 30
-    `).all();
+      LIMIT ? OFFSET ?
+    `).all(PAGE_SIZE + 1, offset);
+    const hasMore = stored.length > PAGE_SIZE;
+    const storedPage = stored.slice(0, PAGE_SIZE);
 
-    const activeUsers = db.prepare(`
-      SELECT u.id, u.name, u.avatar_initials,
-        p.gender, p.birthday, p.timezone
-      FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
-      WHERE u.archived_at IS NULL
-    `).all();
-
+    // Birthdays/leave are computed "as of today", not stored history — only
+    // meaningful on the first page; paging further back into stored events
+    // has no equivalent "yesterday's birthdays" concept to show.
     const virtual = [];
-    const nowIso = new Date().toISOString();
-    for (const u of activeUsers) {
-      if (u.birthday && u.birthday === todayMonthDayInTimezone(u.timezone)) {
-        virtual.push({
-          id: `birthday-${u.id}`, event_type: 'birthday', created_at: nowIso,
-          user_id: u.id, name: u.name, avatar_initials: u.avatar_initials, gender: u.gender || null,
-        });
+    if (offset === 0) {
+      const activeUsers = db.prepare(`
+        SELECT u.id, u.name, u.avatar_initials,
+          p.gender, p.birthday, p.timezone
+        FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+        WHERE u.archived_at IS NULL
+      `).all();
+
+      const nowIso = new Date().toISOString();
+      for (const u of activeUsers) {
+        if (u.birthday && u.birthday === todayMonthDayInTimezone(u.timezone)) {
+          virtual.push({
+            id: `birthday-${u.id}`, event_type: 'birthday', created_at: nowIso,
+            user_id: u.id, name: u.name, avatar_initials: u.avatar_initials, gender: u.gender || null,
+          });
+        }
+      }
+
+      const leaves = db.prepare(`
+        SELECT lp.*, u.name, u.avatar_initials,
+          (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+          (SELECT timezone FROM user_profiles WHERE user_id = u.id) as timezone
+        FROM leave_periods lp JOIN users u ON u.id = lp.user_id
+        WHERE u.archived_at IS NULL
+      `).all();
+      for (const l of leaves) {
+        const today = todayInTimezone(l.timezone);
+        if (l.start_date === today) {
+          virtual.push({
+            id: `leave-start-${l.id}`, event_type: 'leave_started', created_at: nowIso,
+            user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
+            leave_type: l.type,
+          });
+        }
+        if (l.end_date === today) {
+          virtual.push({
+            id: `leave-end-${l.id}`, event_type: 'leave_ended', created_at: nowIso,
+            user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
+            leave_type: l.type,
+          });
+        }
       }
     }
 
-    const leaves = db.prepare(`
-      SELECT lp.*, u.name, u.avatar_initials,
-        (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
-        (SELECT timezone FROM user_profiles WHERE user_id = u.id) as timezone
-      FROM leave_periods lp JOIN users u ON u.id = lp.user_id
-      WHERE u.archived_at IS NULL
-    `).all();
-    for (const l of leaves) {
-      const today = todayInTimezone(l.timezone);
-      if (l.start_date === today) {
-        virtual.push({
-          id: `leave-start-${l.id}`, event_type: 'leave_started', created_at: nowIso,
-          user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
-          leave_type: l.type,
-        });
-      }
-      if (l.end_date === today) {
-        virtual.push({
-          id: `leave-end-${l.id}`, event_type: 'leave_ended', created_at: nowIso,
-          user_id: l.user_id, name: l.name, avatar_initials: l.avatar_initials, gender: l.gender || null,
-          leave_type: l.type,
-        });
-      }
-    }
-
-    const merged = [...virtual, ...stored].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    res.json(merged.slice(0, 30));
+    const merged = [...virtual, ...storedPage].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json({ rows: merged, hasMore });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -1852,86 +1863,137 @@ const BADGE_UNLOCKS = {
   'Bug report quality':  { frame: 'crimescene',   bg: 'hive',    spec: 'Жук-репортёр' },
 };
 
+// Shared by the self-service profile route and the public-profile route
+// (GET /api/users/:id/profile, below) — same RPG-stats/cards/badges
+// computation regardless of whose profile is being built.
+function buildFullProfile(userId) {
+  const user = db.prepare('SELECT id, email, name, avatar_initials, created_at FROM users WHERE id = ?').get(userId);
+  if (!user) return null;
+  const profile = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) || {};
+
+  // RPG stats
+  const totalTests    = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ?').get(userId)?.c || 0;
+  const avgScore      = db.prepare('SELECT AVG(score) as a FROM test_results WHERE user_id = ?').get(userId)?.a || 0;
+  const highScore     = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 80').get(userId)?.c || 0;
+  const passedCount   = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 60').get(userId)?.c || 0;
+
+  const joined      = parseDbDate(user.created_at);
+  const weeksActive = Math.max(1, Math.round((Date.now() - joined.getTime()) / (1000 * 60 * 60 * 24 * 7)));
+
+  const stats = {
+    int:     Math.min(10, Math.round(avgScore / 10)),
+    per:     Math.min(10, Math.round((highScore / Math.max(1, totalTests)) * 10)),
+    spd:     Math.min(10, Math.round((passedCount / weeksActive) * 1.5)),
+    def:     Math.min(10, Math.round((passedCount / Math.max(1, totalTests)) * 10)),
+    bug_pwr: Math.min(20, totalTests * 2),
+  };
+
+  // Streak
+  const days = db.prepare(
+    'SELECT DATE(created_at) as day FROM activity_log WHERE user_id = ? GROUP BY day ORDER BY day DESC'
+  ).all(userId);
+  let streak = 0;
+  let expected = new Date().toISOString().split('T')[0];
+  for (const { day } of days) {
+    if (day === expected) {
+      streak++;
+      const d = new Date(expected); d.setDate(d.getDate() - 1);
+      expected = d.toISOString().split('T')[0];
+    } else break;
+  }
+
+  // Cards & badges
+  const cards  = db.prepare('SELECT * FROM user_cards WHERE user_id = ? ORDER BY earned_at DESC').all(userId);
+  const badges = db.prepare('SELECT * FROM user_badges WHERE user_id = ?').all(userId);
+
+  // Craftable: all cards for a skill_area but badge not yet crafted
+  const craftable = db.prepare(`
+    SELECT uc.skill_area, COUNT(*) as card_count,
+           (SELECT COUNT(*) FROM lectures WHERE skill_area = uc.skill_area) as total
+    FROM user_cards uc WHERE uc.user_id = ?
+    GROUP BY uc.skill_area
+  `).all(userId)
+    .filter(r => r.card_count >= r.total && !badges.find(b => b.badge_id === r.skill_area))
+    .map(r => r.skill_area);
+
+  // Favorite lecture detail
+  let favLecture = null;
+  if (profile.favorite_lecture_id) {
+    favLecture = db.prepare(`
+      SELECT l.id, l.title, l.skill_area, tr.score, tr.completed_at
+      FROM lectures l LEFT JOIN test_results tr ON tr.lecture_id = l.id AND tr.user_id = ?
+      WHERE l.id = ?
+    `).get(userId, profile.favorite_lecture_id);
+  }
+
+  return {
+    ...user,
+    nickname:           profile.nickname    || user.name,
+    status_quote:       profile.status_quote || '',
+    specialization:     profile.specialization || '',
+    info_box:           profile.info_box     || '',
+    snail_joke:         profile.snail_joke   || '',
+    avatar_id:          profile.avatar_id    || 'bug1',
+    avatar_frame:       profile.avatar_frame || 'default',
+    profile_bg:         profile.profile_bg   || 'default',
+    showcase_badges:    JSON.parse(profile.showcase_badges || '[]'),
+    gender:             profile.gender || null,
+    favorite_lecture_id: profile.favorite_lecture_id || null,
+    is_public:          profile.is_public !== undefined ? !!profile.is_public : true,
+    custom_avatar:      profile.custom_avatar || null,
+    bug_coins:          profile.bug_coins    || 0,
+    purchased_items:    JSON.parse(profile.purchased_items || '[]'),
+    stats, streak, cards, badges, craftable, favLecture,
+  };
+}
+
 app.get('/api/tester/profile-full', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.id;
+    res.json(buildFullProfile(req.user.id));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
-    const user = db.prepare('SELECT id, email, name, avatar_initials, created_at FROM users WHERE id = ?').get(userId);
-    const profile = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) || {};
+// Viewing a teammate's profile. Lead/admin always get the full view (they
+// already see everything else about a tester); anyone else gets it only if
+// the owner has left their profile public, otherwise just enough to
+// recognize the person (avatar + name) plus an explicit "hidden" flag — no
+// activity_log history is ever included here, public or not; that stays
+// lead-only (/api/lead/activity) or own-cabinet-only (/api/me/activity).
+app.get('/api/users/:id/profile', authMiddleware, (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const target = db.prepare('SELECT id, name, avatar_initials, archived_at FROM users WHERE id = ?').get(targetId);
+    if (!target || target.archived_at) return res.status(404).json({ error: 'Пользователь не найден' });
 
-    // RPG stats
-    const totalTests    = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ?').get(userId)?.c || 0;
-    const avgScore      = db.prepare('SELECT AVG(score) as a FROM test_results WHERE user_id = ?').get(userId)?.a || 0;
-    const highScore     = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 80').get(userId)?.c || 0;
-    const passedCount   = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 60').get(userId)?.c || 0;
+    const profileRow = db.prepare('SELECT is_public, avatar_id, avatar_frame, custom_avatar, work_start, work_end, work_days, timezone FROM user_profiles WHERE user_id = ?').get(targetId) || {};
+    const isPublic = profileRow.is_public !== undefined ? !!profileRow.is_public : true;
+    const isSelf = targetId === req.user.id;
+    const isLead = req.user.role === 'lead' || req.user.role === 'admin';
 
-    const joined      = parseDbDate(user.created_at);
-    const weeksActive = Math.max(1, Math.round((Date.now() - joined.getTime()) / (1000 * 60 * 60 * 24 * 7)));
-
-    const stats = {
-      int:     Math.min(10, Math.round(avgScore / 10)),
-      per:     Math.min(10, Math.round((highScore / Math.max(1, totalTests)) * 10)),
-      spd:     Math.min(10, Math.round((passedCount / weeksActive) * 1.5)),
-      def:     Math.min(10, Math.round((passedCount / Math.max(1, totalTests)) * 10)),
-      bug_pwr: Math.min(20, totalTests * 2),
-    };
-
-    // Streak
-    const days = db.prepare(
-      'SELECT DATE(created_at) as day FROM activity_log WHERE user_id = ? GROUP BY day ORDER BY day DESC'
-    ).all(userId);
-    let streak = 0;
-    let expected = new Date().toISOString().split('T')[0];
-    for (const { day } of days) {
-      if (day === expected) {
-        streak++;
-        const d = new Date(expected); d.setDate(d.getDate() - 1);
-        expected = d.toISOString().split('T')[0];
-      } else break;
+    if (!isSelf && !isLead && !isPublic) {
+      return res.json({
+        id: target.id,
+        name: target.name,
+        avatar_initials: target.avatar_initials,
+        avatar_id: profileRow.avatar_id || 'bug1',
+        avatar_frame: profileRow.avatar_frame || 'default',
+        custom_avatar: profileRow.custom_avatar || null,
+        is_public: false,
+      });
     }
 
-    // Cards & badges
-    const cards  = db.prepare('SELECT * FROM user_cards WHERE user_id = ? ORDER BY earned_at DESC').all(userId);
-    const badges = db.prepare('SELECT * FROM user_badges WHERE user_id = ?').all(userId);
-
-    // Craftable: all cards for a skill_area but badge not yet crafted
-    const craftable = db.prepare(`
-      SELECT uc.skill_area, COUNT(*) as card_count,
-             (SELECT COUNT(*) FROM lectures WHERE skill_area = uc.skill_area) as total
-      FROM user_cards uc WHERE uc.user_id = ?
-      GROUP BY uc.skill_area
-    `).all(userId)
-      .filter(r => r.card_count >= r.total && !badges.find(b => b.badge_id === r.skill_area))
-      .map(r => r.skill_area);
-
-    // Favorite lecture detail
-    let favLecture = null;
-    if (profile.favorite_lecture_id) {
-      favLecture = db.prepare(`
-        SELECT l.id, l.title, l.skill_area, tr.score, tr.completed_at
-        FROM lectures l LEFT JOIN test_results tr ON tr.lecture_id = l.id AND tr.user_id = ?
-        WHERE l.id = ?
-      `).get(userId, profile.favorite_lecture_id);
-    }
+    const full = buildFullProfile(targetId);
+    if (!full) return res.status(404).json({ error: 'Пользователь не найден' });
 
     res.json({
-      ...user,
-      nickname:           profile.nickname    || user.name,
-      status_quote:       profile.status_quote || '',
-      specialization:     profile.specialization || '',
-      info_box:           profile.info_box     || '',
-      snail_joke:         profile.snail_joke   || '',
-      avatar_id:          profile.avatar_id    || 'bug1',
-      avatar_frame:       profile.avatar_frame || 'default',
-      profile_bg:         profile.profile_bg   || 'default',
-      showcase_badges:    JSON.parse(profile.showcase_badges || '[]'),
-      gender:             profile.gender || null,
-      favorite_lecture_id: profile.favorite_lecture_id || null,
-      is_public:          profile.is_public !== undefined ? !!profile.is_public : true,
-      custom_avatar:      profile.custom_avatar || null,
-      bug_coins:          profile.bug_coins    || 0,
-      purchased_items:    JSON.parse(profile.purchased_items || '[]'),
-      stats, streak, cards, badges, craftable, favLecture,
+      ...full,
+      workStart: profileRow.work_start || null,
+      workEnd: profileRow.work_end || null,
+      workDays: profileRow.work_days || '1,2,3,4,5',
+      timezone: profileRow.timezone || 'Europe/Moscow',
     });
   } catch (err) {
     logError(err);
@@ -2257,9 +2319,17 @@ app.patch('/api/admin/lectures/:id/video', authMiddleware, requireRole('lead'), 
     if (video_url && !/^https:\/\//i.test(video_url)) {
       return res.status(400).json({ error: 'Ссылка должна начинаться с https://' });
     }
-    const lecture = db.prepare('SELECT id FROM lectures WHERE id = ?').get(req.params.id);
+    const lecture = db.prepare('SELECT id, video_url FROM lectures WHERE id = ?').get(req.params.id);
     if (!lecture) return res.status(404).json({ error: 'Лекция не найдена' });
     db.prepare('UPDATE lectures SET video_url = ? WHERE id = ?').run(video_url || null, lecture.id);
+
+    // News-worthy the first time a lecture becomes watchable — not on every
+    // re-save/replace of an already-set link, and not when clearing it.
+    if (video_url && !lecture.video_url) {
+      db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
+        .run('lecture_video_added', req.user.id, lecture.id);
+    }
+
     res.json({
       ok: true,
       warning: video_url && !KNOWN_VIDEO_HOSTS.test(video_url)
@@ -3860,6 +3930,9 @@ app.delete('/api/guides/:id', authMiddleware, requirePermission('manage_guides')
 const SUGGESTION_TYPES = ['idea', 'suggestion', 'complaint'];
 const SUGGESTION_STATUSES = ['new', 'reviewed', 'implemented', 'declined'];
 const MAX_SUGGESTION_LENGTH = 2000;
+// How long an author can still edit/delete their own post — after this,
+// only a lead can touch it (via status/delete, still not edit its text).
+const SUGGESTION_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 app.get('/api/suggestions', authMiddleware, (req, res) => {
   try {
@@ -3870,7 +3943,9 @@ app.get('/api/suggestions', authMiddleware, (req, res) => {
         ${isLead ? 'u.name' : '(CASE WHEN s.is_anonymous THEN NULL ELSE u.name END)'} as author_name,
         (SELECT COUNT(*) FROM suggestion_likes WHERE suggestion_id = s.id) as likeCount,
         EXISTS(SELECT 1 FROM suggestion_likes WHERE suggestion_id = s.id AND user_id = ?) as likedByMe
+        ${isLead ? ', s.folder_id, f.name as folder_name' : ''}
       FROM suggestions s JOIN users u ON u.id = s.user_id
+      ${isLead ? 'LEFT JOIN suggestion_folders f ON f.id = s.folder_id' : ''}
       WHERE s.deleted_at IS NULL
       ORDER BY s.created_at DESC
     `).all(req.user.id);
@@ -3909,6 +3984,33 @@ app.post('/api/suggestions', authMiddleware, (req, res) => {
   }
 });
 
+// Author-only, and only inside the 24h window — after that the post is
+// frozen except for lead triage (status/delete).
+app.put('/api/suggestions/:id', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM suggestions WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Можно редактировать только свои предложения' });
+    if (Date.now() - parseDbDate(row.created_at).getTime() > SUGGESTION_EDIT_WINDOW_MS) {
+      return res.status(403).json({ error: 'Редактирование доступно только в течение 24 часов после публикации' });
+    }
+
+    const { type, text, is_anonymous } = req.body;
+    if (!SUGGESTION_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип' });
+    if (!text?.trim()) return res.status(400).json({ error: 'Напиши текст предложения' });
+    if (text.trim().length > MAX_SUGGESTION_LENGTH) {
+      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SUGGESTION_LENGTH})` });
+    }
+
+    db.prepare('UPDATE suggestions SET type = ?, text = ?, is_anonymous = ? WHERE id = ?')
+      .run(type, text.trim(), is_anonymous ? 1 : 0, row.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/suggestions/:id/like', authMiddleware, (req, res) => {
   try {
     db.prepare('INSERT OR IGNORE INTO suggestion_likes (suggestion_id, user_id) VALUES (?, ?)').run(req.params.id, req.user.id);
@@ -3941,9 +4043,66 @@ app.patch('/api/suggestions/:id/status', authMiddleware, requireRole('lead'), (r
   }
 });
 
-app.delete('/api/suggestions/:id', authMiddleware, requireRole('lead'), (req, res) => {
+// Lead/admin can always delete (triage); the author can also delete their
+// own post, but only inside the same 24h window PUT uses.
+app.delete('/api/suggestions/:id', authMiddleware, (req, res) => {
   try {
-    db.prepare('UPDATE suggestions SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    const row = db.prepare('SELECT * FROM suggestions WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    const isLead = req.user.role === 'lead' || req.user.role === 'admin';
+    const isOwnWithinWindow = row.user_id === req.user.id
+      && (Date.now() - parseDbDate(row.created_at).getTime() <= SUGGESTION_EDIT_WINDOW_MS);
+    if (!isLead && !isOwnWithinWindow) return res.status(403).json({ error: 'Нет доступа' });
+
+    db.prepare('UPDATE suggestions SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(row.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== SUGGESTION FOLDERS (lead-only, private) ==============
+// Purely the lead's own sorting — never exposed to testers. Deleting a
+// folder just un-files whatever was in it rather than deleting those
+// suggestions.
+
+app.get('/api/lead/suggestion-folders', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM suggestion_folders ORDER BY name').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/lead/suggestion-folders', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Укажите название папки' });
+    const id = db.prepare('INSERT INTO suggestion_folders (name, created_by) VALUES (?, ?)').run(name, req.user.id).lastInsertRowid;
+    res.status(201).json({ id, name });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/lead/suggestion-folders/:id', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    db.prepare('UPDATE suggestions SET folder_id = NULL WHERE folder_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM suggestion_folders WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.patch('/api/suggestions/:id/folder', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { folder_id } = req.body;
+    db.prepare('UPDATE suggestions SET folder_id = ? WHERE id = ?').run(folder_id || null, req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

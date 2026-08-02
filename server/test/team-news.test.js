@@ -26,7 +26,7 @@ describe('team news feed — stored events', () => {
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
     expect(news.status).toBe(200);
-    const item = news.body.find(n => n.event_type === 'member_joined' && n.user_id === reg.body.user.id);
+    const item = news.body.rows.find(n => n.event_type === 'member_joined' && n.user_id === reg.body.user.id);
     expect(item).toBeTruthy();
     expect(item.name).toBe('News Member');
   });
@@ -39,7 +39,7 @@ describe('team news feed — stored events', () => {
     expect(create.status).toBe(200);
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    const item = news.body.find(n => n.event_type === 'guide_published' && n.ref_id === create.body.id);
+    const item = news.body.rows.find(n => n.event_type === 'guide_published' && n.ref_id === create.body.id);
     expect(item).toBeTruthy();
     expect(item.guide_title).toBe('News Guide');
   });
@@ -47,7 +47,7 @@ describe('team news feed — stored events', () => {
   it('is visible to a plain tester, not just leads (this is public news, not the private audit log)', async () => {
     const res = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.rows)).toBe(true);
   });
 
   it('publishing a course produces exactly one course_published item on the 0->1 transition, not on every edit', async () => {
@@ -59,7 +59,7 @@ describe('team news feed — stored events', () => {
     const courseId = create.body.id;
 
     let news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    expect(news.body.find(n => n.event_type === 'course_published' && n.ref_id === courseId)).toBeFalsy();
+    expect(news.body.rows.find(n => n.event_type === 'course_published' && n.ref_id === courseId)).toBeFalsy();
 
     const publish = await request(app)
       .patch(`/api/custom-courses/${courseId}/publish`)
@@ -68,7 +68,7 @@ describe('team news feed — stored events', () => {
     expect(publish.body.is_published).toBe(1);
 
     news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    expect(news.body.filter(n => n.event_type === 'course_published' && n.ref_id === courseId).length).toBe(1);
+    expect(news.body.rows.filter(n => n.event_type === 'course_published' && n.ref_id === courseId).length).toBe(1);
 
     // Editing the already-published course (a plain title change) must not
     // add a second event.
@@ -79,7 +79,45 @@ describe('team news feed — stored events', () => {
     expect(edit.status).toBe(200);
 
     news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    expect(news.body.filter(n => n.event_type === 'course_published' && n.ref_id === courseId).length).toBe(1);
+    expect(news.body.rows.filter(n => n.event_type === 'course_published' && n.ref_id === courseId).length).toBe(1);
+  });
+
+  it('pasting a lecture video link for the first time produces a lecture_video_added item, but re-saving it does not duplicate', async () => {
+    const first = await request(app)
+      .patch(`/api/admin/lectures/${fixtures.lec3Id}/video`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ video_url: 'https://www.youtube.com/watch?v=abcdefghijk' });
+    expect(first.status).toBe(200);
+
+    let news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
+    expect(news.body.rows.filter(n => n.event_type === 'lecture_video_added' && n.ref_id === fixtures.lec3Id).length).toBe(1);
+    expect(news.body.rows.find(n => n.event_type === 'lecture_video_added' && n.ref_id === fixtures.lec3Id).lecture_title).toBe('Lecture Three');
+
+    const second = await request(app)
+      .patch(`/api/admin/lectures/${fixtures.lec3Id}/video`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ video_url: 'https://www.youtube.com/watch?v=zzzzzzzzzzz' });
+    expect(second.status).toBe(200);
+
+    news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
+    expect(news.body.rows.filter(n => n.event_type === 'lecture_video_added' && n.ref_id === fixtures.lec3Id).length).toBe(1);
+  });
+
+  it('supports offset-based pagination with hasMore, like /api/lead/activity', async () => {
+    // Generate enough stored events to guarantee more than one page.
+    for (let i = 0; i < 35; i++) {
+      await request(app).post('/api/guides').set('Authorization', `Bearer ${leadToken}`).send({ title: `Bulk Guide ${i}`, content: 'x' });
+    }
+
+    const first = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
+    expect(first.body.rows.length).toBe(30);
+    expect(first.body.hasMore).toBe(true);
+
+    const second = await request(app).get('/api/team/news').query({ offset: 30 }).set('Authorization', `Bearer ${testerToken}`);
+    expect(second.body.rows.length).toBeGreaterThan(0);
+    // No overlap between the two pages.
+    const firstIds = new Set(first.body.rows.map(r => r.id));
+    expect(second.body.rows.every(r => !firstIds.has(r.id))).toBe(true);
   });
 });
 
@@ -92,7 +130,7 @@ describe('team news feed — computed (birthday / leave) items', () => {
       .send({ timezone: 'Europe/Moscow', birthday: todayMD });
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    const item = news.body.find(n => n.event_type === 'birthday' && n.user_id === fixtures.testerId);
+    const item = news.body.rows.find(n => n.event_type === 'birthday' && n.user_id === fixtures.testerId);
     expect(item).toBeTruthy();
   });
 
@@ -110,7 +148,7 @@ describe('team news feed — computed (birthday / leave) items', () => {
       .send({ birthday: otherMD });
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    const item = news.body.find(n => n.event_type === 'birthday' && n.user_id === fixtures.testerId);
+    const item = news.body.rows.find(n => n.event_type === 'birthday' && n.user_id === fixtures.testerId);
     expect(item).toBeFalsy();
   });
 
@@ -122,9 +160,14 @@ describe('team news feed — computed (birthday / leave) items', () => {
       .send({ type: 'vacation', start_date: today, end_date: today });
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    expect(news.body.find(n => n.event_type === 'leave_started' && n.user_id === fixtures.testerId)).toBeTruthy();
-    expect(news.body.find(n => n.event_type === 'leave_ended' && n.user_id === fixtures.testerId)).toBeTruthy();
+    expect(news.body.rows.find(n => n.event_type === 'leave_started' && n.user_id === fixtures.testerId)).toBeTruthy();
+    expect(news.body.rows.find(n => n.event_type === 'leave_ended' && n.user_id === fixtures.testerId)).toBeTruthy();
 
     await request(app).delete(`/api/me/leave/${create.body.id}`).set('Authorization', `Bearer ${testerToken}`);
+  });
+
+  it('computed items only appear on the first page (offset 0), not when paging into older stored history', async () => {
+    const news = await request(app).get('/api/team/news').query({ offset: 5 }).set('Authorization', `Bearer ${testerToken}`);
+    expect(news.body.rows.find(n => n.event_type === 'birthday')).toBeFalsy();
   });
 });

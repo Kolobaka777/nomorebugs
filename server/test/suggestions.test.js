@@ -127,14 +127,125 @@ describe('suggestions board — likes and triage', () => {
     expect(list.body.find(s => s.id === suggestionId).status).toBe('implemented');
   });
 
-  it('only a lead can delete, and it soft-deletes (no longer listed)', async () => {
-    const asTester = await request(app).delete(`/api/suggestions/${suggestionId}`).set('Authorization', `Bearer ${testerToken}`);
-    expect(asTester.status).toBe(403);
+  it('a stranger (not the author, not a lead) cannot delete', async () => {
+    const otherReg = await request(app).post('/api/auth/register').send({
+      email: 'suggestiondeletestranger@test.local', password: 'password123', name: 'Stranger',
+    });
+    const res = await request(app).delete(`/api/suggestions/${suggestionId}`).set('Authorization', `Bearer ${otherReg.body.token}`);
+    expect(res.status).toBe(403);
+  });
 
-    const asLead = await request(app).delete(`/api/suggestions/${suggestionId}`).set('Authorization', `Bearer ${leadToken}`);
-    expect(asLead.status).toBe(200);
+  it('the author can delete their own within the edit window, and it soft-deletes (no longer listed)', async () => {
+    const asAuthor = await request(app).delete(`/api/suggestions/${suggestionId}`).set('Authorization', `Bearer ${testerToken}`);
+    expect(asAuthor.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
     expect(list.body.find(s => s.id === suggestionId)).toBeUndefined();
+  });
+
+  it('a lead can always delete, regardless of author or window', async () => {
+    const create = await request(app)
+      .post('/api/suggestions')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'idea', text: 'Lead-deletable idea', is_anonymous: false });
+    const res = await request(app).delete(`/api/suggestions/${create.body.id}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('suggestions board — 24h author edit/delete window', () => {
+  let ownId;
+
+  beforeAll(async () => {
+    const create = await request(app)
+      .post('/api/suggestions')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'idea', text: 'Original text', is_anonymous: false });
+    ownId = create.body.id;
+  });
+
+  it('the author can edit within the window', async () => {
+    const res = await request(app)
+      .put(`/api/suggestions/${ownId}`)
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'suggestion', text: 'Edited text', is_anonymous: true });
+    expect(res.status).toBe(200);
+
+    const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
+    const row = list.body.find(s => s.id === ownId);
+    expect(row.text).toBe('Edited text');
+    expect(row.type).toBe('suggestion');
+    expect(row.is_anonymous).toBe(true);
+  });
+
+  it('nobody else can edit it, including a lead', async () => {
+    const res = await request(app)
+      .put(`/api/suggestions/${ownId}`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ type: 'idea', text: 'Hijacked', is_anonymous: false });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects an edit past the 24h window', async () => {
+    db.prepare("UPDATE suggestions SET created_at = datetime('now', '-25 hours') WHERE id = ?").run(ownId);
+    const res = await request(app)
+      .put(`/api/suggestions/${ownId}`)
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'idea', text: 'Too late', is_anonymous: false });
+    expect(res.status).toBe(403);
+
+    const del = await request(app).delete(`/api/suggestions/${ownId}`).set('Authorization', `Bearer ${testerToken}`);
+    expect(del.status).toBe(403);
+  });
+});
+
+describe('suggestions board — lead-only folders', () => {
+  let folderId, suggestionId;
+
+  beforeAll(async () => {
+    const create = await request(app)
+      .post('/api/suggestions')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'idea', text: 'Needs a folder', is_anonymous: false });
+    suggestionId = create.body.id;
+  });
+
+  it('is lead-only to create/list', async () => {
+    const asTester = await request(app).post('/api/lead/suggestion-folders').set('Authorization', `Bearer ${testerToken}`).send({ name: 'x' });
+    expect(asTester.status).toBe(403);
+
+    const create = await request(app).post('/api/lead/suggestion-folders').set('Authorization', `Bearer ${leadToken}`).send({ name: 'Доработка сервисов' });
+    expect(create.status).toBe(201);
+    folderId = create.body.id;
+
+    const list = await request(app).get('/api/lead/suggestion-folders').set('Authorization', `Bearer ${leadToken}`);
+    expect(list.body.find(f => f.id === folderId)).toBeTruthy();
+  });
+
+  it('assigning a suggestion to a folder is visible to the lead but never to a tester', async () => {
+    const assign = await request(app)
+      .patch(`/api/suggestions/${suggestionId}/folder`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ folder_id: folderId });
+    expect(assign.status).toBe(200);
+
+    const asLead = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
+    const leadRow = asLead.body.find(s => s.id === suggestionId);
+    expect(leadRow.folder_id).toBe(folderId);
+    expect(leadRow.folder_name).toBe('Доработка сервисов');
+
+    const asTester = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
+    const testerRow = asTester.body.find(s => s.id === suggestionId);
+    expect(testerRow.folder_id).toBeUndefined();
+    expect(testerRow.folder_name).toBeUndefined();
+  });
+
+  it('deleting a folder un-files its suggestions instead of deleting them', async () => {
+    const del = await request(app).delete(`/api/lead/suggestion-folders/${folderId}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(del.status).toBe(200);
+
+    const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
+    const row = list.body.find(s => s.id === suggestionId);
+    expect(row.folder_id).toBeNull();
   });
 });

@@ -35,7 +35,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
 
   useEffect(() => {
     statsApi.getGlobal().then(r => setStats(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику площадки'));
-    teamApi.getNews().then(r => setNews(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить новости команды'));
+    teamApi.getNews().then(r => setNews(r.data.rows.slice(0, 3))).catch((err: any) => showApiError(err, 'Не удалось загрузить новости команды'));
 
     if (isTester) {
       Promise.all([testerApi.getMetrics(), testerApi.getHistory()])
@@ -223,9 +223,12 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
 
             {news.length > 0 && (
               <div>
-                <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>НОВОСТИ КОМАНДЫ</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-pixel" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>НОВОСТИ КОМАНДЫ</p>
+                  <button onClick={() => navigate('/news')} className="text-xs font-sans cursor-pointer" style={{ color: '#1D9E75' }}>Все новости →</button>
+                </div>
                 <div className="space-y-2">
-                  {news.slice(0, 6).map(item => (
+                  {news.map(item => (
                     <div key={item.id} className="px-4 py-3 flex items-start gap-3 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(29,158,117,0.08)' }}>
                       <PixelIcon
                         name={
@@ -233,6 +236,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                           item.event_type === 'member_joined' ? 'bee' :
                           item.event_type === 'guide_published' ? 'books' :
                           item.event_type === 'course_published' ? 'graduation' :
+                          item.event_type === 'lecture_video_added' ? 'camera' :
                           'bug'
                         }
                         size={13}

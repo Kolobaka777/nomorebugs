@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import PixelIcon from '../components/PixelIcon';
 import { suggestionsApi } from '../api';
-import { Suggestion, SuggestionType, SuggestionStatus } from '../types';
+import { Suggestion, SuggestionType, SuggestionStatus, SuggestionFolder } from '../types';
 import { showApiError } from '../utils/toast';
-import { timeAgo } from '../utils/date';
+import { timeAgo, parseServerDate } from '../utils/date';
 
 interface Props {
   user: any;
@@ -17,6 +18,7 @@ const TYPE_LABELS: Record<SuggestionType, string> = {
   suggestion: 'Предложение',
   complaint: 'Что бесит',
 };
+const TYPE_ORDER: SuggestionType[] = ['idea', 'suggestion', 'complaint'];
 const TYPE_COLORS: Record<SuggestionType, string> = {
   idea: '#7F77DD',
   suggestion: '#1D9E75',
@@ -30,10 +32,161 @@ const STATUS_LABELS: Record<SuggestionStatus, string> = {
 };
 
 const MAX_LENGTH = 2000;
+const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function canStillEdit(s: Suggestion, userId: number): boolean {
+  return s.user_id === userId && Date.now() - parseServerDate(s.created_at).getTime() < EDIT_WINDOW_MS;
+}
+
+function SuggestionCard({
+  s, isLead, userId, folders, onLike, onSetStatus, onSetFolder, onSave, onDelete,
+}: {
+  s: Suggestion;
+  isLead: boolean;
+  userId: number;
+  folders: SuggestionFolder[];
+  onLike: (s: Suggestion) => void;
+  onSetStatus: (s: Suggestion, status: SuggestionStatus) => void;
+  onSetFolder: (s: Suggestion, folderId: number | null) => void;
+  onSave: (s: Suggestion, data: { type: SuggestionType; text: string; is_anonymous: boolean }) => Promise<void>;
+  onDelete: (s: Suggestion) => void;
+}) {
+  const navigate = useNavigate();
+  const [editing, setEditing] = useState(false);
+  const [editType, setEditType] = useState(s.type);
+  const [editText, setEditText] = useState(s.text);
+  const [editAnon, setEditAnon] = useState(s.is_anonymous);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const editable = canStillEdit(s, userId);
+
+  const save = async () => {
+    if (!editText.trim()) { setError('Напиши текст'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(s, { type: editType, text: editText.trim(), is_anonymous: editAnon });
+      setEditing(false);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="p-4 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(127,119,221,0.4)' }}>
+        <div className="flex gap-2 mb-2">
+          {TYPE_ORDER.map(t => (
+            <button
+              key={t}
+              onClick={() => setEditType(t)}
+              className="flex-1 py-1.5 rounded text-xs font-sans font-semibold cursor-pointer"
+              style={{ background: editType === t ? `${TYPE_COLORS[t]}25` : 'rgba(232,232,208,0.04)', color: editType === t ? TYPE_COLORS[t] : 'rgba(232,232,208,0.5)' }}
+            >
+              {TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={editText}
+          onChange={e => setEditText(e.target.value.slice(0, MAX_LENGTH))}
+          rows={3}
+          className="w-full rounded px-3 py-2 font-sans text-sm resize-none outline-none mb-2"
+          style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.85)', border: '1px solid rgba(232,232,208,0.1)', lineHeight: 1.6 }}
+        />
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <label className="flex items-center gap-2 text-xs font-sans cursor-pointer text-pixel/60">
+            <input type="checkbox" checked={editAnon} onChange={e => setEditAnon(e.target.checked)} />
+            Анонимно
+          </label>
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="text-xs font-sans px-3 py-1.5 rounded cursor-pointer text-pixel/50">Отмена</button>
+            <button onClick={save} disabled={saving} className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">{saving ? '...' : 'Сохранить'}</button>
+          </div>
+        </div>
+        {error && <p className="text-xs font-sans mt-2" style={{ color: '#e05252' }}>{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-xs font-sans font-semibold px-2 py-0.5 rounded" style={{ background: `${TYPE_COLORS[s.type]}20`, color: TYPE_COLORS[s.type] }}>
+          {TYPE_LABELS[s.type]}
+        </span>
+        <span
+          className={`flex items-center gap-1 text-xs font-sans text-pixel/60 ${!s.is_anonymous && s.user_id ? 'cursor-pointer hover:underline' : ''}`}
+          onClick={() => !s.is_anonymous && s.user_id && navigate(`/profile/${s.user_id}`)}
+        >
+          {s.is_anonymous ? <PixelIcon name="lock" size={10} color="rgba(232,232,208,0.4)" /> : null}
+          {s.is_anonymous ? 'Аноним' : (s.author_name || '—')}
+        </span>
+        {isLead && s.is_anonymous && (
+          <span className="text-xs font-sans px-1.5 py-0.5 rounded" style={{ background: 'rgba(239,159,39,0.12)', color: '#EF9F27' }}>
+            🕶 анонимно для команды
+          </span>
+        )}
+        <span className="text-pixel/40 text-xs font-sans ml-auto shrink-0">{timeAgo(s.created_at)}</span>
+      </div>
+
+      <p className="text-pixel font-sans text-sm leading-relaxed mb-3">{s.text}</p>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => onLike(s)}
+          className="flex items-center gap-1.5 text-xs font-sans cursor-pointer"
+          style={{ color: s.likedByMe ? '#1D9E75' : 'rgba(232,232,208,0.5)' }}
+        >
+          <PixelIcon name="sparkle" size={11} color="currentColor" /> {s.likeCount}
+        </button>
+
+        {isLead && (
+          <select
+            value={s.folder_id ?? ''}
+            onChange={e => onSetFolder(s, e.target.value ? Number(e.target.value) : null)}
+            className="pixel-input text-xs"
+            style={{ width: 'auto', padding: '2px 8px' }}
+          >
+            <option value="">Без папки</option>
+            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        )}
+
+        {isLead ? (
+          <select
+            value={s.status}
+            onChange={e => onSetStatus(s, e.target.value as SuggestionStatus)}
+            className="pixel-input text-xs ml-auto"
+            style={{ width: 'auto', padding: '2px 8px' }}
+          >
+            {(Object.keys(STATUS_LABELS) as SuggestionStatus[]).map(st => (
+              <option key={st} value={st}>{STATUS_LABELS[st]}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs font-sans ml-auto text-pixel/45">{STATUS_LABELS[s.status]}</span>
+        )}
+
+        {editable && (
+          <button onClick={() => setEditing(true)} className="text-xs font-sans cursor-pointer text-pixel/40 hover:text-pixel/70" title="Редактировать (доступно 24 часа)">✎</button>
+        )}
+        {(isLead || editable) && (
+          <button onClick={() => onDelete(s)} className="text-xs font-sans cursor-pointer text-pixel/30 hover:text-pixel/60" title="Удалить">✕</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function SuggestionsPage({ user, onLogout }: Props) {
   const isLead = user.role === 'lead' || user.role === 'admin';
   const [list, setList] = useState<Suggestion[] | null>(null);
+  const [folders, setFolders] = useState<SuggestionFolder[]>([]);
+  const [newFolderName, setNewFolderName] = useState('');
   const [loadError, setLoadError] = useState('');
 
   const [type, setType] = useState<SuggestionType>('idea');
@@ -46,6 +199,9 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
     suggestionsApi.list()
       .then(r => setList(r.data))
       .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить идеи'));
+    if (isLead) {
+      suggestionsApi.getFolders().then(r => setFolders(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить папки'));
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -66,9 +222,28 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
     }
   };
 
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      await suggestionsApi.createFolder(newFolderName.trim());
+      setNewFolderName('');
+      load();
+    } catch (err: any) {
+      showApiError(err, 'Не удалось создать папку');
+    }
+  };
+
+  const removeFolder = async (id: number) => {
+    if (!confirm('Удалить папку? Идеи внутри останутся, просто станут «без папки».')) return;
+    try {
+      await suggestionsApi.removeFolder(id);
+      load();
+    } catch (err: any) {
+      showApiError(err, 'Не удалось удалить папку');
+    }
+  };
+
   const toggleLike = async (s: Suggestion) => {
-    // Optimistic — a like is low-stakes and this is the kind of interaction
-    // that feels broken if it visibly waits on a round trip.
     setList(ls => ls ? ls.map(x => x.id === s.id ? { ...x, likedByMe: !x.likedByMe, likeCount: x.likeCount + (x.likedByMe ? -1 : 1) } : x) : ls);
     try {
       if (s.likedByMe) await suggestionsApi.unlike(s.id);
@@ -89,6 +264,21 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
     }
   };
 
+  const setFolder = async (s: Suggestion, folderId: number | null) => {
+    setList(ls => ls ? ls.map(x => x.id === s.id ? { ...x, folder_id: folderId, folder_name: folders.find(f => f.id === folderId)?.name ?? null } : x) : ls);
+    try {
+      await suggestionsApi.setFolder(s.id, folderId);
+    } catch (err: any) {
+      showApiError(err, 'Не удалось переложить в папку');
+      load();
+    }
+  };
+
+  const saveEdit = async (s: Suggestion, data: { type: SuggestionType; text: string; is_anonymous: boolean }) => {
+    await suggestionsApi.update(s.id, data);
+    setList(ls => ls ? ls.map(x => x.id === s.id ? { ...x, ...data } : x) : ls);
+  };
+
   const remove = async (s: Suggestion) => {
     if (!confirm('Удалить это предложение?')) return;
     try {
@@ -99,6 +289,8 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
     }
   };
 
+  const cardProps = { isLead, userId: user.id, folders, onLike: toggleLike, onSetStatus: setStatus, onSetFolder: setFolder, onSave: saveEdit, onDelete: remove };
+
   return (
     <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
       <Navigation user={user} onLogout={onLogout} />
@@ -108,14 +300,14 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             <span className="flex items-center gap-2"><PixelIcon name="lightbulb" size={14} color="#EF9F27" /> Идеи и предложения</span>
           </h1>
           <p className="text-pixel/60 text-sm font-sans">
-            Идея, предложение или то, что бесит — пиши сюда. Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним».
+            Идея, предложение или то, что бесит — пиши сюда. Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним». Своё можно править или удалить в течение суток после публикации.
           </p>
         </div>
 
         {/* Submit form */}
         <div className="p-5 rounded mb-6" style={{ background: '#1a1a2e', boxShadow: '2px 0 0 0 rgba(29,158,117,0.25), -2px 0 0 0 rgba(29,158,117,0.25), 0 2px 0 0 rgba(29,158,117,0.25), 0 -2px 0 0 rgba(29,158,117,0.25)' }}>
           <div className="flex gap-2 mb-3">
-            {(Object.keys(TYPE_LABELS) as SuggestionType[]).map(t => (
+            {TYPE_ORDER.map(t => (
               <button
                 key={t}
                 onClick={() => setType(t)}
@@ -149,64 +341,66 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
           {submitError && <p className="text-xs font-sans mt-2" style={{ color: '#e05252' }}>{submitError}</p>}
         </div>
 
+        {/* Lead-only folder management — purely their own private sorting */}
+        {isLead && (
+          <div className="p-4 rounded mb-6" style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.15)' }}>
+            <p className="text-pixel/50 text-xs font-sans mb-2">Папки видны только тебе — способ разложить идеи по смыслу или срочности.</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {folders.map(f => (
+                <span key={f.id} className="flex items-center gap-1.5 text-xs font-sans px-2.5 py-1 rounded" style={{ background: 'rgba(232,232,208,0.07)', color: 'rgba(232,232,208,0.8)' }}>
+                  {f.name}
+                  <button onClick={() => removeFolder(f.id)} aria-label={`Удалить папку ${f.name}`} style={{ color: '#e05252' }}>✕</button>
+                </span>
+              ))}
+              {folders.length === 0 && <p className="text-pixel/40 text-xs font-sans">Папок пока нет.</p>}
+            </div>
+            <div className="flex gap-2 max-w-sm">
+              <input
+                className="pixel-input text-xs"
+                placeholder="Например: Доработка сервисов"
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createFolder()}
+              />
+              <button onClick={createFolder} className="btn-secondary text-xs px-4 py-2 shrink-0">+ Папка</button>
+            </div>
+          </div>
+        )}
+
         {/* List */}
         {loadError && <p className="text-sm font-sans text-center py-6" style={{ color: '#e05252' }}>{loadError}</p>}
         {!loadError && !list && <SnailLoader />}
         {list && list.length === 0 && (
           <p className="text-pixel/50 text-sm font-sans text-center py-10">Пока ничего нет — стань первым.</p>
         )}
-        {list && list.length > 0 && (
-          <div className="space-y-3">
-            {list.map(s => (
-              <div key={s.id} className="p-4 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-xs font-sans font-semibold px-2 py-0.5 rounded" style={{ background: `${TYPE_COLORS[s.type]}20`, color: TYPE_COLORS[s.type] }}>
-                    {TYPE_LABELS[s.type]}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-sans text-pixel/60">
-                    {s.is_anonymous ? <PixelIcon name="lock" size={10} color="rgba(232,232,208,0.4)" /> : null}
-                    {s.is_anonymous ? 'Аноним' : (s.author_name || '—')}
-                  </span>
-                  {isLead && s.is_anonymous && (
-                    <span className="text-xs font-sans px-1.5 py-0.5 rounded" style={{ background: 'rgba(239,159,39,0.12)', color: '#EF9F27' }}>
-                      🕶 анонимно для команды
-                    </span>
-                  )}
-                  <span className="text-pixel/40 text-xs font-sans ml-auto shrink-0">{timeAgo(s.created_at)}</span>
-                </div>
 
-                <p className="text-pixel font-sans text-sm leading-relaxed mb-3">{s.text}</p>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    onClick={() => toggleLike(s)}
-                    className="flex items-center gap-1.5 text-xs font-sans cursor-pointer"
-                    style={{ color: s.likedByMe ? '#1D9E75' : 'rgba(232,232,208,0.5)' }}
-                  >
-                    <PixelIcon name="sparkle" size={11} color="currentColor" /> {s.likeCount}
-                  </button>
-
-                  {isLead ? (
-                    <select
-                      value={s.status}
-                      onChange={e => setStatus(s, e.target.value as SuggestionStatus)}
-                      className="pixel-input text-xs ml-auto"
-                      style={{ width: 'auto', padding: '2px 8px' }}
-                    >
-                      {(Object.keys(STATUS_LABELS) as SuggestionStatus[]).map(st => (
-                        <option key={st} value={st}>{STATUS_LABELS[st]}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-xs font-sans ml-auto text-pixel/45">{STATUS_LABELS[s.status]}</span>
-                  )}
-
-                  {isLead && (
-                    <button onClick={() => remove(s)} className="text-xs font-sans cursor-pointer text-pixel/30 hover:text-pixel/60" title="Удалить">✕</button>
-                  )}
+        {list && list.length > 0 && !isLead && (
+          <div className="space-y-6">
+            {TYPE_ORDER.filter(t => list.some(s => s.type === t)).map(t => (
+              <div key={t}>
+                <p className="font-pixel mb-3" style={{ color: TYPE_COLORS[t], fontSize: '0.6rem', lineHeight: 1.8 }}>{TYPE_LABELS[t].toUpperCase()}</p>
+                <div className="space-y-3">
+                  {list.filter(s => s.type === t).map(s => <SuggestionCard key={s.id} s={s} {...cardProps} />)}
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {list && list.length > 0 && isLead && (
+          <div className="space-y-6">
+            {[{ id: null as number | null, name: 'Без папки' }, ...folders].map(f => {
+              const items = list.filter(s => (s.folder_id ?? null) === f.id);
+              if (items.length === 0) return null;
+              return (
+                <div key={String(f.id)}>
+                  <p className="font-pixel mb-3" style={{ color: 'rgba(232,232,208,0.55)', fontSize: '0.6rem', lineHeight: 1.8 }}>{f.name.toUpperCase()}</p>
+                  <div className="space-y-3">
+                    {items.map(s => <SuggestionCard key={s.id} s={s} {...cardProps} />)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
