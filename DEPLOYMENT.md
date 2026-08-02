@@ -68,7 +68,13 @@ monorepo with its **Root Directory** set per-service:
        ```
      - `CORS_ORIGIN` — the client's Railway URL once it exists (step 4 —
        circular, so come back and set this after the client service is up).
-     - `NODE_ENV=production`
+     - `NODE_ENV=production` — besides the usual meaning, this also flips the
+       refresh-token cookie to `Secure; SameSite=None` (required because the
+       client and server live on different Railway subdomains). Railway
+       terminates HTTPS for you, so this needs no extra setup — it only
+       matters if this app is ever deployed somewhere served over plain
+       HTTP, where login would appear to work but every session would fail
+       to refresh after 15 minutes (the cookie would silently never be set).
      - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — **required for a first production
        boot with an empty database.** The dev/test auto-seeded demo accounts
        (lead@qa.com etc., published passwords) are deliberately disabled

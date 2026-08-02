@@ -14,35 +14,50 @@ beforeAll(() => {
   seedTestData(db);
 });
 
+// The refresh token now travels as an httpOnly cookie, never in the JSON
+// body — this pulls the raw value back out of the Set-Cookie header so
+// tests can still inspect/manipulate the underlying refresh_tokens row.
+function extractRefreshCookie(res) {
+  const raw = (res.headers['set-cookie'] || []).find(c => c.startsWith('refreshToken='));
+  if (!raw) return null;
+  return decodeURIComponent(raw.split(';')[0].split('=')[1]);
+}
+
 async function login() {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ email: 'tester@test.local', password: 'testerpass123' });
-  return res.body;
+  return { body: res.body, refreshToken: extractRefreshCookie(res), res };
 }
 
 describe('POST /api/auth/login — token pair', () => {
-  it('returns both a short-lived access token and a refresh token', async () => {
-    const body = await login();
+  it('returns a short-lived access token and sets the refresh token as an httpOnly cookie, never in the JSON body', async () => {
+    const { body, refreshToken, res } = await login();
     expect(typeof body.token).toBe('string');
-    expect(typeof body.refreshToken).toBe('string');
-    expect(body.token).not.toBe(body.refreshToken);
+    expect(body.refreshToken).toBeUndefined();
+    expect(refreshToken).toBeTruthy();
+
+    const cookieHeader = res.headers['set-cookie'].find(c => c.startsWith('refreshToken='));
+    expect(cookieHeader).toMatch(/HttpOnly/i);
+    expect(cookieHeader).toMatch(/Path=\/api\/auth/i);
   });
 
   it('persists only a hash of the refresh token, never the raw value', async () => {
-    const body = await login();
-    const row = db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ?').get(hashToken(body.refreshToken));
+    const { refreshToken } = await login();
+    const row = db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ?').get(hashToken(refreshToken));
     expect(row).toBeTruthy();
     expect(row.revoked_at).toBeNull();
     // The raw refresh token itself must not be recoverable from the stored row.
-    expect(JSON.stringify(row)).not.toContain(body.refreshToken);
+    expect(JSON.stringify(row)).not.toContain(refreshToken);
   });
 });
 
 describe('POST /api/auth/refresh', () => {
-  it('exchanges a valid refresh token for a new access token', async () => {
-    const { refreshToken } = await login();
-    const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+  it('exchanges the refresh cookie (persisted automatically by an agent, like a real browser) for a new access token', async () => {
+    const agent = request.agent(app);
+    await agent.post('/api/auth/login').send({ email: 'tester@test.local', password: 'testerpass123' });
+
+    const res = await agent.post('/api/auth/refresh');
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
 
@@ -51,14 +66,14 @@ describe('POST /api/auth/refresh', () => {
     expect(lectures.status).toBe(200);
   });
 
-  it('rejects an unknown refresh token', async () => {
-    const res = await request(app).post('/api/auth/refresh').send({ refreshToken: 'not-a-real-token' });
+  it('rejects when there is no refresh cookie at all', async () => {
+    const res = await request(app).post('/api/auth/refresh');
     expect(res.status).toBe(401);
   });
 
-  it('rejects a missing refreshToken', async () => {
-    const res = await request(app).post('/api/auth/refresh').send({});
-    expect(res.status).toBe(400);
+  it('rejects an unknown refresh token cookie', async () => {
+    const res = await request(app).post('/api/auth/refresh').set('Cookie', 'refreshToken=not-a-real-token');
+    expect(res.status).toBe(401);
   });
 
   it('rejects an expired refresh token', async () => {
@@ -66,27 +81,30 @@ describe('POST /api/auth/refresh', () => {
     db.prepare('UPDATE refresh_tokens SET expires_at = ? WHERE token_hash = ?')
       .run(new Date(Date.now() - 1000).toISOString(), hashToken(refreshToken));
 
-    const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    const res = await request(app).post('/api/auth/refresh').set('Cookie', `refreshToken=${refreshToken}`);
     expect(res.status).toBe(401);
   });
 });
 
 describe('POST /api/auth/logout', () => {
-  it('revokes the refresh token so it can no longer be exchanged', async () => {
-    const { refreshToken } = await login();
+  it('revokes the refresh token so it can no longer be exchanged, and clears the cookie', async () => {
+    const agent = request.agent(app);
+    await agent.post('/api/auth/login').send({ email: 'tester@test.local', password: 'testerpass123' });
 
-    const before = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    const before = await agent.post('/api/auth/refresh');
     expect(before.status).toBe(200);
 
-    const logoutRes = await request(app).post('/api/auth/logout').send({ refreshToken });
+    const logoutRes = await agent.post('/api/auth/logout');
     expect(logoutRes.status).toBe(200);
+    const clearedCookie = (logoutRes.headers['set-cookie'] || []).find(c => c.startsWith('refreshToken='));
+    expect(clearedCookie).toMatch(/refreshToken=;/);
 
-    const after = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    const after = await agent.post('/api/auth/refresh');
     expect(after.status).toBe(401);
   });
 
-  it('is a no-op (still 200) when called without a refreshToken', async () => {
-    const res = await request(app).post('/api/auth/logout').send({});
+  it('is a no-op (still 200) when called without a refresh cookie', async () => {
+    const res = await request(app).post('/api/auth/logout');
     expect(res.status).toBe(200);
   });
 });

@@ -83,8 +83,8 @@ function App() {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
-  const handleLogin = (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) => {
-    setSession(token, refreshToken, user, needsBaselineSurvey, mustChangePassword);
+  const handleLogin = (token: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) => {
+    setSession(token, user, needsBaselineSurvey, mustChangePassword);
     setSessionExpiredNotice(false);
     setAuthState({ isAuthenticated: true, token, user, needsBaselineSurvey, mustChangePassword });
     identifyUser(user);

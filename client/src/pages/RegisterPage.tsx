@@ -6,7 +6,7 @@ import PixelIcon from '../components/PixelIcon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface RegisterPageProps {
-  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => void;
+  onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
 }
 
 export default function RegisterPage({ onLogin }: RegisterPageProps) {
@@ -35,7 +35,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
     setLoading(true);
     try {
       const { data } = await authApi.register(email, password, name, gender);
-      onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey);
+      onLogin(data.token, data.user, data.needsBaselineSurvey);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка регистрации');
     } finally {

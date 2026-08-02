@@ -3,7 +3,7 @@ import { telegramApi } from '../api';
 import PixelIcon from './PixelIcon';
 
 interface TelegramLoginButtonProps {
-  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean) => void;
+  onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
 }
 
 type Phase = 'idle' | 'starting' | 'waiting' | 'expired' | 'error' | 'unavailable';
@@ -32,7 +32,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
           const { data: result } = await telegramApi.poll(data.token);
           if (result.status === 'ready') {
             if (pollRef.current) clearInterval(pollRef.current);
-            onLogin(result.token, result.refreshToken, result.user, result.needsBaselineSurvey);
+            onLogin(result.token, result.user, result.needsBaselineSurvey);
           } else if (result.status === 'expired' || result.status === 'error') {
             if (pollRef.current) clearInterval(pollRef.current);
             setPhase(result.status);

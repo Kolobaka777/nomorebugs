@@ -8,7 +8,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { db, initDb } from '../db/schema.js';
 import bcryptjs from 'bcryptjs';
-import { generateAccessToken, generateRefreshToken, hashToken, authMiddleware, requireRole } from './auth.js';
+import cookieParser from 'cookie-parser';
+import { generateAccessToken, generateRefreshToken, hashToken, authMiddleware, requireRole, REFRESH_TOKEN_TTL_MS } from './auth.js';
 import { ROLES, DEFAULT_ROLE, isValidRole } from './roles.js';
 import {
   initTelegramBot, isTelegramConfigured, createTelegramToken, buildDeepLink,
@@ -187,7 +188,42 @@ app.use(cors({
     err.status = 403;
     callback(err);
   },
+  // The refresh token now travels as an httpOnly cookie (see
+  // REFRESH_COOKIE_NAME below) instead of in the JSON body — browsers only
+  // attach/accept cross-origin cookies on fetch/XHR when both sides opt in:
+  // the server via this flag, the client via axios's withCredentials/
+  // fetch's credentials:'include'. Safe to enable unconditionally since
+  // origin() above already rejects anything not on the allowlist.
+  credentials: true,
 }));
+app.use(cookieParser());
+
+// The refresh token used to be handed to the client as a JSON field and
+// stored in localStorage right alongside the access token — that defeated
+// the whole point of the access token's short TTL, since an XSS payload
+// could just read both and mint fresh sessions indefinitely. As an httpOnly
+// cookie it's invisible to any JS running on the page (client or injected),
+// scoped to /api/auth so it's never even sent along with ordinary API
+// calls, and SameSite=None+Secure in production because the frontend and
+// backend live on different Railway subdomains (a cross-site relationship
+// from the cookie spec's point of view) — 'lax' is enough in dev, where
+// client/server differ only by port on the same "site" (localhost).
+const REFRESH_COOKIE_NAME = 'refreshToken';
+function refreshCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/api/auth',
+  };
+}
+function setRefreshCookie(res, token) {
+  res.cookie(REFRESH_COOKIE_NAME, token, { ...refreshCookieOptions(), maxAge: REFRESH_TOKEN_TTL_MS });
+}
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions());
+}
 // Express's default json() body limit is 100kb — far below what a base64
 // avatar upload needs (the client allows up to a 2MB image, which becomes
 // ~2.7MB of base64 text). Without this, any avatar over roughly 75KB raw
@@ -356,9 +392,9 @@ function initialsFromName(name) {
 
 // Self-registration. Every account starts at DEFAULT_ROLE ('tester') — an
 // admin promotes accounts to 'lead' or any future role via the admin
-// endpoints below. Deliberately returns the same shape as /login (token +
-// refreshToken + user) so the client can treat "just registered" and "just
-// logged in" identically.
+// endpoints below. Deliberately returns the same shape as /login (access
+// token + user in the JSON body, refresh token as an httpOnly cookie) so
+// the client can treat "just registered" and "just logged in" identically.
 app.post('/api/auth/register', registerLimiter, (req, res) => {
   try {
     const { email, password, name, gender } = req.body;
@@ -416,9 +452,9 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     // blocks the response on notification delivery.
     notifyUser(user, 'Регистрация в baga-net', `Аккаунт "${user.name}" зарегистрирован. Добро пожаловать в нору!`);
 
+    setRefreshCookie(res, refresh.token);
     res.status(201).json({
       token,
-      refreshToken: refresh.token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null, gender: gender ?? null },
       needsBaselineSurvey: user.role === 'tester',
     });
@@ -517,9 +553,9 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     // login is the only point that reaches it without an extra fetch.
     const profileRow = db.prepare('SELECT nickname, gender FROM user_profiles WHERE user_id = ?').get(user.id);
 
+    setRefreshCookie(res, refresh.token);
     res.json({
       token,
-      refreshToken: refresh.token,
       user: {
         id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials,
         displayName: profileRow?.nickname || null, gender: profileRow?.gender || null,
@@ -533,11 +569,12 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
   }
 });
 
-// Exchanges a valid, non-revoked refresh token for a new short-lived access token.
+// Exchanges a valid, non-revoked refresh token (read from the httpOnly
+// cookie, never the request body) for a new short-lived access token.
 app.post('/api/auth/refresh', refreshLimiter, (req, res) => {
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ error: 'refreshToken required' });
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token invalid or expired' });
 
     const hash = hashToken(refreshToken);
     const row = db.prepare(
@@ -564,11 +601,12 @@ app.post('/api/auth/refresh', refreshLimiter, (req, res) => {
 // own short TTL — there is no server-side access-token blacklist by design).
 app.post('/api/auth/logout', logoutLimiter, (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
     if (refreshToken) {
       db.prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE token_hash = ?')
         .run(hashToken(refreshToken));
     }
+    clearRefreshCookie(res);
     res.json({ success: true });
   } catch (err) {
     logError(err);
@@ -755,6 +793,16 @@ app.post('/api/auth/telegram/start', telegramStartLimiter, (req, res) => {
 
 app.get('/api/auth/telegram/poll/:token', telegramPollLimiter, (req, res) => {
   const result = pollTelegramToken(req.params.token);
+  // Mirrors the email/password login/register routes: the refresh token
+  // travels as an httpOnly cookie, never in the JSON the client's own JS
+  // can read — pollTelegramToken() itself still returns it internally
+  // (telegram.js's own tests rely on that), it's just stripped here before
+  // the response actually leaves the server.
+  if (result.status === 'ready' && result.refreshToken) {
+    setRefreshCookie(res, result.refreshToken);
+    const { refreshToken, ...rest } = result;
+    return res.json(rest);
+  }
   res.json(result);
 });
 

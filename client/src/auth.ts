@@ -1,17 +1,19 @@
 import { API_BASE_URL } from './config';
 
 const TOKEN_KEY = 'token';
-const REFRESH_TOKEN_KEY = 'refreshToken';
+// No longer written to — kept only so clearSession() can scrub a leftover
+// value from a browser that logged in before the refresh token moved to an
+// httpOnly cookie (see setRefreshCookie/REFRESH_COOKIE_NAME in the server's
+// app.js). Without this, that old token would sit in localStorage forever,
+// unused but still readable by any future XSS, defeating the point of the
+// migration for anyone who doesn't happen to log out and back in.
+const LEGACY_REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 const NEEDS_BASELINE_KEY = 'needsBaselineSurvey';
 const MUST_CHANGE_PASSWORD_KEY = 'mustChangePassword';
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
-}
-
-function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function getStoredUser(): any | null {
@@ -27,9 +29,8 @@ export function getMustChangePassword(): boolean {
   return localStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === 'true';
 }
 
-export function setSession(token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) {
+export function setSession(token: string, user: any, needsBaselineSurvey: boolean, mustChangePassword = false) {
   localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   localStorage.setItem(NEEDS_BASELINE_KEY, String(needsBaselineSurvey));
   localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, String(mustChangePassword));
@@ -60,21 +61,19 @@ function setAccessToken(token: string) {
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(NEEDS_BASELINE_KEY);
   localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export async function serverLogout(): Promise<void> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return;
   try {
-    await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
+    // No body needed — the refresh token rides along automatically as the
+    // httpOnly cookie set by the server on login (see setRefreshCookie in
+    // server/src/app.js). credentials:'include' is what makes the browser
+    // actually attach it cross-origin.
+    await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
   } catch {
     // Logging out is best-effort — local session is cleared regardless by the caller.
   }
@@ -87,13 +86,15 @@ let refreshPromise: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) return null;
       try {
+        // No refreshToken to read/send here anymore — it lives in an
+        // httpOnly cookie the browser attaches on its own (credentials:
+        // 'include'), scoped server-side to /api/auth so it never rides
+        // along with ordinary API calls. Whether a session is refreshable
+        // at all is now something only the server can answer.
         const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
+          credentials: 'include',
         });
         if (!res.ok) return null;
         const data = await res.json();

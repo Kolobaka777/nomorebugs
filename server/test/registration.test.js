@@ -28,7 +28,9 @@ describe('POST /api/auth/register', () => {
     expect(res.body.user.avatar_initials).toBe('NP');
     expect(res.body.needsBaselineSurvey).toBe(true);
     expect(typeof res.body.token).toBe('string');
-    expect(typeof res.body.refreshToken).toBe('string');
+    expect(res.body.refreshToken).toBeUndefined(); // travels as an httpOnly cookie instead
+    const cookie = (res.headers['set-cookie'] || []).find(c => c.startsWith('refreshToken='));
+    expect(cookie).toMatch(/HttpOnly/i);
   });
 
   it('cannot be used to self-grant a privileged role — role is not a client-supplied field', async () => {

@@ -6,7 +6,7 @@ import PixelIcon from '../components/PixelIcon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface LoginPageProps {
-  onLogin: (token: string, refreshToken: string, user: any, needsBaselineSurvey: boolean, mustChangePassword?: boolean) => void;
+  onLogin: (token: string, user: any, needsBaselineSurvey: boolean, mustChangePassword?: boolean) => void;
   sessionExpired?: boolean;
 }
 
@@ -23,7 +23,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
     setLoading(true);
     try {
       const { data } = await authApi.login(email, password);
-      onLogin(data.token, data.refreshToken, data.user, data.needsBaselineSurvey, data.mustChangePassword);
+      onLogin(data.token, data.user, data.needsBaselineSurvey, data.mustChangePassword);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка входа');
     } finally {

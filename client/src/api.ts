@@ -4,6 +4,10 @@ import { getAccessToken, serverLogout, tryRefreshAccessToken } from './auth';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  // Needed so the browser attaches the httpOnly refresh-token cookie on
+  // /auth/refresh and /auth/logout — harmless no-op on every other route,
+  // since that cookie is scoped server-side to the /api/auth path.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -36,14 +40,14 @@ api.interceptors.response.use(
 export const authApi = {
   login: async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
-    const { token, refreshToken, user, needsBaselineSurvey, mustChangePassword } = res.data;
-    return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
+    const { token, user, needsBaselineSurvey, mustChangePassword } = res.data;
+    return { data: { token, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
   },
 
   register: async (email: string, password: string, name: string, gender: 'male' | 'female' | null = null) => {
     const res = await api.post('/auth/register', { email, password, name, gender });
-    const { token, refreshToken, user, needsBaselineSurvey } = res.data;
-    return { data: { token, refreshToken, user, needsBaselineSurvey, mustChangePassword: false } };
+    const { token, user, needsBaselineSurvey } = res.data;
+    return { data: { token, user, needsBaselineSurvey, mustChangePassword: false } };
   },
 
   logout: serverLogout,

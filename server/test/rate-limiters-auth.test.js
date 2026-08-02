@@ -42,8 +42,11 @@ describe('rate limiters actually trigger, not just exist in code', () => {
   });
 
   it('refreshLimiter (60/15min) on POST /api/auth/refresh', async () => {
+    // The refresh token now travels as a cookie, not a body field — an
+    // absent/bogus cookie still exercises the limiter identically, since
+    // it runs before the route even looks at req.cookies.
     const status = await fireUntil429(
-      () => request(app).post('/api/auth/refresh').send({ refreshToken: 'not-a-real-token' }),
+      () => request(app).post('/api/auth/refresh').set('Cookie', 'refreshToken=not-a-real-token'),
       61
     );
     expect(status).toBe(429);
@@ -51,7 +54,7 @@ describe('rate limiters actually trigger, not just exist in code', () => {
 
   it('logoutLimiter (20/15min) on POST /api/auth/logout', async () => {
     const status = await fireUntil429(
-      () => request(app).post('/api/auth/logout').send({ refreshToken: 'not-a-real-token' }),
+      () => request(app).post('/api/auth/logout').set('Cookie', 'refreshToken=not-a-real-token'),
       21
     );
     expect(status).toBe(429);
