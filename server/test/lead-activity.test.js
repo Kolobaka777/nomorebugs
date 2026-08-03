@@ -50,3 +50,24 @@ describe('GET /api/lead/activity', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('GET /api/me/activity', () => {
+  it('returns a {rows, hasMore} shaped feed scoped to the caller', async () => {
+    const res = await request(app).get('/api/me/activity').set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.rows)).toBe(true);
+    expect(typeof res.body.hasMore).toBe('boolean');
+    expect(res.body.rows.every(r => r.user_id === fixtures.testerId)).toBe(true);
+  });
+
+  it('honors offset for pagination', async () => {
+    const page1 = await request(app).get('/api/me/activity?offset=0').set('Authorization', `Bearer ${testerToken}`);
+    const page2 = await request(app).get('/api/me/activity?offset=1').set('Authorization', `Bearer ${testerToken}`);
+    expect(page1.body.rows[0]?.id).not.toBe(page2.body.rows[0]?.id);
+  });
+
+  it('rejects an unauthenticated request', async () => {
+    const res = await request(app).get('/api/me/activity');
+    expect(res.status).toBe(401);
+  });
+});

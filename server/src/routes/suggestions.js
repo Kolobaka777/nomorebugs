@@ -24,6 +24,12 @@ const SUGGESTION_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 router.get('/api/suggestions', authMiddleware, (req, res) => {
   try {
     const isLead = req.user.role === 'lead' || req.user.role === 'admin';
+    // Unlike most lists in this app (seeded content, org-sized rosters),
+    // this is a genuine open-ended user-generated feed — it only grows, so
+    // it's the one that actually needed real pagination instead of "return
+    // everything".
+    const PAGE_SIZE = 30;
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const rows = db.prepare(`
       SELECT s.id, s.type, s.text, s.status, s.created_at, s.is_anonymous,
         ${isLead ? 's.user_id' : '(CASE WHEN s.is_anonymous THEN NULL ELSE s.user_id END)'} as user_id,
@@ -35,8 +41,14 @@ router.get('/api/suggestions', authMiddleware, (req, res) => {
       ${isLead ? 'LEFT JOIN suggestion_folders f ON f.id = s.folder_id' : ''}
       WHERE s.deleted_at IS NULL
       ORDER BY s.created_at DESC
-    `).all(req.user.id);
-    res.json(rows.map(r => ({ ...r, is_anonymous: !!r.is_anonymous, likedByMe: !!r.likedByMe })));
+      LIMIT ? OFFSET ?
+    `).all(req.user.id, PAGE_SIZE + 1, offset);
+
+    const hasMore = rows.length > PAGE_SIZE;
+    res.json({
+      rows: rows.slice(0, PAGE_SIZE).map(r => ({ ...r, is_anonymous: !!r.is_anonymous, likedByMe: !!r.likedByMe })),
+      hasMore,
+    });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

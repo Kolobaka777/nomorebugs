@@ -104,7 +104,7 @@ export const testerApi = {
 
   getBeforeAfter: () => api.get('/tester/before-after'),
 
-  getMyActivity: () => api.get('/me/activity'),
+  getMyActivity: (params?: { offset?: number }) => api.get('/me/activity', { params }),
 
   getCards: () => api.get('/tester/cards'),
 
@@ -178,7 +178,7 @@ export const usersApi = {
 };
 
 export const suggestionsApi = {
-  list: () => api.get('/suggestions'),
+  list: (params?: { offset?: number }) => api.get('/suggestions', { params }),
   create: (data: { type: string; text: string; is_anonymous: boolean }) => api.post('/suggestions', data),
   update: (id: number, data: { type: string; text: string; is_anonymous: boolean }) => api.put(`/suggestions/${id}`, data),
   like: (id: number) => api.post(`/suggestions/${id}/like`),

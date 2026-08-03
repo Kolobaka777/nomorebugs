@@ -205,6 +205,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [buying, setBuying]             = useState<string | null>(null);
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
   const [myActivity, setMyActivity] = useState<any[]>([]);
+  const [activityOffset, setActivityOffset] = useState(0);
+  const [activityHasMore, setActivityHasMore] = useState(false);
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [myPresence, setMyPresence] = useState<PresenceEntry | null>(null);
   const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow', birthday: '' });
@@ -253,7 +256,11 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       // enough; the rest of the page still fully works without them.
       checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
       rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
-      testerApi.getMyActivity().then(r => setMyActivity(r.data.rows)).catch((err: any) => showApiError(err, 'Не удалось загрузить историю активности'));
+      testerApi.getMyActivity().then(r => {
+        setMyActivity(r.data.rows);
+        setActivityHasMore(r.data.hasMore);
+        setActivityOffset(r.data.rows.length);
+      }).catch((err: any) => showApiError(err, 'Не удалось загрузить историю активности'));
       presenceApi.getTeam().then(r => {
         const mine = r.data.find((p: PresenceEntry) => p.id === user.id) || null;
         setMyPresence(mine);
@@ -295,6 +302,20 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       setLoadError(err.response?.data?.error || 'Не удалось загрузить кабинет');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreActivity = async () => {
+    setActivityLoadingMore(true);
+    try {
+      const res = await testerApi.getMyActivity({ offset: activityOffset });
+      setMyActivity(prev => [...prev, ...res.data.rows]);
+      setActivityHasMore(res.data.hasMore);
+      setActivityOffset(o => o + res.data.rows.length);
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить ещё активность');
+    } finally {
+      setActivityLoadingMore(false);
     }
   };
 
@@ -819,6 +840,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                     <span className="text-pixel/40 shrink-0">{parseServerDate(a.created_at).toLocaleString('ru-RU')}</span>
                   </div>
                 ))}
+                {activityHasMore && (
+                  <div className="flex justify-center pt-2">
+                    <button onClick={loadMoreActivity} disabled={activityLoadingMore} className="btn-secondary text-xs px-4 py-1.5 disabled:opacity-50">
+                      {activityLoadingMore ? 'Загрузка...' : 'Показать ещё'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </RpgPanel>

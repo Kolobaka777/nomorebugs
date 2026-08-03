@@ -41,7 +41,7 @@ describe('suggestions board — submission', () => {
     expect(create.status).toBe(201);
 
     const asTester = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
-    const row = asTester.body.find(s => s.id === create.body.id);
+    const row = asTester.body.rows.find(s => s.id === create.body.id);
     expect(row.author_name).toBe('Test Tester');
     expect(row.user_id).toBe(fixtures.testerId);
     expect(row.status).toBe('new');
@@ -64,7 +64,7 @@ describe('suggestions board — anonymity', () => {
     const otherToken = otherReg.body.token;
 
     const asViewer = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${otherToken}`);
-    const row = asViewer.body.find(s => s.id === anonId);
+    const row = asViewer.body.rows.find(s => s.id === anonId);
     expect(row.author_name).toBeNull();
     expect(row.user_id).toBeNull();
     expect(row.is_anonymous).toBe(true);
@@ -72,7 +72,7 @@ describe('suggestions board — anonymity', () => {
 
   it('a lead still sees the real author of an anonymous suggestion, plus the anonymity flag', async () => {
     const res = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    const row = res.body.find(s => s.id === anonId);
+    const row = res.body.rows.find(s => s.id === anonId);
     expect(row.author_name).toBe('Test Tester');
     expect(row.user_id).toBe(fixtures.testerId);
     expect(row.is_anonymous).toBe(true);
@@ -95,19 +95,19 @@ describe('suggestions board — likes and triage', () => {
     expect(like.status).toBe(200);
 
     let list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    let row = list.body.find(s => s.id === suggestionId);
+    let row = list.body.rows.find(s => s.id === suggestionId);
     expect(row.likeCount).toBe(1);
     expect(row.likedByMe).toBe(true);
 
     list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
-    row = list.body.find(s => s.id === suggestionId);
+    row = list.body.rows.find(s => s.id === suggestionId);
     expect(row.likeCount).toBe(1);
     expect(row.likedByMe).toBe(false);
 
     const unlike = await request(app).delete(`/api/suggestions/${suggestionId}/like`).set('Authorization', `Bearer ${leadToken}`);
     expect(unlike.status).toBe(200);
     list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    expect(list.body.find(s => s.id === suggestionId).likeCount).toBe(0);
+    expect(list.body.rows.find(s => s.id === suggestionId).likeCount).toBe(0);
   });
 
   it('only a lead can change status', async () => {
@@ -124,7 +124,7 @@ describe('suggestions board — likes and triage', () => {
     expect(asLead.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
-    expect(list.body.find(s => s.id === suggestionId).status).toBe('implemented');
+    expect(list.body.rows.find(s => s.id === suggestionId).status).toBe('implemented');
   });
 
   it('a stranger (not the author, not a lead) cannot delete', async () => {
@@ -140,7 +140,7 @@ describe('suggestions board — likes and triage', () => {
     expect(asAuthor.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
-    expect(list.body.find(s => s.id === suggestionId)).toBeUndefined();
+    expect(list.body.rows.find(s => s.id === suggestionId)).toBeUndefined();
   });
 
   it('a lead can always delete, regardless of author or window', async () => {
@@ -172,7 +172,7 @@ describe('suggestions board — 24h author edit/delete window', () => {
     expect(res.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    const row = list.body.find(s => s.id === ownId);
+    const row = list.body.rows.find(s => s.id === ownId);
     expect(row.text).toBe('Edited text');
     expect(row.type).toBe('suggestion');
     expect(row.is_anonymous).toBe(true);
@@ -230,12 +230,12 @@ describe('suggestions board — lead-only folders', () => {
     expect(assign.status).toBe(200);
 
     const asLead = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    const leadRow = asLead.body.find(s => s.id === suggestionId);
+    const leadRow = asLead.body.rows.find(s => s.id === suggestionId);
     expect(leadRow.folder_id).toBe(folderId);
     expect(leadRow.folder_name).toBe('Доработка сервисов');
 
     const asTester = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
-    const testerRow = asTester.body.find(s => s.id === suggestionId);
+    const testerRow = asTester.body.rows.find(s => s.id === suggestionId);
     expect(testerRow.folder_id).toBeUndefined();
     expect(testerRow.folder_name).toBeUndefined();
   });
@@ -245,7 +245,7 @@ describe('suggestions board — lead-only folders', () => {
     expect(del.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
-    const row = list.body.find(s => s.id === suggestionId);
+    const row = list.body.rows.find(s => s.id === suggestionId);
     expect(row.folder_id).toBeNull();
   });
 });

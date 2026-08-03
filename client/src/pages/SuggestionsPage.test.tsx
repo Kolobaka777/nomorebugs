@@ -46,6 +46,13 @@ function folder(overrides: Partial<SuggestionFolder> = {}): SuggestionFolder {
   return { id: 1, name: 'Доработка сервисов', created_by: 9, created_at: new Date().toISOString(), ...overrides };
 }
 
+// GET /api/suggestions returns {rows, hasMore} — this app's one genuinely
+// open-ended, user-generated feed, unlike most lists here (seeded/curated
+// content), so it's the one that actually needed real pagination.
+function listResponse(rows: Suggestion[], hasMore = false) {
+  return { data: { rows, hasMore } } as any;
+}
+
 function renderPage(user = tester) {
   return render(<SuggestionsPage user={user} onLogout={vi.fn()} />);
 }
@@ -58,9 +65,9 @@ beforeEach(() => {
 
 describe('SuggestionsPage — tester view', () => {
   it('groups suggestions by type, skipping types with nothing in them', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({
-      data: [suggestion({ id: 1, type: 'idea', text: 'Идея раз' }), suggestion({ id: 2, type: 'complaint', text: 'Бесит два' })],
-    } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, type: 'idea', text: 'Идея раз' }), suggestion({ id: 2, type: 'complaint', text: 'Бесит два' })],
+    ));
 
     renderPage();
 
@@ -71,15 +78,35 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('shows the empty state when there is nothing yet', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     renderPage();
     await waitFor(() => expect(screen.getByText('Пока ничего нет — стань первым.')).toBeInTheDocument());
+  });
+
+  it('shows "Показать ещё" only when hasMore is true, and appends the next page on click', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValueOnce(listResponse(
+      [suggestion({ id: 1, text: 'Первая идея' })], true,
+    ));
+
+    renderPage();
+    await screen.findByText('Первая идея');
+    const more = screen.getByText('Показать ещё');
+
+    vi.mocked(suggestionsApi.list).mockResolvedValueOnce(listResponse(
+      [suggestion({ id: 2, text: 'Вторая идея' })], false,
+    ));
+    fireEvent.click(more);
+
+    await screen.findByText('Вторая идея');
+    expect(screen.getByText('Первая идея')).toBeInTheDocument(); // appended, not replaced
+    expect(suggestionsApi.list).toHaveBeenLastCalledWith({ offset: 1 });
+    expect(screen.queryByText('Показать ещё')).toBeNull(); // hasMore was false on page 2
   });
 
   it('shows edit+delete on your own fresh post, hides both once past the 24h window (matches the server\'s own-post rule)', async () => {
     const fresh = suggestion({ id: 1, user_id: 1, created_at: new Date().toISOString() });
     const old = suggestion({ id: 2, user_id: 1, text: 'Старая идея', created_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() });
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [fresh, old] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([fresh, old]));
 
     renderPage();
     await screen.findByText('Сделать кнопку зелёной');
@@ -89,9 +116,9 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('a stranger\'s post has neither edit nor delete for a plain tester', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({
-      data: [suggestion({ id: 1, user_id: 42, author_name: 'Someone Else' })],
-    } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, user_id: 42, author_name: 'Someone Else' })],
+    ));
 
     renderPage();
     await screen.findByText('Сделать кнопку зелёной');
@@ -100,12 +127,10 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('clicking a non-anonymous author\'s name navigates to their profile; an anonymous one is not clickable', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({
-      data: [
-        suggestion({ id: 1, user_id: 42, author_name: 'Someone Else', is_anonymous: false }),
-        suggestion({ id: 2, user_id: 43, is_anonymous: true, text: 'Секретная жалоба' }),
-      ],
-    } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([
+      suggestion({ id: 1, user_id: 42, author_name: 'Someone Else', is_anonymous: false }),
+      suggestion({ id: 2, user_id: 43, is_anonymous: true, text: 'Секретная жалоба' }),
+    ]));
 
     renderPage();
     await screen.findByText('Someone Else');
@@ -118,7 +143,7 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('submitting a new suggestion calls create with trimmed text and reloads the list', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     vi.mocked(suggestionsApi.create).mockResolvedValue({ data: {} } as any);
 
     renderPage();
@@ -134,7 +159,7 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('liking bumps the count optimistically before the API call resolves', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [suggestion({ likeCount: 2, likedByMe: false })] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([suggestion({ likeCount: 2, likedByMe: false })]));
     vi.mocked(suggestionsApi.like).mockResolvedValue({ data: {} } as any);
 
     renderPage();
@@ -146,7 +171,7 @@ describe('SuggestionsPage — tester view', () => {
   });
 
   it('editing your own fresh post saves via update and reflects the new text without a full reload', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [suggestion({ text: 'Старый текст' })] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([suggestion({ text: 'Старый текст' })]));
     vi.mocked(suggestionsApi.update).mockResolvedValue({ data: {} } as any);
 
     renderPage();
@@ -165,12 +190,10 @@ describe('SuggestionsPage — tester view', () => {
 
 describe('SuggestionsPage — lead view', () => {
   it('groups by folder instead of type, with a "Без папки" bucket, and hides empty folders', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({
-      data: [
-        suggestion({ id: 1, text: 'В папке', folder_id: 1, folder_name: 'Доработка сервисов' }),
-        suggestion({ id: 2, text: 'Без папки', folder_id: null }),
-      ],
-    } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([
+      suggestion({ id: 1, text: 'В папке', folder_id: 1, folder_name: 'Доработка сервисов' }),
+      suggestion({ id: 2, text: 'Без папки', folder_id: null }),
+    ]));
     vi.mocked(suggestionsApi.getFolders).mockResolvedValue({ data: [folder({ id: 1 }), folder({ id: 2, name: 'Пустая папка' })] } as any);
 
     renderPage(lead);
@@ -182,9 +205,9 @@ describe('SuggestionsPage — lead view', () => {
   });
 
   it('a lead can always delete a stranger\'s post, even outside the edit window, but never sees the edit button on it', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({
-      data: [suggestion({ id: 1, user_id: 42, created_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString() })],
-    } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, user_id: 42, created_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString() })],
+    ));
 
     renderPage(lead);
     await screen.findByText('Сделать кнопку зелёной');
@@ -193,7 +216,7 @@ describe('SuggestionsPage — lead view', () => {
   });
 
   it('changing the status/folder selects calls the matching API optimistically', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [suggestion({ folder_id: null })] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([suggestion({ folder_id: null })]));
     vi.mocked(suggestionsApi.getFolders).mockResolvedValue({ data: [folder({ id: 1 })] } as any);
     vi.mocked(suggestionsApi.setStatus).mockResolvedValue({ data: {} } as any);
     vi.mocked(suggestionsApi.setFolder).mockResolvedValue({ data: {} } as any);
@@ -209,7 +232,7 @@ describe('SuggestionsPage — lead view', () => {
   });
 
   it('creating a folder calls the API with the trimmed name and clears the input', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     vi.mocked(suggestionsApi.createFolder).mockResolvedValue({ data: {} } as any);
 
     renderPage(lead);
@@ -223,7 +246,7 @@ describe('SuggestionsPage — lead view', () => {
   });
 
   it('removing a folder asks for confirmation and calls the API', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue({ data: [] } as any);
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     vi.mocked(suggestionsApi.getFolders).mockResolvedValue({ data: [folder({ id: 1, name: 'Устаревшая папка' })] } as any);
     vi.mocked(suggestionsApi.removeFolder).mockResolvedValue({ data: {} } as any);
 

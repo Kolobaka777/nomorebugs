@@ -309,6 +309,7 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
 router.get('/api/me/activity', authMiddleware, (req, res) => {
   try {
     const PAGE_SIZE = 20;
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const rows = db.prepare(`
       SELECT
         a.id, a.action, a.created_at,
@@ -320,9 +321,11 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
       LEFT JOIN lectures l ON a.lecture_id = l.id
       WHERE a.user_id = ?
       ORDER BY a.created_at DESC
-      LIMIT ?
-    `).all(req.user.id, PAGE_SIZE);
-    res.json({ rows });
+      LIMIT ? OFFSET ?
+    `).all(req.user.id, PAGE_SIZE + 1, offset);
+
+    const hasMore = rows.length > PAGE_SIZE;
+    res.json({ rows: rows.slice(0, PAGE_SIZE), hasMore });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

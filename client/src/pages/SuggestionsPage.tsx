@@ -185,6 +185,9 @@ function SuggestionCard({
 export default function SuggestionsPage({ user, onLogout }: Props) {
   const isLead = user.role === 'lead' || user.role === 'admin';
   const [list, setList] = useState<Suggestion[] | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [folders, setFolders] = useState<SuggestionFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -197,10 +200,28 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
 
   const load = () => {
     suggestionsApi.list()
-      .then(r => setList(r.data))
+      .then(r => {
+        setList(r.data.rows);
+        setHasMore(r.data.hasMore);
+        setOffset(r.data.rows.length);
+      })
       .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить идеи'));
     if (isLead) {
       suggestionsApi.getFolders().then(r => setFolders(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить папки'));
+    }
+  };
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await suggestionsApi.list({ offset });
+      setList(ls => ls ? [...ls, ...res.data.rows] : res.data.rows);
+      setHasMore(res.data.hasMore);
+      setOffset(o => o + res.data.rows.length);
+    } catch (err: any) {
+      showApiError(err, 'Не удалось загрузить ещё');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -401,6 +422,14 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {list && list.length > 0 && hasMore && (
+          <div className="flex justify-center mt-6">
+            <button onClick={loadMore} disabled={loadingMore} className="btn-secondary text-xs px-4 py-2 disabled:opacity-50">
+              {loadingMore ? 'Загрузка...' : 'Показать ещё'}
+            </button>
           </div>
         )}
       </div>
