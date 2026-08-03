@@ -312,9 +312,20 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
     const coinsEarned = isFirstSubmission ? (score >= 90 ? 25 : score >= 75 ? 18 : score >= 60 ? 10 : 3) : 0;
     let cardDrop = null;
     db.transaction(() => {
+      // Keeps the *best* score across retakes, not just the latest — a
+      // retake used to overwrite an already-passing score with a worse one
+      // (INSERT OR REPLACE), which could flip an already-passed lecture back
+      // to "locked" (and re-lock whatever came after it) until retaken again.
+      // answers/meta still reflect the most recent attempt, since those are
+      // what a lead would want to review.
       db.prepare(`
-        INSERT OR REPLACE INTO test_results (user_id, lecture_id, score, answers, meta)
+        INSERT INTO test_results (user_id, lecture_id, score, answers, meta)
         VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, lecture_id) DO UPDATE SET
+          score = MAX(score, excluded.score),
+          answers = excluded.answers,
+          meta = excluded.meta,
+          completed_at = CURRENT_TIMESTAMP
       `).run(userId, lectureId, score, JSON.stringify(answersMap), resultMeta);
 
       db.prepare(`

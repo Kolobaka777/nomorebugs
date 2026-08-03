@@ -388,7 +388,7 @@ router.post('/api/custom-courses', authMiddleware, requirePermission('manage_cou
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
         INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         title.trim(),
         description || '',
@@ -397,7 +397,8 @@ router.post('/api/custom-courses', authMiddleware, requirePermission('manage_cou
         requirements || '',
         is_published ? 1 : 0,
         deadline_at || null,
-        req.user.id
+        req.user.id,
+        new Date().toISOString()
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
@@ -422,8 +423,23 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, deadline_at, expected_updated_at } = req.body;
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
+
+    // Optimistic locking for module-tree edits specifically: updateCourseModules
+    // diffs against whatever's in the DB right now and deletes anything the
+    // caller's payload doesn't mention — if two leads edited the same course
+    // starting from the same loaded state, the second save would otherwise
+    // silently delete the first save's new lessons/modules (and any tester
+    // progress already recorded against them). The client already warns via
+    // a re-fetch+confirm before calling this, but that's a courtesy, not a
+    // guarantee (a direct API call skips it, and there's a race window
+    // between that check and this request) — this makes it authoritative.
+    // Metadata-only saves (no modules array) can't lose data this way, so
+    // they're not gated on it.
+    if (Array.isArray(modules) && expected_updated_at !== undefined && expected_updated_at !== course.updated_at) {
+      return res.status(409).json({ error: 'Курс был изменён кем-то другим с момента загрузки — обнови страницу и повтори изменения' });
+    }
 
     if (newPublishedFlag) {
       // If this save also sends a new module tree, that's the state to
@@ -441,7 +457,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     // the course in a genuinely broken half-edited state, not just a
     // failed request, so this needs to be all-or-nothing.
     db.transaction(() => {
-      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, deadline_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
+      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, deadline_at=?, updated_at=? WHERE id=?`).run(
         title?.trim() || course.title,
         description ?? course.description,
         tag || course.tag,
@@ -449,6 +465,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
         requirements ?? course.requirements,
         newPublishedFlag,
         deadline_at !== undefined ? (deadline_at || null) : course.deadline_at,
+        new Date().toISOString(),
         course.id
       );
 
@@ -502,7 +519,7 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
       const structureError = validateCourseStructureInDb(course.id);
       if (structureError) return res.status(400).json({ error: structureError });
     }
-    db.prepare('UPDATE custom_courses SET is_published=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(newStatus, course.id);
+    db.prepare('UPDATE custom_courses SET is_published=?, updated_at=? WHERE id=?').run(newStatus, new Date().toISOString(), course.id);
     if (newStatus === 1) {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('course_published', req.user.id, course.id);
@@ -520,8 +537,9 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
 // existing extension just replaces it) rather than a history of overrides.
 router.post('/api/custom-courses/:id/deadline-override', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
-    const course = db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    const course = db.prepare('SELECT id, created_by FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
+    if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     const { user_id, deadline_at, reason } = req.body;
     const target = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
@@ -546,6 +564,9 @@ router.post('/api/custom-courses/:id/deadline-override', authMiddleware, require
 
 router.delete('/api/custom-courses/:id/deadline-override/:userId', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
+    const course = db.prepare('SELECT id, created_by FROM custom_courses WHERE id = ?').get(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Не найдено' });
+    if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     db.prepare('DELETE FROM course_deadline_overrides WHERE course_id = ? AND user_id = ?')
       .run(req.params.id, req.params.userId);
     res.json({ ok: true });

@@ -189,8 +189,10 @@ router.post('/api/lead/suggestion-folders', authMiddleware, requireRole('lead'),
 
 router.delete('/api/lead/suggestion-folders/:id', authMiddleware, requireRole('lead'), (req, res) => {
   try {
-    db.prepare('UPDATE suggestions SET folder_id = NULL WHERE folder_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM suggestion_folders WHERE id = ?').run(req.params.id);
+    db.transaction(() => {
+      db.prepare('UPDATE suggestions SET folder_id = NULL WHERE folder_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM suggestion_folders WHERE id = ?').run(req.params.id);
+    })();
     res.json({ ok: true });
   } catch (err) {
     logError(err);

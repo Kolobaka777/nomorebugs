@@ -92,8 +92,19 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     setSaving(true);
     setError('');
     try {
+      // What we're about to tell the server we loaded — the pre-check below
+      // may bump this to the fresher value if the lead chooses to proceed
+      // anyway, so the actual save doesn't then also 409 as if it were a
+      // second, unacknowledged conflict.
+      let expectedUpdatedAt = loadedUpdatedAt;
+
       if (isEdit) {
         // Conflict check: has someone else saved this course since we loaded it?
+        // This is a courtesy heads-up, not the real guarantee — the server
+        // enforces the same check authoritatively on the save itself (a
+        // direct API call, or a save landing in the gap right after this
+        // check, would otherwise still be able to silently delete whatever
+        // the other editor added).
         const current = await authFetch(`${API}/custom-courses/${id}`).then(r => r.json()).catch(() => null);
         if (current && !current.error && loadedUpdatedAt && current.updated_at !== loadedUpdatedAt) {
           const proceed = window.confirm(
@@ -101,6 +112,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
             'Сохранить твою версию поверх текущей?'
           );
           if (!proceed) { setSaving(false); return; }
+          expectedUpdatedAt = current.updated_at;
         }
       }
 
@@ -108,6 +120,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
         ...form,
         is_published: publish ? 1 : 0,
         deadline_at: form.deadline_at || null,
+        expected_updated_at: expectedUpdatedAt,
         modules: form.modules.map(m => ({
           _id: m._id,
           title: m.title,

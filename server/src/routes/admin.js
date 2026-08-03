@@ -142,8 +142,10 @@ router.delete('/api/admin/trash/:type/:id', authMiddleware, requireRole('admin')
     if (type === 'custom_courses') {
       hardDeleteCourse(parseInt(id, 10));
     } else if (type === 'suggestions') {
-      db.prepare('DELETE FROM suggestion_likes WHERE suggestion_id = ?').run(id);
-      db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
+      db.transaction(() => {
+        db.prepare('DELETE FROM suggestion_likes WHERE suggestion_id = ?').run(id);
+        db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
+      })();
     } else {
       db.prepare(`DELETE FROM ${type} WHERE id = ?`).run(id);
     }
@@ -270,10 +272,15 @@ router.get('/api/me/permissions', authMiddleware, (req, res) => {
 // Lead: list active grants (who has what, and until when)
 router.get('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, res) => {
   try {
+    // granted_by_role: lets the client flag grants whose issuer is no
+    // longer a lead/admin (e.g. demoted since) so an admin can spot and
+    // reconsider them — the grant itself stays valid either way (it's
+    // checked against the *holder's* current role, not the granter's), so
+    // this is surfacing for a manual decision, not an automatic revoke.
     const rows = db.prepare(`
       SELECT gp.id, gp.permission, gp.granted_at, gp.expires_at,
              u.id as user_id, u.name as user_name, u.avatar_initials,
-             gb.name as granted_by_name
+             gb.name as granted_by_name, gb.role as granted_by_role
       FROM granted_permissions gp
       JOIN users u ON u.id = gp.user_id
       JOIN users gb ON gb.id = gp.granted_by

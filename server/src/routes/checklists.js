@@ -491,16 +491,30 @@ router.post('/api/checklists/templates/import', authMiddleware, requirePermissio
   }
 });
 
-// Lead: update in_mvt flags per item (MVT config)
+// Lead: update in_mvt flags per item (MVT config).
+// Optimistic locking: the caller must echo back `expected_mvt_updated_at`
+// (the stamp it loaded the template with) — if another lead has saved
+// since, this 409s instead of silently overwriting their change.
 router.patch('/api/checklists/templates/:id/mvt', authMiddleware, requirePermission('manage_checklists'), (req, res) => {
   try {
-    const { items } = req.body;
+    const { items, expected_mvt_updated_at } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'Неверные данные' });
-    const update = db.prepare('UPDATE checklist_items SET in_mvt = ? WHERE id = ? AND template_id = ?');
-    for (const item of items) {
-      update.run(item.in_mvt ? 1 : 0, item.id, req.params.id);
+
+    const tpl = db.prepare('SELECT mvt_updated_at FROM checklist_templates WHERE id = ?').get(req.params.id);
+    if (!tpl) return res.status(404).json({ error: 'Шаблон не найден' });
+    if ((tpl.mvt_updated_at || null) !== (expected_mvt_updated_at || null)) {
+      return res.status(409).json({ error: 'Кто-то уже изменил настройки MVT для этого чеклиста — обнови страницу и попробуй снова' });
     }
-    res.json({ ok: true });
+
+    const now = new Date().toISOString();
+    db.transaction(() => {
+      const update = db.prepare('UPDATE checklist_items SET in_mvt = ? WHERE id = ? AND template_id = ?');
+      for (const item of items) {
+        update.run(item.in_mvt ? 1 : 0, item.id, req.params.id);
+      }
+      db.prepare('UPDATE checklist_templates SET mvt_updated_at = ? WHERE id = ?').run(now, req.params.id);
+    })();
+    res.json({ ok: true, mvt_updated_at: now });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

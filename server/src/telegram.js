@@ -188,6 +188,38 @@ export function notifyUser(user, subject, message) {
   return 'none';
 }
 
+// Same as notifyUser, but actually waits for Telegram's API to confirm the
+// message sent before reporting 'telegram' — used only where the caller
+// hands the result back to a human who'll trust it (the reset-password
+// route tells a lead "delivered via Telegram" vs showing them the temp
+// password to relay by hand; notifyUser's fire-and-forget send used to
+// always claim 'telegram' the instant a telegram_id existed, even if the
+// bot was blocked and the send silently failed server-side). Everywhere
+// else callers don't act on the return value, so the fire-and-forget
+// notifyUser above is intentionally left as-is — awaiting every
+// notification would add latency to routes that don't need it.
+export async function notifyUserConfirmed(user, subject, message) {
+  if (bot && user.telegram_id) {
+    try {
+      await bot.sendMessage(user.telegram_id, message);
+      return 'telegram';
+    } catch (err) {
+      console.error('Telegram notify failed:', err.message);
+      // Falls through to the email channel below instead of claiming a
+      // delivery that didn't happen.
+    }
+  }
+  if (isEmailConfigured() && user.email && !user.email.endsWith('@telegram.local')) {
+    try {
+      await sendEmail(user.email, subject, message);
+      return 'email';
+    } catch {
+      return 'none';
+    }
+  }
+  return 'none';
+}
+
 // No-op unless TELEGRAM_BOT_TOKEN is set (matches the "only needs an API
 // key in prod" scaffolding used for the other prod-readiness integrations)
 // and deliberately never called in tests — see app.js.

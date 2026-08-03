@@ -151,7 +151,8 @@ export function initDb() {
       name TEXT NOT NULL UNIQUE,
       task_type TEXT NOT NULL,
       color TEXT DEFAULT '#1D9E75',
-      order_num INTEGER DEFAULT 0
+      order_num INTEGER DEFAULT 0,
+      mvt_updated_at TEXT DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS checklist_items (
@@ -773,7 +774,8 @@ export function initDb() {
         name TEXT NOT NULL UNIQUE,
         task_type TEXT NOT NULL,
         color TEXT DEFAULT '#1D9E75',
-        order_num INTEGER DEFAULT 0
+        order_num INTEGER DEFAULT 0,
+        mvt_updated_at TEXT DEFAULT NULL
       );
 
       CREATE TABLE checklist_items (
@@ -782,6 +784,7 @@ export function initDb() {
         category TEXT DEFAULT '',
         text TEXT NOT NULL,
         order_num INTEGER DEFAULT 0,
+        in_mvt INTEGER DEFAULT 1,
         FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
       );
 
@@ -809,6 +812,13 @@ export function initDb() {
         FOREIGN KEY (item_id) REFERENCES checklist_items(id)
       );
     `);
+    // note: checklist_item_results.note was already listed above — this
+    // CREATE TABLE block already has every column the migration path below
+    // would otherwise backfill, so a genuinely fresh install (which always
+    // takes this branch, never the else/ALTER migration path below, since
+    // a brand-new checklist_items table never has a 'category' column yet)
+    // doesn't end up missing columns that only "table already existed"
+    // upgrades would get.
     seedChecklistTemplates();
   } else {
     // Ensure submissions has new columns (safe migration — the column-check
@@ -824,6 +834,14 @@ export function initDb() {
 
     // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
     if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1');
+
+    // Migration: optimistic-locking stamp for the MVT editor — without it,
+    // two leads opening the same template's MVT editor at once silently
+    // lose whichever save happened first (last write wins on the whole
+    // items array). The PATCH route now requires the caller to echo back
+    // the stamp it loaded and 409s if it's stale.
+    const checklistTemplateCols = db.prepare("PRAGMA table_info(checklist_templates)").all().map(c => c.name);
+    if (!checklistTemplateCols.includes('mvt_updated_at')) db.exec('ALTER TABLE checklist_templates ADD COLUMN mvt_updated_at TEXT DEFAULT NULL');
 
     // Migration: optional free-text note per failed item — lets a tester
     // describe what actually went wrong instead of just a bare fail flag,

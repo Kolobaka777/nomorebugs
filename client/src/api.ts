@@ -239,8 +239,8 @@ export const checklistApi = {
   getAuthors: () => api.get('/checklists/authors'),
   getTaskTypes: () => api.get('/checklists/task-types'),
 
-  updateMvtItems: (templateId: number, items: { id: number; in_mvt: number }[]) =>
-    api.patch(`/checklists/templates/${templateId}/mvt`, { items }),
+  updateMvtItems: (templateId: number, items: { id: number; in_mvt: number }[], expectedMvtUpdatedAt: string | null) =>
+    api.patch(`/checklists/templates/${templateId}/mvt`, { items, expected_mvt_updated_at: expectedMvtUpdatedAt }),
 
   createTemplate: (data: { name: string; color: string; items: { category: string; text: string }[] }) =>
     api.post('/checklists/templates', data),

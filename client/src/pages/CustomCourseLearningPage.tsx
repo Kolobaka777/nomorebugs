@@ -350,6 +350,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   });
   const [quizStates, setQuizStates] = useState<Record<number, any>>({});
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
+  // Below the lg breakpoint the module/lesson list collapses into this
+  // toggle instead of eating a fixed-width column — on a phone a 256px
+  // sidebar next to the lesson content left almost nothing to actually
+  // read the lesson in.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const startTimeRef = useRef(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -461,10 +466,22 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     <div className="h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
       <Navigation user={user} onLogout={onLogout} />
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: '#141424', borderRight: '1px solid rgba(232,232,208,0.06)' }}>
-          <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
+      <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
+        {/* Sidebar — full-width collapsible block on mobile, static column from lg up */}
+        <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: '#141424', borderRight: '1px solid rgba(232,232,208,0.06)', borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
+          <button
+            onClick={() => setMobileNavOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-4 flex-shrink-0 lg:hidden"
+            style={{ borderBottom: mobileNavOpen ? '1px solid rgba(232,232,208,0.06)' : 'none' }}
+          >
+            <span className="text-left min-w-0">
+              <p className="font-pixel text-pixel mb-1 truncate" style={{ fontSize: '0.55rem', lineHeight: 2 }}>{course.title}</p>
+              <p className="text-pixel/55 font-sans text-xs">{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
+            </span>
+            <span className="font-sans text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(232,232,208,0.55)' }}>{mobileNavOpen ? 'Скрыть ▲' : 'Оглавление ▾'}</span>
+          </button>
+
+          <div className="px-4 py-4 flex-shrink-0 hidden lg:block" style={{ borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
             <p className="font-pixel text-pixel mb-1 truncate" style={{ fontSize: '0.55rem', lineHeight: 2 }}>{course.title}</p>
             <div className="flex items-center gap-2 mb-2">
               <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(232,232,208,0.08)' }}>
@@ -475,7 +492,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
             <p className="text-pixel/55 font-sans text-xs">{completedCount}/{totalLessons} пройдено</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-2">
+          <div className={`flex-1 overflow-y-auto py-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ maxHeight: '50vh' }}>
             {(course.modules || []).map((mod: any, mi: number) => {
               const modLessons = mod.lessons || [];
               const isExpanded = expandedModules.has(mi);
@@ -508,7 +525,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     return (
                       <button
                         key={lesson.id ?? li}
-                        onClick={() => accessible && setCurrentIdx(gi)}
+                        onClick={() => accessible && (setCurrentIdx(gi), setMobileNavOpen(false))}
                         disabled={!accessible}
                         className="w-full flex items-center gap-2.5 pl-8 pr-4 py-2 text-left transition-all"
                         style={{ background: isCur ? `${color}15` : 'transparent', borderLeft: isCur ? `2px solid ${color}` : '2px solid transparent', cursor: accessible ? 'pointer' : 'not-allowed', opacity: !accessible ? 0.4 : 1 }}
@@ -529,7 +546,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
             })}
           </div>
 
-          <div className="px-4 py-3 flex-shrink-0 space-y-2" style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}>
+          <div className={`px-4 py-3 flex-shrink-0 space-y-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}>
             <button onClick={() => setShowNotes(true)} className="w-full py-2 rounded font-sans text-xs flex items-center justify-center gap-2" style={{ background: 'rgba(232,232,208,0.06)', color: 'rgba(232,232,208,0.6)' }}>
               <PixelIcon name="memo" size={13} color="currentColor" /> Заметки {notes.length > 0 && <span className="text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{ background: color, color: '#0f0f1a', fontSize: '0.6rem' }}>{notes.length}</span>}
             </button>

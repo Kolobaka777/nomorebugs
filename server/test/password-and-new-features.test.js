@@ -63,6 +63,32 @@ describe('admin/lead password reset', () => {
       .set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(200);
     expect(db.prepare('SELECT must_change_password FROM users WHERE id = ?').get(testerId).must_change_password).toBe(1);
+    // No Telegram bot/SMTP configured in this test env — delivery is 'none',
+    // so the lead must get the raw temp password back to relay by hand.
+    expect(res.body.delivered).toBe('none');
+    expect(typeof res.body.tempPassword).toBe('string');
+  });
+
+  // Production-readiness audit (deferred item resolved): the reset route
+  // used to report "delivered via telegram" the instant the target had a
+  // telegram_id, even if the actual send failed — leaving the lead with
+  // neither a working delivery nor the password to hand over manually.
+  it('falls back to handing the lead the raw temp password when Telegram delivery actually fails (bot blocked)', async () => {
+    const { _setBotForTest } = await import('../src/telegram.js');
+    const sendMessage = () => Promise.reject(new Error('Forbidden: bot was blocked by the user'));
+    _setBotForTest({ sendMessage }, 'test_bot');
+    db.prepare('UPDATE users SET telegram_id = ? WHERE id = ?').run('555555', testerId);
+    try {
+      const res = await request(app)
+        .post(`/api/admin/users/${testerId}/reset-password`)
+        .set('Authorization', `Bearer ${leadToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.delivered).toBe('none');
+      expect(typeof res.body.tempPassword).toBe('string');
+    } finally {
+      _setBotForTest(null, null);
+      db.prepare('UPDATE users SET telegram_id = NULL WHERE id = ?').run(testerId);
+    }
   });
 
   it('login response reports mustChangePassword after a reset', async () => {

@@ -101,4 +101,27 @@ describe('course deadlines — per-user override', () => {
       .send({ user_id: fixtures.testerId, deadline_at: '2030-01-01' });
     expect(res.status).toBe(403);
   });
+
+  // Production-readiness audit: these two routes checked the target course
+  // existed but never that the caller actually owned it — a tester holding
+  // the narrow manage_courses grant (meant to let them manage their own
+  // course) could set or delete a deadline override on *any* lead's course.
+  it('a tester with manage_courses on their own course cannot set/delete a deadline override on someone else\'s course (IDOR)', async () => {
+    const grant = await request(app)
+      .post('/api/lead/permissions')
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ user_id: fixtures.testerId, permission: 'manage_courses' });
+    expect(grant.status).toBe(200);
+
+    const set = await request(app)
+      .post(`/api/custom-courses/${courseId}/deadline-override`)
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ user_id: fixtures.testerId, deadline_at: '2030-01-01', reason: 'not my course' });
+    expect(set.status).toBe(403);
+
+    const del = await request(app)
+      .delete(`/api/custom-courses/${courseId}/deadline-override/${fixtures.testerId}`)
+      .set('Authorization', `Bearer ${testerToken}`);
+    expect(del.status).toBe(403);
+  });
 });

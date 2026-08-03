@@ -9,14 +9,15 @@ const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
 const { seedTestData, loginAs } = await import('./helpers.js');
 
-let leadId, testerId;
-let leadToken, testerToken, otherTesterToken;
+let leadId, testerId, adminId;
+let leadToken, testerToken, otherTesterToken, adminToken;
 
 beforeAll(async () => {
   const ids = seedTestData(db);
-  leadId = ids.leadId; testerId = ids.testerId;
+  leadId = ids.leadId; testerId = ids.testerId; adminId = ids.adminId;
   leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
   testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  adminToken = await loginAs(request, app, 'admin@test.local', 'adminpass123');
 
   db.prepare(
     'INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)'
@@ -142,6 +143,41 @@ describe('scoped permissions — authorization boundary', () => {
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ term: 'Flaky test', definition: 'A test that passes/fails nondeterministically.' });
     expect(res.status).toBe(200);
+  });
+
+  // Production-readiness audit (deferred item resolved): demoting a lead
+  // used not to surface that grants they'd issued to others were still
+  // active — the grant itself was never a security hole (it's checked
+  // against the *holder's* current role, not the granter's), but an admin
+  // had no way to spot "this permission was granted by someone who isn't a
+  // lead anymore" without manually cross-referencing. GET /api/lead/permissions
+  // now returns granted_by_role so the client can flag it.
+  it('demoting the granting lead does not revoke an already-issued grant, but the list now flags who issued it and their current role', async () => {
+    const grant = await request(app)
+      .post('/api/lead/permissions')
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ user_id: testerId, permission: 'manage_checklists' });
+    expect(grant.status).toBe(200);
+
+    const demote = await request(app)
+      .patch(`/api/admin/users/${leadId}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'tester' });
+    expect(demote.status).toBe(200);
+
+    // The grant is still active — checked against the holder's role, not the (now-demoted) granter's.
+    const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${adminToken}`);
+    expect(list.status).toBe(200);
+    const row = list.body.find((r) => r.user_id === testerId && r.permission === 'manage_checklists');
+    expect(row).toBeTruthy();
+    expect(row.granted_by_role).toBe('tester');
+
+    const stillWorks = await request(app)
+      .patch('/api/checklists/templates/999999/mvt')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ items: [] });
+    // 404 (unknown template), not 403 — proves the grant is still honored server-side.
+    expect(stillWorks.status).toBe(404);
   });
 });
 

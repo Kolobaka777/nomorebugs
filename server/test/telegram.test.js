@@ -18,7 +18,7 @@ const { seedTestData, loginAs } = await import('./helpers.js');
 const emailModule = await import('../src/email.js');
 const {
   createTelegramToken, pollTelegramToken, handleTelegramStart,
-  notifyUser, isTelegramConfigured, _setBotForTest,
+  notifyUser, notifyUserConfirmed, isTelegramConfigured, _setBotForTest,
 } = await import('../src/telegram.js');
 
 let leadId, testerId;
@@ -246,6 +246,42 @@ describe('notifyUser', () => {
   it('is a no-op when neither Telegram nor email is available', () => {
     const channel = notifyUser({ id: 4, telegram_id: null, email: 'nobody@test.local' }, 'Subject', 'Body');
     expect(channel).toBe('none');
+  });
+});
+
+// Production-readiness audit (deferred item resolved): notifyUser() reports
+// 'telegram' the instant a telegram_id exists, without waiting to see if the
+// send actually succeeded — fine for fire-and-forget notifications, but
+// wrong for the one caller (reset-password) that uses the result to decide
+// whether to show a human the raw temp password. notifyUserConfirmed awaits
+// the real API call and only claims 'telegram' once it's actually confirmed.
+describe('notifyUserConfirmed', () => {
+  it('reports telegram only once bot.sendMessage actually resolves', async () => {
+    const sendMessage = vi.fn(() => Promise.resolve());
+    _setBotForTest({ sendMessage }, 'test_bot');
+    const channel = await notifyUserConfirmed({ id: 1, telegram_id: '12345', email: 'x@test.local' }, 'Subject', 'Body');
+    expect(channel).toBe('telegram');
+    expect(sendMessage).toHaveBeenCalledWith('12345', 'Body');
+    _setBotForTest(null, null);
+  });
+
+  it('falls back to email (not a false "telegram") when the bot send actually fails — e.g. the user blocked the bot', async () => {
+    const sendMessage = vi.fn(() => Promise.reject(new Error('Forbidden: bot was blocked by the user')));
+    _setBotForTest({ sendMessage }, 'test_bot');
+    emailModule.isEmailConfigured.mockReturnValue(true);
+    const channel = await notifyUserConfirmed({ id: 5, telegram_id: '999', email: 'fallback@test.local' }, 'Subject', 'Body');
+    expect(channel).toBe('email');
+    expect(emailModule.sendEmail).toHaveBeenCalledWith('fallback@test.local', 'Subject', 'Body');
+    emailModule.isEmailConfigured.mockReturnValue(false);
+    _setBotForTest(null, null);
+  });
+
+  it('reports none (not a false "telegram") when the send fails and there is no email to fall back to', async () => {
+    const sendMessage = vi.fn(() => Promise.reject(new Error('Forbidden: bot was blocked by the user')));
+    _setBotForTest({ sendMessage }, 'test_bot');
+    const channel = await notifyUserConfirmed({ id: 6, telegram_id: '888', email: 'tg700002@telegram.local' }, 'Subject', 'Body');
+    expect(channel).toBe('none');
+    _setBotForTest(null, null);
   });
 });
 

@@ -12,7 +12,7 @@ import {
 } from '../auth.js';
 import { DEFAULT_ROLE } from '../roles.js';
 import {
-  isTelegramConfigured, createTelegramToken, buildDeepLink, pollTelegramToken, notifyUser,
+  isTelegramConfigured, createTelegramToken, buildDeepLink, pollTelegramToken, notifyUser, notifyUserConfirmed,
 } from '../telegram.js';
 import { isUniqueConstraintError, revokeAllRefreshTokens } from '../routeHelpers.js';
 
@@ -451,7 +451,7 @@ router.put('/api/me/password', authMiddleware, passwordChangeLimiter, (req, res)
 // admin can reset anyone. There is deliberately no "view current password"
 // endpoint — passwords are one-way hashed and unrecoverable by design, this
 // is the correct replacement for that.
-router.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('lead'), (req, res) => {
+router.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('lead'), async (req, res) => {
   try {
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
@@ -471,7 +471,13 @@ router.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('
         .run(req.user.id, `password_reset:target=${target.id}`);
     })();
 
-    const delivered = notifyUser(
+    // Uses the delivery-confirmed variant (not the fire-and-forget
+    // notifyUser used elsewhere) specifically because the response below
+    // decides whether to show the lead the raw temp password to relay by
+    // hand — claiming "delivered via Telegram" when the send actually
+    // failed (bot blocked, chat gone) used to leave the lead with no way
+    // to give the tester their new password at all.
+    const delivered = await notifyUserConfirmed(
       target, 'Сброс пароля',
       `Твой пароль в baga-net сброшен администратором. Временный пароль: ${tempPassword}\nПри следующем входе нужно будет задать новый.`
     );

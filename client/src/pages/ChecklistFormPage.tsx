@@ -98,9 +98,10 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
           ? (pendingMvt[item.id] ? 1 : 0)
           : (item.in_mvt ?? 1),
       }));
-      await checklistApi.updateMvtItems(template.id, updates);
+      const res = await checklistApi.updateMvtItems(template.id, updates, template.mvt_updated_at ?? null);
       setTemplate(prev => prev ? {
         ...prev,
+        mvt_updated_at: res.data.mvt_updated_at,
         items: prev.items.map(item => ({
           ...item,
           in_mvt: pendingMvt[item.id] !== undefined
@@ -111,6 +112,18 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
       setEditingMvt(false);
       setPendingMvt({});
     } catch (err: any) {
+      if (err?.response?.status === 409) {
+        // Someone else saved MVT changes to this checklist first — pulling
+        // our stale copy would silently overwrite theirs, so reload from
+        // the server instead of retrying blind.
+        try {
+          const fresh = await checklistApi.getTemplates();
+          const tpl = fresh.data.find((t: Template) => t.id === template.id);
+          if (tpl) setTemplate(tpl);
+        } catch { /* fall through to showing the conflict error below */ }
+        setEditingMvt(false);
+        setPendingMvt({});
+      }
       showApiError(err, 'Не удалось сохранить МВТ');
     } finally {
       setSavingMvt(false);

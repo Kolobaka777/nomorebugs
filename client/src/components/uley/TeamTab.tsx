@@ -5,7 +5,7 @@ import { parseServerDate } from '../../utils/date';
 import { ALL_PERMISSIONS, LEAVE_LABELS, PERMISSION_LABELS } from './constants';
 
 interface ArchivedMember { id: number; name: string; avatar_initials: string; archived_at: string; gender?: 'male' | 'female' | null }
-interface Grant { id: number; user_id: number; permission: string; expires_at: string | null }
+interface Grant { id: number; user_id: number; permission: string; expires_at: string | null; granted_by_name?: string; granted_by_role?: string }
 
 export default function TeamTab({
   team,
@@ -229,6 +229,14 @@ export default function TeamTab({
                         />
                         {PERMISSION_LABELS[perm]}
                         {grant?.expires_at && ` (до ${parseServerDate(grant.expires_at).toLocaleDateString('ru-RU')})`}
+                        {grant && grant.granted_by_role && grant.granted_by_role !== 'lead' && grant.granted_by_role !== 'admin' && (
+                          <span
+                            title={`Выдал(а) ${grant.granted_by_name ?? 'сотрудник'}, который(ая) больше не лид/админ — стоит перепроверить`}
+                            style={{ color: '#EF9F27' }}
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </label>
                     );
                   })}

@@ -64,6 +64,37 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
     expect(byId[fixtures.lec3Id]).toBe('locked');
   });
 
+  // Production-readiness audit (deferred item resolved): retaking an
+  // already-passed lecture with a worse score used to overwrite the stored
+  // (passing) score with the new, lower one — silently flipping that
+  // lecture back to "not passed" and re-locking whatever came after it,
+  // even though the tester had already legitimately unlocked it. The best
+  // score across attempts is now what's kept for gating purposes.
+  it('retaking an already-passed lecture with a worse score keeps the lecture "passed" and does not re-lock what it unlocked', async () => {
+    const retake = await request(app)
+      .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { [fixtures.q1Id]: 'wrong', [fixtures.q2Id]: 'wrong' } });
+    expect(retake.status).toBe(200);
+    // This attempt's own reported score is honest (0) — only the stored
+    // gating record keeps the earlier, better score.
+    expect(retake.body.score).toBe(0);
+    expect(retake.body.passed).toBe(false);
+
+    const lecturesRes = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
+    const byId = Object.fromEntries(lecturesRes.body.map(l => [l.id, l.status]));
+    expect(byId[fixtures.lec1Id]).toBe('passed');
+    expect(byId[fixtures.lec2Id]).toBe('active');
+
+    // Re-pass it for real, so the rest of this describe block's assumptions
+    // (lecture 1 passed with score 100) hold for the tests that follow.
+    const rePass = await request(app)
+      .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { [fixtures.q1Id]: 'b', [fixtures.q2Id]: 'a' } });
+    expect(rePass.body.score).toBe(100);
+  });
+
   it('scores 0 (fail): stays "active" (not "passed"), and does not unlock the following lecture', async () => {
     const res = await request(app)
       .post(`/api/lectures/${fixtures.lec2Id}/submit-test`)

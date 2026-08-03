@@ -12,6 +12,7 @@ export interface Template {
   task_type: string;
   color: string;
   items: ChecklistItem[];
+  mvt_updated_at?: string | null;
 }
 
 export type Status = 'ok' | 'fail' | 'na';
