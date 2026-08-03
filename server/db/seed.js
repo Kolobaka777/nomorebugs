@@ -1,5 +1,21 @@
-// Seed script — creates a fresh DB with all tables + test data.
-// Does NOT import schema.js (avoids ESM module-cache / open-handle conflicts).
+// Seed script — creates a fresh DB with the original core tables (users,
+// lectures, questions, results, surveys, activity log, profiles/cards/
+// badges) + demo data for them. Does NOT import schema.js (avoids ESM
+// module-cache / open-handle conflicts — schema.js's own `db` would still
+// hold an open handle on the old file when this script tries to delete it
+// above, which fails hard on Windows' stricter file locking).
+//
+// Deliberately incomplete on its own: every table added since this file
+// was last touched (checklists v2, custom courses, guides, granted
+// permissions, presence/leave, suggestions, team news, bonus awards, ...)
+// is intentionally NOT recreated here. That's not a bug — `initDb()` in
+// schema.js runs automatically on every server start (see src/index.js)
+// and creates/migrates all of those via its own guarded `CREATE TABLE IF
+// NOT EXISTS`/`ALTER TABLE` statements, so `npm run seed && npm run dev`
+// still ends up with a fully-migrated database. What's genuinely missing
+// is DEMO DATA for those newer features — a fresh seed gives you working
+// core lectures/quizzes/profiles, but empty checklists/courses/guides/
+// suggestions until you create some through the UI.
 import Database from 'better-sqlite3';
 import bcryptjs from 'bcryptjs';
 import fs from 'fs';
@@ -299,3 +315,5 @@ profIns.run(vasyaId, 10,  'Vasya Novice');
 
 db.close();
 console.log('Database seeded successfully!');
+console.log('Note: only the original tables (lectures/quizzes/profiles) have demo data.');
+console.log('Run the server once (npm run dev) to finish migrating newer tables (checklists, courses, guides, permissions, presence, suggestions, ...) — they start empty.');
