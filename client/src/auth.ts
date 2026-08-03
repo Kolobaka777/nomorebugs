@@ -55,7 +55,7 @@ export function updateStoredUser(patch: Record<string, any>): any {
   return merged;
 }
 
-function setAccessToken(token: string) {
+export function setAccessToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
 }
 

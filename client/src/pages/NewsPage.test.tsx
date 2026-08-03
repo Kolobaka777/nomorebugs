@@ -102,8 +102,8 @@ describe('NewsPage', () => {
 
   it('"Показать ещё" only appears when hasMore, and loading more appends without replacing existing items', async () => {
     vi.mocked(teamApi.getNews)
-      .mockResolvedValueOnce({ data: { rows: [newsItem({ id: 1, name: 'First' })], hasMore: true } } as any)
-      .mockResolvedValueOnce({ data: { rows: [newsItem({ id: 2, name: 'Second' })], hasMore: false } } as any);
+      .mockResolvedValueOnce({ data: { rows: [newsItem({ id: 1, name: 'First' })], hasMore: true, storedCount: 1 } } as any)
+      .mockResolvedValueOnce({ data: { rows: [newsItem({ id: 2, name: 'Second' })], hasMore: false, storedCount: 1 } } as any);
     vi.mocked(presenceApi.getTeam).mockResolvedValue({ data: [] } as any);
 
     renderPage();

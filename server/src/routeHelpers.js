@@ -90,6 +90,11 @@ export function hardDeleteCourse(courseId) {
     }
     db.prepare('DELETE FROM custom_modules WHERE course_id = ?').run(courseId);
     db.prepare('DELETE FROM custom_course_views WHERE course_id = ?').run(courseId);
+    // Was missing — course_deadline_overrides has a FK on course_id, so any
+    // course that ever had a per-user deadline extension set (a routine lead
+    // action) hit a foreign-key-constraint failure here, rolling back the
+    // whole transaction and leaving it permanently un-purgeable from trash.
+    db.prepare('DELETE FROM course_deadline_overrides WHERE course_id = ?').run(courseId);
     db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
   })();
 }

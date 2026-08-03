@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { authApi } from '../api';
+import { setAccessToken } from '../auth';
 
 interface Props {
   forced?: boolean;
@@ -27,7 +28,12 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
     }
     setSaving(true);
     try {
-      await authApi.changePassword(currentPassword, newPassword);
+      const res = await authApi.changePassword(currentPassword, newPassword);
+      // The server revokes every refresh token on a password change,
+      // including this tab's own — without adopting the fresh one it hands
+      // back, this tab kept "working" only until the 15-min access token
+      // expired, then got silently logged out with no explanation.
+      if (res.data?.token) setAccessToken(res.data.token);
       onDone();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Не удалось изменить пароль');

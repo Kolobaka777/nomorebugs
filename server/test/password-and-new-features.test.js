@@ -33,12 +33,20 @@ describe('self-service password change', () => {
     expect(res.status).toBe(401);
   });
 
-  it('changes the password and the old refresh tokens are revoked', async () => {
+  it('changes the password, revokes old refresh tokens, and hands back a fresh access token for the current session', async () => {
     const res = await request(app)
       .put('/api/me/password')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ current_password: 'testerpass123', new_password: 'newpassword123' });
     expect(res.status).toBe(200);
+
+    // Was missing — the tab that just changed its own password used to keep
+    // "working" only until its 15-min access token expired, then got
+    // silently logged out with no explanation (revokeAllRefreshTokens also
+    // revoked its own current refresh token, and nothing replaced it).
+    expect(typeof res.body.token).toBe('string');
+    const usingFreshToken = await request(app).get('/api/tester/profile').set('Authorization', `Bearer ${res.body.token}`);
+    expect(usingFreshToken.status).toBe(200);
 
     const login = await request(app).post('/api/auth/login').send({ email: 'tester@test.local', password: 'newpassword123' });
     expect(login.status).toBe(200);

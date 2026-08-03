@@ -267,7 +267,12 @@ if (isSentryEnabled()) Sentry.setupExpressErrorHandler(app);
 // Global error handler — catches multer errors and anything else that throws
 app.use((err, req, res, next) => {
   console.error(err);
-  const status = err.status || err.statusCode || 500;
+  // MulterError (e.g. LIMIT_FILE_SIZE on an oversized import) sets neither
+  // .status nor .statusCode, so it used to fall through to the generic 500
+  // below — technically fine (the message still reached the client) but
+  // inconsistent with every other validation error in the app, which is 400.
+  const isMulterError = err.name === 'MulterError';
+  const status = err.status || err.statusCode || (isMulterError ? 400 : 500);
   res.status(status).json({ error: err.message || 'Server error' });
 });
 

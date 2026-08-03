@@ -80,6 +80,14 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
     courseId = db.prepare(
       'INSERT INTO custom_courses (title, created_by, is_published) VALUES (?, ?, 0)'
     ).run('Admin Bypass Fixture Course', leadId).lastInsertRowid;
+    // A module+lesson is required for the publish-toggle test below —
+    // publishing now validates the course actually has content.
+    const modId = db.prepare(
+      'INSERT INTO custom_modules (course_id, title, order_num) VALUES (?, ?, 0)'
+    ).run(courseId, 'M1').lastInsertRowid;
+    db.prepare(
+      'INSERT INTO custom_lessons (module_id, title, type, order_num) VALUES (?, ?, ?, 0)'
+    ).run(modId, 'L1', 'lesson');
   });
 
   it('admin can view a checklist submission they did not author', async () => {

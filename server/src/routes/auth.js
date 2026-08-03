@@ -141,7 +141,12 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
   try {
     const { email, password, name, gender } = req.body;
 
-    if (!email || !password || !name?.trim()) {
+    // Was `!email || !password || !name?.trim()` — a non-string field (e.g.
+    // a JSON number) slipped past that falsy check and then crashed a
+    // string method a few lines down (name?.trim(), password.length,
+    // bcryptjs.hashSync expecting a string) into an opaque 500 instead of a
+    // normal 400.
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof name !== 'string' || !email || !password || !name.trim()) {
       return res.status(400).json({ error: 'Email, пароль и имя обязательны' });
     }
     if (!EMAIL_RE.test(email)) {
@@ -215,11 +220,28 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 function recordFailedLogin(emailKey) {
   const entry = failedLoginAttempts.get(emailKey) || { count: 0, lockedUntil: 0 };
   entry.count += 1;
+  entry.lastAttempt = Date.now();
   if (entry.count >= MAX_FAILED_LOGIN_ATTEMPTS) {
     entry.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
     entry.count = 0;
   }
   failedLoginAttempts.set(emailKey, entry);
+}
+
+// A successful login already clears its own entry (see below), but an
+// account that's mistyped once and never tries again — or a one-off scan
+// against emails that don't even exist — left an entry behind forever,
+// growing this Map without bound over a long server uptime. A stale entry
+// (no attempt in a day, well past the 15-min lockout window either way) is
+// safe to drop — the next failed attempt just starts a fresh count.
+const IDLE_ENTRY_TTL_MS = 24 * 60 * 60 * 1000;
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of failedLoginAttempts) {
+      if (now - entry.lastAttempt > IDLE_ENTRY_TTL_MS) failedLoginAttempts.delete(key);
+    }
+  }, 60 * 60 * 1000).unref();
 }
 
 router.post('/api/auth/login', loginLimiter, (req, res) => {
@@ -403,7 +425,19 @@ router.put('/api/me/password', authMiddleware, passwordChangeLimiter, (req, res)
     revokeAllRefreshTokens(user.id);
     db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'password_changed');
 
-    res.json({ ok: true });
+    // revokeAllRefreshTokens above also revokes the CURRENT session's own
+    // refresh token — without reissuing one here, the tab that just changed
+    // its own password kept working until the access token's 15-min TTL
+    // ran out, then got silently logged out on the next refresh with no
+    // explanation of why. Mirrors login's token issuance.
+    const freshUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    const token = generateAccessToken(freshUser);
+    const refresh = generateRefreshToken();
+    db.prepare('INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
+      .run(freshUser.id, refresh.hash, refresh.expiresAt.toISOString());
+    setRefreshCookie(res, refresh.token);
+
+    res.json({ ok: true, token });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -513,58 +547,93 @@ router.post('/api/auth/reset-password', forgotPasswordLimiter, (req, res) => {
 // actual /start handling and the token lifecycle.
 
 router.post('/api/auth/telegram/start', telegramStartLimiter, (req, res) => {
-  if (!isTelegramConfigured()) {
-    return res.status(503).json({ error: 'Вход через Telegram временно недоступен' });
+  try {
+    if (!isTelegramConfigured()) {
+      return res.status(503).json({ error: 'Вход через Telegram временно недоступен' });
+    }
+    const { token, expiresAt } = createTelegramToken();
+    const deepLink = buildDeepLink(token);
+    if (!deepLink) {
+      // Bot token is set but getMe() hasn't resolved yet (very brief window
+      // right after server start) — ask the client to retry rather than
+      // handing back a broken link.
+      return res.status(503).json({ error: 'Telegram-бот ещё запускается, попробуйте через пару секунд' });
+    }
+    res.json({ token, deepLink, expiresAt });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
   }
-  const { token, expiresAt } = createTelegramToken();
-  const deepLink = buildDeepLink(token);
-  if (!deepLink) {
-    // Bot token is set but getMe() hasn't resolved yet (very brief window
-    // right after server start) — ask the client to retry rather than
-    // handing back a broken link.
-    return res.status(503).json({ error: 'Telegram-бот ещё запускается, попробуйте через пару секунд' });
-  }
-  res.json({ token, deepLink, expiresAt });
 });
 
 router.get('/api/auth/telegram/poll/:token', telegramPollLimiter, (req, res) => {
-  const result = pollTelegramToken(req.params.token);
-  // Mirrors the email/password login/register routes: the refresh token
-  // travels as an httpOnly cookie, never in the JSON the client's own JS
-  // can read — pollTelegramToken() itself still returns it internally
-  // (telegram.js's own tests rely on that), it's just stripped here before
-  // the response actually leaves the server.
-  if (result.status === 'ready' && result.refreshToken) {
-    setRefreshCookie(res, result.refreshToken);
-    const { refreshToken, ...rest } = result;
-    return res.json(rest);
+  try {
+    const result = pollTelegramToken(req.params.token);
+    // Mirrors the email/password login/register routes: the refresh token
+    // travels as an httpOnly cookie, never in the JSON the client's own JS
+    // can read — pollTelegramToken() itself still returns it internally
+    // (telegram.js's own tests rely on that), it's just stripped here before
+    // the response actually leaves the server.
+    if (result.status === 'ready' && result.refreshToken) {
+      setRefreshCookie(res, result.refreshToken);
+      const { refreshToken, ...rest } = result;
+      return res.json(rest);
+    }
+    res.json(result);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
   }
-  res.json(result);
 });
 
 // Authenticated: lets an existing (e.g. email/password) account attach
 // Telegram after the fact, purely so it can start receiving notifications
 // and use Telegram to log in going forward — no new session is issued.
 router.post('/api/auth/telegram/link/start', authMiddleware, telegramStartLimiter, (req, res) => {
-  if (!isTelegramConfigured()) {
-    return res.status(503).json({ error: 'Telegram временно недоступен' });
+  try {
+    if (!isTelegramConfigured()) {
+      return res.status(503).json({ error: 'Telegram временно недоступен' });
+    }
+    const { token, expiresAt } = createTelegramToken(req.user.id);
+    const deepLink = buildDeepLink(token);
+    if (!deepLink) {
+      return res.status(503).json({ error: 'Telegram-бот ещё запускается, попробуйте через пару секунд' });
+    }
+    res.json({ token, deepLink, expiresAt });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
   }
-  const { token, expiresAt } = createTelegramToken(req.user.id);
-  const deepLink = buildDeepLink(token);
-  if (!deepLink) {
-    return res.status(503).json({ error: 'Telegram-бот ещё запускается, попробуйте через пару секунд' });
-  }
-  res.json({ token, deepLink, expiresAt });
 });
 
 router.get('/api/auth/telegram/status', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT telegram_id, telegram_username FROM users WHERE id = ?').get(req.user.id);
-  res.json({ linked: !!user.telegram_id, telegramUsername: user.telegram_username || null });
+  try {
+    const user = db.prepare('SELECT telegram_id, telegram_username FROM users WHERE id = ?').get(req.user.id);
+    res.json({ linked: !!user?.telegram_id, telegramUsername: user?.telegram_username || null });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.post('/api/auth/telegram/unlink', authMiddleware, (req, res) => {
-  db.prepare('UPDATE users SET telegram_id = NULL, telegram_username = NULL WHERE id = ?').run(req.user.id);
-  res.json({ success: true });
+  try {
+    // A user who registered *through* Telegram (see telegram.js) gets a
+    // synthetic `tg{id}@telegram.local` email and an unknowable random
+    // password — Telegram is their ONLY way to ever log in again. Unlinking
+    // used to be allowed unconditionally, which permanently locked such a
+    // user out with no self-service recovery (forgot-password and email
+    // delivery both already deliberately skip @telegram.local addresses).
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.user.id);
+    if (user?.email.endsWith('@telegram.local')) {
+      return res.status(400).json({ error: 'Это единственный способ входа в твой аккаунт — сначала попроси лида задать email и пароль, потом можно будет отвязать Telegram' });
+    }
+    db.prepare('UPDATE users SET telegram_id = NULL, telegram_username = NULL WHERE id = ?').run(req.user.id);
+    res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 export default router;

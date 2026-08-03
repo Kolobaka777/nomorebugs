@@ -18,7 +18,7 @@ beforeAll(async () => {
   const create = await request(app)
     .post('/api/custom-courses')
     .set('Authorization', `Bearer ${leadToken}`)
-    .send({ title: 'Deadline Course', is_published: 1, deadline_at: '2030-06-01', modules: [] });
+    .send({ title: 'Deadline Course', is_published: 1, deadline_at: '2030-06-01', modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson' }] }] });
   courseId = create.body.id;
 });
 

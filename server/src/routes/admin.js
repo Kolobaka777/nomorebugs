@@ -300,6 +300,13 @@ router.post('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, 
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
     if (target.role !== 'tester') return res.status(400).json({ error: 'Права можно выдавать только тестировщикам — лид и админ уже имеют полный доступ' });
     if (target.archived_at) return res.status(400).json({ error: 'Сотрудник архивирован — сначала восстановите аккаунт' });
+    // Was silently accepted — a past expires_at is immediately excluded by
+    // every read (hasPermission/the GET above both filter expires_at >
+    // now), so the grant would return 200 and then simply never apply,
+    // with nothing telling the lead why.
+    if (expires_at && new Date(expires_at) <= new Date()) {
+      return res.status(400).json({ error: 'Дата истечения должна быть в будущем' });
+    }
 
     // Replace any existing grant of the same permission for this user
     // instead of stacking duplicates — wrapped so a crash between the

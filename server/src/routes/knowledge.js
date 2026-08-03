@@ -9,6 +9,15 @@ import { requirePermission } from '../routeHelpers.js';
 
 const router = express.Router();
 
+// Unlike profile.js's nickname/status_quote/info_box (which already cap
+// length), these free-text fields had no limit beyond the global 3MB JSON
+// body cap — plenty of room to paste something huge into a bug example or
+// guide and bloat the DB. Internal small-team tool, so this is a sanity
+// bound, not abuse-hardening.
+const MAX_SHORT_FIELD = 5000; // problem/bad_text/good_text, term/definition
+const MAX_TITLE = 200;
+const MAX_GUIDE_CONTENT = 50000; // guides are meant to be full articles
+
 // ============== KNOWLEDGE BASE (Багодельня) ==============
 
 router.get('/api/bug-examples', authMiddleware, (req, res) => {
@@ -25,6 +34,9 @@ router.post('/api/bug-examples', authMiddleware, requirePermission('manage_knowl
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
     if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
       return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
+    }
+    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
     }
     const result = db.prepare(
       'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by) VALUES (?, ?, ?, ?, ?, ?)'
@@ -43,6 +55,9 @@ router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
     if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
       return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
+    }
+    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
     }
     db.prepare(
       'UPDATE bug_examples SET tag = ?, tag_color = ?, problem = ?, bad_text = ?, good_text = ? WHERE id = ?'
@@ -79,6 +94,9 @@ router.post('/api/glossary', authMiddleware, requirePermission('manage_knowledge
     if (!term?.trim() || !definition?.trim()) {
       return res.status(400).json({ error: 'Заполните термин и определение' });
     }
+    if (term.trim().length > MAX_TITLE || definition.trim().length > MAX_SHORT_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст (термин макс ${MAX_TITLE}, определение макс ${MAX_SHORT_FIELD})` });
+    }
     const result = db.prepare(
       'INSERT INTO glossary_terms (term, definition, created_by) VALUES (?, ?, ?)'
     ).run(term.trim(), definition.trim(), req.user.id);
@@ -96,6 +114,9 @@ router.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowle
     const { term, definition } = req.body;
     if (!term?.trim() || !definition?.trim()) {
       return res.status(400).json({ error: 'Заполните термин и определение' });
+    }
+    if (term.trim().length > MAX_TITLE || definition.trim().length > MAX_SHORT_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст (термин макс ${MAX_TITLE}, определение макс ${MAX_SHORT_FIELD})` });
     }
     db.prepare('UPDATE glossary_terms SET term = ?, definition = ? WHERE id = ?').run(term.trim(), definition.trim(), req.params.id);
     res.json({ ok: true });
@@ -145,6 +166,9 @@ router.post('/api/guides', authMiddleware, requirePermission('manage_guides'), (
   try {
     const { title, category, content } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
+    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
+      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
+    }
     const result = db.prepare(
       'INSERT INTO guides (title, category, content, created_by) VALUES (?, ?, ?, ?)'
     ).run(title.trim(), (category || 'Общее').trim(), content || '', req.user.id);
@@ -164,6 +188,9 @@ router.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides')
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { title, category, content } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
+    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
+      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
+    }
     db.prepare('UPDATE guides SET title = ?, category = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(title.trim(), (category || 'Общее').trim(), content || '', req.params.id);
     res.json({ ok: true });

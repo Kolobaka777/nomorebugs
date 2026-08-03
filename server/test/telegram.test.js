@@ -199,6 +199,23 @@ describe('GET/POST /api/auth/telegram/status & unlink', () => {
     res = await request(app).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
     expect(res.body).toEqual({ linked: false, telegramUsername: null });
   });
+
+  it('refuses to unlink for an account that registered *through* Telegram — it has no other way to log in', async () => {
+    // Auto-registers a fresh @telegram.local account, same as a real user
+    // tapping the bot's deep link cold (see "auto-registers a new tester"
+    // above) — this account has no real email and an unknowable random
+    // password, so Telegram is its only login method.
+    const { token: startToken } = createTelegramToken();
+    handleTelegramStart(startToken, { id: 700099, username: 'onlytelegram', first_name: 'Only' }, () => {});
+    const polled = pollTelegramToken(startToken);
+    expect(polled.status).toBe('ready');
+
+    const unlinkRes = await request(app).post('/api/auth/telegram/unlink').set('Authorization', `Bearer ${polled.token}`);
+    expect(unlinkRes.status).toBe(400);
+
+    const user = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(polled.user.id);
+    expect(user.telegram_id).toBe('700099'); // untouched
+  });
 });
 
 describe('notifyUser', () => {

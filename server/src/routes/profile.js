@@ -248,7 +248,11 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
     const collected = db.prepare('SELECT COUNT(*) as c FROM user_cards WHERE user_id = ? AND skill_area = ?').get(userId, skill_area)?.c || 0;
     const total     = db.prepare('SELECT COUNT(*) as c FROM lectures WHERE skill_area = ?').get(skill_area)?.c || 0;
 
-    if (collected < total) return res.status(400).json({ error: 'Недостаточно карточек' });
+    // total === 0 means skill_area matches no real lecture block (e.g. a
+    // bogus value sent directly to the API, bypassing the client's own
+    // dropdown of real values) — collected(0) < total(0) is false, so
+    // without this check the badge was free to craft for nothing.
+    if (total === 0 || collected < total) return res.status(400).json({ error: 'Недостаточно карточек' });
     if (db.prepare('SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?').get(userId, skill_area))
       return res.status(400).json({ error: 'Значок уже скрафчен' });
 

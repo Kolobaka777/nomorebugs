@@ -82,7 +82,13 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
     }
 
     const merged = [...virtual, ...storedPage].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    res.json({ rows: merged, hasMore });
+    // storedCount (not rows.length) is what the client must advance its next
+    // `offset` by — offset is a cursor into the *stored* team_events table
+    // only. Virtual (birthday/leave) items only ever appear on page 0 and
+    // aren't part of that table, so if the client advanced by the merged
+    // rows.length instead, the extra virtual-item count silently skipped
+    // that many real stored rows on the next page.
+    res.json({ rows: merged, hasMore, storedCount: storedPage.length });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

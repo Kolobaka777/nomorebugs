@@ -12,12 +12,26 @@ export const STATUS_VALUES = ['active', 'remote', 'other'];
 
 const ISO_WEEKDAY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
 
+// Whether Intl actually accepts this as an IANA zone — the app validates new
+// writes against this too (see routes/presence.js), but this is the
+// defense-in-depth copy: a single legacy/corrupt row must never be able to
+// throw out of the loop that builds the WHOLE team's presence list.
+export function isValidTimezone(tz) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Returns true/false once hours are configured, or null when they aren't —
 // "not configured" is deliberately distinguishable from "off the clock
 // right now" so the UI can render a neutral state instead of a false "away".
 export function computeIsWorkingNow(profile, now = new Date()) {
   if (!profile.work_start || !profile.work_end) return null;
   const tz = profile.timezone || 'Europe/Moscow';
+  if (!isValidTimezone(tz)) return null;
   const fmt = new Intl.DateTimeFormat('en-GB', {
     timeZone: tz,
     hour: '2-digit',
@@ -33,7 +47,13 @@ export function computeIsWorkingNow(profile, now = new Date()) {
   const nowMin = Number(parts.hour) * 60 + Number(parts.minute);
   const [sh, sm] = profile.work_start.split(':').map(Number);
   const [eh, em] = profile.work_end.split(':').map(Number);
-  return nowMin >= sh * 60 + sm && nowMin <= eh * 60 + em;
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  // An overnight shift (e.g. 22:00-06:00) has start > end — the "working"
+  // window wraps past midnight instead of being a same-day range.
+  return startMin <= endMin
+    ? nowMin >= startMin && nowMin <= endMin
+    : nowMin >= startMin || nowMin <= endMin;
 }
 
 // 'YYYY-MM-DD' for today in the user's own timezone — leave_periods dates
@@ -41,7 +61,8 @@ export function computeIsWorkingNow(profile, now = new Date()) {
 // not the server's own local date, so someone in a +7 timezone doesn't see
 // their vacation flip a day early/late relative to their own calendar.
 export function todayInTimezone(tz, now = new Date()) {
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Europe/Moscow' });
+  const safeTz = tz && isValidTimezone(tz) ? tz : 'Europe/Moscow';
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: safeTz });
   return fmt.format(now); // en-CA formats as YYYY-MM-DD
 }
 

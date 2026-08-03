@@ -54,7 +54,7 @@ describe('team news feed — stored events', () => {
     const create = await request(app)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
-      .send({ title: 'News Course', is_published: 0, modules: [] });
+      .send({ title: 'News Course', is_published: 0, modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson' }] }] });
     expect(create.status).toBe(200);
     const courseId = create.body.id;
 
@@ -112,6 +112,7 @@ describe('team news feed — stored events', () => {
     const first = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
     expect(first.body.rows.length).toBe(30);
     expect(first.body.hasMore).toBe(true);
+    expect(first.body.storedCount).toBe(30);
 
     const second = await request(app).get('/api/team/news').query({ offset: 30 }).set('Authorization', `Bearer ${testerToken}`);
     expect(second.body.rows.length).toBeGreaterThan(0);
@@ -169,5 +170,34 @@ describe('team news feed — computed (birthday / leave) items', () => {
   it('computed items only appear on the first page (offset 0), not when paging into older stored history', async () => {
     const news = await request(app).get('/api/team/news').query({ offset: 5 }).set('Authorization', `Bearer ${testerToken}`);
     expect(news.body.rows.find(n => n.event_type === 'birthday')).toBeFalsy();
+  });
+
+  it('paginating with storedCount as the next offset visits every stored event exactly once, even with a virtual item mixed into page 0', async () => {
+    // A birthday virtual item on page 0 used to inflate the client's next
+    // offset (it advanced by rows.length, which counted the virtual item
+    // too) — that silently skipped one real stored event on the next page.
+    const todayMD = todayMonthDayInTimezone('Europe/Moscow');
+    await request(app)
+      .patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ timezone: 'Europe/Moscow', birthday: todayMD });
+
+    const totalStored = db.prepare('SELECT COUNT(*) as c FROM team_events').get().c;
+    expect(totalStored).toBeGreaterThan(30); // guaranteed by the bulk guides created earlier in this file
+
+    let offset = 0;
+    let hasMore = true;
+    let guard = 0;
+    const seenStoredIds = new Set();
+    while (hasMore) {
+      if (++guard > 20) throw new Error('pagination loop did not terminate');
+      const res = await request(app).get('/api/team/news').query({ offset }).set('Authorization', `Bearer ${testerToken}`);
+      for (const row of res.body.rows) {
+        if (typeof row.id === 'number') seenStoredIds.add(row.id);
+      }
+      offset += res.body.storedCount;
+      hasMore = res.body.hasMore;
+    }
+    expect(seenStoredIds.size).toBe(totalStored);
   });
 });

@@ -30,7 +30,7 @@ describe('custom_course_views — NEW badge view tracking', () => {
     const created = await request(app)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
-      .send({ title: 'Views Test Course', is_published: true });
+      .send({ title: 'Views Test Course', is_published: true, modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson' }] }] });
     courseId = created.body.id;
   });
 
@@ -86,6 +86,33 @@ describe('custom_course_views — NEW badge view tracking', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(purge.status).toBe(200);
     expect(db.prepare('SELECT * FROM custom_course_views WHERE course_id = ?').get(courseId)).toBeUndefined();
+    expect(db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(courseId)).toBeUndefined();
+  });
+});
+
+describe('custom_course_views — purging a course with a deadline override (production-readiness audit)', () => {
+  it('permanently purging a trashed course that has a per-user deadline override cascades cleanly (course_deadline_overrides FK previously blocked this forever)', async () => {
+    const created = await request(app)
+      .post('/api/custom-courses')
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ title: 'Deadline Override Purge Course', is_published: true, modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson' }] }] });
+    const courseId = created.body.id;
+
+    const override = await request(app)
+      .post(`/api/custom-courses/${courseId}/deadline-override`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ user_id: testerId, deadline_at: '2030-01-01', reason: 'was on vacation' });
+    expect(override.status).toBe(200);
+    expect(db.prepare('SELECT * FROM course_deadline_overrides WHERE course_id = ?').get(courseId)).toBeDefined();
+
+    await request(app).delete(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
+
+    const adminToken = await loginAs(request, app, 'admin@test.local', 'adminpass123');
+    const purge = await request(app)
+      .delete(`/api/admin/trash/custom_courses/${courseId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(purge.status).toBe(200);
+    expect(db.prepare('SELECT * FROM course_deadline_overrides WHERE course_id = ?').get(courseId)).toBeUndefined();
     expect(db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(courseId)).toBeUndefined();
   });
 });

@@ -40,6 +40,22 @@ describe('computeIsWorkingNow — pure function, deterministic Date inputs', () 
     const profile = { work_start: '09:00', work_end: '18:00', work_days: '1,2,3,4,5', timezone: 'Europe/Moscow' };
     expect(computeIsWorkingNow(profile, now)).toBe(false);
   });
+
+  it('handles an overnight shift that crosses midnight (start > end)', () => {
+    // Europe/Moscow is UTC+3, no DST.
+    const profile = { work_start: '22:00', work_end: '06:00', work_days: '1,2,3,4,5', timezone: 'Europe/Moscow' };
+    // 20:00 UTC Mon = 23:00 Moscow Mon — inside the overnight window, pre-midnight half.
+    expect(computeIsWorkingNow(profile, new Date('2024-01-08T20:00:00Z'))).toBe(true);
+    // 23:00 UTC Mon = 02:00 Moscow Tue — inside the overnight window, post-midnight half.
+    expect(computeIsWorkingNow(profile, new Date('2024-01-08T23:00:00Z'))).toBe(true);
+    // 09:00 UTC Mon = 12:00 Moscow Mon — well outside the overnight window.
+    expect(computeIsWorkingNow(profile, new Date('2024-01-08T09:00:00Z'))).toBe(false);
+  });
+
+  it('returns null (not a throw) for an invalid/corrupt stored timezone, instead of crashing the caller', () => {
+    const profile = { work_start: '09:00', work_end: '18:00', work_days: '1,2,3,4,5', timezone: 'Not/A_Real_Zone' };
+    expect(computeIsWorkingNow(profile, new Date('2024-01-08T12:00:00Z'))).toBeNull();
+  });
 });
 
 describe('presence — self-service', () => {
@@ -90,6 +106,19 @@ describe('presence — self-service', () => {
       .send({ birthday: '2024-08-15' });
     expect(res.status).toBe(400);
   });
+
+  it('rejects an invalid timezone (a bogus one used to reach the DB and crash the whole team feed on the next read)', async () => {
+    const res = await request(app)
+      .patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ timezone: 'Not/A_Real_Zone' });
+    expect(res.status).toBe(400);
+
+    // Confirm the team feed is still healthy (didn't get corrupted by a
+    // request that should have been rejected).
+    const team = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    expect(team.status).toBe(200);
+  });
 });
 
 describe('presence — leave (self-service)', () => {
@@ -118,6 +147,14 @@ describe('presence — leave (self-service)', () => {
       .post('/api/me/leave')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ type: 'nap', start_date: '2024-01-01' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an end_date before start_date', async () => {
+    const res = await request(app)
+      .post('/api/me/leave')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'vacation', start_date: '2024-06-10', end_date: '2024-06-01' });
     expect(res.status).toBe(400);
   });
 

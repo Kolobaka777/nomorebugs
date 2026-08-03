@@ -373,7 +373,16 @@ router.post('/api/checklists/templates/import', authMiddleware, requirePermissio
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    try {
+      await workbook.xlsx.load(req.file.buffer);
+    } catch {
+      // multer only checks the file *size*, not its actual content — a
+      // renamed non-xlsx file (or a corrupted one) reached ExcelJS and threw
+      // here, previously falling through to the generic try/catch below and
+      // surfacing as an opaque "Server error" instead of telling the lead
+      // their file just isn't readable as an Excel file.
+      return res.status(400).json({ error: 'Не удалось прочитать файл — убедитесь, что это настоящий .xlsx файл' });
+    }
     const sheet = workbook.worksheets[0];
     if (!sheet) return res.status(400).json({ error: 'В файле не найдено листов' });
 

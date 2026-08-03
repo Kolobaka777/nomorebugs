@@ -40,7 +40,7 @@ export default function NewsPage({ user, onLogout }: Props) {
   useEffect(() => {
     presenceApi.getTeam().then(r => setPresence(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статус команды'));
     teamApi.getNews()
-      .then(r => { setNews(r.data.rows); setHasMore(r.data.hasMore); setOffset(r.data.rows.length); })
+      .then(r => { setNews(r.data.rows); setHasMore(r.data.hasMore); setOffset(r.data.storedCount); })
       .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить новости'))
       .finally(() => setLoading(false));
   }, []);
@@ -51,7 +51,10 @@ export default function NewsPage({ user, onLogout }: Props) {
       .then(r => {
         setNews(n => [...n, ...r.data.rows]);
         setHasMore(r.data.hasMore);
-        setOffset(o => o + r.data.rows.length);
+        // storedCount, not rows.length — page 0 mixes in birthday/leave
+        // "virtual" items that aren't part of the stored offset cursor;
+        // advancing by the merged count would skip real stored rows.
+        setOffset(o => o + r.data.storedCount);
       })
       .catch((err: any) => showApiError(err, 'Не удалось загрузить ещё новости'))
       .finally(() => setLoadingMore(false));

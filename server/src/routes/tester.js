@@ -224,6 +224,14 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
     const lectureId = req.params.id;
     const userId = req.user.id;
 
+    // Was indexed directly below (`answers[question.id]`) with no check —
+    // a request missing/malformed `answers` (e.g. a client bug, or a direct
+    // API call) threw a raw TypeError, surfacing as an opaque 500 instead of
+    // a normal 400.
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'Некорректный формат ответов' });
+    }
+
     // Mandatory sequential prerequisite, server-enforced. Previously this
     // was only a display-layer computation (in GET /api/tester/lectures) —
     // the frontend hid the button for a "locked" lecture, but nothing

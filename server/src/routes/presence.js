@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { LEAVE_TYPES, STATUS_VALUES, computeIsWorkingNow, todayInTimezone } from '../presence.js';
+import { LEAVE_TYPES, STATUS_VALUES, computeIsWorkingNow, todayInTimezone, isValidTimezone } from '../presence.js';
 
 const router = express.Router();
 
@@ -32,7 +32,7 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
 }
 
 function validatePresenceBody(body) {
-  const { work_start, work_end, status, birthday } = body;
+  const { work_start, work_end, status, birthday, timezone } = body;
   if (status !== undefined && status !== null && !STATUS_VALUES.includes(status)) {
     return 'Некорректный статус';
   }
@@ -44,6 +44,12 @@ function validatePresenceBody(body) {
   }
   if (birthday !== undefined && birthday !== null && !BIRTHDAY_RE.test(birthday)) {
     return 'Некорректная дата рождения (формат ММ-ДД)';
+  }
+  // Was unvalidated — an invalid IANA zone reaching the DB used to crash the
+  // whole team's presence feed the next time anyone read it (Intl throws on
+  // an unrecognized zone), not just the row that set it.
+  if (timezone !== undefined && timezone !== null && !isValidTimezone(timezone)) {
+    return 'Некорректный часовой пояс';
   }
   return null;
 }
@@ -114,6 +120,7 @@ router.post('/api/me/leave', authMiddleware, (req, res) => {
     if (!LEAVE_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип отсутствия' });
     if (!DATE_RE.test(start_date || '')) return res.status(400).json({ error: 'Некорректная дата начала' });
     if (end_date && !DATE_RE.test(end_date)) return res.status(400).json({ error: 'Некорректная дата окончания' });
+    if (end_date && end_date < start_date) return res.status(400).json({ error: 'Дата окончания раньше даты начала' });
     const id = db.prepare(
       'INSERT INTO leave_periods (user_id, type, start_date, end_date, note, created_by) VALUES (?,?,?,?,?,?)'
     ).run(req.user.id, type, start_date, end_date || null, String(note || '').slice(0, 300), req.user.id).lastInsertRowid;
@@ -161,6 +168,7 @@ router.post('/api/lead/team/:id/leave', authMiddleware, requireRole('lead'), (re
     if (!LEAVE_TYPES.includes(type)) return res.status(400).json({ error: 'Некорректный тип отсутствия' });
     if (!DATE_RE.test(start_date || '')) return res.status(400).json({ error: 'Некорректная дата начала' });
     if (end_date && !DATE_RE.test(end_date)) return res.status(400).json({ error: 'Некорректная дата окончания' });
+    if (end_date && end_date < start_date) return res.status(400).json({ error: 'Дата окончания раньше даты начала' });
     const id = db.prepare(
       'INSERT INTO leave_periods (user_id, type, start_date, end_date, note, created_by) VALUES (?,?,?,?,?,?)'
     ).run(targetId, type, start_date, end_date || null, String(note || '').slice(0, 300), req.user.id).lastInsertRowid;

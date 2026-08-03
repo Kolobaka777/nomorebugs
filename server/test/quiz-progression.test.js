@@ -28,6 +28,22 @@ describe('lecture unlock progression (before any submission)', () => {
 });
 
 describe('POST /api/lectures/:id/submit-test — scoring', () => {
+  it('rejects a request with no answers field as 400, not a raw 500 crash', async () => {
+    const res = await request(app)
+      .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-object answers field (e.g. an array) as 400', async () => {
+    const res = await request(app)
+      .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: ['b', 'a'] });
+    expect(res.status).toBe(400);
+  });
+
   it('scores 100 and passes when every answer is correct', async () => {
     const res = await request(app)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)

@@ -332,11 +332,55 @@ function updateCourseModules(courseId, modules) {
   }
 }
 
+// Was nothing enforcing this — a course could be published with zero
+// modules, an empty module, or a quiz-type lesson with zero questions (the
+// builder UI lets you delete a quiz's last question after adding it). A
+// tester reaching such a course/lesson hit a permanent dead end with no way
+// to complete it. Only checked when a course is actually being published —
+// a lead should still be free to save an in-progress draft that isn't ready.
+function validateCourseStructureFromRequest(modules) {
+  if (!Array.isArray(modules) || modules.length === 0) return 'В курсе должен быть хотя бы один модуль';
+  for (const mod of modules) {
+    if (!Array.isArray(mod.lessons) || mod.lessons.length === 0) {
+      return `Модуль «${mod.title || 'без названия'}» должен содержать хотя бы один урок`;
+    }
+    for (const lesson of mod.lessons) {
+      if (lesson.type === 'quiz' && (!Array.isArray(lesson.questions) || lesson.questions.length === 0)) {
+        return `Тест «${lesson.title || 'без названия'}» должен содержать хотя бы один вопрос`;
+      }
+    }
+  }
+  return null;
+}
+
+// Same check as above, against what's already persisted — used when
+// publishing without also resending the full module tree (PATCH .../publish
+// never receives one; PUT doesn't always either).
+function validateCourseStructureInDb(courseId) {
+  const modules = db.prepare('SELECT id, title FROM custom_modules WHERE course_id = ?').all(courseId);
+  if (modules.length === 0) return 'В курсе должен быть хотя бы один модуль';
+  for (const mod of modules) {
+    const lessons = db.prepare('SELECT id, type, title FROM custom_lessons WHERE module_id = ?').all(mod.id);
+    if (lessons.length === 0) return `Модуль «${mod.title || 'без названия'}» должен содержать хотя бы один урок`;
+    for (const lesson of lessons) {
+      if (lesson.type === 'quiz') {
+        const qCount = db.prepare('SELECT COUNT(*) as c FROM custom_quiz_questions WHERE lesson_id = ?').get(lesson.id).c;
+        if (qCount === 0) return `Тест «${lesson.title || 'без названия'}» должен содержать хотя бы один вопрос`;
+      }
+    }
+  }
+  return null;
+}
+
 // Create course (lead only)
 router.post('/api/custom-courses', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
+    if (is_published) {
+      const structureError = validateCourseStructureFromRequest(modules);
+      if (structureError) return res.status(400).json({ error: structureError });
+    }
 
     // insertCourseModules is many individual statements across modules,
     // lessons, and quiz questions — wrapped so a crash partway through
@@ -380,6 +424,17 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
 
     const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
+
+    if (newPublishedFlag) {
+      // If this save also sends a new module tree, that's the state to
+      // validate (it's about to replace what's in the DB); otherwise the
+      // existing persisted structure is what will still be live after this
+      // save, so check that instead.
+      const structureError = Array.isArray(modules)
+        ? validateCourseStructureFromRequest(modules)
+        : validateCourseStructureInDb(course.id);
+      if (structureError) return res.status(400).json({ error: structureError });
+    }
 
     // updateCourseModules is a diff (update/insert/delete across modules,
     // lessons, and quiz questions) — a crash partway through would leave
@@ -443,6 +498,10 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     const newStatus = course.is_published ? 0 : 1;
+    if (newStatus === 1) {
+      const structureError = validateCourseStructureInDb(course.id);
+      if (structureError) return res.status(400).json({ error: structureError });
+    }
     db.prepare('UPDATE custom_courses SET is_published=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(newStatus, course.id);
     if (newStatus === 1) {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
