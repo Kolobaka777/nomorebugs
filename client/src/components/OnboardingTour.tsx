@@ -7,10 +7,19 @@ interface Step {
   body: string;
 }
 
+// A step whose selector never resolves (target isn't on the page/role) gets
+// silently auto-skipped below — but that's exactly the bug: while it's
+// resolving, the tour's full-viewport dark overlay is already up and
+// intercepts clicks meant for the actual page underneath, so a user who
+// clicks something real (e.g. Guides' "+ Новый гайд") right as the tour
+// passes through a dead step can have that click silently eaten with no
+// feedback. 'Чеклисты' was exactly that dead step -- the nav link it
+// pointed at was commented out (see Navigation.tsx) when checklists got
+// pulled pending rework, so this step could never resolve for anyone.
+// Removed instead of relying on the skip logic to paper over it.
 const TESTER_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница — сводка активности и полезные ссылки.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Все лекции и курсы. Начни отсюда, чтобы прокачать навыки QA.' },
-  { selector: '[data-tour="nav-checklists"]', title: 'Чеклисты', body: 'Проверка реальных задач по готовым чек-листам — сохраняется и видно команде.' },
   { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин — трать баг-коины на украшения профиля.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Если что-то непонятно — здесь ответы на частые вопросы. Доступно в любой момент.' },
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
@@ -20,7 +29,6 @@ const LEAD_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
   { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-checklists"]', title: 'Чеклисты', body: 'Проверки задач от тестировщиков и статистика по ним.' },
   { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
@@ -30,7 +38,6 @@ const ADMIN_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
   { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-checklists"]', title: 'Чеклисты', body: 'Проверки задач от тестировщиков и статистика по ним.' },
   { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
   { selector: '[data-tour="nav-admin"]', title: 'Админка', body: 'Управление пользователями и ролями — доступно только администраторам.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },

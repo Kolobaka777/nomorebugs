@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, ComponentType } from 'react';
+import { useEffect, useState, ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
@@ -113,8 +113,6 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
       .finally(() => setMyActivityLoadingMore(false));
   };
 
-  const needsCheckIn = useMemo(() => team.filter(t => t.needsCheckIn), [team]);
-
   const testerStats = [
     { label: 'Курсов пройдено', value: metrics ? metrics.lecturesCompleted : '—', suffix: metrics ? '/10' : '' },
     { label: 'Средний балл', value: metrics ? metrics.averageScore : '—', suffix: metrics ? '%' : '', dot: true },
@@ -122,7 +120,6 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
   const leadStats = [
     { label: 'Человек в команде', value: team.length || '—' },
     { label: 'Средний балл', value: team.length ? Math.round(team.reduce((s, t) => s + t.avgScore, 0) / team.length) : '—', suffix: team.length ? '%' : '', dot: true },
-    { label: 'Нужен чек-ин', value: needsCheckIn.length },
   ];
   const headerStats = isTester ? testerStats : leadStats;
 
@@ -148,7 +145,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
 
           <div className="w-full lg:w-auto lg:min-w-[420px]">
             <TwoTone first={isTester ? 'ТВОИ' : 'КОМАНДА'} second={isTester ? 'НАВЫКИ' : 'СЕГОДНЯ'} />
-            <div className={`grid ${isTester ? 'grid-cols-2' : 'grid-cols-3'} gap-3 mt-3`}>
+            <div className="grid grid-cols-2 gap-3 mt-3">
               {headerStats.map(s => <StatCard key={s.label} {...s} />)}
             </div>
           </div>
@@ -222,19 +219,6 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               </div>
             ) : (
               <>
-                {needsCheckIn.length > 0 && (
-                  <div className="p-4 rounded-lg" style={{ background: 'rgba(224,82,82,0.06)', border: '1px solid rgba(224,82,82,0.25)' }}>
-                    <p className="font-geist text-xs font-semibold mb-2" style={{ color: '#e05252' }}>⚠ Давно не активны:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {needsCheckIn.map(t => (
-                        <span key={t.id} className="font-geist text-xs px-2 py-1 rounded" style={{ background: 'rgba(224,82,82,0.12)', color: TEXT_PRIMARY }}>
-                          {t.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Team news teaser — lectures, new materials, new teammates
                     only (see HOME_NEWS_TYPES above); the full feed with
                     birthdays/leave lives at /news. */}
@@ -277,7 +261,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                 { label: 'Багодельня', Icon: ShopIcon, to: '/bagodelnya' },
                 // Чеклисты — temporarily off the quick-links list too, see Navigation.tsx/App.tsx.
                 // { label: 'Чеклисты', Icon: ChecklistIcon, to: '/checklists' },
-                { label: isTester ? 'Моя нора' : 'Команда (Улей)', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },
+                { label: isTester ? 'Моя нора' : 'Команда', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },
               ].map((link, i, arr) => (
                 <LinkRow key={link.to} {...link} onClick={() => navigate(link.to)} showDivider={i < arr.length - 1} />
               ))}

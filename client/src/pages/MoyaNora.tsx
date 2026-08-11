@@ -456,8 +456,8 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           {/* LEFT column: presence + tabs */}
           <div className="lg:col-span-2 space-y-6">
             {/* ══════════════════════════════════════════════════════
-                МОЁ РАБОЧЕЕ ВРЕМЯ — powers "работают сейчас" on Улей
-                and the team news feed's vacation start/end items.
+                МОЁ РАБОЧЕЕ ВРЕМЯ — powers "работают сейчас" on the team
+                dashboard and the team news feed's vacation start/end items.
             ══════════════════════════════════════════════════════ */}
             <Panel pad="p-5">
               <SectionLabel>Моё рабочее время</SectionLabel>

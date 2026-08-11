@@ -31,7 +31,6 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
   const [editing, setEditing] = useState(false);
   const [activity, setActivity] = useState<any[]>([]);
   const [roleStats, setRoleStats] = useState<Record<string, number> | null>(null);
-  const [needsCheckIn, setNeedsCheckIn] = useState<{ id: number; name: string }[]>([]);
   const [recentBonuses, setRecentBonuses] = useState<any[] | null>(null);
   // Activity actions like "permission_granted:target=4:..." only name their
   // target by id — resolved to a real name here (best-effort; falls back to
@@ -81,9 +80,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         setRoleStats({
           'Размер команды': r.data.length,
           'Средний балл команды': r.data.length ? Math.round(r.data.reduce((s: number, m: any) => s + m.avgScore, 0) / r.data.length) : 0,
-          'Нужен чек-ин': r.data.filter((m: any) => m.needsCheckIn).length,
         });
-        setNeedsCheckIn(r.data.filter((m: any) => m.needsCheckIn).map((m: any) => ({ id: m.id, name: m.name })));
         setNameById(Object.fromEntries(r.data.map((m: any) => [m.id, m.name])));
       }).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику команды'));
       leadApi.getBonusAwards().then(r => setRecentBonuses(r.data.slice(0, 5)))
@@ -139,7 +136,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         </div>
 
         {roleStats && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className={`grid ${Object.keys(roleStats).length >= 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-6`}>
             {Object.entries(roleStats).map(([label, value]) => (
               <div key={label} className="p-4 rounded-lg text-center" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                 <p className="font-montserrat font-bold" style={{ color: ACCENT, fontSize: 18 }}>{value}</p>
@@ -155,7 +152,6 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
           {user.role === 'lead' && (
             <>
               <button onClick={() => navigate('/dashboard')} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Icon name="bee" size={14} color="currentColor" /> Команда</button>
-              <button onClick={() => navigate('/checklists')} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Icon name="clipboard" size={14} color="currentColor" /> Отчёты по чек-листам</button>
               <button onClick={() => navigate('/lead/course-builder')} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Icon name="pencil" size={14} color="currentColor" /> Создать курс</button>
             </>
           )}
@@ -166,22 +162,6 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             </>
           )}
         </div>
-
-        {user.role === 'lead' && needsCheckIn.length > 0 && (
-          <div className="rounded-lg p-5 mb-6" style={{ background: 'rgba(239, 159, 39, 0.08)', border: `1px solid ${BADGE_NOTIFY}40` }}>
-            <h2 className="font-montserrat font-semibold text-sm mb-2 flex items-center gap-2" style={{ color: BADGE_NOTIFY }}>
-              <Icon name="user" size={14} color={BADGE_NOTIFY} /> Возможно, стоит написать
-            </h2>
-            <p className="font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>Не заходили неделю или больше — недельная тишина не всегда про лень:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {needsCheckIn.map(m => (
-                <span key={m.id} className="font-geist text-xs px-2 py-1 rounded" style={{ background: 'rgba(239, 159, 39, 0.15)', color: BADGE_NOTIFY }}>
-                  {m.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {user.role === 'lead' && recentBonuses !== null && recentBonuses.length > 0 && (
           <div className="rounded-lg p-5 mb-6" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>

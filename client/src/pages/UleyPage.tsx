@@ -271,7 +271,6 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const avgScore = team.length
     ? Math.round(team.reduce((acc, m) => acc + m.avgScore, 0) / team.length)
     : 0;
-  const checkInCount = team.filter(m => m.needsCheckIn).length;
 
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
     { id: 'team', label: 'Команда', icon: 'bee' },
@@ -292,22 +291,17 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             className="font-montserrat font-bold mb-2 flex items-center gap-2"
             style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}
           >
-            <Icon name="crown" size={22} color={BADGE_NOTIFY} /><Icon name="bee" size={22} color={BADGE_NOTIFY} /> Улей
+            <Icon name="crown" size={22} color={BADGE_NOTIFY} /><Icon name="bee" size={22} color={BADGE_NOTIFY} /> Команда
           </h1>
-          <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Дашборд тимлида · {team.length} жуков в улье</p>
+          <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Дашборд тимлида · {team.length} человек в команде</p>
         </div>
 
         {/* ===== METRIC CARDS ===== */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Средний прогресс', value: `${avgProgress}%`, color: ACCENT },
             { label: 'Средний балл', value: `${avgScore}%`, color: BADGE_NOTIFY },
-            { label: 'Жуков в улье', value: team.length, color: '#7F77DD' },
-            {
-              label: 'Могут ждать поддержки',
-              value: checkInCount,
-              color: checkInCount > 0 ? BADGE_NOTIFY : ACCENT,
-            },
+            { label: 'Человек в команде', value: team.length, color: '#7F77DD' },
           ].map((m, idx) => (
             <div
               key={idx}
@@ -325,32 +319,6 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             </div>
           ))}
         </div>
-
-        {/* ===== CHECK-IN SUGGESTION ===== */}
-        {checkInCount > 0 && (
-          <div
-            className="mb-6 p-4 rounded-lg flex items-start gap-3"
-            style={{
-              background: 'rgba(239, 159, 39, 0.06)',
-              border: `1px solid ${BADGE_NOTIFY}66`,
-              boxShadow: CARD_SHADOW,
-            }}
-          >
-            <Icon name="snail" size={22} color={BADGE_NOTIFY} />
-            <div>
-              <p className="font-montserrat font-semibold text-sm" style={{ color: BADGE_NOTIFY }}>
-                Возможно, стоит написать
-              </p>
-              <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>
-                {team.filter(m => m.needsCheckIn).map(m => m.name).join(', ')} —{' '}
-                {checkInCount === 1
-                  ? (team.find(m => m.needsCheckIn)?.gender === 'female' ? 'не заходила' : team.find(m => m.needsCheckIn)?.gender === 'male' ? 'не заходил' : 'не заходил(а)') + ' неделю или больше'
-                  : 'не заходили неделю или больше'}. Может, дело в чём-то,
-                чем можно помочь — недельная тишина не всегда про лень.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* ===== TABS ===== */}
         <div className="flex flex-wrap gap-1.5 mb-6">
