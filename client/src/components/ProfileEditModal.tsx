@@ -386,7 +386,7 @@ export default function ProfileEditModal({
 
           {/* Error */}
           {error && (
-            <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>
+            <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{error}</p>
           )}
 
           {/* Save */}

@@ -5,12 +5,16 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { requirePermission, hasPermission } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
 
 const router = express.Router();
 
 function hasManageGuides(user) {
   return user.role === 'lead' || user.role === 'admin' || hasPermission(user.id, 'manage_guides');
+}
+
+function hasManageKB(user) {
+  return user.role === 'lead' || user.role === 'admin' || hasPermission(user.id, 'manage_knowledge_base');
 }
 
 // Unlike profile.js's nickname/status_quote/info_box (which already cap
@@ -25,16 +29,37 @@ const MAX_TAG_FIELD = 50; // tag/tag_color on bug_examples
 
 // ============== KNOWLEDGE BASE (Багодельня) ==============
 
+// Any tester can also *propose* a bug example or glossary term (POST
+// below, unprivileged branch) — same shape as the course/guide proposal
+// flow: forced unpublished + proposal_status='pending' until a lead
+// approves it via the new .../approve routes further down.
+
 router.get('/api/bug-examples', authMiddleware, (req, res) => {
   try {
-    res.json(db.prepare('SELECT * FROM bug_examples WHERE deleted_at IS NULL ORDER BY created_at DESC').all());
+    const canManage = hasManageKB(req.user);
+    const rows = canManage
+      // Lead/admin/grantee: everything, including everyone's pending
+      // proposals — doubles as the review queue, same as guides.
+      // LEFT JOIN, not JOIN — seeded rows (the original hardcoded content,
+      // migrated in with created_by=NULL) would otherwise vanish entirely.
+      ? db.prepare(`
+          SELECT e.*, u.name as author_name FROM bug_examples e
+          LEFT JOIN users u ON u.id = e.created_by
+          WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC
+        `).all()
+      : db.prepare(`
+          SELECT e.*, u.name as author_name FROM bug_examples e
+          LEFT JOIN users u ON u.id = e.created_by
+          WHERE e.deleted_at IS NULL AND (e.is_published = 1 OR e.created_by = ?) ORDER BY e.created_at DESC
+        `).all(req.user.id);
+    res.json(rows);
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-router.post('/api/bug-examples', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+router.post('/api/bug-examples', authMiddleware, (req, res) => {
   try {
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
     if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
@@ -46,9 +71,13 @@ router.post('/api/bug-examples', authMiddleware, requirePermission('manage_knowl
     if ((tag || '').trim().length > MAX_TAG_FIELD || (tag_color || '').trim().length > MAX_TAG_FIELD) {
       return res.status(400).json({ error: `Слишком длинный тег (макс ${MAX_TAG_FIELD} символов)` });
     }
+    const canPublishDirectly = hasManageKB(req.user);
     const result = db.prepare(
-      'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.user.id);
+      'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      (tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.user.id,
+      canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending'
+    );
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -80,9 +109,29 @@ router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
   }
 });
 
+// Decline a proposal reuses this same route — when the target was pending,
+// the outcome is stamped before it's soft-deleted so it still counts
+// toward the author's proposal history (same pattern as guides).
 router.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    db.prepare('UPDATE bug_examples SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    const example = db.prepare('SELECT proposal_status FROM bug_examples WHERE id = ?').get(req.params.id);
+    const rejected = example?.proposal_status === 'pending';
+    db.prepare(`UPDATE bug_examples SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Approve a pending bug-example proposal.
+router.patch('/api/bug-examples/:id/approve', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const example = db.prepare('SELECT * FROM bug_examples WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!example) return res.status(404).json({ error: 'Не найдено' });
+    if (example.proposal_status !== 'pending') return res.status(400).json({ error: 'Это не заявка на рассмотрении' });
+    db.prepare("UPDATE bug_examples SET is_published = 1, proposal_status = 'approved' WHERE id = ?").run(example.id);
+    if (example.created_by) awardAchievement(example.created_by, ACHIEVEMENT_IDS.AVTOR);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -98,14 +147,28 @@ router.get('/api/glossary', authMiddleware, (req, res) => {
     // alphabetically, because 'O' (0x4F) < 'e' (0x65) in raw byte order.
     // COLLATE NOCASE compares case-insensitively instead, matching what a
     // human means by "alphabetical".
-    res.json(db.prepare('SELECT * FROM glossary_terms WHERE deleted_at IS NULL ORDER BY term COLLATE NOCASE ASC').all());
+    const canManage = hasManageKB(req.user);
+    // LEFT JOIN, not JOIN — seeded terms (migrated in with created_by=NULL)
+    // would otherwise vanish entirely.
+    const rows = canManage
+      ? db.prepare(`
+          SELECT g.*, u.name as author_name FROM glossary_terms g
+          LEFT JOIN users u ON u.id = g.created_by
+          WHERE g.deleted_at IS NULL ORDER BY g.term COLLATE NOCASE ASC
+        `).all()
+      : db.prepare(`
+          SELECT g.*, u.name as author_name FROM glossary_terms g
+          LEFT JOIN users u ON u.id = g.created_by
+          WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.term COLLATE NOCASE ASC
+        `).all(req.user.id);
+    res.json(rows);
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-router.post('/api/glossary', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+router.post('/api/glossary', authMiddleware, (req, res) => {
   try {
     const { term, definition } = req.body;
     if (!term?.trim() || !definition?.trim()) {
@@ -114,9 +177,10 @@ router.post('/api/glossary', authMiddleware, requirePermission('manage_knowledge
     if (term.trim().length > MAX_TITLE || definition.trim().length > MAX_SHORT_FIELD) {
       return res.status(400).json({ error: `Слишком длинный текст (термин макс ${MAX_TITLE}, определение макс ${MAX_SHORT_FIELD})` });
     }
+    const canPublishDirectly = hasManageKB(req.user);
     const result = db.prepare(
-      'INSERT INTO glossary_terms (term, definition, created_by) VALUES (?, ?, ?)'
-    ).run(term.trim(), definition.trim(), req.user.id);
+      'INSERT INTO glossary_terms (term, definition, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?)'
+    ).run(term.trim(), definition.trim(), req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending');
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -143,9 +207,35 @@ router.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowle
   }
 });
 
+// Decline a proposal reuses this same route — same stamp-before-soft-delete
+// pattern as bug-examples/guides.
 router.delete('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    db.prepare('UPDATE glossary_terms SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.params.id);
+    const term = db.prepare('SELECT proposal_status FROM glossary_terms WHERE id = ?').get(req.params.id);
+    const rejected = term?.proposal_status === 'pending';
+    db.prepare(`UPDATE glossary_terms SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Approve a pending glossary-term proposal.
+router.patch('/api/glossary/:id/approve', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
+  try {
+    const term = db.prepare('SELECT * FROM glossary_terms WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!term) return res.status(404).json({ error: 'Не найдено' });
+    if (term.proposal_status !== 'pending') return res.status(400).json({ error: 'Это не заявка на рассмотрении' });
+    db.prepare("UPDATE glossary_terms SET is_published = 1, proposal_status = 'approved' WHERE id = ?").run(term.id);
+    if (term.created_by) {
+      awardAchievement(term.created_by, ACHIEVEMENT_IDS.AVTOR);
+      // «Библиотекарь» — 5 approved glossary terms from this author.
+      const approvedCount = db.prepare(
+        "SELECT COUNT(*) as c FROM glossary_terms WHERE created_by = ? AND proposal_status = 'approved'"
+      ).get(term.created_by).c;
+      if (approvedCount >= 5) awardAchievement(term.created_by, ACHIEVEMENT_IDS.BIBLIOTEKAR);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -280,6 +370,12 @@ router.patch('/api/guides/:id/approve', authMiddleware, requirePermission('manag
     db.prepare("UPDATE guides SET is_published = 1, proposal_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(guide.id);
     db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
       .run('guide_published', guide.created_by, guide.id);
+    awardAchievement(guide.created_by, ACHIEVEMENT_IDS.AVTOR);
+    // «Наставник» — 3 approved guides from this author.
+    const approvedCount = db.prepare(
+      "SELECT COUNT(*) as c FROM guides WHERE created_by = ? AND proposal_status = 'approved'"
+    ).get(guide.created_by).c;
+    if (approvedCount >= 3) awardAchievement(guide.created_by, ACHIEVEMENT_IDS.NASTAVNIK);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

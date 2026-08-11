@@ -255,7 +255,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
           <div className="card text-center py-10">
-            <p className="font-geist text-sm mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="font-geist text-sm mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
             <button onClick={() => { setLoading(true); loadData(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         </div>

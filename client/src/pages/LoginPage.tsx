@@ -102,7 +102,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
             )}
             {error && (
               <div
-                className="px-4 py-3 rounded-lg text-sm font-sans"
+                className="px-4 py-3 rounded-lg text-sm font-sans break-words"
                 style={{
                   background: 'rgba(224,82,82,0.1)',
                   color: '#e05252',

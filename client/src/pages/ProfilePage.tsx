@@ -121,16 +121,19 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         <div className="rounded-lg p-6 mb-6 flex items-center gap-5 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
           <PixelAvatar id={shown.avatar_id as any} frame={shown.avatar_frame as any} customSrc={shown.custom_avatar} size={72} />
           <div className="flex-1 min-w-0">
-            <h1 className="font-montserrat font-bold mb-1" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{shown.nickname || shown.name}</h1>
-            <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{shown.email}</p>
+            <h1 className="font-montserrat font-bold mb-1 break-words" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{shown.nickname || shown.name}</h1>
+            <p className="font-geist text-sm break-words" style={{ color: TEXT_MUTED }}>{shown.email}</p>
             <p className="font-geist text-xs mt-1 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
-              <Icon name="crown" size={14} color={BADGE_NOTIFY} /> {ROLE_LABELS[user.role] || user.role}
-              {shown.specialization && ` · ${shown.specialization}`}
+              <Icon name="crown" size={14} color={BADGE_NOTIFY} />
+              <span className="break-words min-w-0">
+                {ROLE_LABELS[user.role] || user.role}
+                {shown.specialization && ` · ${shown.specialization}`}
+              </span>
             </p>
             <p className="font-geist text-xs mt-1" style={{ color: TEXT_MUTED }}>
               В команде с {parseServerDate(shown.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
-            {shown.status_quote && <p className="font-geist text-sm italic mt-2" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>«{shown.status_quote}»</p>}
+            {shown.status_quote && <p className="font-geist text-sm italic mt-2 break-words" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>«{shown.status_quote}»</p>}
           </div>
           <button onClick={() => setEditing(true)} className="btn-secondary text-xs px-4 py-2 shrink-0">
             Редактировать профиль
@@ -173,7 +176,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             <div className="space-y-1.5">
               {recentBonuses.map((b: any) => (
                 <div key={b.id} className="flex items-center justify-between font-geist text-xs" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>
-                  <span>{b.user_name} — {b.amount} баллов{b.reason ? `: «${b.reason}»` : ''}</span>
+                  <span className="break-words min-w-0">{b.user_name} — {b.amount} баллов{b.reason ? `: «${b.reason}»` : ''}</span>
                   <span className="shrink-0" style={{ color: TEXT_MUTED }}>{parseServerDate(b.awarded_at).toLocaleDateString('ru-RU')}</span>
                 </div>
               ))}
@@ -189,7 +192,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             <div className="space-y-1.5">
               {activity.map(a => (
                 <div key={a.id} className="flex items-center justify-between font-geist text-xs" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>
-                  <span>{formatActivityAction(a.action, { lectureTitle: a.lecture_title, courseTitle: a.course_title, nameById, gender: shown.gender })}</span>
+                  <span className="break-words min-w-0">{formatActivityAction(a.action, { lectureTitle: a.lecture_title, courseTitle: a.course_title, nameById, gender: shown.gender })}</span>
                   <span className="shrink-0" style={{ color: TEXT_MUTED }}>{parseServerDate(a.created_at).toLocaleString('ru-RU')}</span>
                 </div>
               ))}

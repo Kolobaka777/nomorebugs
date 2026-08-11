@@ -15,6 +15,9 @@ import {
 // info color. Scoped to just this concept — the tabs/glossary sections on
 // this page keep the normal ACCENT teal.
 const GOOD_GREEN = '#4ADE80';
+// Same amber used everywhere else in the app for a tester's proposal
+// awaiting lead review (see ZhukademiPage's CourseCard, GuidesPage).
+const PENDING_AMBER = '#EF9F27';
 
 interface BagodelnyaPageProps {
   user: any;
@@ -30,20 +33,37 @@ interface BugExample {
   problem: string;
   bad_text: string;
   good_text: string;
+  is_published?: boolean | number;
+  proposal_status?: 'pending' | 'approved' | 'rejected' | null;
+  created_by?: number | null;
+  author_name?: string | null;
 }
 
 interface GlossaryTerm {
   id: number;
   term: string;
   definition: string;
+  is_published?: boolean | number;
+  proposal_status?: 'pending' | 'approved' | 'rejected' | null;
+  created_by?: number | null;
+  author_name?: string | null;
 }
 
 const TAG_COLORS = ['#7F77DD', '#66FCF1', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
 
+function PendingBadge() {
+  return (
+    <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: PENDING_AMBER }}>
+      На рассмотрении
+    </span>
+  );
+}
+
 function BugExampleForm({
-  initial, onSave, onCancel,
+  initial, isProposing, onSave, onCancel,
 }: {
   initial?: BugExample;
+  isProposing?: boolean;
   onSave: (data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -73,6 +93,11 @@ function BugExampleForm({
 
   return (
     <div className="p-5 rounded-lg mb-5 space-y-3" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
+      {isProposing && (
+        <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
+          Пример увидят только ты и тимлид, пока тимлид его не одобрит — после этого он появится у всех.
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Тег категории</label>
@@ -109,10 +134,10 @@ function BugExampleForm({
         </label>
         <textarea className="pixel-input w-full resize-y" rows={5} value={goodText} onChange={e => setGoodText(e.target.value)} placeholder="Хороший пример баг-репорта" />
       </div>
-      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
-          {saving ? 'Сохраняю...' : 'Сохранить'}
+          {saving ? 'Сохраняю...' : isProposing ? 'Отправить на рассмотрение' : 'Сохранить'}
         </button>
         <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
       </div>
@@ -121,9 +146,10 @@ function BugExampleForm({
 }
 
 function GlossaryForm({
-  initial, onSave, onCancel,
+  initial, isProposing, onSave, onCancel,
 }: {
   initial?: GlossaryTerm;
+  isProposing?: boolean;
   onSave: (data: { term: string; definition: string }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -147,6 +173,11 @@ function GlossaryForm({
 
   return (
     <div className="p-5 rounded-lg mb-5 space-y-3" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
+      {isProposing && (
+        <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
+          Термин увидят только ты и тимлид, пока тимлид его не одобрит — после этого он появится у всех.
+        </p>
+      )}
       <div>
         <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Термин</label>
         <input className="pixel-input" value={term} onChange={e => setTerm(e.target.value)} placeholder="Например: Regression" />
@@ -155,10 +186,10 @@ function GlossaryForm({
         <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Определение</label>
         <textarea className="pixel-input w-full resize-y" rows={3} value={definition} onChange={e => setDefinition(e.target.value)} />
       </div>
-      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
-          {saving ? 'Сохраняю...' : 'Сохранить'}
+          {saving ? 'Сохраняю...' : isProposing ? 'Отправить на рассмотрение' : 'Сохранить'}
         </button>
         <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
       </div>
@@ -178,6 +209,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
   const [addingTerm, setAddingTerm] = useState(false);
   const [editingTermId, setEditingTermId] = useState<number | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [approvingId, setApprovingId] = useState<number | null>(null);
 
   useEffect(() => {
     load();
@@ -202,23 +234,47 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
     finally { setLoading(false); }
   };
 
-  const deleteExample = async (id: number) => {
-    if (!confirm('Удалить этот пример?')) return;
+  const deleteExample = async (id: number, isDecline?: boolean) => {
+    if (!confirm(isDecline ? 'Отклонить этот пример?' : 'Удалить этот пример?')) return;
     try {
       await knowledgeApi.deleteBugExample(id);
       setBugExamples(p => p.filter(e => e.id !== id));
     } catch (err: any) {
-      showApiError(err, 'Не удалось удалить пример');
+      showApiError(err, isDecline ? 'Не удалось отклонить пример' : 'Не удалось удалить пример');
     }
   };
 
-  const deleteTerm = async (id: number) => {
-    if (!confirm('Удалить этот термин?')) return;
+  const approveExample = async (id: number) => {
+    setApprovingId(id);
+    try {
+      await knowledgeApi.approveBugExample(id);
+      setBugExamples(p => p.map(e => e.id === id ? { ...e, is_published: true, proposal_status: 'approved' } : e));
+    } catch (err: any) {
+      showApiError(err, 'Не удалось одобрить пример');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const deleteTerm = async (id: number, isDecline?: boolean) => {
+    if (!confirm(isDecline ? 'Отклонить этот термин?' : 'Удалить этот термин?')) return;
     try {
       await knowledgeApi.deleteGlossaryTerm(id);
       setGlossary(p => p.filter(g => g.id !== id));
     } catch (err: any) {
-      showApiError(err, 'Не удалось удалить термин');
+      showApiError(err, isDecline ? 'Не удалось отклонить термин' : 'Не удалось удалить термин');
+    }
+  };
+
+  const approveTerm = async (id: number) => {
+    setApprovingId(id);
+    try {
+      await knowledgeApi.approveGlossaryTerm(id);
+      setGlossary(p => p.map(g => g.id === id ? { ...g, is_published: true, proposal_status: 'approved' } : g));
+    } catch (err: any) {
+      showApiError(err, 'Не удалось одобрить термин');
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -265,7 +321,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
 
         {!loading && loadError && (
           <div className="rounded-lg text-center py-8 mb-6" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
-            <p className="text-sm font-geist mb-3" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="text-sm font-geist mb-3 break-words" style={{ color: '#e05252' }}>{loadError}</p>
             <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         )}
@@ -274,17 +330,21 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: примеры */}
             <div className="lg:col-span-2">
-              {canEdit && !addingExample && (
+              {!addingExample && (
                 <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5 flex items-center gap-1.5">
                   <Icon name="sparkle" size={14} color="currentColor" />
-                  Добавить пример
+                  {canEdit ? 'Добавить пример' : 'Предложить пример'}
                 </button>
               )}
               {addingExample && (
                 <BugExampleForm
+                  isProposing={!canEdit}
                   onSave={async (data) => {
                     const res = await knowledgeApi.createBugExample(data);
-                    setBugExamples(p => [{ id: res.data.id, ...data }, ...p]);
+                    setBugExamples(p => [
+                      { id: res.data.id, ...data, is_published: canEdit, proposal_status: canEdit ? null : 'pending' as const, created_by: user.id, author_name: user.name },
+                      ...p,
+                    ]);
                     setAddingExample(false);
                   }}
                   onCancel={() => setAddingExample(false)}
@@ -312,58 +372,85 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
               )}
 
               <div className="space-y-5">
-                {bugExamples.map((pair) => (
-                  <div key={pair.id}>
-                    {editingExampleId === pair.id ? (
-                      <BugExampleForm
-                        initial={pair}
-                        onSave={async (data) => {
-                          await knowledgeApi.updateBugExample(pair.id, data);
-                          setBugExamples(p => p.map(e => e.id === pair.id ? { ...e, ...data } : e));
-                          setEditingExampleId(null);
-                        }}
-                        onCancel={() => setEditingExampleId(null)}
-                      />
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
-                          <span
-                            className="text-xs font-geist px-2 py-0.5 rounded font-semibold"
-                            style={{ background: `${pair.tag_color}18`, color: pair.tag_color }}
-                          >
-                            {pair.tag}
-                          </span>
-                          <span className="text-xs font-geist flex-1" style={{ color: TEXT_MUTED }}>{pair.problem}</span>
-                          {canEdit && (
-                            <div className="flex gap-1 shrink-0">
-                              <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
-                                <Icon name="pencil" size={13} color="currentColor" />
-                              </button>
-                              <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
-                                <Icon name="close" size={13} color="currentColor" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                {bugExamples.map((pair) => {
+                  const isPending = pair.proposal_status === 'pending';
+                  const isOwn = pair.created_by === user.id;
+                  return (
+                    <div key={pair.id}>
+                      {editingExampleId === pair.id ? (
+                        <BugExampleForm
+                          initial={pair}
+                          onSave={async (data) => {
+                            await knowledgeApi.updateBugExample(pair.id, data);
+                            setBugExamples(p => p.map(e => e.id === pair.id ? { ...e, ...data } : e));
+                            setEditingExampleId(null);
+                          }}
+                          onCancel={() => setEditingExampleId(null)}
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
+                            <span
+                              className="text-xs font-geist px-2 py-0.5 rounded font-semibold shrink-0 break-words"
+                              style={{ background: `${pair.tag_color}18`, color: pair.tag_color }}
+                            >
+                              {pair.tag}
+                            </span>
+                            <span className="text-xs font-geist flex-1 min-w-0 break-words" style={{ color: TEXT_MUTED }}>{pair.problem}</span>
+                            {isPending && <PendingBadge />}
+                            {isPending && !canEdit && isOwn && (
+                              <span className="text-xs font-geist shrink-0" style={{ color: TEXT_MUTED }}>Ждёт лида</span>
+                            )}
+                            {isPending && canEdit && pair.author_name && (
+                              <span className="text-xs font-geist shrink-0" style={{ color: TEXT_MUTED }}>Предложил(а): {pair.author_name}</span>
+                            )}
+                            {canEdit && isPending && (
+                              <div className="flex gap-1 shrink-0">
+                                <button
+                                  onClick={() => approveExample(pair.id)}
+                                  disabled={approvingId === pair.id}
+                                  aria-label="Одобрить пример"
+                                  className="btn-secondary text-xs px-2 py-0.5 disabled:opacity-50"
+                                  style={{ color: GOOD_GREEN }}
+                                >
+                                  <Icon name="check" size={13} color="currentColor" />
+                                </button>
+                                <button onClick={() => deleteExample(pair.id, true)} aria-label="Отклонить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                                  <Icon name="close" size={13} color="currentColor" />
+                                </button>
+                              </div>
+                            )}
+                            {canEdit && !isPending && (
+                              <div className="flex gap-1 shrink-0">
+                                <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
+                                  <Icon name="pencil" size={13} color="currentColor" />
+                                </button>
+                                <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                                  <Icon name="close" size={13} color="currentColor" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: '3px solid #e05252', boxShadow: CARD_SHADOW }}>
-                            <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: '#e05252', letterSpacing: TRACK_WIDE }}>
-                              <Icon name="close" size={13} color="currentColor" /> ПЛОХО
-                            </span>
-                            <p className="text-xs font-geist leading-relaxed whitespace-pre-line" style={{ color: TEXT_MUTED }}>{pair.bad_text}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: '3px solid #e05252', boxShadow: CARD_SHADOW }}>
+                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: '#e05252', letterSpacing: TRACK_WIDE }}>
+                                <Icon name="close" size={13} color="currentColor" /> ПЛОХО
+                              </span>
+                              <p className="text-xs font-geist leading-relaxed whitespace-pre-line break-words" style={{ color: TEXT_MUTED }}>{pair.bad_text}</p>
+                            </div>
+                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${GOOD_GREEN}`, boxShadow: CARD_SHADOW }}>
+                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: GOOD_GREEN, letterSpacing: TRACK_WIDE }}>
+                                <Icon name="check" size={13} color="currentColor" /> ПРАВИЛЬНО
+                              </span>
+                              <p className="text-xs font-geist leading-relaxed whitespace-pre-line break-words" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>{pair.good_text}</p>
+                            </div>
                           </div>
-                          <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${GOOD_GREEN}`, boxShadow: CARD_SHADOW }}>
-                            <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: GOOD_GREEN, letterSpacing: TRACK_WIDE }}>
-                              <Icon name="check" size={13} color="currentColor" /> ПРАВИЛЬНО
-                            </span>
-                            <p className="text-xs font-geist leading-relaxed whitespace-pre-line" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>{pair.good_text}</p>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -403,19 +490,23 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                 <Icon name="books" size={18} color="currentColor" />
                 Словарь тестировщика
               </h2>
-              {canEdit && !addingTerm && (
+              {!addingTerm && (
                 <button onClick={() => setAddingTerm(true)} className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5">
                   <Icon name="sparkle" size={14} color="currentColor" />
-                  Добавить термин
+                  {canEdit ? 'Добавить термин' : 'Предложить термин'}
                 </button>
               )}
             </div>
 
             {addingTerm && (
               <GlossaryForm
+                isProposing={!canEdit}
                 onSave={async (data) => {
                   const res = await knowledgeApi.createGlossaryTerm(data);
-                  setGlossary(p => [...p, { id: res.data.id, ...data }].sort((a, b) => a.term.localeCompare(b.term)));
+                  setGlossary(p => [
+                    ...p,
+                    { id: res.data.id, ...data, is_published: canEdit, proposal_status: canEdit ? null : 'pending' as const, created_by: user.id, author_name: user.name },
+                  ].sort((a, b) => a.term.localeCompare(b.term)));
                   setAddingTerm(false);
                 }}
                 onCancel={() => setAddingTerm(false)}
@@ -427,8 +518,10 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {glossary.map(item => (
-                editingTermId === item.id ? (
+              {glossary.map(item => {
+                const isPending = item.proposal_status === 'pending';
+                const isOwn = item.created_by === user.id;
+                return editingTermId === item.id ? (
                   <div key={item.id} className="md:col-span-2">
                     <GlossaryForm
                       initial={item}
@@ -443,17 +536,43 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                 ) : (
                   <div
                     key={item.id}
-                    className="p-4 rounded-lg flex gap-4"
+                    className="p-4 rounded-lg flex flex-wrap gap-4"
                     style={{ background: CARD_BG, border: '1px solid rgba(102, 252, 241, 0.28)', boxShadow: CARD_SHADOW }}
                   >
                     <div
-                      className="shrink-0 px-2 py-1 rounded text-xs font-montserrat font-semibold"
-                      style={{ background: 'rgba(102, 252, 241, 0.15)', color: ACCENT, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
+                      className="shrink-0 px-2 py-1 rounded text-xs font-montserrat font-semibold max-w-full break-words"
+                      style={{ background: 'rgba(102, 252, 241, 0.15)', color: ACCENT, alignSelf: 'flex-start' }}
                     >
                       {item.term}
                     </div>
-                    <p className="text-xs font-geist leading-relaxed flex-1" style={{ color: TEXT_MUTED }}>{item.definition}</p>
-                    {canEdit && (
+                    <p className="text-xs font-geist leading-relaxed flex-1 min-w-0 break-words" style={{ color: TEXT_MUTED }}>{item.definition}</p>
+                    {isPending && (
+                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                        <PendingBadge />
+                        {canEdit ? (
+                          item.author_name && <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>Предложил(а): {item.author_name}</span>
+                        ) : isOwn ? (
+                          <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>Ждёт лида</span>
+                        ) : null}
+                      </div>
+                    )}
+                    {canEdit && isPending && (
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => approveTerm(item.id)}
+                          disabled={approvingId === item.id}
+                          aria-label="Одобрить термин"
+                          className="btn-secondary text-xs px-2 py-0.5 disabled:opacity-50"
+                          style={{ color: GOOD_GREEN }}
+                        >
+                          <Icon name="check" size={13} color="currentColor" />
+                        </button>
+                        <button onClick={() => deleteTerm(item.id, true)} aria-label="Отклонить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                          <Icon name="close" size={13} color="currentColor" />
+                        </button>
+                      </div>
+                    )}
+                    {canEdit && !isPending && (
                       <div className="flex gap-1 shrink-0">
                         <button onClick={() => setEditingTermId(item.id)} aria-label="Редактировать термин" className="btn-secondary text-xs px-2 py-0.5">
                           <Icon name="pencil" size={13} color="currentColor" />
@@ -464,8 +583,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                       </div>
                     )}
                   </div>
-                )
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

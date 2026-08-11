@@ -917,6 +917,31 @@ export function initDb() {
   if (!guidesCols.includes('is_published')) db.exec('ALTER TABLE guides ADD COLUMN is_published INTEGER DEFAULT 1');
   if (!guidesCols.includes('proposal_status')) db.exec('ALTER TABLE guides ADD COLUMN proposal_status TEXT DEFAULT NULL');
 
+  // Migration: bug-example and glossary proposals — same shape as the
+  // course/guide proposal flow above. A plain tester can submit a bug
+  // example or a glossary term; it lands unpublished + pending until a
+  // lead approves it via the new PATCH .../approve routes (see
+  // routes/knowledge.js). Both tables predate this and were always
+  // lead/admin-authored, so is_published defaults to 1 — every existing
+  // row stays visible exactly as before.
+  const bugExamplesCols = db.prepare("PRAGMA table_info(bug_examples)").all().map(c => c.name);
+  if (!bugExamplesCols.includes('is_published')) db.exec('ALTER TABLE bug_examples ADD COLUMN is_published INTEGER DEFAULT 1');
+  if (!bugExamplesCols.includes('proposal_status')) db.exec('ALTER TABLE bug_examples ADD COLUMN proposal_status TEXT DEFAULT NULL');
+
+  const glossaryCols = db.prepare("PRAGMA table_info(glossary_terms)").all().map(c => c.name);
+  if (!glossaryCols.includes('is_published')) db.exec('ALTER TABLE glossary_terms ADD COLUMN is_published INTEGER DEFAULT 1');
+  if (!glossaryCols.includes('proposal_status')) db.exec('ALTER TABLE glossary_terms ADD COLUMN proposal_status TEXT DEFAULT NULL');
+
+  // Migration: questions on the suggestions board. A tester can post a
+  // 'question' suggestion (same table, new type — see suggestions.js);
+  // answer/answered_at/answered_by capture the lead's reply so an asker
+  // (and everyone else browsing, since the board is shared) can see it
+  // without a separate Q&A table or thread model.
+  const suggestionsCols = db.prepare("PRAGMA table_info(suggestions)").all().map(c => c.name);
+  if (!suggestionsCols.includes('answer')) db.exec('ALTER TABLE suggestions ADD COLUMN answer TEXT DEFAULT NULL');
+  if (!suggestionsCols.includes('answered_at')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_at DATETIME DEFAULT NULL');
+  if (!suggestionsCols.includes('answered_by')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_by INTEGER DEFAULT NULL REFERENCES users(id)');
+
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,
   // but every one of these queries was a full table scan waiting to

@@ -53,7 +53,7 @@ export default function ToastHost() {
             style={{ background: c.bg, color: c.fg, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
           >
             <span className="shrink-0">{ICON[t.kind]}</span>
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1 break-words min-w-0">{t.message}</span>
             <button
               onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
               aria-label="Закрыть уведомление"

@@ -69,7 +69,7 @@ export default function TelegramLinkWidget() {
     <div className="px-3 py-2 text-xs font-sans" style={{ borderTop: '1px solid rgba(102, 252, 241,0.08)' }}>
       {status.phase === 'linked' && (
         <div className="flex items-center justify-between gap-2">
-          <span style={{ color: '#229ED9' }}>Telegram: @{status.username || '…'}</span>
+          <span className="break-words min-w-0" style={{ color: '#229ED9' }}>Telegram: @{status.username || '…'}</span>
           <button onClick={unlink} className="cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.45)' }}>
             отвязать
           </button>

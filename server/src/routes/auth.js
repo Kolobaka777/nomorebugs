@@ -14,7 +14,7 @@ import { DEFAULT_ROLE } from '../roles.js';
 import {
   isTelegramConfigured, createTelegramToken, buildDeepLink, pollTelegramToken, notifyUser, notifyUserConfirmed,
 } from '../telegram.js';
-import { isUniqueConstraintError, revokeAllRefreshTokens } from '../routeHelpers.js';
+import { isUniqueConstraintError, revokeAllRefreshTokens, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -315,6 +315,18 @@ router.post('/api/auth/login', loginLimiter, (req, res) => {
 
     // Log login activity
     db.prepare(`INSERT INTO activity_log (user_id, action) VALUES (?, ?)`).run(user.id, 'login');
+
+    // «Полуночный жук» achievement — a fun/easter-egg one, not meant to be
+    // precise: server (UTC) wall-clock hour 0-4 counts as "after midnight",
+    // and it fires once 5 *distinct calendar days* have a login in that
+    // window (not just 5 logins on one late night). SQLite's strftime works
+    // directly on the stored "YYYY-MM-DD HH:MM:SS" text, no JS Date parsing
+    // needed.
+    const midnightLoginDays = db.prepare(`
+      SELECT COUNT(DISTINCT date(created_at)) as c FROM activity_log
+      WHERE user_id = ? AND action = 'login' AND CAST(strftime('%H', created_at) AS INTEGER) < 5
+    `).get(user.id).c;
+    if (midnightLoginDays >= 5) awardAchievement(user.id, ACHIEVEMENT_IDS.POLUNOCHNY_ZHUK);
 
     // Security alert — Telegram only (a fallback email per login would be
     // spam, not a security feature); silently skipped for accounts with no

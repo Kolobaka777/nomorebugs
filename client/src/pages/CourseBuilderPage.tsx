@@ -334,7 +334,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 <span className="text-xs font-geist font-semibold px-1.5 py-0.5 rounded" style={{ background: `${color}20`, color }}>
                   {form.tag}
                 </span>
-                <p className="font-geist font-semibold text-xs mt-2 leading-snug" style={{ color: TEXT_PRIMARY }}>
+                <p className="font-geist font-semibold text-xs mt-2 leading-snug break-words" style={{ color: TEXT_PRIMARY }}>
                   {form.title || 'Название курса'}
                 </p>
                 <div className="mt-2 flex items-center gap-1">

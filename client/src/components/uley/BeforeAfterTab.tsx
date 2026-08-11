@@ -21,7 +21,7 @@ export default function BeforeAfterTab({
       {skillChart.map(skill => (
         <div key={skill.skill} className="card">
           <div className="flex justify-between items-center mb-4">
-            <p className="font-geist font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{skill.skill}</p>
+            <p className="font-geist font-semibold text-sm break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{skill.skill}</p>
             <span
               className="font-geist text-xs font-bold px-2 py-1 rounded"
               style={{
@@ -65,7 +65,7 @@ export default function BeforeAfterTab({
         <p className="font-geist text-xs mb-3" style={{ color: TEXT_MUTED }}>По сотрудникам — самооценка «до» против реального результата тестов «после» по той же теме</p>
         {byTesterError ? (
           <div className="card text-center py-6">
-            <p className="font-geist text-sm mb-3" style={{ color: '#e05252' }}>{byTesterError}</p>
+            <p className="font-geist text-sm mb-3 break-words" style={{ color: '#e05252' }}>{byTesterError}</p>
             <button onClick={loadByTester} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         ) : byTester ? (

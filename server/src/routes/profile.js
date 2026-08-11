@@ -5,7 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { parseDbDate } from '../routeHelpers.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -282,6 +282,12 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
       db.prepare('INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)').run(userId, skill_area);
       db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(userId, `crafted_badge:${skill_area}`);
     })();
+
+    // «Коллекционер» — all 5 skill-area badges crafted.
+    const craftedSkillBadges = db.prepare(
+      `SELECT COUNT(*) as c FROM user_badges WHERE user_id = ? AND badge_id IN (${Object.keys(BADGE_UNLOCKS).map(() => '?').join(',')})`
+    ).get(userId, ...Object.keys(BADGE_UNLOCKS)).c;
+    if (craftedSkillBadges >= Object.keys(BADGE_UNLOCKS).length) awardAchievement(userId, ACHIEVEMENT_IDS.KOLLEKTSIONER);
 
     const unlocks = BADGE_UNLOCKS[skill_area] || { frame: 'gold', bg: 'forest', spec: '' };
     res.json({ success: true, badge_id: skill_area, unlocks });

@@ -16,9 +16,9 @@ export default function LecturesTab({ lectureStats }: { lectureStats: LectureSta
         return (
           <div key={lec.id} className="card">
             <div className="flex justify-between items-center mb-2">
-              <div>
-                <p className="font-geist font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{lec.title}</p>
-                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{lec.skill_area}</p>
+              <div className="min-w-0">
+                <p className="font-geist font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>{lec.title}</p>
+                <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED }}>{lec.skill_area}</p>
               </div>
               <div className="text-right shrink-0">
                 {noData ? (

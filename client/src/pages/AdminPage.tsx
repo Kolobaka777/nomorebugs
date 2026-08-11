@@ -462,7 +462,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-geist text-sm font-semibold flex items-center gap-1.5" style={{ color: TEXT_PRIMARY }}>
-                      {row.name}
+                      <span className="break-words min-w-0">{row.name}</span>
                       {!!row.has_telegram && <Icon name="bug" size={14} color={ACCENT} />}
                       {!!row.must_change_password && (
                         <span className="text-xs font-geist px-1.5 rounded" style={{ background: 'rgba(239,159,39,0.15)', color: BADGE_NOTIFY }}>
@@ -470,12 +470,12 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                         </span>
                       )}
                     </p>
-                    <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>{row.email}</p>
+                    <p className="text-xs font-geist break-words" style={{ color: TEXT_MUTED }}>{row.email}</p>
                     <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>
                       Последняя активность: {row.last_active ? parseServerDate(row.last_active).toLocaleString('ru-RU') : 'нет данных'}
                     </p>
                     {resetResult?.id === row.id && (
-                      <p className="text-xs font-geist mt-1" style={{ color: ACCENT }}>{resetResult.message}</p>
+                      <p className="text-xs font-geist mt-1 break-words" style={{ color: ACCENT }}>{resetResult.message}</p>
                     )}
                   </div>
                   {row.archived_at ? (
@@ -536,7 +536,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
             <div className="space-y-1">
               {activity.map(row => (
                 <div key={row.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)', boxShadow: CARD_SHADOW }}>
-                  <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.75)' }}>
+                  <p className="text-xs font-geist break-words min-w-0" style={{ color: 'rgba(197, 198, 199, 0.75)' }}>
                     <span className="font-semibold" style={{ color: TEXT_PRIMARY }}>{row.name}</span> {actionLabel(row, usersNameById)}
                     {row.lecture_title && <span style={{ color: TEXT_MUTED }}> — {row.lecture_title}</span>}
                   </p>
@@ -591,7 +591,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                 <div className="space-y-1.5">
                   {bonusCandidates.map((c: any) => (
                     <div key={c.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)', boxShadow: CARD_SHADOW }}>
-                      <span className="text-sm font-geist font-semibold" style={{ color: TEXT_PRIMARY }}>{c.name}</span>
+                      <span className="text-sm font-geist font-semibold break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{c.name}</span>
                       <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
                         {c.quizzesLast30d} тестов · {c.avgScoreLast30d ?? '—'}% ср. балл · {c.submissionsLast30d} чек-листов · получено премий: {c.totalBonusReceived}
                       </span>
@@ -614,7 +614,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                 <div className="flex flex-wrap gap-2 mb-4">
                   {taskTypes.map(t => (
                     <span key={t.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.8)' }}>
-                      {t.name}
+                      <span className="break-words min-w-0">{t.name}</span>
                       <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} className="flex items-center" style={{ color: '#e05252' }}>
                         <Icon name="close" size={13} color="currentColor" />
                       </button>
@@ -649,7 +649,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                 {lectures.map(lecture => (
                   <div key={lecture.id} className="p-3 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm font-geist font-semibold flex-1 min-w-[160px]" style={{ color: TEXT_PRIMARY }}>
+                      <span className="text-sm font-geist font-semibold flex-1 min-w-[160px] break-words" style={{ color: TEXT_PRIMARY }}>
                         {lecture.order_num}. {lecture.title}
                       </span>
                       <input
@@ -688,7 +688,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                     <div key={`${item.type}-${item.id}`} className="p-3 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                       <div>
                         <span className="text-xs font-geist px-1.5 py-0.5 rounded mr-2" style={{ background: 'rgba(197, 198, 199, 0.08)', color: 'rgba(197, 198, 199, 0.5)' }}>{item.typeLabel}</span>
-                        <span className="text-sm font-geist" style={{ color: TEXT_PRIMARY }}>{item.title}</span>
+                        <span className="text-sm font-geist break-words" style={{ color: TEXT_PRIMARY }}>{item.title}</span>
                         <span className="text-xs font-geist ml-2" style={{ color: 'rgba(197, 198, 199, 0.4)' }}>удалено {parseServerDate(item.deleted_at).toLocaleString('ru-RU')}</span>
                       </div>
                       <div className="flex gap-2 shrink-0">

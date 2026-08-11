@@ -103,7 +103,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div
-                className="px-4 py-3 rounded-lg text-sm font-sans"
+                className="px-4 py-3 rounded-lg text-sm font-sans break-words"
                 style={{
                   background: 'rgba(224,82,82,0.1)',
                   color: '#e05252',

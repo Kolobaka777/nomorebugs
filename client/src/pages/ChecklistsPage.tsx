@@ -318,7 +318,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                     <div className="p-5 flex flex-col flex-1">
                       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                         <span
-                          className="font-geist font-semibold rounded px-2 py-0.5"
+                          className="font-geist font-semibold rounded px-2 py-0.5 break-words min-w-0"
                           style={{ background: `${tpl.color}20`, color: tpl.color, fontSize: 12 }}
                         >
                           {tpl.name}
@@ -332,7 +332,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                         {cats.map(cat => (
                           <span
                             key={cat}
-                            className="font-geist text-xs px-2 py-0.5 rounded"
+                            className="font-geist text-xs px-2 py-0.5 rounded break-words min-w-0"
                             style={{ background: `${catColor(cat)}15`, color: catColor(cat), fontSize: 11 }}
                           >
                             {cat}
@@ -547,7 +547,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                   {stats.byTemplate.map(tpl => (
                     <div key={tpl.id} className="p-4 rounded-lg text-center" style={{ background: CARD_BG, border: `1px solid ${tpl.color}50`, boxShadow: CARD_SHADOW }}>
-                      <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>{tpl.name}</p>
+                      <p className="font-geist text-xs mb-1 break-words" style={{ color: TEXT_MUTED }}>{tpl.name}</p>
                       <p className="font-montserrat font-bold" style={{ color: tpl.color, fontSize: 28, letterSpacing: TRACK_WIDE }}>{tpl.submissions}</p>
                       <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>проверок</p>
                     </div>
@@ -582,10 +582,10 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                       <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(224,82,82,0.2)', boxShadow: CARD_SHADOW }}>
                         <span className="font-montserrat font-bold shrink-0 text-center" style={{ fontSize: 13, color: '#e05252', width: 24 }}>#{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="font-geist text-xs leading-snug" style={{ color: TEXT_PRIMARY }}>{f.item_text}</p>
+                          <p className="font-geist text-xs leading-snug break-words" style={{ color: TEXT_PRIMARY }}>{f.item_text}</p>
                           <div className="flex gap-2 mt-1 flex-wrap">
-                            <span className="font-geist text-xs px-1.5 py-0.5 rounded" style={{ background: `${f.color}20`, color: f.color, fontSize: 11 }}>{f.template_name}</span>
-                            {f.category && <span className="font-geist text-xs px-1.5 py-0.5 rounded" style={{ background: `${catColor(f.category)}15`, color: catColor(f.category), fontSize: 11 }}>{f.category}</span>}
+                            <span className="font-geist text-xs px-1.5 py-0.5 rounded break-words min-w-0" style={{ background: `${f.color}20`, color: f.color, fontSize: 11 }}>{f.template_name}</span>
+                            {f.category && <span className="font-geist text-xs px-1.5 py-0.5 rounded break-words min-w-0" style={{ background: `${catColor(f.category)}15`, color: catColor(f.category), fontSize: 11 }}>{f.category}</span>}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -603,8 +603,8 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                     {stats.byTester.map((t, i) => (
                       <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(102, 252, 241,0.2)', boxShadow: CARD_SHADOW }}>
                         <div className="w-8 h-8 rounded-full flex items-center justify-center font-geist font-semibold text-xs shrink-0" style={{ background: ACCENT, color: PAGE_BG }}>{t.avatar_initials}</div>
-                        <div className="flex-1">
-                          <p className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{t.tester_name}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-geist text-sm font-semibold break-words" style={{ color: TEXT_PRIMARY }}>{t.tester_name}</p>
                         </div>
                         <div className="flex gap-6 text-right">
                           <div>
@@ -630,8 +630,8 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                         return (
                           <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(127,119,221,0.2)', boxShadow: CARD_SHADOW }}>
                             <div className="w-8 h-8 rounded-full flex items-center justify-center font-geist font-semibold text-xs shrink-0" style={{ background: '#7F77DD', color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</div>
-                            <div className="flex-1">
-                              <p className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{name}</p>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-geist text-sm font-semibold break-words" style={{ color: TEXT_PRIMARY }}>{name}</p>
                               <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{statsTab === 'content' ? 'Контентщик' : 'Верстальщик'}</p>
                             </div>
                             <div className="flex gap-6 text-right">

@@ -23,6 +23,7 @@ vi.mock('../api', () => ({
     unlike: vi.fn(),
     setStatus: vi.fn(),
     setFolder: vi.fn(),
+    answer: vi.fn(),
     remove: vi.fn(),
     getFolders: vi.fn(),
     createFolder: vi.fn(),
@@ -38,6 +39,7 @@ function suggestion(overrides: Partial<Suggestion> = {}): Suggestion {
     id: 1, type: 'idea', text: 'Сделать кнопку зелёной', status: 'new',
     created_at: new Date().toISOString(), is_anonymous: false,
     user_id: 1, author_name: 'Tester', likeCount: 0, likedByMe: false,
+    answer: null, answered_at: null, answered_by_name: null,
     ...overrides,
   };
 }
@@ -184,6 +186,46 @@ describe('SuggestionsPage — tester view', () => {
 
     await waitFor(() => expect(suggestionsApi.update).toHaveBeenCalledWith(1, { type: 'idea', text: 'Новый текст', is_anonymous: false }));
     expect(await screen.findByText('Новый текст')).toBeInTheDocument();
+    expect(suggestionsApi.list).toHaveBeenCalledTimes(1); // no extra reload — merged in place
+  });
+});
+
+describe('SuggestionsPage — questions', () => {
+  it('an unanswered question shows a waiting message to a plain tester, not a reply box', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?' })],
+    ));
+    renderPage();
+    await screen.findByText('Как сбросить пароль?');
+    expect(screen.getByText('Ждём ответа тимлида')).toBeInTheDocument();
+    expect(screen.queryByText('Ответить')).toBeNull();
+  });
+
+  it('an answered question shows the answer to everyone, with the answerer credited', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?', answer: 'Через "Забыли пароль" на странице входа', answered_by_name: 'Lead' })],
+    ));
+    renderPage();
+    await screen.findByText('Через "Забыли пароль" на странице входа');
+    expect(screen.getByText('Ответ от Lead')).toBeInTheDocument();
+  });
+
+  it('a lead can answer a pending question, and it appears immediately without a full reload', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
+      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?' })],
+    ));
+    vi.mocked(suggestionsApi.answer).mockResolvedValue({ data: {} } as any);
+
+    renderPage(lead);
+    await screen.findByText('Как сбросить пароль?');
+    fireEvent.click(screen.getByText('Ответить'));
+
+    const textarea = screen.getByPlaceholderText('Твой ответ...');
+    fireEvent.change(textarea, { target: { value: '  Через "Забыли пароль"  ' } });
+    fireEvent.click(screen.getByText('Ответить'));
+
+    await waitFor(() => expect(suggestionsApi.answer).toHaveBeenCalledWith(1, 'Через "Забыли пароль"'));
+    expect(await screen.findByText('Через "Забыли пароль"')).toBeInTheDocument();
     expect(suggestionsApi.list).toHaveBeenCalledTimes(1); // no extra reload — merged in place
   });
 });

@@ -58,12 +58,18 @@ describe('scoped permissions — authorization boundary', () => {
     expect(db.prepare('SELECT * FROM granted_permissions WHERE user_id = ?').get(leadId)).toBeUndefined();
   });
 
-  it('a tester with no grant is forbidden from the knowledge-base write routes', async () => {
+  // Was a flat 403 — any tester can now *propose* a bug example (see
+  // routes/knowledge.js), same shape as the course/guide proposal flow.
+  // manage_knowledge_base now gates *direct publish*, not submission itself.
+  it('a tester with no grant proposing a bug example gets a pending, unpublished row instead of a 403', async () => {
     const res = await request(app)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT is_published, proposal_status FROM bug_examples WHERE id = ?').get(res.body.id);
+    expect(row.is_published).toBe(0);
+    expect(row.proposal_status).toBe('pending');
   });
 
   let grantId;
@@ -79,18 +85,24 @@ describe('scoped permissions — authorization boundary', () => {
     expect(mine.body).toContain('manage_knowledge_base');
   });
 
-  it('the granted tester can now use the knowledge-base write routes, and an ungranted tester still cannot', async () => {
+  it('the granted tester publishes directly; an ungranted tester\'s submission is still forced into a pending proposal', async () => {
     const granted = await request(app)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'Broken form', bad_text: 'bad example', good_text: 'good example' });
     expect(granted.status).toBe(200);
+    const grantedRow = db.prepare('SELECT is_published, proposal_status FROM bug_examples WHERE id = ?').get(granted.body.id);
+    expect(grantedRow.is_published).toBe(1);
+    expect(grantedRow.proposal_status).toBeNull();
 
     const ungranted = await request(app)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${otherTesterToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
-    expect(ungranted.status).toBe(403);
+    expect(ungranted.status).toBe(200);
+    const ungrantedRow = db.prepare('SELECT is_published, proposal_status FROM bug_examples WHERE id = ?').get(ungranted.body.id);
+    expect(ungrantedRow.is_published).toBe(0);
+    expect(ungrantedRow.proposal_status).toBe('pending');
   });
 
   it('granting the same permission again replaces rather than stacks duplicate rows', async () => {
@@ -105,7 +117,7 @@ describe('scoped permissions — authorization boundary', () => {
     grantId = res.body.id;
   });
 
-  it('a lead can revoke a grant, and the tester loses access immediately (no wait for JWT expiry)', async () => {
+  it('a lead can revoke a grant, and the tester immediately drops back to proposing instead of publishing directly (no wait for JWT expiry)', async () => {
     const revoke = await request(app)
       .delete(`/api/lead/permissions/${grantId}`)
       .set('Authorization', `Bearer ${leadToken}`);
@@ -114,14 +126,17 @@ describe('scoped permissions — authorization boundary', () => {
     const mine = await request(app).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
     expect(mine.body).not.toContain('manage_knowledge_base');
 
-    const blocked = await request(app)
+    const res = await request(app)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
-    expect(blocked.status).toBe(403);
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT is_published, proposal_status FROM bug_examples WHERE id = ?').get(res.body.id);
+    expect(row.is_published).toBe(0);
+    expect(row.proposal_status).toBe('pending');
   });
 
-  it('an already-expired grant does not authorize (expiry is enforced, not just stored)', async () => {
+  it('an already-expired grant does not authorize direct publish (expiry is enforced, not just stored)', async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     db.prepare(
       'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
@@ -134,7 +149,10 @@ describe('scoped permissions — authorization boundary', () => {
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT is_published, proposal_status FROM bug_examples WHERE id = ?').get(res.body.id);
+    expect(row.is_published).toBe(0);
+    expect(row.proposal_status).toBe('pending');
   });
 
   it('leads and admins bypass the permission system entirely, without needing a grant', async () => {

@@ -263,7 +263,7 @@ export interface TeamNewsItem {
 }
 
 // ===== SUGGESTION / IDEAS BOARD =====
-export type SuggestionType = 'idea' | 'suggestion' | 'complaint';
+export type SuggestionType = 'idea' | 'suggestion' | 'complaint' | 'question';
 export type SuggestionStatus = 'new' | 'reviewed' | 'implemented' | 'declined';
 
 export interface Suggestion {
@@ -277,6 +277,10 @@ export interface Suggestion {
   author_name: string | null;
   likeCount: number;
   likedByMe: boolean;
+  // Only meaningful for type 'question' — null until a lead answers.
+  answer: string | null;
+  answered_at: string | null;
+  answered_by_name: string | null;
   // Lead-only — never present in a tester's view of the list.
   folder_id?: number | null;
   folder_name?: string | null;

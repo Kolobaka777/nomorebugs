@@ -197,7 +197,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-3">
-                <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: `${color}20`, color, border: `1px solid ${color}55` }}>
+                <span className="font-geist font-semibold rounded px-2 py-0.5 break-words min-w-0" style={{ fontSize: 11, background: `${color}20`, color, border: `1px solid ${color}55` }}>
                   {course.tag}
                 </span>
                 {courseIsNew && (
@@ -225,7 +225,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 })()}
               </div>
 
-              <h1 className="font-montserrat font-bold mb-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+              <h1 className="font-montserrat font-bold mb-3 break-words" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
                 {course.title}
               </h1>
 
@@ -243,7 +243,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="lg:col-span-2 space-y-6">
             {course.description && (
               <Panel title="О курсе">
-                <p className="font-geist text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{course.description}</p>
+                <p className="font-geist text-sm leading-relaxed break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{course.description}</p>
               </Panel>
             )}
 
@@ -259,13 +259,13 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                         >
                           {i + 1}
                         </span>
-                        <span className="font-montserrat font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{mod.title}</span>
+                        <span className="font-montserrat font-semibold text-sm break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{mod.title}</span>
                       </div>
                       <ul className="ml-8 space-y-1">
                         {(mod.lessons || []).map((l: any) => (
                           <li key={l.id} className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
                             <Icon name="chevronRight" size={14} color={`${color}90`} />
-                            {l.title}
+                            <span className="break-words min-w-0">{l.title}</span>
                           </li>
                         ))}
                       </ul>
@@ -333,7 +333,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="space-y-4">
             {course.requirements && (
               <Panel title="Требования" pad="p-5">
-                <p className="font-geist text-xs leading-relaxed" style={{ color: TEXT_MUTED }}>{course.requirements}</p>
+                <p className="font-geist text-xs leading-relaxed break-words" style={{ color: TEXT_MUTED }}>{course.requirements}</p>
               </Panel>
             )}
 
@@ -342,7 +342,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 <div className="space-y-3">
                   {course.modules.map((mod: any, i: number) => (
                     <div key={mod.id}>
-                      <p className="font-geist font-semibold text-xs" style={{ color }}>МОДУЛЬ {i + 1}: {mod.title}</p>
+                      <p className="font-geist font-semibold text-xs break-words" style={{ color }}>МОДУЛЬ {i + 1}: {mod.title}</p>
                       <p className="font-geist text-xs mt-0.5" style={{ color: TEXT_MUTED }}>{(mod.lessons || []).length} элемент{(mod.lessons || []).length === 1 ? '' : 'ов'}</p>
                     </div>
                   ))}
@@ -382,7 +382,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 )}
                 {course.proposal_status === 'pending' && (
                   <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>
-                    Предложил(а): <span style={{ color: TEXT_PRIMARY }}>{course.author_name}</span>
+                    Предложил(а): <span className="break-words" style={{ color: TEXT_PRIMARY }}>{course.author_name}</span>
                   </p>
                 )}
                 <button

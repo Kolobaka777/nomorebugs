@@ -133,7 +133,7 @@ function CourseCard({
         </div>
 
         <h3 className="font-montserrat font-semibold flex items-start gap-2 mb-4" style={{ fontSize: 15, lineHeight: 1.4, color: TEXT_PRIMARY }}>
-          <span className="flex-1" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
+          <span className="flex-1 break-words min-w-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
           {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-0.5" />}
         </h3>
 
@@ -244,7 +244,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-7xl mx-auto px-8 pt-16 pb-8">
           <div className="rounded-lg p-10 text-center" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
-            <p className="font-geist text-sm mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="font-geist text-sm mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
             <button onClick={loadLectures} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         </div>

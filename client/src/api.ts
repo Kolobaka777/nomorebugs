@@ -185,6 +185,7 @@ export const suggestionsApi = {
   unlike: (id: number) => api.delete(`/suggestions/${id}/like`),
   setStatus: (id: number, status: string) => api.patch(`/suggestions/${id}/status`, { status }),
   setFolder: (id: number, folder_id: number | null) => api.patch(`/suggestions/${id}/folder`, { folder_id }),
+  answer: (id: number, answer: string) => api.patch(`/suggestions/${id}/answer`, { answer }),
   remove: (id: number) => api.delete(`/suggestions/${id}`),
 
   getFolders: () => api.get('/lead/suggestion-folders'),
@@ -254,7 +255,9 @@ export const checklistApi = {
   },
 };
 
-// Knowledge base (Багодельня): bug examples + glossary
+// Knowledge base (Багодельня): bug examples + glossary. Anyone can also
+// *propose* one — the server forces it unpublished + pending review
+// regardless of what's sent (see POST /api/bug-examples, POST /api/glossary).
 export const knowledgeApi = {
   getBugExamples: () => api.get('/bug-examples'),
   createBugExample: (data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) =>
@@ -262,11 +265,13 @@ export const knowledgeApi = {
   updateBugExample: (id: number, data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) =>
     api.put(`/bug-examples/${id}`, data),
   deleteBugExample: (id: number) => api.delete(`/bug-examples/${id}`),
+  approveBugExample: (id: number) => api.patch(`/bug-examples/${id}/approve`),
 
   getGlossary: () => api.get('/glossary'),
   createGlossaryTerm: (data: { term: string; definition: string }) => api.post('/glossary', data),
   updateGlossaryTerm: (id: number, data: { term: string; definition: string }) => api.put(`/glossary/${id}`, data),
   deleteGlossaryTerm: (id: number) => api.delete(`/glossary/${id}`),
+  approveGlossaryTerm: (id: number) => api.patch(`/glossary/${id}/approve`),
 
   getMyPermissions: () => api.get('/me/permissions'),
 };

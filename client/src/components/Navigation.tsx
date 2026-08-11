@@ -144,7 +144,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
         {/* Name + role + avatar, with dropdown */}
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-right hidden sm:block">
-            <p className="font-geist text-sm font-normal leading-tight" style={{ color: TEXT_PRIMARY }}>
+            <p className="font-geist text-sm font-normal leading-tight break-words" style={{ color: TEXT_PRIMARY }}>
               {user.displayName || user.name}
             </p>
             <span
@@ -205,7 +205,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
             >
               {/* User info header */}
               <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(102, 252, 241,0.15)' }}>
-                <p className="text-pixel text-xs font-sans font-medium leading-tight">{user.displayName || user.name}</p>
+                <p className="text-pixel text-xs font-sans font-medium leading-tight break-words">{user.displayName || user.name}</p>
                 <p className="text-pixel/60 text-xs font-sans leading-tight mt-0.5 flex items-center gap-1">
                   <Icon name={roleMeta.icon} size={10} color={roleMeta.color} />
                   {roleMeta.label}

@@ -88,7 +88,7 @@ export default function PresenceEditModal({
   };
 
   return (
-    <Modal title={`Рабочее время · ${member.name}`} onClose={onClose} maxWidth={384}>
+    <Modal title={<span className="break-words min-w-0">Рабочее время · {member.name}</span>} onClose={onClose} maxWidth={384}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -134,7 +134,7 @@ export default function PresenceEditModal({
           </select>
         </div>
 
-        {error && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="font-geist text-xs break-words" style={{ color: '#e05252' }}>{error}</p>}
 
         <button onClick={saveHours} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
           {saving ? '...' : 'Сохранить'}

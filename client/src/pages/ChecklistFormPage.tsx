@@ -256,7 +256,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
             <Icon name="chevronLeft" size={16} color="currentColor" /> Назад
           </button>
           <span
-            className="font-geist font-semibold px-2 py-0.5 rounded"
+            className="font-geist font-semibold px-2 py-0.5 rounded break-words min-w-0"
             style={{ background: `${tpl.color}20`, color: tpl.color, fontSize: 12 }}
           >{tpl.name}</span>
 
@@ -290,7 +290,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
         </div>
 
         <div className="flex items-center gap-3 text-xs font-geist shrink-0">
-          <span className="flex items-center gap-1" style={{ color: TEXT_MUTED, fontSize: 12 }}><Icon name="user" size={14} color="currentColor" />{user.name}</span>
+          <span className="flex items-center gap-1" style={{ color: TEXT_MUTED, fontSize: 12 }}><Icon name="user" size={14} color="currentColor" /><span className="break-words min-w-0">{user.name}</span></span>
           {!editingMvt && (
             <>
               <span style={{ color: ACCENT }}>✓ {okCount}</span>
@@ -375,7 +375,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
 
             <div className="mb-4 flex items-center gap-2">
               <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Тестер:</span>
-              <span className="px-2 py-0.5 rounded text-xs font-geist font-semibold" style={{ background: `${tpl.color}18`, color: tpl.color }}>
+              <span className="px-2 py-0.5 rounded text-xs font-geist font-semibold break-words min-w-0" style={{ background: `${tpl.color}18`, color: tpl.color }}>
                 {user.name}
               </span>
             </div>
@@ -422,7 +422,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
                   className="flex items-center justify-between px-4 py-2.5 rounded-t-lg flex-wrap gap-1"
                   style={{ background: `${cc}18`, borderLeft: `4px solid ${cc}` }}
                 >
-                  <span className="font-geist font-semibold" style={{ color: cc, fontSize: 13, letterSpacing: TRACK_WIDE }}>{cat}</span>
+                  <span className="font-geist font-semibold break-words min-w-0" style={{ color: cc, fontSize: 13, letterSpacing: TRACK_WIDE }}>{cat}</span>
                   <div className="flex items-center gap-3 text-xs font-geist">
                     {!editingMvt && catFails > 0 && <span style={{ color: '#e05252' }}>{catFails} ✗</span>}
                     {!editingMvt && <span style={{ color: TEXT_MUTED }}>{catFilled}/{items.length}</span>}
@@ -460,7 +460,7 @@ export default function ChecklistFormPage({ user, onLogout }: Props) {
                             {item.order_num}.
                           </span>
                           <p
-                            className="flex-1 text-sm font-geist leading-snug min-w-[140px]"
+                            className="flex-1 text-sm font-geist leading-snug min-w-[140px] break-words"
                             style={{ color: editingMvt
                               ? (inMvt ? 'rgba(197, 198, 199,0.75)' : 'rgba(197, 198, 199,0.3)')
                               : status ? 'rgba(197, 198, 199,0.45)' : 'rgba(197, 198, 199,0.82)'

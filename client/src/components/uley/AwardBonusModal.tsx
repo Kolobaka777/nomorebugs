@@ -44,7 +44,7 @@ export default function AwardBonusModal({
   };
 
   return (
-    <Modal title={`Премия · ${member.name}`} onClose={onClose} maxWidth={384}>
+    <Modal title={<span className="break-words min-w-0">Премия · {member.name}</span>} onClose={onClose} maxWidth={384}>
       <div className="space-y-4">
         <div>
           <label className="block font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>
@@ -71,7 +71,7 @@ export default function AwardBonusModal({
           />
         </div>
 
-        {error && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="font-geist text-xs break-words" style={{ color: '#e05252' }}>{error}</p>}
 
         <button onClick={submit} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
           {saving ? '...' : 'Начислить'}

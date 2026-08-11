@@ -381,7 +381,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
         >
           <h2 className="font-geist font-semibold text-base leading-relaxed mb-6 flex gap-2" style={{ color: TEXT_PRIMARY }}>
             <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold" style={{ fontSize: 12, background: ACCENT, color: PAGE_BG }}>{currentQuestionIdx + 1}</span>
-            {currentQuestion.question_text}
+            <span className="break-words min-w-0">{currentQuestion.question_text}</span>
           </h2>
 
           {/* Options */}
@@ -423,7 +423,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                     >
                       {isCorrectAnswer && showExplanation ? <CheckCircleIcon size={14} color={ACCENT} /> : isWrongAnswer ? '✗' : option.key.toUpperCase()}
                     </span>
-                    <span className="font-geist text-sm leading-relaxed" style={{ color: TEXT_PRIMARY }}>
+                    <span className="font-geist text-sm leading-relaxed break-words min-w-0" style={{ color: TEXT_PRIMARY }}>
                       {option.text}
                     </span>
                   </div>
@@ -453,10 +453,10 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               <p className="font-montserrat font-bold mb-2" style={{ color: isCorrect ? ACCENT : '#e05252', fontSize: 14, letterSpacing: TRACK_WIDE }}>
                 {isCorrect ? '✓ Верно!' : `✗ Правильный ответ: ${explanation.correctAnswer.toUpperCase()}`}
               </p>
-              <p className="font-geist text-sm mb-2" style={{ color: 'rgba(197, 198, 199,0.85)' }}>{explanation.explanation}</p>
+              <p className="font-geist text-sm mb-2 break-words" style={{ color: 'rgba(197, 198, 199,0.85)' }}>{explanation.explanation}</p>
               <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
                 Правильный ответ:{' '}
-                <span className="font-semibold" style={{ color: ACCENT }}>
+                <span className="font-semibold break-words" style={{ color: ACCENT }}>
                   {explanation.correctAnswer.toUpperCase()}. {explanation.correctOption}
                 </span>
               </p>

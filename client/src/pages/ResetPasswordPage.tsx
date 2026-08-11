@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
               <p className="font-geist text-sm text-center mb-6" style={{ color: TEXT_MUTED }}>Придумайте новый пароль</p>
               <form onSubmit={submit} className="space-y-4">
                 {error && (
-                  <div className="px-4 py-3 rounded-lg text-sm font-geist" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252' }}>
+                  <div className="px-4 py-3 rounded-lg text-sm font-geist break-words" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252' }}>
                     {error}
                   </div>
                 )}

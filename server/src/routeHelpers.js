@@ -63,6 +63,35 @@ export function requirePermission(permission) {
   };
 }
 
+// Auto-awarded milestone badges — distinct from the 5 skill-area badges a
+// tester crafts themselves from collected cards (see BADGE_META in
+// client/src/utils/badges.ts and POST /api/tester/craft-badge), but stored
+// in the very same user_badges table (badge_id is just a free-form string),
+// so the client's existing Коллекция tab / PublicProfilePage badge-chip
+// rendering picks either kind up with no extra plumbing. Each ID below is
+// checked from the route that owns the triggering event (see routes/*.js).
+export const ACHIEVEMENT_IDS = {
+  OTLICHNIK: 'achievement_otlichnik',           // last 5 tests all ≥90%
+  AVTOR: 'achievement_avtor',                   // first ever approved proposal (course/guide/bug example/term)
+  BIBLIOTEKAR: 'achievement_bibliotekar',       // 5 approved glossary terms
+  NASTAVNIK: 'achievement_nastavnik',           // 3 approved guides
+  GOLOS_KOMANDY: 'achievement_golos_komandy',   // 10+ likes across own suggestions, or 5 answered questions
+  POLUNOCHNY_ZHUK: 'achievement_polunochny_zhuk', // logged in after midnight (server time) on 5 distinct days
+  KOLLEKTSIONER: 'achievement_kollektsioner',   // crafted all 5 skill-area badges
+};
+
+// Idempotent — UNIQUE(user_id, badge_id) means a repeat award is a harmless
+// no-op (INSERT OR IGNORE), so every call site can just call this every time
+// its condition re-checks true without tracking "did I already give this"
+// itself. Returns whether it was newly awarded (false on a repeat).
+export function awardAchievement(userId, badgeId) {
+  const result = db.prepare('INSERT OR IGNORE INTO user_badges (user_id, badge_id) VALUES (?, ?)').run(userId, badgeId);
+  if (result.changes > 0) {
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(userId, `earned_achievement:${badgeId}`);
+  }
+  return result.changes > 0;
+}
+
 // Revokes every outstanding refresh token for a user — called on any
 // password change (routes/auth.js) so a leaked/compromised session doesn't
 // survive it, and on archiving a user (routes/admin.js) so a deactivated

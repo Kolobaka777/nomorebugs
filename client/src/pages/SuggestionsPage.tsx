@@ -18,12 +18,14 @@ const TYPE_LABELS: Record<SuggestionType, string> = {
   idea: 'Идея',
   suggestion: 'Предложение',
   complaint: 'Что бесит',
+  question: 'Вопрос',
 };
-const TYPE_ORDER: SuggestionType[] = ['idea', 'suggestion', 'complaint'];
+const TYPE_ORDER: SuggestionType[] = ['idea', 'suggestion', 'complaint', 'question'];
 const TYPE_COLORS: Record<SuggestionType, string> = {
   idea: '#7F77DD',
   suggestion: ACCENT,
   complaint: '#e05252',
+  question: '#4fc3f7',
 };
 const STATUS_LABELS: Record<SuggestionStatus, string> = {
   new: 'Новое',
@@ -40,7 +42,7 @@ function canStillEdit(s: Suggestion, userId: number): boolean {
 }
 
 function SuggestionCard({
-  s, isLead, userId, folders, isLiking, onLike, onSetStatus, onSetFolder, onSave, onDelete,
+  s, isLead, userId, folders, isLiking, onLike, onSetStatus, onSetFolder, onSave, onDelete, onAnswer,
 }: {
   s: Suggestion;
   isLead: boolean;
@@ -52,6 +54,7 @@ function SuggestionCard({
   onSetFolder: (s: Suggestion, folderId: number | null) => void;
   onSave: (s: Suggestion, data: { type: SuggestionType; text: string; is_anonymous: boolean }) => Promise<void>;
   onDelete: (s: Suggestion) => void;
+  onAnswer: (s: Suggestion, answer: string) => Promise<void>;
 }) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -60,8 +63,26 @@ function SuggestionCard({
   const [editAnon, setEditAnon] = useState(s.is_anonymous);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [answering, setAnswering] = useState(false);
+  const [answerText, setAnswerText] = useState(s.answer || '');
+  const [answerSaving, setAnswerSaving] = useState(false);
+  const [answerError, setAnswerError] = useState('');
 
   const editable = canStillEdit(s, userId);
+
+  const submitAnswer = async () => {
+    if (!answerText.trim()) { setAnswerError('Напиши текст ответа'); return; }
+    setAnswerSaving(true);
+    setAnswerError('');
+    try {
+      await onAnswer(s, answerText.trim());
+      setAnswering(false);
+    } catch (err: any) {
+      setAnswerError(err.response?.data?.error || 'Не удалось отправить ответ');
+    } finally {
+      setAnswerSaving(false);
+    }
+  };
 
   const save = async () => {
     if (!editText.trim()) { setError('Напиши текст'); return; }
@@ -80,12 +101,12 @@ function SuggestionCard({
   if (editing) {
     return (
       <div className="p-4 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(127,119,221,0.4)', boxShadow: CARD_SHADOW }}>
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-2 mb-2 flex-wrap">
           {TYPE_ORDER.map(t => (
             <button
               key={t}
               onClick={() => setEditType(t)}
-              className="flex-1 py-1.5 rounded-lg text-xs font-geist font-semibold cursor-pointer"
+              className="flex-1 min-w-[70px] py-1.5 rounded-lg text-xs font-geist font-semibold cursor-pointer"
               style={{ background: editType === t ? `${TYPE_COLORS[t]}25` : 'rgba(197, 198, 199,0.04)', color: editType === t ? TYPE_COLORS[t] : TEXT_MUTED }}
             >
               {TYPE_LABELS[t]}
@@ -109,7 +130,7 @@ function SuggestionCard({
             <button onClick={save} disabled={saving} className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">{saving ? '...' : 'Сохранить'}</button>
           </div>
         </div>
-        {error && <p className="text-xs font-geist mt-2" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{error}</p>}
       </div>
     );
   }
@@ -121,12 +142,12 @@ function SuggestionCard({
           {TYPE_LABELS[s.type]}
         </span>
         <span
-          className={`flex items-center gap-1 text-xs font-geist ${!s.is_anonymous && s.user_id ? 'cursor-pointer hover:underline' : ''}`}
+          className={`flex items-center gap-1 text-xs font-geist min-w-0 ${!s.is_anonymous && s.user_id ? 'cursor-pointer hover:underline' : ''}`}
           style={{ color: TEXT_MUTED }}
           onClick={() => !s.is_anonymous && s.user_id && navigate(`/profile/${s.user_id}`)}
         >
           {s.is_anonymous ? <Icon name="lock" size={12} color={TEXT_MUTED} /> : null}
-          {s.is_anonymous ? 'Аноним' : (s.author_name || '—')}
+          <span className="break-words min-w-0">{s.is_anonymous ? 'Аноним' : (s.author_name || '—')}</span>
         </span>
         {isLead && s.is_anonymous && (
           <span className="flex items-center gap-1 text-xs font-geist px-1.5 py-0.5 rounded" style={{ background: 'rgba(239,159,39,0.12)', color: BADGE_NOTIFY }}>
@@ -136,7 +157,49 @@ function SuggestionCard({
         <span className="text-xs font-geist ml-auto shrink-0" style={{ color: TEXT_MUTED }}>{timeAgo(s.created_at)}</span>
       </div>
 
-      <p className="font-geist text-sm leading-relaxed mb-3" style={{ color: TEXT_PRIMARY }}>{s.text}</p>
+      <p className="font-geist text-sm leading-relaxed mb-3 break-words" style={{ color: TEXT_PRIMARY }}>{s.text}</p>
+
+      {s.type === 'question' && (
+        s.answer ? (
+          <div className="p-3 rounded-lg mb-3 flex gap-2" style={{ background: 'rgba(102, 252, 241, 0.08)', border: `1px solid ${ACCENT}30` }}>
+            <Icon name="check" size={14} color={ACCENT} />
+            <div className="min-w-0">
+              <p className="text-xs font-geist font-semibold mb-1" style={{ color: ACCENT }}>
+                Ответ{s.answered_by_name ? ` от ${s.answered_by_name}` : ''}
+              </p>
+              <p className="text-sm font-geist leading-relaxed break-words" style={{ color: TEXT_PRIMARY }}>{s.answer}</p>
+            </div>
+          </div>
+        ) : isLead ? (
+          answering ? (
+            <div className="mb-3">
+              <textarea
+                value={answerText}
+                onChange={e => setAnswerText(e.target.value.slice(0, MAX_LENGTH))}
+                rows={2}
+                placeholder="Твой ответ..."
+                className="w-full rounded-lg px-3 py-2 font-geist text-sm resize-none outline-none mb-2"
+                style={{ background: PAGE_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.2)', lineHeight: 1.6 }}
+              />
+              <div className="flex gap-2">
+                <button onClick={submitAnswer} disabled={answerSaving} className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">
+                  {answerSaving ? '...' : 'Ответить'}
+                </button>
+                <button onClick={() => setAnswering(false)} className="text-xs font-geist px-3 py-1.5 rounded-lg cursor-pointer" style={{ color: TEXT_MUTED }}>Отмена</button>
+              </div>
+              {answerError && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{answerError}</p>}
+            </div>
+          ) : (
+            <button onClick={() => setAnswering(true)} className="btn-secondary text-xs px-3 py-1.5 mb-3 flex items-center gap-1.5" style={{ color: TYPE_COLORS.question }}>
+              <Icon name="lightbulb" size={13} color="currentColor" /> Ответить
+            </button>
+          )
+        ) : (
+          <p className="text-xs font-geist mb-3 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+            <Icon name="clock" size={12} color={TEXT_MUTED} /> Ждём ответа тимлида
+          </p>
+        )
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <button
@@ -337,7 +400,12 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
     }
   };
 
-  const cardProps = { isLead, userId: user.id, folders, onLike: toggleLike, onSetStatus: setStatus, onSetFolder: setFolder, onSave: saveEdit, onDelete: remove };
+  const answerQuestion = async (s: Suggestion, answer: string) => {
+    await suggestionsApi.answer(s.id, answer);
+    setList(ls => ls ? ls.map(x => x.id === s.id ? { ...x, answer, answered_at: new Date().toISOString(), answered_by_name: user.name } : x) : ls);
+  };
+
+  const cardProps = { isLead, userId: user.id, folders, onLike: toggleLike, onSetStatus: setStatus, onSetFolder: setFolder, onSave: saveEdit, onDelete: remove, onAnswer: answerQuestion };
 
   const typeGroups = useMemo(() => {
     if (!list) return [];
@@ -361,18 +429,18 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             <Icon name="lightbulb" size={22} color={BADGE_NOTIFY} /> Идеи и предложения
           </h1>
           <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>
-            Идея, предложение или то, что бесит — пиши сюда. Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним». Своё можно править или удалить в течение суток после публикации.
+            Идея, предложение, то, что бесит, или вопрос — пиши сюда. На вопрос ответит тимлид, ответ увидят все (это заодно и мини-FAQ команды). Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним». Своё можно править или удалить в течение суток после публикации.
           </p>
         </div>
 
         {/* Submit form */}
         <div className="p-5 rounded-lg mb-6" style={{ background: CARD_BG, border: `1px solid ${ACCENT}40`, boxShadow: CARD_SHADOW }}>
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-3 flex-wrap">
             {TYPE_ORDER.map(t => (
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className="flex-1 py-2 rounded-lg text-xs font-geist font-semibold cursor-pointer transition-colors"
+                className="flex-1 min-w-[70px] py-2 rounded-lg text-xs font-geist font-semibold cursor-pointer transition-colors"
                 style={{
                   background: type === t ? `${TYPE_COLORS[t]}25` : 'rgba(197, 198, 199,0.04)',
                   color: type === t ? TYPE_COLORS[t] : TEXT_MUTED,
@@ -385,7 +453,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
           <textarea
             value={text}
             onChange={e => setText(e.target.value.slice(0, MAX_LENGTH))}
-            placeholder="Что предложить, посоветовать или на что пожаловаться?"
+            placeholder={type === 'question' ? 'О чём хочешь спросить?' : 'Что предложить, посоветовать или на что пожаловаться?'}
             rows={4}
             className="w-full rounded-lg px-3 py-2 font-geist text-sm resize-none outline-none mb-2"
             style={{ background: PAGE_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.2)', lineHeight: 1.6 }}
@@ -399,7 +467,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
               {submitting ? '...' : 'Отправить'}
             </button>
           </div>
-          {submitError && <p className="text-xs font-geist mt-2" style={{ color: '#e05252' }}>{submitError}</p>}
+          {submitError && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{submitError}</p>}
         </div>
 
         {/* Lead-only folder management — purely their own private sorting */}
@@ -409,7 +477,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             <div className="flex flex-wrap gap-2 mb-2">
               {folders.map(f => (
                 <span key={f.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199,0.07)', color: TEXT_PRIMARY }}>
-                  {f.name}
+                  <span className="break-words min-w-0">{f.name}</span>
                   <button onClick={() => removeFolder(f.id)} aria-label={`Удалить папку ${f.name}`} style={{ color: '#e05252' }}>
                     <Icon name="close" size={12} color="currentColor" />
                   </button>
@@ -431,7 +499,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
         )}
 
         {/* List */}
-        {loadError && <p className="text-sm font-geist text-center py-6" style={{ color: '#e05252' }}>{loadError}</p>}
+        {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
         {!loadError && !list && <SnailLoader />}
         {list && list.length === 0 && (
           <p className="text-sm font-geist text-center py-10" style={{ color: TEXT_MUTED }}>Пока ничего нет — стань первым.</p>
@@ -454,7 +522,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
           <div className="space-y-6">
             {folderGroups.map(({ folder: f, items }) => (
               <div key={String(f.id)}>
-                <p className="font-montserrat font-semibold mb-3" style={{ color: TEXT_MUTED, fontSize: 13, letterSpacing: TRACK_WIDE }}>{f.name.toUpperCase()}</p>
+                <p className="font-montserrat font-semibold mb-3 break-words" style={{ color: TEXT_MUTED, fontSize: 13, letterSpacing: TRACK_WIDE }}>{f.name.toUpperCase()}</p>
                 <div className="space-y-3">
                   {items.map(s => <SuggestionCard key={s.id} s={s} {...cardProps} isLiking={likingIds.has(s.id)} />)}
                 </div>

@@ -27,7 +27,7 @@ export default function RatingsTab({
       </div>
       {ratingsError ? (
         <div className="card text-center py-8">
-          <p className="font-geist text-sm mb-3" style={{ color: '#e05252' }}>{ratingsError}</p>
+          <p className="font-geist text-sm mb-3 break-words" style={{ color: '#e05252' }}>{ratingsError}</p>
           <button onClick={loadRatings} className="btn-secondary text-xs px-4 py-2">Повторить</button>
         </div>
       ) : ratings ? (
@@ -42,7 +42,7 @@ export default function RatingsTab({
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-geist text-xs w-5" style={{ color: TEXT_MUTED }}>{i + 1}.</span>
-                    <span className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{r.name}</span>
+                    <span className="font-geist text-sm font-semibold break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{r.name}</span>
                     <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} color={TEXT_MUTED} />
                   </div>
                   <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
@@ -56,7 +56,7 @@ export default function RatingsTab({
                       <div className="space-y-1 mt-2">
                         {r.recentEvents.map((e: any, ei: number) => (
                           <div key={ei} className="flex items-center justify-between gap-3 font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                            <span>+{e.points} — {e.reason}</span>
+                            <span className="break-words min-w-0">+{e.points} — {e.reason}</span>
                             <span className="shrink-0">{parseServerDate(e.created_at).toLocaleDateString('ru-RU')}</span>
                           </div>
                         ))}

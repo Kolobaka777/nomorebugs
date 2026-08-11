@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -561,6 +561,11 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('course_published', course.created_by, course.id);
     }
+    // «Автор» achievement — first ever approved proposal of any kind
+    // (course/guide/bug example/glossary term). awardAchievement is
+    // idempotent, so it's safe to just call it on every approval rather
+    // than separately tracking "is this their first".
+    if (approvingProposal) awardAchievement(course.created_by, ACHIEVEMENT_IDS.AVTOR);
 
     res.json({ is_published: newStatus });
   } catch (err) {

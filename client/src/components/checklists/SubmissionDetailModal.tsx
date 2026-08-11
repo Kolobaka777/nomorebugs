@@ -15,9 +15,9 @@ export default function SubmissionDetailModal({ sub, onClose }: { sub: Submissio
       onClose={onClose}
       maxWidth={672}
       title={
-        <div>
-          <p className="text-sm">{sub.task_name}</p>
-          <p className="text-xs font-normal mt-0.5" style={{ color: 'rgba(197, 198, 199,0.6)', letterSpacing: 0 }}>
+        <div className="min-w-0">
+          <p className="text-sm break-words">{sub.task_name}</p>
+          <p className="text-xs font-normal mt-0.5 break-words" style={{ color: 'rgba(197, 198, 199,0.6)', letterSpacing: 0 }}>
             {sub.tester_name} · {sub.template_name} · {parseServerDate(sub.submitted_at).toLocaleDateString('ru-RU')}
             {(sub.content_author || sub.verska_author) && (
               <>
@@ -44,11 +44,11 @@ export default function SubmissionDetailModal({ sub, onClose }: { sub: Submissio
                 {fails.map((r, i) => (
                   <div key={i} className="flex gap-3 items-start p-2 rounded-lg" style={{ background: 'rgba(224,82,82,0.06)' }}>
                     <span style={{ color: '#e05252', flexShrink: 0, fontSize: '0.8rem' }}>✗</span>
-                    <div>
-                      <span className="text-xs font-geist px-1.5 py-0.5 rounded mr-2" style={{ background: `${catColor(r.category)}20`, color: catColor(r.category), fontSize: 11 }}>{r.category}</span>
-                      <span className="text-sm font-geist" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{r.text}</span>
+                    <div className="min-w-0">
+                      <span className="text-xs font-geist px-1.5 py-0.5 rounded mr-2 break-words" style={{ background: `${catColor(r.category)}20`, color: catColor(r.category), fontSize: 11 }}>{r.category}</span>
+                      <span className="text-sm font-geist break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{r.text}</span>
                       {r.note && (
-                        <p className="text-xs font-geist mt-1" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{r.note}</p>
+                        <p className="text-xs font-geist mt-1 break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{r.note}</p>
                       )}
                     </div>
                   </div>
@@ -63,7 +63,7 @@ export default function SubmissionDetailModal({ sub, onClose }: { sub: Submissio
                 {oks.map((r, i) => (
                   <div key={i} className="flex gap-3 items-center py-1" style={{ borderBottom: '1px solid rgba(102, 252, 241,0.08)' }}>
                     <span style={{ color: ACCENT, flexShrink: 0, fontSize: '0.8rem' }}>✓</span>
-                    <span className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199,0.6)' }}>{r.text}</span>
+                    <span className="text-xs font-geist break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.6)' }}>{r.text}</span>
                   </div>
                 ))}
               </div>

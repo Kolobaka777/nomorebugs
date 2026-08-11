@@ -44,8 +44,8 @@ export default function ActivityTab({
               }}
             >
               <div className="flex-1 min-w-0">
-                <p className="font-geist font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{item.name}</p>
-                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
+                <p className="font-geist font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>{item.name}</p>
+                <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED }}>
                   {formatActivityAction(item.action, { lectureTitle: item.lecture_title, courseTitle: item.course_title, nameById: teamNameById, gender: item.gender })}
                 </p>
               </div>

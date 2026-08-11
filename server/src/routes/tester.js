@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { isUniqueConstraintError } from '../routeHelpers.js';
+import { isUniqueConstraintError, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -396,6 +396,19 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
       if (isFirstSubmission && score >= 90 && verifiedHonestPace && tabSwitches <= 1) {
         db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
           .run(userId, 5, `Отличный результат по лекции (${score}%), без признаков спешки`, 'auto_quiz_excellence');
+      }
+
+      // «Отличник» achievement — the 5 most-recently-completed lectures (by
+      // distinct lecture, best score kept on retake) are all ≥90%. Re-checked
+      // on every submission, not just isFirstSubmission, since a retake that
+      // raises an old score can be what completes the streak; awardAchievement
+      // is idempotent so re-awarding on a later still-qualifying submission
+      // is a harmless no-op.
+      const recentScores = db.prepare(
+        'SELECT score FROM test_results WHERE user_id = ? ORDER BY completed_at DESC LIMIT 5'
+      ).all(userId);
+      if (recentScores.length === 5 && recentScores.every(r => r.score >= 90)) {
+        awardAchievement(userId, ACHIEVEMENT_IDS.OTLICHNIK);
       }
     })();
 

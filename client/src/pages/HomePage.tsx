@@ -137,9 +137,9 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
         <section className="flex flex-col lg:flex-row lg:items-start justify-between gap-8 mb-10">
           <div className="flex items-center gap-4">
             <FrogIcon size={40} />
-            <h1 className="font-montserrat font-semibold" style={{ fontSize: 'clamp(1.25rem, 3vw, 2rem)', lineHeight: 1.25, letterSpacing: TRACK_WIDE }}>
+            <h1 className="font-montserrat font-semibold min-w-0" style={{ fontSize: 'clamp(1.25rem, 3vw, 2rem)', lineHeight: 1.25, letterSpacing: TRACK_WIDE }}>
               <span style={{ color: TEXT_PRIMARY, display: 'block' }}>Привет,</span>
-              <span style={{ color: ACCENT, display: 'block' }}>{user.name.split(' ')[0]}!</span>
+              <span className="break-words" style={{ color: ACCENT, display: 'block' }}>{user.name.split(' ')[0]}!</span>
             </h1>
           </div>
 
@@ -200,7 +200,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                           style={{ borderBottom: i < myActivity.length - 1 ? '1px solid rgba(197, 198, 199, 0.1)' : 'none' }}
                         >
                           <div className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: ACCENT }} />
-                          <p className="flex-1 font-geist text-sm" style={{ color: TEXT_PRIMARY }}>
+                          <p className="flex-1 min-w-0 break-words font-geist text-sm" style={{ color: TEXT_PRIMARY }}>
                             {formatActivityAction(a.action, { lectureTitle: a.lecture_title, courseTitle: a.course_title, gender: user.gender })}
                           </p>
                           <span className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>{timeAgo(a.created_at)}</span>
@@ -237,7 +237,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                           style={{ borderBottom: i < teamNews.length - 1 ? '1px solid rgba(197, 198, 199, 0.1)' : 'none' }}
                         >
                           <Icon name={EVENT_ICON[item.event_type] || 'bug'} size={18} color={ACCENT} className="shrink-0" />
-                          <p className="flex-1 font-geist text-xs" style={{ color: TEXT_PRIMARY }}>{formatTeamEvent(item)}</p>
+                          <p className="flex-1 min-w-0 break-words font-geist text-xs" style={{ color: TEXT_PRIMARY }}>{formatTeamEvent(item)}</p>
                           <span className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>{timeAgo(item.created_at)}</span>
                         </div>
                       ))}

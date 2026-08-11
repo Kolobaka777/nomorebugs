@@ -64,7 +64,7 @@ export default function NewsPage({ user, onLogout }: Props) {
           {/* LEFT: the news feed itself, unchanged — a plain scrolling list */}
           <div className="lg:col-span-2 lg:order-1 order-2">
             {loading && <SnailLoader />}
-            {loadError && <p className="text-sm font-geist text-center py-6" style={{ color: '#e05252' }}>{loadError}</p>}
+            {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
             {!loading && !loadError && news.length === 0 && (
               <p className="font-geist text-sm text-center py-10" style={{ color: TEXT_MUTED }}>Пока новостей нет.</p>
             )}
@@ -74,7 +74,7 @@ export default function NewsPage({ user, onLogout }: Props) {
                 {news.map(item => (
                   <div key={item.id} className="px-4 py-3 flex items-start gap-3 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', boxShadow: CARD_SHADOW }}>
                     <Icon name={EVENT_ICON[item.event_type] || 'bug'} size={22} color={ACCENT} />
-                    <p className="flex-1 font-geist text-sm" style={{ color: TEXT_PRIMARY }}>{formatTeamEvent(item)}</p>
+                    <p className="flex-1 font-geist text-sm break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{formatTeamEvent(item)}</p>
                     <span className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>{timeAgo(item.created_at)}</span>
                   </div>
                 ))}
@@ -113,8 +113,8 @@ export default function NewsPage({ user, onLogout }: Props) {
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(197, 198, 199,0.04)'; }}
                       >
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
-                        <span>
-                          <span className="block font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{p.name}</span>
+                        <span className="min-w-0">
+                          <span className="block font-geist text-sm font-semibold break-words" style={{ color: TEXT_PRIMARY }}>{p.name}</span>
                           <span className="block font-geist text-xs" style={{ color: TEXT_MUTED }}>{subtitle}</span>
                         </span>
                       </button>

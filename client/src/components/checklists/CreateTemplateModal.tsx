@@ -94,7 +94,7 @@ export default function CreateTemplateModal({ onClose, onCreated }: { onClose: (
             </button>
           </div>
 
-          {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
+          {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
 
           <button
             onClick={handleCreate}

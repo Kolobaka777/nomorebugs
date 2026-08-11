@@ -80,9 +80,9 @@ export default function TeamTab({
                     title="Настроить рабочее время"
                   >
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
-                    <span>
-                      <span className="block font-geist text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>{p.name}</span>
-                      <span className="block font-geist" style={{ fontSize: 11, color: TEXT_MUTED }}>{subtitle}</span>
+                    <span className="min-w-0">
+                      <span className="block font-geist text-xs font-semibold break-words" style={{ color: TEXT_PRIMARY }}>{p.name}</span>
+                      <span className="block font-geist break-words" style={{ fontSize: 11, color: TEXT_MUTED }}>{subtitle}</span>
                     </span>
                   </button>
                 );
@@ -113,9 +113,9 @@ export default function TeamTab({
                   >
                     {member.avatar_initials}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p
-                      className="font-geist font-semibold text-sm cursor-pointer hover:underline"
+                      className="font-geist font-semibold text-sm cursor-pointer hover:underline break-words"
                       style={{ color: TEXT_PRIMARY }}
                       onClick={() => navigate(`/profile/${member.id}`)}
                     >
@@ -180,7 +180,7 @@ export default function TeamTab({
                     {(member.taskCounts ?? []).map(tc => (
                       <span
                         key={tc.name}
-                        className="font-geist text-xs px-2 py-1 rounded"
+                        className="font-geist text-xs px-2 py-1 rounded break-words min-w-0"
                         style={{ background: `${tc.color}20`, color: tc.color }}
                       >
                         {tc.name}: {tc.count}
@@ -277,11 +277,11 @@ export default function TeamTab({
                     <Icon name="archive" size={13} color="currentColor" /> {archivingId === member.id ? '...' : 'Архивировать'}
                   </button>
                   {resetResult?.id === member.id && (
-                    <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{resetResult.message}</span>
+                    <span className="font-geist text-xs break-words min-w-0" style={{ color: TEXT_MUTED }}>{resetResult.message}</span>
                   )}
                   {bonusResult?.id === member.id && (
                     <span className="font-geist text-xs flex items-center gap-1" style={{ color: ACCENT }}>
-                      <Icon name="trophy" size={12} color="currentColor" /> {bonusResult.message}
+                      <Icon name="trophy" size={12} color="currentColor" /> <span className="break-words min-w-0">{bonusResult.message}</span>
                     </span>
                   )}
                 </div>
@@ -304,7 +304,7 @@ export default function TeamTab({
             <div className="space-y-1.5 mt-2">
               {archived.map(a => (
                 <div key={a.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)' }}>
-                  <span className="font-geist text-sm" style={{ color: TEXT_PRIMARY }}>{a.name}</span>
+                  <span className="font-geist text-sm break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{a.name}</span>
                   <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
                     {a.gender === 'female' ? 'архивирована' : a.gender === 'male' ? 'архивирован' : 'архивирован(а)'} {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}
                   </span>

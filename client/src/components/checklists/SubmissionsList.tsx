@@ -39,8 +39,8 @@ export default function SubmissionsList({
               {sub.avatar_initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-geist text-xs font-semibold leading-snug" style={{ color: TEXT_PRIMARY }}>{sub.task_name}</p>
-              <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
+              <p className="font-geist text-xs font-semibold leading-snug break-words" style={{ color: TEXT_PRIMARY }}>{sub.task_name}</p>
+              <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED }}>
                 {sub.tester_name} · {sub.template_name}
                 {sub.content_author && ` · К: ${sub.content_author}`}
                 {sub.verska_author && ` · В: ${sub.verska_author}`}

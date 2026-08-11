@@ -90,7 +90,7 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
               minLength={8}
             />
           </div>
-          {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+          {error && <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{error}</p>}
           <div className="flex items-center gap-2 pt-2">
             <button
               type="submit"

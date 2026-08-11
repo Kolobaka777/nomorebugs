@@ -74,7 +74,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-lg mx-auto px-6 pt-16 text-center">
-          <p className="text-sm font-geist mb-4" style={{ color: '#e05252' }}>{loadError || 'Профиль не найден'}</p>
+          <p className="text-sm font-geist mb-4 break-words" style={{ color: '#e05252' }}>{loadError || 'Профиль не найден'}</p>
           {/* Text kept literally as "← Назад" (not swapped for an Icon) —
               PublicProfilePage.test.tsx asserts screen.getByText('← Назад')
               verbatim and is out of scope to edit. */}
@@ -102,11 +102,11 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
               customSrc={'custom_avatar' in profile ? profile.custom_avatar : null}
             />
             <div className="min-w-0">
-              <p className="font-montserrat font-bold" style={{ fontSize: 20, color: BADGE_NOTIFY, letterSpacing: TRACK_WIDE }}>
+              <p className="font-montserrat font-bold break-words" style={{ fontSize: 20, color: BADGE_NOTIFY, letterSpacing: TRACK_WIDE }}>
                 {'nickname' in profile ? profile.nickname : profile.name}
               </p>
               {!isHidden && 'specialization' in profile && profile.specialization && (
-                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
+                <p className="font-geist text-sm break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
               )}
             </div>
             {!isHidden && 'lecturesCompleted' in profile && (
@@ -123,7 +123,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
           ) : (
             <>
               {'status_quote' in profile && profile.status_quote && (
-                <p className="font-geist text-sm italic mb-4" style={{ color: TEXT_PRIMARY }}>«{profile.status_quote}»</p>
+                <p className="font-geist text-sm italic mb-4 break-words" style={{ color: TEXT_PRIMARY }}>«{profile.status_quote}»</p>
               )}
 
               {'workStart' in profile && profile.workStart && profile.workEnd && (
@@ -188,18 +188,18 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
 
               {'favLecture' in profile && profile.favLecture && (
                 <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
-                  <Icon name="star" size={14} color={TEXT_MUTED} /> Любимая лекция: <span style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</span>
+                  <Icon name="star" size={14} color={TEXT_MUTED} /> Любимая лекция: <span className="break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</span>
                 </p>
               )}
 
               {'info_box' in profile && profile.info_box && (
-                <p className="font-geist text-xs leading-relaxed mt-3" style={{ color: TEXT_MUTED, borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
+                <p className="font-geist text-xs leading-relaxed mt-3 break-words" style={{ color: TEXT_MUTED, borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
                   {profile.info_box}
                 </p>
               )}
 
               {'snail_joke' in profile && profile.snail_joke && (
-                <p className="font-geist text-xs leading-relaxed mt-2 italic" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
+                <p className="font-geist text-xs leading-relaxed mt-2 italic break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                   🐌 {profile.snail_joke}
                 </p>
               )}

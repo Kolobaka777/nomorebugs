@@ -55,7 +55,7 @@ export default function ImportModal({ onClose, onImported }: { onClose: () => vo
                 {result.item_count} пункт(ов) в {result.category_count} категори{result.category_count === 1 ? 'и' : 'ях'}
               </p>
               {result.warning && (
-                <p className="text-xs font-geist mt-2" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{result.warning}</p>
+                <p className="text-xs font-geist mt-2 break-words" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{result.warning}</p>
               )}
             </div>
             <button
@@ -97,14 +97,14 @@ export default function ImportModal({ onClose, onImported }: { onClose: () => vo
                 {...clickableProps(() => fileRef.current?.click())}
               >
                 {file
-                  ? <p className="text-xs font-geist flex items-center justify-center gap-1.5" style={{ color: ACCENT }}><Icon name="check" size={14} color="currentColor" />{file.name}</p>
+                  ? <p className="text-xs font-geist flex items-center justify-center gap-1.5" style={{ color: ACCENT }}><Icon name="check" size={14} color="currentColor" /><span className="break-words min-w-0">{file.name}</span></p>
                   : <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199,0.55)' }}>Нажмите для выбора файла</p>
                 }
                 <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
               </div>
             </div>
 
-            {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
+            {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
 
             <button
               onClick={handleImport}

@@ -61,12 +61,12 @@ function renderMarkdown(content: string) {
       continue;
     }
     if (line.startsWith('## ')) {
-      blocks.push(<h3 key={key++} className="font-montserrat font-semibold mt-5 mb-2" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{renderInline(line.slice(3))}</h3>);
+      blocks.push(<h3 key={key++} className="font-montserrat font-semibold mt-5 mb-2 break-words" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{renderInline(line.slice(3))}</h3>);
       i++;
       continue;
     }
     if (line.startsWith('# ')) {
-      blocks.push(<h2 key={key++} className="font-montserrat font-bold mt-6 mb-3" style={{ fontSize: 18, color: TEXT_PRIMARY }}>{renderInline(line.slice(2))}</h2>);
+      blocks.push(<h2 key={key++} className="font-montserrat font-bold mt-6 mb-3 break-words" style={{ fontSize: 18, color: TEXT_PRIMARY }}>{renderInline(line.slice(2))}</h2>);
       i++;
       continue;
     }
@@ -75,7 +75,7 @@ function renderMarkdown(content: string) {
       while (i < lines.length && lines[i].startsWith('- ')) { items.push(lines[i].slice(2)); i++; }
       blocks.push(
         <ul key={key++} className="list-disc ml-5 space-y-1 my-2">
-          {items.map((it, idx) => <li key={idx} className="font-geist text-sm" style={{ color: TEXT_PRIMARY }}>{renderInline(it)}</li>)}
+          {items.map((it, idx) => <li key={idx} className="font-geist text-sm break-words" style={{ color: TEXT_PRIMARY }}>{renderInline(it)}</li>)}
         </ul>
       );
       continue;
@@ -85,7 +85,7 @@ function renderMarkdown(content: string) {
     while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('- ') && !lines[i].startsWith('```')) {
       paraLines.push(lines[i]); i++;
     }
-    blocks.push(<p key={key++} className="font-geist text-sm leading-relaxed my-2" style={{ color: TEXT_PRIMARY }}>{renderInline(paraLines.join(' '))}</p>);
+    blocks.push(<p key={key++} className="font-geist text-sm leading-relaxed my-2 break-words" style={{ color: TEXT_PRIMARY }}>{renderInline(paraLines.join(' '))}</p>);
   }
   return blocks;
 }
@@ -251,7 +251,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
             )}
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
-                <p className="font-geist text-xs uppercase mb-1.5" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{category}</p>
+                <p className="font-geist text-xs uppercase mb-1.5 break-words" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{category}</p>
                 <div className="space-y-1">
                   {items.map(g => (
                     <button
@@ -285,9 +285,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
               <div className="p-6 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                 <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
                   <p className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
-                    {selected.category}
+                    <span className="break-words min-w-0">{selected.category}</span>
                     {selected.proposal_status === 'pending' && (
-                      <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 10, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+                      <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 10, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
                         НА РАССМОТРЕНИИ
                       </span>
                     )}
@@ -314,7 +314,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                 </div>
                 {canEdit && selected.proposal_status === 'pending' && selected.author_name && (
                   <p className="font-geist text-xs mb-4" style={{ color: TEXT_MUTED }}>
-                    Предложил(а): <span style={{ color: TEXT_PRIMARY }}>{selected.author_name}</span>
+                    Предложил(а): <span className="break-words" style={{ color: TEXT_PRIMARY }}>{selected.author_name}</span>
                   </p>
                 )}
                 {!canEdit && selected.created_by === user.id && selected.proposal_status === 'pending' && (

@@ -239,7 +239,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
         <div className="card text-center py-10">
-          <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+          <p className="text-sm font-sans mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
           <button onClick={() => { setLoading(true); loadAll(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
         </div>
       </div>
@@ -355,7 +355,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="font-montserrat font-bold" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+                  <span className="font-montserrat font-bold break-words min-w-0" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
                     {profile?.nickname || user.name}
                   </span>
                   <span
@@ -372,10 +372,10 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   )}
                 </div>
                 {profile?.specialization && (
-                  <p className="font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
+                  <p className="font-geist text-xs mb-2 break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
                 )}
                 {profile?.status_quote && (
-                  <p className="font-geist text-sm italic mb-3" style={{ color: 'rgba(197, 198, 199,0.7)', borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
+                  <p className="font-geist text-sm italic mb-3 break-words" style={{ color: 'rgba(197, 198, 199,0.7)', borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
                     "{profile.status_quote}"
                   </p>
                 )}
@@ -565,8 +565,8 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   <Icon name="star" size={26} color="#EF9F27" style={{ flexShrink: 0 }} />
                   <div className="flex-1 min-w-0">
                     <p className="font-geist font-semibold" style={{ fontSize: 12, color: '#EF9F27', letterSpacing: TRACK_WIDE }}>ЛЮБИМАЯ ЛЕКЦИЯ</p>
-                    <p className="font-montserrat font-semibold text-sm mt-0.5" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</p>
-                    <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
+                    <p className="font-montserrat font-semibold text-sm mt-0.5 break-words" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</p>
+                    <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED }}>
                       {profile.favLecture.skill_area}
                       {profile.favLecture.score != null && <> · <span style={{ color: ACCENT }}>{Math.round(profile.favLecture.score)}%</span></>}
                     </p>
@@ -611,7 +611,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         return (
                           <div key={c.id} className="rounded-lg p-3" style={{ background: 'rgba(197, 198, 199,0.04)', border: `1px solid ${color}40` }}>
                             <p className="font-geist font-semibold" style={{ fontSize: 10, color, letterSpacing: TRACK_WIDE }}>{RARITY_LABEL[c.rarity] || 'CARD'}</p>
-                            <p className="font-geist text-xs font-semibold mt-1" style={{ color: TEXT_PRIMARY }}>{c.skill_area}</p>
+                            <p className="font-geist text-xs font-semibold mt-1 break-words" style={{ color: TEXT_PRIMARY }}>{c.skill_area}</p>
                           </div>
                         );
                       })}
@@ -633,7 +633,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                     })}
                     {(profile?.craftable ?? []).map(skill_area => (
                       <div key={skill_area} className="rounded-lg p-3 flex items-center justify-between gap-2" style={{ background: 'rgba(197, 198, 199,0.04)', border: '1px solid rgba(239,159,39,0.4)' }}>
-                        <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.75)' }}>Собран весь набор «{skill_area}»</span>
+                        <span className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>Собран весь набор «{skill_area}»</span>
                         <button onClick={() => handleCraft(skill_area)} disabled={crafting === skill_area} className="btn-amber text-xs px-3 py-1.5 shrink-0 cursor-pointer">
                           {crafting === skill_area ? '...' : craftSuccess === skill_area ? '✓ Готово' : 'Скрафтить'}
                         </button>
