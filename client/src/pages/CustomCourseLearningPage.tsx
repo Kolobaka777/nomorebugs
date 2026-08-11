@@ -39,14 +39,14 @@ function LessonContent({ content }: { content: string }) {
       {paragraphs.map((para, i) => {
         if (para.startsWith('## ')) {
           return (
-            <h3 key={i} className="font-sans font-bold text-base mt-7 mb-3" style={{ color: '#C5C6C7' }}>
+            <h3 key={i} className="font-sans font-bold text-base mt-7 mb-3 break-words" style={{ color: '#C5C6C7' }}>
               {para.slice(3)}
             </h3>
           );
         }
         if (para.startsWith('# ')) {
           return (
-            <h2 key={i} className="font-sans font-bold text-lg mt-8 mb-3" style={{ color: '#C5C6C7' }}>
+            <h2 key={i} className="font-sans font-bold text-lg mt-8 mb-3 break-words" style={{ color: '#C5C6C7' }}>
               {para.slice(2)}
             </h2>
           );
@@ -68,7 +68,7 @@ function LessonContent({ content }: { content: string }) {
           return (
             <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(102, 252, 241,0.08)', border: '1px solid rgba(102, 252, 241,0.25)' }}>
               <Icon name="lightbulb" size={22} color="#66FCF1" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
+              <p className="font-sans text-sm leading-relaxed break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
             </div>
           );
         }
@@ -76,7 +76,7 @@ function LessonContent({ content }: { content: string }) {
           return (
             <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(239,159,39,0.08)', border: '1px solid rgba(239,159,39,0.3)' }}>
               <Icon name="warning" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
+              <p className="font-sans text-sm leading-relaxed break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
             </div>
           );
         }
@@ -87,14 +87,14 @@ function LessonContent({ content }: { content: string }) {
               {items.map((item, j) => (
                 <li key={j} className="flex gap-2 font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.7)' }}>
                   <span className="flex-shrink-0 mt-0.5" style={{ color: '#66FCF1' }}>▸</span>
-                  <span className="leading-relaxed">{item}</span>
+                  <span className="leading-relaxed break-words min-w-0">{item}</span>
                 </li>
               ))}
             </ul>
           );
         }
         return (
-          <p key={i} className="font-sans text-sm leading-relaxed mb-4" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
+          <p key={i} className="font-sans text-sm leading-relaxed mb-4 break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
             {para}
           </p>
         );
@@ -174,7 +174,7 @@ function CustomQuizView({
 
           return (
             <div key={q.id ?? qi}>
-              <p className="font-sans font-semibold text-sm mb-4" style={{ color: '#C5C6C7' }}>
+              <p className="font-sans font-semibold text-sm mb-4 break-words" style={{ color: '#C5C6C7' }}>
                 <span style={{ color }} className="mr-2">{qi + 1}.</span>
                 {q.question_text}
               </p>
@@ -203,13 +203,13 @@ function CustomQuizView({
                       <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: submitted && isCorrectOpt ? '#66FCF1' : submitted && isWrongChosen ? '#e05252' : textColor }}>
                         {submitted && isCorrectOpt ? '✓' : submitted && isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
                       </span>
-                      {opt}
+                      <span className="break-words min-w-0">{opt}</span>
                     </button>
                   );
                 })}
               </div>
               {submitted && q.explanation && (
-                <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
+                <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
                   💬 {q.explanation}
                 </div>
               )}
@@ -285,7 +285,7 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
                     <span className="font-sans text-xs font-semibold truncate pr-4" style={{ color: '#66FCF1', maxWidth: '180px' }}>{n.lessonTitle}</span>
                     <span className="text-pixel/55 font-sans text-xs flex-shrink-0">{n.createdAt}</span>
                   </div>
-                  <p className="font-sans text-xs leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.65)' }}>{n.text}</p>
+                  <p className="font-sans text-xs leading-relaxed break-words" style={{ color: 'rgba(197, 198, 199,0.65)' }}>{n.text}</p>
                   <button onClick={() => del(n.id)} aria-label="Удалить заметку" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-pixel/55 hover:text-red-400 flex items-center"><Icon name="close" size={16} color="currentColor" /></button>
                 </div>
               ))}
@@ -531,7 +531,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     style={{ background: isCurMod ? 'rgba(197, 198, 199,0.05)' : 'transparent' }}
                   >
                     <span className="flex-shrink-0" style={{ color: color, transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}><Icon name="chevronRight" size={22} color="currentColor" /></span>
-                    <span className="flex-1 font-geist text-xs font-semibold leading-snug" style={{ color: isCurMod ? color : 'rgba(197, 198, 199,0.6)' }}>{(mod.title || `Модуль ${mi + 1}`).toUpperCase()}</span>
+                    <span className="flex-1 min-w-0 font-geist text-xs font-semibold leading-snug break-words" style={{ color: isCurMod ? color : 'rgba(197, 198, 199,0.6)' }}>{(mod.title || `Модуль ${mi + 1}`).toUpperCase()}</span>
                     <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                       {modLessons.filter((_: any, li: number) => completedLessons.has(modLessons[li]?.id)).length}/{modLessons.length}
                     </span>
@@ -554,7 +554,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                         <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-xs">
                           {completed ? <CheckCircleIcon size={14} color={ACCENT} /> : isCur ? <span style={{ color }}>▸</span> : !accessible ? <LockIcon size={13} color="rgba(197, 198, 199,0.3)" /> : <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(197, 198, 199,0.2)' }} />}
                         </span>
-                        <span className="font-geist text-xs leading-snug flex-1 flex items-center gap-1.5" style={{ color: isCur ? TEXT_PRIMARY : 'rgba(197, 198, 199,0.5)' }}>
+                        <span className="font-geist text-xs leading-snug flex-1 min-w-0 flex items-center gap-1.5 break-words" style={{ color: isCur ? TEXT_PRIMARY : 'rgba(197, 198, 199,0.5)' }}>
                           {lesson.type === 'quiz' && <PagesIcon size={12} color="currentColor" />}
                           {lesson.title}
                         </span>
@@ -586,21 +586,21 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
           ) : currentLesson ? (
             <div className="max-w-3xl mx-auto px-8 py-8">
               {/* Breadcrumb */}
-              <p className="font-geist text-xs mb-6" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
+              <p className="font-geist text-xs mb-6 break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                 {(course.modules || [])[currentModuleIdx]?.title || ''}
                 {' › '}
                 <span style={{ color: 'rgba(197, 198, 199,0.6)' }}>{currentLesson.title}</span>
               </p>
 
-              <h1 className="font-montserrat font-bold mb-8" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{currentLesson.title}</h1>
+              <h1 className="font-montserrat font-bold mb-8 break-words" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{currentLesson.title}</h1>
 
               {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
                 <div
                   className="rounded-lg p-3 mb-6 flex items-start gap-2"
                   style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
                 >
-                  <Icon name="lightbulb" size={22} color="#EF9F27" />
-                  <p className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
+                  <Icon name="lightbulb" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
+                  <p className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
                 </div>
               )}
 
