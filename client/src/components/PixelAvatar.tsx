@@ -5,12 +5,12 @@
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  blk: '#1a1a2e', dblk: '#0f0f1a',
+  blk: '#1F2833', dblk: '#0B0C10',
   red: '#cc3333', dred: '#881111',
-  grn: '#1D9E75', dgrn: '#0f7a5a',
+  grn: '#66FCF1', dgrn: '#45A29E',
   amb: '#EF9F27', damb: '#c47e15',
   pur: '#7F77DD', dpur: '#4a44aa',
-  cre: '#e8e8d0', dgry: '#3a3a5e',
+  cre: '#C5C6C7', dgry: '#3a3a5e',
   wht: '#ffffff', ylw: '#f5e060',
   brn: '#8b5e3c', dbrn: '#5c3a1e',
   sky: '#4cc9f0', ora: '#f06030',
@@ -212,7 +212,7 @@ const SNAIL_AVA: R[] = [
   // Foot underside
   [4,52,56,8,C.dgrn],
   // Slime trail
-  [0,56,8,4,'rgba(29,158,117,0.4)'],[0,60,4,4,'rgba(29,158,117,0.2)'],
+  [0,56,8,4,'rgba(102, 252, 241,0.4)'],[0,60,4,4,'rgba(102, 252, 241,0.2)'],
 ];
 
 // ── Bug 8: Mystery Hood ───────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ export type BgId = 'default' | 'forest' | 'console' | 'hive' | 'amber';
 export const BG_LIST: { id: BgId; name: string; unlock: string; style: React.CSSProperties }[] = [
   {
     id: 'default', name: 'Подземелье', unlock: 'Базовый',
-    style: { background: '#1a1a2e' },
+    style: { background: '#1F2833' },
   },
   {
     id: 'forest', name: 'Тёмный лес', unlock: 'Базовый',
@@ -284,19 +284,19 @@ export const BG_LIST: { id: BgId; name: string; unlock: string; style: React.CSS
     id: 'console', name: 'Консоль', unlock: 'Базовый',
     style: {
       background: '#0d0d14',
-      backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(29,158,117,0.04) 23px, rgba(29,158,117,0.04) 24px)',
+      backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(102, 252, 241,0.04) 23px, rgba(102, 252, 241,0.04) 24px)',
     },
   },
   {
     id: 'hive', name: 'Пчелиный улей', unlock: 'Скрафти любой значок',
     style: {
-      background: 'radial-gradient(ellipse at center, #1a180a 0%, #0f0f1a 70%)',
+      background: 'radial-gradient(ellipse at center, #1a180a 0%, #0B0C10 70%)',
     },
   },
   {
     id: 'amber', name: 'Янтарь', unlock: 'Скрафти все значки',
     style: {
-      background: 'radial-gradient(ellipse at 40% 30%, rgba(239,159,39,0.15) 0%, #0f0f1a 60%)',
+      background: 'radial-gradient(ellipse at 40% 30%, rgba(239,159,39,0.15) 0%, #0B0C10 60%)',
     },
   },
 ];
@@ -371,7 +371,7 @@ export default function PixelAvatar({
           style={{ imageRendering: 'pixelated', display: 'block' }}
         >
           {/* Dark bg */}
-          <rect x="0" y="0" width="64" height="64" fill="#0f0f1a" />
+          <rect x="0" y="0" width="64" height="64" fill="#0B0C10" />
           {avatar && <Sprite rects={avatar.rects} />}
           {/* Firefly glow overlay */}
           {id === 'bug5' && animate && (

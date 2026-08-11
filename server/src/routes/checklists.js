@@ -44,6 +44,21 @@ router.post('/api/checklists/submit', authMiddleware, (req, res) => {
     const tpl = db.prepare('SELECT id FROM checklist_templates WHERE id = ?').get(template_id);
     if (!tpl) return res.status(404).json({ error: 'Шаблон не найден' });
 
+    // A client could otherwise attach an item_id from a different template
+    // (e.g. copy-pasted request, or a stale form), silently corrupting that
+    // other template's per-item stats (topFails/byTemplate above) with a
+    // result that doesn't belong to it.
+    const templateItemIds = new Set(
+      db.prepare('SELECT id FROM checklist_items WHERE template_id = ?').all(template_id).map(i => i.id)
+    );
+    for (const r of results) {
+      if (r.item_id && !templateItemIds.has(r.item_id)) {
+        return res.status(400).json({ error: 'Пункт не относится к выбранному шаблону' });
+      }
+    }
+
+    const MAX_FIELD_LENGTH = 200;
+
     // A crash partway through would otherwise leave a permanently
     // incomplete submission on the record (a row with no/partial item
     // results) — wrapped so the whole thing commits or none of it does.
@@ -51,8 +66,9 @@ router.post('/api/checklists/submit', authMiddleware, (req, res) => {
       const sub = db.prepare(`
         INSERT INTO checklist_submissions (user_id, template_id, task_name, content_author, verska_author, task_type, check_date)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(userId, template_id, task_name.trim(),
-        content_author || '', verska_author || '', task_type || '', check_date || '');
+      `).run(userId, template_id, task_name.trim().slice(0, MAX_FIELD_LENGTH),
+        (content_author || '').trim().slice(0, MAX_FIELD_LENGTH), (verska_author || '').trim().slice(0, MAX_FIELD_LENGTH),
+        (task_type || '').trim().slice(0, MAX_FIELD_LENGTH), (check_date || '').trim().slice(0, MAX_FIELD_LENGTH));
 
       const insertResult = db.prepare(
         'INSERT INTO checklist_item_results (submission_id, item_id, status, note) VALUES (?, ?, ?, ?)'
@@ -106,7 +122,14 @@ router.get('/api/checklists/submissions', authMiddleware, (req, res) => {
   try {
     const { template_id, tester, content_author, verska_author, task_type, date_from, date_to, sort = 'date_desc' } = req.query;
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-    const PAGE_SIZE = 50;
+    const DEFAULT_PAGE_SIZE = 50;
+    const MAX_PAGE_SIZE = 500;
+    // Optional override for bulk callers (e.g. ExportModal) so they can pull
+    // bigger pages instead of ~100 sequential round trips — clamped so a
+    // careless/direct call can't request an unbounded result set.
+    const PAGE_SIZE = req.query.limit
+      ? Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE))
+      : DEFAULT_PAGE_SIZE;
 
     let where = [];
     let params = [];

@@ -83,6 +83,21 @@ describe('presence — self-service', () => {
     expect(me.birthday).toBe('08-15');
   });
 
+  it('locks the birthday after it is first set — a later PATCH with a different value is silently ignored', async () => {
+    // The tester fixture's birthday was already set to '08-15' by the
+    // preceding test — confirm a second, different value doesn't take
+    // (birthday is meant to be set once, normally at registration).
+    const attempt = await request(app)
+      .patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ birthday: '01-01' });
+    expect(attempt.status).toBe(200);
+
+    const res = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const me = res.body.find(p => p.id === fixtures.testerId);
+    expect(me.birthday).toBe('08-15');
+  });
+
   it('rejects an invalid time format', async () => {
     const res = await request(app)
       .patch('/api/me/presence')

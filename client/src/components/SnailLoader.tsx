@@ -26,28 +26,28 @@ export default function SnailLoader({ phrase }: SnailLoaderProps) {
           style={{ imageRendering: 'pixelated', display: 'block' }}
         >
           {/* Slime trail */}
-          <rect x="0"  y="38" width="12" height="2" fill="rgba(29,158,117,0.3)" />
-          <rect x="0"  y="40" width="7"  height="2" fill="rgba(29,158,117,0.15)" />
+          <rect x="0"  y="38" width="12" height="2" fill="rgba(102, 252, 241,0.3)" />
+          <rect x="0"  y="40" width="7"  height="2" fill="rgba(102, 252, 241,0.15)" />
           {/* Foot */}
-          <rect x="10" y="34" width="30" height="8"  fill="#0f7a5a" />
+          <rect x="10" y="34" width="30" height="8"  fill="#45A29E" />
           {/* Body */}
-          <rect x="10" y="22" width="30" height="14" fill="#1D9E75" />
+          <rect x="10" y="22" width="30" height="14" fill="#66FCF1" />
           {/* Head */}
-          <rect x="36" y="14" width="18" height="20" fill="#1D9E75" />
+          <rect x="36" y="14" width="18" height="20" fill="#66FCF1" />
           {/* Smile */}
-          <rect x="44" y="28" width="8"  height="2"  fill="#0f7a5a" />
-          <rect x="42" y="30" width="2"  height="2"  fill="#0f7a5a" />
-          <rect x="52" y="30" width="2"  height="2"  fill="#0f7a5a" />
+          <rect x="44" y="28" width="8"  height="2"  fill="#45A29E" />
+          <rect x="42" y="30" width="2"  height="2"  fill="#45A29E" />
+          <rect x="52" y="30" width="2"  height="2"  fill="#45A29E" />
           {/* Eye */}
-          <rect x="46" y="18" width="6"  height="6"  fill="#0f0f1a" />
-          <rect x="47" y="19" width="3"  height="3"  fill="#e8e8d0" />
-          <rect x="49" y="19" width="1"  height="1"  fill="#0f0f1a" />
+          <rect x="46" y="18" width="6"  height="6"  fill="#0B0C10" />
+          <rect x="47" y="19" width="3"  height="3"  fill="#C5C6C7" />
+          <rect x="49" y="19" width="1"  height="1"  fill="#0B0C10" />
           {/* Left antenna */}
-          <rect x="38" y="6"  width="4"  height="12" fill="#1D9E75" />
-          <rect x="36" y="4"  width="8"  height="4"  fill="#e8e8d0" />
+          <rect x="38" y="6"  width="4"  height="12" fill="#66FCF1" />
+          <rect x="36" y="4"  width="8"  height="4"  fill="#C5C6C7" />
           {/* Right antenna */}
-          <rect x="48" y="4"  width="4"  height="12" fill="#1D9E75" />
-          <rect x="46" y="2"  width="8"  height="4"  fill="#e8e8d0" />
+          <rect x="48" y="4"  width="4"  height="12" fill="#66FCF1" />
+          <rect x="46" y="2"  width="8"  height="4"  fill="#C5C6C7" />
           {/* Shell */}
           <rect x="12" y="10" width="24" height="14" fill="#EF9F27" />
           <rect x="18" y="6"  width="14" height="4"  fill="#EF9F27" />
@@ -71,7 +71,7 @@ export default function SnailLoader({ phrase }: SnailLoaderProps) {
             style={{
               width: '5px',
               height: '5px',
-              background: '#1D9E75',
+              background: '#66FCF1',
               imageRendering: 'pixelated',
               animation: `snail-dot-hop 0.6s steps(2) infinite ${i * 0.15}s`,
               opacity: 0.7,

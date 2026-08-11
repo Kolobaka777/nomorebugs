@@ -2,10 +2,12 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
+import { LockIcon, CheckCircleIcon, PagesIcon } from '../components/CatalogIcons';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import { useEscapeKey } from '../utils/a11y';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -25,8 +27,8 @@ function LessonContent({ content }: { content: string }) {
   if (!content?.trim()) {
     return (
       <div className="flex flex-col items-center py-16 text-center">
-        <PixelIcon name="construction" size={48} color="#EF9F27" className="mb-4" />
-        <p className="font-sans text-sm" style={{ color: 'rgba(232,232,208,0.6)' }}>Материал этого урока ещё готовится</p>
+        <Icon name="construction" size={48} color="#EF9F27" className="mb-4" />
+        <p className="font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.6)' }}>Материал этого урока ещё готовится</p>
       </div>
     );
   }
@@ -37,14 +39,14 @@ function LessonContent({ content }: { content: string }) {
       {paragraphs.map((para, i) => {
         if (para.startsWith('## ')) {
           return (
-            <h3 key={i} className="font-sans font-bold text-base mt-7 mb-3" style={{ color: '#e8e8d0' }}>
+            <h3 key={i} className="font-sans font-bold text-base mt-7 mb-3" style={{ color: '#C5C6C7' }}>
               {para.slice(3)}
             </h3>
           );
         }
         if (para.startsWith('# ')) {
           return (
-            <h2 key={i} className="font-sans font-bold text-lg mt-8 mb-3" style={{ color: '#e8e8d0' }}>
+            <h2 key={i} className="font-sans font-bold text-lg mt-8 mb-3" style={{ color: '#C5C6C7' }}>
               {para.slice(2)}
             </h2>
           );
@@ -56,7 +58,7 @@ function LessonContent({ content }: { content: string }) {
             <pre
               key={i}
               className="rounded p-4 mb-4 overflow-x-auto text-xs leading-relaxed font-mono"
-              style={{ background: '#0f0f1a', color: '#1D9E75', border: '1px solid rgba(29,158,117,0.2)' }}
+              style={{ background: PAGE_BG, color: ACCENT, border: '1px solid rgba(102, 252, 241,0.2)' }}
             >
               <code>{code}</code>
             </pre>
@@ -64,17 +66,17 @@ function LessonContent({ content }: { content: string }) {
         }
         if (para.startsWith('> ')) {
           return (
-            <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)' }}>
-              <PixelIcon name="lightbulb" size={16} color="#1D9E75" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(232,232,208,0.75)' }}>{para.slice(2)}</p>
+            <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(102, 252, 241,0.08)', border: '1px solid rgba(102, 252, 241,0.25)' }}>
+              <Icon name="lightbulb" size={22} color="#66FCF1" style={{ flexShrink: 0 }} />
+              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
             </div>
           );
         }
         if (para.startsWith('! ')) {
           return (
             <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(239,159,39,0.08)', border: '1px solid rgba(239,159,39,0.3)' }}>
-              <PixelIcon name="warning" size={16} color="#EF9F27" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(232,232,208,0.75)' }}>{para.slice(2)}</p>
+              <Icon name="warning" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
+              <p className="font-sans text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
             </div>
           );
         }
@@ -83,8 +85,8 @@ function LessonContent({ content }: { content: string }) {
           return (
             <ul key={i} className="mb-4 space-y-2 ml-1">
               {items.map((item, j) => (
-                <li key={j} className="flex gap-2 font-sans text-sm" style={{ color: 'rgba(232,232,208,0.7)' }}>
-                  <span className="flex-shrink-0 mt-0.5" style={{ color: '#1D9E75' }}>▸</span>
+                <li key={j} className="flex gap-2 font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.7)' }}>
+                  <span className="flex-shrink-0 mt-0.5" style={{ color: '#66FCF1' }}>▸</span>
                   <span className="leading-relaxed">{item}</span>
                 </li>
               ))}
@@ -92,7 +94,7 @@ function LessonContent({ content }: { content: string }) {
           );
         }
         return (
-          <p key={i} className="font-sans text-sm leading-relaxed mb-4" style={{ color: 'rgba(232,232,208,0.75)' }}>
+          <p key={i} className="font-sans text-sm leading-relaxed mb-4" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
             {para}
           </p>
         );
@@ -131,10 +133,10 @@ function CustomQuizView({
   if (questions.length === 0) {
     return (
       <div className="flex flex-col items-center py-16">
-        <PixelIcon name="construction" size={48} color="#EF9F27" className="mb-4" />
+        <Icon name="construction" size={48} color="#EF9F27" className="mb-4" />
         <p className="font-sans text-pixel/60 text-sm">Вопросы для теста ещё готовятся</p>
-        <button onClick={onNext} className="mt-6 px-6 py-2 rounded font-sans font-bold text-sm" style={{ background: color, color: '#0f0f1a' }}>
-          {isLastLesson ? '🏁 Завершить' : 'Далее →'}
+        <button onClick={onNext} className="mt-6 px-6 py-2 rounded font-sans font-bold text-sm" style={{ background: color, color: '#0B0C10' }}>
+          {isLastLesson ? '🏁 Завершить' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
         </button>
       </div>
     );
@@ -149,16 +151,16 @@ function CustomQuizView({
         <div
           className="rounded-lg p-5 mb-8 flex items-center gap-4"
           style={{
-            background: score >= 60 ? 'rgba(29,158,117,0.1)' : 'rgba(224,82,82,0.1)',
-            border: `1px solid ${score >= 60 ? 'rgba(29,158,117,0.3)' : 'rgba(224,82,82,0.3)'}`,
+            background: score >= 60 ? 'rgba(102, 252, 241,0.1)' : 'rgba(224,82,82,0.1)',
+            border: `1px solid ${score >= 60 ? 'rgba(102, 252, 241,0.3)' : 'rgba(224,82,82,0.3)'}`,
           }}
         >
           <span className="text-3xl">{score >= 60 ? '🎉' : '😅'}</span>
           <div>
-            <p className="font-sans font-bold text-base mb-1" style={{ color: score >= 60 ? '#1D9E75' : '#e05252' }}>
+            <p className="font-sans font-bold text-base mb-1" style={{ color: score >= 60 ? '#66FCF1' : '#e05252' }}>
               {score >= 80 ? 'Отлично!' : score >= 60 ? 'Пройдено!' : 'Попробуй ещё раз'}
             </p>
-            <p className="font-sans text-sm" style={{ color: 'rgba(232,232,208,0.6)' }}>
+            <p className="font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
               {Math.round((score / 100) * questions.length)} из {questions.length} ({score}%)
             </p>
           </div>
@@ -172,7 +174,7 @@ function CustomQuizView({
 
           return (
             <div key={q.id ?? qi}>
-              <p className="font-sans font-semibold text-sm mb-4" style={{ color: '#e8e8d0' }}>
+              <p className="font-sans font-semibold text-sm mb-4" style={{ color: '#C5C6C7' }}>
                 <span style={{ color }} className="mr-2">{qi + 1}.</span>
                 {q.question_text}
               </p>
@@ -182,13 +184,13 @@ function CustomQuizView({
                   const isCorrectOpt = submitted && oi === q.correct_idx;
                   const isWrongChosen = submitted && isChosen && oi !== q.correct_idx;
 
-                  let bg = 'rgba(232,232,208,0.04)';
-                  let border = 'rgba(232,232,208,0.1)';
-                  let textColor = 'rgba(232,232,208,0.65)';
+                  let bg = 'rgba(197, 198, 199,0.04)';
+                  let border = 'rgba(197, 198, 199,0.1)';
+                  let textColor = 'rgba(197, 198, 199,0.65)';
 
-                  if (!submitted && isChosen) { bg = `${color}18`; border = `${color}60`; textColor = '#e8e8d0'; }
-                  if (submitted && isCorrectOpt) { bg = 'rgba(29,158,117,0.12)'; border = 'rgba(29,158,117,0.5)'; textColor = '#e8e8d0'; }
-                  if (submitted && isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(232,232,208,0.6)'; }
+                  if (!submitted && isChosen) { bg = `${color}18`; border = `${color}60`; textColor = '#C5C6C7'; }
+                  if (submitted && isCorrectOpt) { bg = 'rgba(102, 252, 241,0.12)'; border = 'rgba(102, 252, 241,0.5)'; textColor = '#C5C6C7'; }
+                  if (submitted && isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(197, 198, 199,0.6)'; }
 
                   return (
                     <button
@@ -198,7 +200,7 @@ function CustomQuizView({
                       className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3 transition-all"
                       style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: submitted ? 'default' : 'pointer' }}
                     >
-                      <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: submitted && isCorrectOpt ? '#1D9E75' : submitted && isWrongChosen ? '#e05252' : textColor }}>
+                      <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: submitted && isCorrectOpt ? '#66FCF1' : submitted && isWrongChosen ? '#e05252' : textColor }}>
                         {submitted && isCorrectOpt ? '✓' : submitted && isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
                       </span>
                       {opt}
@@ -207,7 +209,7 @@ function CustomQuizView({
                 })}
               </div>
               {submitted && q.explanation && (
-                <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed" style={{ background: 'rgba(232,232,208,0.04)', color: 'rgba(232,232,208,0.55)', border: '1px solid rgba(232,232,208,0.06)' }}>
+                <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
                   💬 {q.explanation}
                 </div>
               )}
@@ -218,12 +220,12 @@ function CustomQuizView({
 
       <div className="mt-10 flex justify-end">
         {!submitted ? (
-          <button onClick={onSubmit} disabled={!allAnswered} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all" style={{ background: allAnswered ? color : 'rgba(232,232,208,0.1)', color: allAnswered ? '#0f0f1a' : 'rgba(232,232,208,0.3)', cursor: allAnswered ? 'pointer' : 'not-allowed' }}>
-            Проверить ответы →
+          <button onClick={onSubmit} disabled={!allAnswered} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all" style={{ background: allAnswered ? color : 'rgba(197, 198, 199,0.1)', color: allAnswered ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: allAnswered ? 'pointer' : 'not-allowed' }}>
+            Проверить ответы <Icon name="arrowRight" size={22} color="currentColor" />
           </button>
         ) : (
-          <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5" style={{ background: color, color: '#0f0f1a', boxShadow: `0 4px 0 0 ${color}50` }}>
-            {isLastLesson ? '🏁 Завершить курс' : 'Далее →'}
+          <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5" style={{ background: color, color: '#0B0C10', boxShadow: `0 4px 0 0 ${color}50` }}>
+            {isLastLesson ? '🏁 Завершить курс' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
           </button>
         )}
       </div>
@@ -260,15 +262,15 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
   return (
     <>
       {show && <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onClose} />}
-      <div className="fixed top-0 right-0 h-full z-50 flex flex-col transition-transform duration-300" style={{ width: '320px', background: '#1a1a2e', borderLeft: '2px solid rgba(232,232,208,0.08)', transform: show ? 'translateX(0)' : 'translateX(100%)' }}>
-        <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(232,232,208,0.08)' }}>
-          <span className="font-pixel text-pixel flex items-center gap-1.5" style={{ fontSize: '0.6rem', lineHeight: 2 }}><PixelIcon name="memo" size={11} color="currentColor" />Заметки</span>
-          <button onClick={onClose} aria-label="Закрыть заметки" className="text-pixel/60 hover:text-pixel text-lg leading-none">×</button>
+      <div className="fixed top-0 right-0 h-full z-50 flex flex-col transition-transform duration-300" style={{ width: '320px', background: CARD_BG, borderLeft: '2px solid rgba(197, 198, 199,0.08)', transform: show ? 'translateX(0)' : 'translateX(100%)' }}>
+        <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.08)' }}>
+          <span className="font-montserrat font-semibold flex items-center gap-2" style={{ fontSize: 14, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}><PagesIcon size={16} color={ACCENT} />Заметки</span>
+          <button onClick={onClose} aria-label="Закрыть заметки" className="flex items-center cursor-pointer" style={{ color: TEXT_MUTED }}><Icon name="close" size={22} color="currentColor" /></button>
         </div>
-        <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
+        <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
           <p className="text-pixel/60 font-sans text-xs mb-2 truncate">Урок: {currentLessonTitle}</p>
-          <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) save(); }} placeholder="Заметка... (Ctrl+Enter)" rows={4} className="w-full rounded px-3 py-2 font-sans text-xs resize-none outline-none" style={{ background: '#0f0f1a', color: '#e8e8d0', border: '1px solid rgba(232,232,208,0.1)' }} />
-          <button onClick={save} disabled={!text.trim()} className="mt-2 w-full py-2 rounded font-sans text-xs font-semibold" style={{ background: text.trim() ? '#1D9E75' : 'rgba(232,232,208,0.06)', color: text.trim() ? '#0f0f1a' : 'rgba(232,232,208,0.3)', cursor: text.trim() ? 'pointer' : 'not-allowed' }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) save(); }} placeholder="Заметка... (Ctrl+Enter)" rows={4} className="w-full rounded-lg px-3 py-2 font-geist text-xs resize-none outline-none" style={{ background: PAGE_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.1)' }} />
+          <button onClick={save} disabled={!text.trim()} className="mt-2 w-full py-2 rounded font-sans text-xs font-semibold" style={{ background: text.trim() ? '#66FCF1' : 'rgba(197, 198, 199,0.06)', color: text.trim() ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: text.trim() ? 'pointer' : 'not-allowed' }}>
             Сохранить
           </button>
         </div>
@@ -278,27 +280,53 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
           ) : (
             <div className="space-y-3">
               {[...notes].reverse().map(n => (
-                <div key={n.id} className="rounded p-3 group relative" style={{ background: 'rgba(232,232,208,0.04)', border: '1px solid rgba(232,232,208,0.07)' }}>
+                <div key={n.id} className="rounded-lg p-3 group relative" style={{ background: 'rgba(197, 198, 199,0.04)', border: '1px solid rgba(197, 198, 199,0.07)' }}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-sans text-xs font-semibold truncate pr-4" style={{ color: '#1D9E75', maxWidth: '180px' }}>{n.lessonTitle}</span>
+                    <span className="font-sans text-xs font-semibold truncate pr-4" style={{ color: '#66FCF1', maxWidth: '180px' }}>{n.lessonTitle}</span>
                     <span className="text-pixel/55 font-sans text-xs flex-shrink-0">{n.createdAt}</span>
                   </div>
-                  <p className="font-sans text-xs leading-relaxed" style={{ color: 'rgba(232,232,208,0.65)' }}>{n.text}</p>
-                  <button onClick={() => del(n.id)} aria-label="Удалить заметку" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-pixel/55 hover:text-red-400 text-xs">×</button>
+                  <p className="font-sans text-xs leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.65)' }}>{n.text}</p>
+                  <button onClick={() => del(n.id)} aria-label="Удалить заметку" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-pixel/55 hover:text-red-400 flex items-center"><Icon name="close" size={16} color="currentColor" /></button>
                 </div>
               ))}
             </div>
           )}
         </div>
         {notes.length > 0 && (
-          <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}>
-            <button onClick={() => navigator.clipboard.writeText(notes.map(n => `[${n.lessonTitle}]\n${n.text}`).join('\n\n---\n\n'))} className="w-full py-2 rounded font-sans text-xs" style={{ background: 'rgba(232,232,208,0.06)', color: 'rgba(232,232,208,0.6)' }}>
-              <span className="flex items-center justify-center gap-1.5"><PixelIcon name="clipboard" size={12} color="currentColor" />Скопировать все</span>
+          <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(197, 198, 199,0.06)' }}>
+            <button onClick={() => navigator.clipboard.writeText(notes.map(n => `[${n.lessonTitle}]\n${n.text}`).join('\n\n---\n\n'))} className="w-full py-2 rounded font-sans text-xs" style={{ background: 'rgba(197, 198, 199,0.06)', color: 'rgba(197, 198, 199,0.6)' }}>
+              <span className="flex items-center justify-center gap-1.5"><Icon name="clipboard" size={12} color="currentColor" />Скопировать все</span>
             </button>
           </div>
         )}
       </div>
     </>
+  );
+}
+
+// ─── Lead timer ───────────────────────────────────────────────────────────────
+
+// Owns its own ticking interval/state so the once-a-second update only
+// re-renders this small leaf instead of the whole learning page (lesson
+// content, sidebar, quiz state) — previously elapsedSeconds lived on the
+// top-level page component.
+function LeadTimer({ startTimeMs, color }: { startTimeMs: number; color: string }) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsedSeconds(Math.round((Date.now() - startTimeMs) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [startTimeMs]);
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+
+  return (
+    <div className="w-40 flex-shrink-0 flex flex-col items-center justify-start pt-8 px-4" style={{ borderLeft: '1px solid rgba(197, 198, 199,0.06)' }}>
+      <p className="font-geist font-semibold mb-2" style={{ fontSize: 12, letterSpacing: TRACK_WIDE, color: TEXT_MUTED }}>ТАЙМЕР</p>
+      <p className="font-geist text-2xl font-bold tabular-nums" style={{ color }}>{formatTime(elapsedSeconds)}</p>
+      <p className="font-geist text-xs mt-1" style={{ color: TEXT_MUTED }}>мин:сек</p>
+      <p className="font-geist text-xs mt-4 text-center leading-relaxed" style={{ color: TEXT_MUTED }}>Видно только лиду</p>
+    </div>
   );
 }
 
@@ -357,12 +385,6 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const startTimeRef = useRef(Date.now());
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setElapsedSeconds(Math.round((Date.now() - startTimeRef.current) / 1000)), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Initialise starting lesson and expanded modules using server-reported completion
   useEffect(() => {
@@ -405,7 +427,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -414,7 +436,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
   if (!course) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="flex flex-col items-center justify-center h-64 gap-3">
           <p className="font-sans text-pixel/60 text-sm">
@@ -430,13 +452,12 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     );
   }
 
-  const color = course.color || '#1D9E75';
+  const color = course.color || '#66FCF1';
   const currentLesson = allLessons[currentIdx];
   const isLastLesson = currentIdx === allLessons.length - 1;
   const totalLessons = allLessons.length;
   const completedCount = completedLessons.size;
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   // Mirrors the server's lock computation (see GET /api/custom-courses/:id)
   // but reactive to completedLessons as the user progresses within this
@@ -463,33 +484,33 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   })();
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
+    <div className="h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
         {/* Sidebar — full-width collapsible block on mobile, static column from lg up */}
-        <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: '#141424', borderRight: '1px solid rgba(232,232,208,0.06)', borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
+        <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: CARD_BG, borderRight: '1px solid rgba(197, 198, 199,0.06)', borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
           <button
             onClick={() => setMobileNavOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-4 flex-shrink-0 lg:hidden"
-            style={{ borderBottom: mobileNavOpen ? '1px solid rgba(232,232,208,0.06)' : 'none' }}
+            style={{ borderBottom: mobileNavOpen ? '1px solid rgba(197, 198, 199,0.06)' : 'none' }}
           >
             <span className="text-left min-w-0">
-              <p className="font-pixel text-pixel mb-1 truncate" style={{ fontSize: '0.55rem', lineHeight: 2 }}>{course.title}</p>
-              <p className="text-pixel/55 font-sans text-xs">{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
+              <p className="font-montserrat font-semibold mb-1 truncate" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{course.title}</p>
+              <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
             </span>
-            <span className="font-sans text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(232,232,208,0.55)' }}>{mobileNavOpen ? 'Скрыть ▲' : 'Оглавление ▾'}</span>
+            <span className="font-geist text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{mobileNavOpen ? <>Скрыть <Icon name="chevronUp" size={22} color="currentColor" /></> : <>Оглавление <Icon name="chevronDown" size={22} color="currentColor" /></>}</span>
           </button>
 
-          <div className="px-4 py-4 flex-shrink-0 hidden lg:block" style={{ borderBottom: '1px solid rgba(232,232,208,0.06)' }}>
-            <p className="font-pixel text-pixel mb-1 truncate" style={{ fontSize: '0.55rem', lineHeight: 2 }}>{course.title}</p>
+          <div className="px-4 py-4 flex-shrink-0 hidden lg:block" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
+            <p className="font-montserrat font-semibold mb-2 truncate" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{course.title}</p>
             <div className="flex items-center gap-2 mb-2">
-              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(232,232,208,0.08)' }}>
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
                 <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%`, background: color }} />
               </div>
-              <span className="text-pixel/60 font-sans text-xs">{progressPercent}%</span>
+              <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{progressPercent}%</span>
             </div>
-            <p className="text-pixel/55 font-sans text-xs">{completedCount}/{totalLessons} пройдено</p>
+            <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено</p>
           </div>
 
           <div className={`flex-1 overflow-y-auto py-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ maxHeight: '50vh' }}>
@@ -507,11 +528,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                   <button
                     onClick={() => setExpandedModules(s => { const n = new Set(s); n.has(mi) ? n.delete(mi) : n.add(mi); return n; })}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
-                    style={{ background: isCurMod ? 'rgba(232,232,208,0.05)' : 'transparent' }}
+                    style={{ background: isCurMod ? 'rgba(197, 198, 199,0.05)' : 'transparent' }}
                   >
-                    <span className="text-xs flex-shrink-0" style={{ color: 'rgba(232,232,208,0.55)', transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>›</span>
-                    <span className="flex-1 font-sans text-xs font-semibold leading-snug" style={{ color: 'rgba(232,232,208,0.6)' }}>{mod.title || `Модуль ${mi + 1}`}</span>
-                    <span className="font-sans text-xs" style={{ color: 'rgba(232,232,208,0.55)' }}>
+                    <span className="flex-shrink-0" style={{ color: color, transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}><Icon name="chevronRight" size={22} color="currentColor" /></span>
+                    <span className="flex-1 font-geist text-xs font-semibold leading-snug" style={{ color: isCurMod ? color : 'rgba(197, 198, 199,0.6)' }}>{(mod.title || `Модуль ${mi + 1}`).toUpperCase()}</span>
+                    <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                       {modLessons.filter((_: any, li: number) => completedLessons.has(modLessons[li]?.id)).length}/{modLessons.length}
                     </span>
                   </button>
@@ -531,12 +552,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                         style={{ background: isCur ? `${color}15` : 'transparent', borderLeft: isCur ? `2px solid ${color}` : '2px solid transparent', cursor: accessible ? 'pointer' : 'not-allowed', opacity: !accessible ? 0.4 : 1 }}
                       >
                         <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-xs">
-                          {completed ? <span style={{ color: '#1D9E75' }}>✓</span> : isCur ? <span style={{ color }}>▸</span> : !accessible ? <PixelIcon name="lock" size={12} color="rgba(232,232,208,0.2)" /> : <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(232,232,208,0.2)' }} />}
+                          {completed ? <CheckCircleIcon size={14} color={ACCENT} /> : isCur ? <span style={{ color }}>▸</span> : !accessible ? <LockIcon size={13} color="rgba(197, 198, 199,0.3)" /> : <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(197, 198, 199,0.2)' }} />}
                         </span>
-                        <span className="font-sans text-xs leading-snug flex-1" style={{ color: isCur ? '#e8e8d0' : 'rgba(232,232,208,0.5)' }}>
-                          {lesson.type === 'quiz'
-                            ? <span className="flex items-center gap-1"><PixelIcon name="memo" size={10} color="currentColor" />{lesson.title}</span>
-                            : lesson.title}
+                        <span className="font-geist text-xs leading-snug flex-1 flex items-center gap-1.5" style={{ color: isCur ? TEXT_PRIMARY : 'rgba(197, 198, 199,0.5)' }}>
+                          {lesson.type === 'quiz' && <PagesIcon size={12} color="currentColor" />}
+                          {lesson.title}
                         </span>
                       </button>
                     );
@@ -546,11 +566,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
             })}
           </div>
 
-          <div className={`px-4 py-3 flex-shrink-0 space-y-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ borderTop: '1px solid rgba(232,232,208,0.06)' }}>
-            <button onClick={() => setShowNotes(true)} className="w-full py-2 rounded font-sans text-xs flex items-center justify-center gap-2" style={{ background: 'rgba(232,232,208,0.06)', color: 'rgba(232,232,208,0.6)' }}>
-              <PixelIcon name="memo" size={13} color="currentColor" /> Заметки {notes.length > 0 && <span className="text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{ background: color, color: '#0f0f1a', fontSize: '0.6rem' }}>{notes.length}</span>}
+          <div className={`px-4 py-3 flex-shrink-0 space-y-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ borderTop: '1px solid rgba(197, 198, 199,0.06)' }}>
+            <button onClick={() => setShowNotes(true)} className="w-full py-2 rounded-lg font-geist text-xs flex items-center justify-center gap-2 cursor-pointer" style={{ background: 'rgba(197, 198, 199,0.06)', color: 'rgba(197, 198, 199,0.6)' }}>
+              <PagesIcon size={14} color="currentColor" /> Заметки {notes.length > 0 && <span className="text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{ background: color, color: PAGE_BG, fontSize: '0.6rem' }}>{notes.length}</span>}
             </button>
-            <button onClick={() => navigate(`/custom-course/${id}`)} className="w-full py-2 rounded font-sans text-xs" style={{ color: 'rgba(232,232,208,0.55)' }}>← К описанию</button>
+            <button onClick={() => navigate(`/custom-course/${id}`)} className="w-full py-2 rounded-lg font-geist text-xs cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.55)' }}><Icon name="chevronLeft" size={22} color="currentColor" /> К описанию</button>
           </div>
         </aside>
 
@@ -558,29 +578,29 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
         <main className="flex-1 overflow-y-auto">
           {showCompleted ? (
             <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-              <div className="mb-6"><PixelIcon name="trophy" size={64} color="#EF9F27" /></div>
-              <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.75rem', lineHeight: 1.8 }}>Курс завершён!</h2>
-              <p className="font-sans text-sm mb-10" style={{ color: 'rgba(232,232,208,0.6)' }}>{course.title}</p>
-              <button onClick={() => navigate('/zhukademia')} className="px-8 py-3 rounded font-sans font-bold text-sm hover:-translate-y-0.5 transition-all" style={{ background: color, color: '#0f0f1a', boxShadow: `0 4px 0 0 ${color}50` }}>← Вернуться к курсам</button>
+              <div className="mb-6"><Icon name="trophy" size={64} color="#EF9F27" /></div>
+              <h2 className="font-montserrat font-bold mb-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>Курс завершён!</h2>
+              <p className="font-geist text-sm mb-10" style={{ color: TEXT_MUTED }}>{course.title}</p>
+              <button onClick={() => navigate('/zhukademia')} className="px-8 py-3 rounded-lg font-geist font-bold text-sm hover:-translate-y-0.5 transition-all cursor-pointer" style={{ background: color, color: PAGE_BG }}><Icon name="chevronLeft" size={22} color="currentColor" /> Вернуться к курсам</button>
             </div>
           ) : currentLesson ? (
             <div className="max-w-3xl mx-auto px-8 py-8">
               {/* Breadcrumb */}
-              <p className="font-sans text-xs mb-6" style={{ color: 'rgba(232,232,208,0.55)' }}>
+              <p className="font-geist text-xs mb-6" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                 {(course.modules || [])[currentModuleIdx]?.title || ''}
                 {' › '}
-                <span style={{ color: 'rgba(232,232,208,0.6)' }}>{currentLesson.title}</span>
+                <span style={{ color: 'rgba(197, 198, 199,0.6)' }}>{currentLesson.title}</span>
               </p>
 
-              <h1 className="font-pixel text-pixel mb-8" style={{ fontSize: '0.7rem', lineHeight: 1.9 }}>{currentLesson.title}</h1>
+              <h1 className="font-montserrat font-bold mb-8" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{currentLesson.title}</h1>
 
               {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
                 <div
-                  className="rounded p-3 mb-6 flex items-start gap-2"
+                  className="rounded-lg p-3 mb-6 flex items-start gap-2"
                   style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
                 >
-                  <PixelIcon name="lightbulb" size={14} color="#EF9F27" />
-                  <p className="font-sans text-xs" style={{ color: 'rgba(232,232,208,0.7)' }}>{currentLesson.prerequisite_note}</p>
+                  <Icon name="lightbulb" size={22} color="#EF9F27" />
+                  <p className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
                 </div>
               )}
 
@@ -589,25 +609,25 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                   <LessonContent content={currentLesson.content} />
 
                   {completeError && (
-                    <p className="font-sans text-xs mt-4" style={{ color: '#e05252' }}>
+                    <p className="font-geist text-xs mt-4" style={{ color: '#e05252' }}>
                       Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between mt-10 pt-6" style={{ borderTop: '1px solid rgba(232,232,208,0.07)' }}>
+                  <div className="flex items-center justify-between mt-10 pt-6" style={{ borderTop: '1px solid rgba(197, 198, 199,0.07)' }}>
                     {currentIdx > 0 ? (
-                      <button onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)} className="font-sans text-sm transition-colors" style={{ color: 'rgba(232,232,208,0.6)' }} onMouseEnter={e => (e.currentTarget.style.color = '#e8e8d0')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(232,232,208,0.35)')}>← Назад</button>
+                      <button onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)} className="font-geist text-sm transition-colors cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }} onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}><Icon name="chevronLeft" size={22} color="currentColor" /> Назад</button>
                     ) : <div />}
                     <button
                       onClick={() => markComplete(currentLesson.id)}
-                      className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5"
-                      style={{ background: color, color: '#0f0f1a', boxShadow: `0 4px 0 0 ${color}50` }}
+                      className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+                      style={{ background: color, color: PAGE_BG }}
                     >
                       {allLessons[currentIdx + 1]?.type === 'quiz'
-                        ? <span className="flex items-center gap-2"><PixelIcon name="memo" size={13} color="currentColor" />Пройти тест →</span>
+                        ? <><PagesIcon size={14} color="currentColor" />Пройти тест <Icon name="chevronRight" size={22} color="currentColor" /></>
                         : isLastLesson
-                        ? <span className="flex items-center gap-2"><PixelIcon name="check" size={13} color="currentColor" />Завершить курс</span>
-                        : 'Далее →'}
+                        ? <><CheckCircleIcon size={14} color="currentColor" />Завершить курс</>
+                        : <>Далее <Icon name="chevronRight" size={22} color="currentColor" /></>}
                     </button>
                   </div>
                 </>
@@ -631,28 +651,23 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full">
-              <p className="font-sans text-pixel/60 text-sm">Выбери урок слева</p>
+              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок слева</p>
             </div>
           )}
         </main>
 
-        {/* Lead timer */}
+        {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
         {user.role === 'lead' && (
-          <div className="w-40 flex-shrink-0 flex flex-col items-center justify-start pt-8 px-4" style={{ borderLeft: '1px solid rgba(232,232,208,0.06)' }}>
-            <p className="font-pixel text-pixel/60 mb-2" style={{ fontSize: '0.5rem', lineHeight: 2 }}>Таймер</p>
-            <p className="font-sans text-2xl font-bold tabular-nums" style={{ color }}>{formatTime(elapsedSeconds)}</p>
-            <p className="text-pixel/55 font-sans text-xs mt-1">мин:сек</p>
-            <p className="text-pixel/55 font-sans text-xs mt-4 text-center leading-relaxed">Видно только лиду</p>
-          </div>
+          <LeadTimer startTimeMs={startTimeRef.current} color={color} />
         )}
       </div>
 
       <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} userId={user.id} courseId={id || ''} />
 
       {!showNotes && (
-        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:-translate-y-0.5" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.12)', color: 'rgba(232,232,208,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
-          <PixelIcon name="memo" size={14} color="currentColor" /> <span className="text-xs">Заметки</span>
-          {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0f0f1a', fontSize: '0.6rem' }}>{notes.length}</span>}
+        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:-translate-y-0.5" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+          <Icon name="memo" size={22} color="currentColor" /> <span className="text-xs">Заметки</span>
+          {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0B0C10', fontSize: '0.6rem' }}>{notes.length}</span>}
         </button>
       )}
     </div>

@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
+import {
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT,
+  BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
+} from '../utils/theme';
 
 interface AdminPageProps {
   user: any;
@@ -46,6 +50,7 @@ interface ActivityRow {
   name: string;
   gender?: 'male' | 'female' | null;
   lecture_title: string | null;
+  course_title: string | null;
 }
 
 interface Overview {
@@ -76,6 +81,7 @@ const ROLE_OPTIONS = ['tester', 'lead', 'admin'];
 function actionLabel(row: ActivityRow, nameById: Record<number, string>): string {
   const formatted = formatActivityAction(row.action, {
     lectureTitle: row.lecture_title,
+    courseTitle: row.course_title,
     nameById,
     gender: row.gender,
   });
@@ -83,6 +89,26 @@ function actionLabel(row: ActivityRow, nameById: Record<number, string>): string
 }
 
 type Tab = 'users' | 'activity' | 'analytics' | 'settings' | 'lectures' | 'trash';
+
+const TAB_LABELS: Record<Tab, string> = {
+  users: 'Пользователи',
+  activity: 'Активность',
+  analytics: 'Аналитика',
+  settings: 'Настройки',
+  lectures: 'Лекции',
+  trash: 'Корзина',
+};
+
+// Section label used above every tab panel's content ("Кандидаты на премию",
+// "Типы задач для чек-листов", ...) — matches CustomCourseDetailPage's Panel
+// heading treatment (font-montserrat semibold, TEXT_PRIMARY, TRACK_WIDE).
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="font-montserrat font-semibold mb-3" style={{ fontSize: 16, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+      {children}
+    </h2>
+  );
+}
 
 interface AdminLecture {
   id: number;
@@ -340,32 +366,33 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     }
   };
 
-  const filteredUsers = users.filter(u =>
+  const filteredUsers = useMemo(() => users.filter(u =>
     !search.trim() ||
     u.name.toLowerCase().includes(search.trim().toLowerCase()) ||
     u.email.toLowerCase().includes(search.trim().toLowerCase())
-  );
+  ), [users, search]);
+
+  // For resolving a permission/role-change/archive action's *target* name —
+  // the activity log only stores their id (see utils/activity.ts).
+  const usersNameById = useMemo(() => Object.fromEntries(users.map(u => [u.id, u.name])), [users]);
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
     );
   }
 
-  // For resolving a permission/role-change/archive action's *target* name —
-  // the activity log only stores their id (see utils/activity.ts).
-  const usersNameById = Object.fromEntries(users.map(u => [u.id, u.name]));
-
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-6">
-          <h1 className="font-pixel text-primary mb-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-            <span className="flex items-center gap-2"><PixelIcon name="crown" size={14} color="#EF9F27" /> Админка</span>
+          <h1 className="font-montserrat font-bold flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <Icon name="crown" size={22} color={BADGE_NOTIFY} />
+            Админка
           </h1>
         </div>
 
@@ -374,24 +401,26 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-3 py-1.5 rounded text-xs font-sans font-semibold"
+              className="rounded-lg font-geist font-semibold cursor-pointer px-3.5 py-2 transition-colors"
               style={{
-                background: tab === t ? '#1D9E75' : 'rgba(232,232,208,0.07)',
-                color: tab === t ? '#0f0f1a' : 'rgba(232,232,208,0.7)',
+                fontSize: 13,
+                background: tab === t ? ACCENT : 'rgba(197, 198, 199, 0.06)',
+                color: tab === t ? PAGE_BG : 'rgba(197, 198, 199, 0.6)',
               }}
             >
-              {t === 'users' ? 'Пользователи' : t === 'activity' ? 'Активность' : t === 'analytics' ? 'Аналитика' : t === 'settings' ? 'Настройки' : t === 'lectures' ? 'Лекции' : 'Корзина'}
+              {TAB_LABELS[t]}
             </button>
           ))}
         </div>
 
         {error && (
           <div
-            className="px-4 py-3 rounded text-sm font-sans mb-4"
+            className="px-4 py-3 rounded-lg text-sm font-geist mb-4"
             style={{
               background: 'rgba(224,82,82,0.1)',
               color: '#e05252',
-              boxShadow: '1px 0 0 0 #e05252, -1px 0 0 0 #e05252, 0 1px 0 0 #e05252, 0 -1px 0 0 #e05252',
+              border: '1px solid rgba(224,82,82,0.4)',
+              boxShadow: CARD_SHADOW,
             }}
           >
             {error}
@@ -401,9 +430,9 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
         {tab === 'users' && (
           <>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                <p className="text-pixel/60 text-sm font-sans">{filteredUsers.length} из {users.length}</p>
-                <label className="flex items-center gap-1.5 text-xs font-sans cursor-pointer" style={{ color: 'rgba(232,232,208,0.6)' }}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{filteredUsers.length} из {users.length}</p>
+                <label className="flex items-center gap-1.5 text-xs font-geist cursor-pointer" style={{ color: TEXT_MUTED }}>
                   <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />
                   Показать архив
                 </label>
@@ -422,64 +451,67 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
               {filteredUsers.map(row => (
                 <div
                   key={row.id}
-                  className="p-3 rounded flex items-center gap-4 flex-wrap"
-                  style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}
+                  className="p-3 rounded-lg flex items-center gap-4 flex-wrap"
+                  style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}
                 >
                   <div
-                    className="w-8 h-8 rounded flex items-center justify-center font-pixel text-xs shrink-0"
-                    style={{ background: '#1D9E75', color: '#0f0f1a' }}
+                    className="w-9 h-9 rounded-full flex items-center justify-center font-montserrat font-bold text-xs shrink-0"
+                    style={{ background: ACCENT, color: PAGE_BG }}
                   >
                     {row.avatar_initials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-pixel text-sm font-sans font-semibold flex items-center gap-1.5">
+                    <p className="font-geist text-sm font-semibold flex items-center gap-1.5" style={{ color: TEXT_PRIMARY }}>
                       {row.name}
-                      {!!row.has_telegram && <PixelIcon name="bug" size={10} color="#1D9E75" />}
+                      {!!row.has_telegram && <Icon name="bug" size={14} color={ACCENT} />}
                       {!!row.must_change_password && (
-                        <span className="text-xs font-sans px-1.5 rounded" style={{ background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+                        <span className="text-xs font-geist px-1.5 rounded" style={{ background: 'rgba(239,159,39,0.15)', color: BADGE_NOTIFY }}>
                           ждёт смены пароля
                         </span>
                       )}
                     </p>
-                    <p className="text-pixel/60 text-xs font-sans">{row.email}</p>
-                    <p className="text-pixel/40 text-xs font-sans">
+                    <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>{row.email}</p>
+                    <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>
                       Последняя активность: {row.last_active ? parseServerDate(row.last_active).toLocaleString('ru-RU') : 'нет данных'}
                     </p>
                     {resetResult?.id === row.id && (
-                      <p className="text-xs font-sans mt-1" style={{ color: '#1D9E75' }}>{resetResult.message}</p>
+                      <p className="text-xs font-geist mt-1" style={{ color: ACCENT }}>{resetResult.message}</p>
                     )}
                   </div>
                   {row.archived_at ? (
                     <button
                       onClick={() => restoreUser(row.id)}
                       disabled={archivingId === row.id}
-                      className="btn-secondary text-xs px-3 py-1.5"
+                      className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
                     >
-                      {archivingId === row.id ? '...' : '↺ Восстановить'}
+                      <Icon name="undo" size={14} color="currentColor" />
+                      {archivingId === row.id ? '...' : 'Восстановить'}
                     </button>
                   ) : (
                     <>
                       <button
                         onClick={() => resetPassword(row.id, row.name)}
                         disabled={resettingId === row.id}
-                        className="btn-secondary text-xs px-3 py-1.5"
+                        className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
                       >
-                        {resettingId === row.id ? '...' : '🔑 Сбросить пароль'}
+                        <Icon name="key" size={14} color="currentColor" />
+                        {resettingId === row.id ? '...' : 'Сбросить пароль'}
                       </button>
                       <button
                         onClick={() => archiveUser(row.id, row.name)}
                         disabled={archivingId === row.id || row.id === user.id}
-                        className="btn-secondary text-xs px-3 py-1.5"
+                        className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
                         style={{ color: '#e05252' }}
                       >
-                        {archivingId === row.id ? '...' : '🗄 Архивировать'}
+                        <Icon name="archive" size={14} color="currentColor" />
+                        {archivingId === row.id ? '...' : 'Архивировать'}
                       </button>
                       <select
                         value={row.role}
                         onChange={e => changeRole(row.id, e.target.value, row.name)}
                         disabled={savingId === row.id || row.id === user.id}
                         className="pixel-input text-xs"
-                        style={{ width: 140 }}
+                        style={{ width: 160 }}
                         aria-label={`Роль пользователя ${row.name}`}
                       >
                         {ROLE_OPTIONS.map(r => (
@@ -492,7 +524,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
               ))}
             </div>
 
-            <p className="text-pixel/55 text-xs font-sans mt-4">
+            <p className="text-xs font-geist mt-4" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>
               Свою роль можно изменить только через другого администратора — это защита от случайной потери доступа.
               Архивированный сотрудник не может войти в аккаунт, но вся его история (тесты, чек-листы, активность) сохраняется.
             </p>
@@ -503,16 +535,16 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
           <>
             <div className="space-y-1">
               {activity.map(row => (
-                <div key={row.id} className="p-2.5 rounded flex items-center justify-between gap-3" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
-                  <p className="text-xs font-sans" style={{ color: 'rgba(232,232,208,0.75)' }}>
-                    <span className="font-semibold text-pixel">{row.name}</span> {actionLabel(row, usersNameById)}
-                    {row.lecture_title && <span className="text-pixel/50"> — {row.lecture_title}</span>}
+                <div key={row.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)', boxShadow: CARD_SHADOW }}>
+                  <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.75)' }}>
+                    <span className="font-semibold" style={{ color: TEXT_PRIMARY }}>{row.name}</span> {actionLabel(row, usersNameById)}
+                    {row.lecture_title && <span style={{ color: TEXT_MUTED }}> — {row.lecture_title}</span>}
                   </p>
-                  <span className="text-pixel/40 text-xs font-sans shrink-0">{parseServerDate(row.created_at).toLocaleString('ru-RU')}</span>
+                  <span className="text-xs font-geist shrink-0" style={{ color: 'rgba(197, 198, 199, 0.4)' }}>{parseServerDate(row.created_at).toLocaleString('ru-RU')}</span>
                 </div>
               ))}
               {activity.length === 0 && !activityLoading && (
-                <p className="text-pixel/50 text-sm font-sans">Пока нет активности.</p>
+                <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>Пока нет активности.</p>
               )}
             </div>
             {activityHasMore && (
@@ -546,21 +578,21 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   ['Гайдов создано', overview.totalGuides],
                   ['Примеров багов', overview.totalBugExamples],
                 ].map(([label, value]) => (
-                  <div key={label as string} className="p-4 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
-                    <p className="text-primary font-pixel" style={{ fontSize: '0.9rem' }}>{value as number}</p>
-                    <p className="text-pixel/60 text-xs font-sans mt-1">{label}</p>
+                  <div key={label as string} className="p-4 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
+                    <p className="font-montserrat font-bold" style={{ fontSize: 20, color: ACCENT, letterSpacing: TRACK_WIDE }}>{value as number}</p>
+                    <p className="text-xs font-geist mt-1" style={{ color: TEXT_MUTED }}>{label}</p>
                   </div>
                 ))}
               </div>
 
-              <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Кандидаты на премию (30 дней)</h2>
-              <p className="text-pixel/50 text-xs font-sans mb-3">Реальные бонусы/повышения — решение за вами; это только исходные данные.</p>
+              <SectionHeading>Кандидаты на премию (30 дней)</SectionHeading>
+              <p className="text-xs font-geist mb-3" style={{ color: TEXT_MUTED }}>Реальные бонусы/повышения — решение за вами; это только исходные данные.</p>
               {bonusCandidates ? (
                 <div className="space-y-1.5">
                   {bonusCandidates.map((c: any) => (
-                    <div key={c.id} className="p-2.5 rounded flex items-center justify-between gap-3 flex-wrap" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
-                      <span className="text-pixel text-sm font-sans font-semibold">{c.name}</span>
-                      <span className="text-pixel/60 text-xs font-sans">
+                    <div key={c.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)', boxShadow: CARD_SHADOW }}>
+                      <span className="text-sm font-geist font-semibold" style={{ color: TEXT_PRIMARY }}>{c.name}</span>
+                      <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
                         {c.quizzesLast30d} тестов · {c.avgScoreLast30d ?? '—'}% ср. балл · {c.submissionsLast30d} чек-листов · получено премий: {c.totalBonusReceived}
                       </span>
                     </div>
@@ -575,18 +607,20 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
 
         {tab === 'settings' && (
           <div>
-            <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Типы задач для чек-листов</h2>
-            <p className="text-pixel/50 text-xs font-sans mb-3">Этот список появляется в выпадающем меню при отправке чек-листа. Тестировщик всё ещё может ввести свой вариант вручную.</p>
+            <SectionHeading>Типы задач для чек-листов</SectionHeading>
+            <p className="text-xs font-geist mb-3" style={{ color: TEXT_MUTED }}>Этот список появляется в выпадающем меню при отправке чек-листа. Тестировщик всё ещё может ввести свой вариант вручную.</p>
             {taskTypes ? (
               <>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {taskTypes.map(t => (
-                    <span key={t.id} className="flex items-center gap-1.5 text-xs font-sans px-2.5 py-1 rounded" style={{ background: 'rgba(232,232,208,0.07)', color: 'rgba(232,232,208,0.8)' }}>
+                    <span key={t.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.8)' }}>
                       {t.name}
-                      <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} style={{ color: '#e05252' }}>✕</button>
+                      <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} className="flex items-center" style={{ color: '#e05252' }}>
+                        <Icon name="close" size={13} color="currentColor" />
+                      </button>
                     </span>
                   ))}
-                  {taskTypes.length === 0 && <p className="text-pixel/40 text-xs font-sans">Список пуст.</p>}
+                  {taskTypes.length === 0 && <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.4)' }}>Список пуст.</p>}
                 </div>
                 <div className="flex gap-2 max-w-sm">
                   <input
@@ -605,17 +639,17 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
 
         {tab === 'lectures' && (
           <div>
-            <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Видео к лекциям</h2>
-            <p className="text-pixel/50 text-xs font-sans mb-3">
+            <SectionHeading>Видео к лекциям</SectionHeading>
+            <p className="text-xs font-geist mb-3" style={{ color: TEXT_MUTED }}>
               Вставь ссылку на запись (YouTube, Google Диск, VK Видео или Яндекс.Диск) — она появится наверху лекции для тестировщиков.
               Загрузка файлов не поддерживается: сервер хранит только ссылку.
             </p>
             {lectures ? (
               <div className="space-y-2">
                 {lectures.map(lecture => (
-                  <div key={lecture.id} className="p-3 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+                  <div key={lecture.id} className="p-3 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-pixel text-sm font-sans font-semibold flex-1 min-w-[160px]">
+                      <span className="text-sm font-geist font-semibold flex-1 min-w-[160px]" style={{ color: TEXT_PRIMARY }}>
                         {lecture.order_num}. {lecture.title}
                       </span>
                       <input
@@ -633,7 +667,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                       </button>
                     </div>
                     {videoWarning?.id === lecture.id && (
-                      <p className="text-xs font-sans mt-2" style={{ color: '#EF9F27' }}>{videoWarning.message}</p>
+                      <p className="text-xs font-geist mt-2" style={{ color: BADGE_NOTIFY }}>{videoWarning.message}</p>
                     )}
                   </div>
                 ))}
@@ -644,21 +678,21 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
 
         {tab === 'trash' && (
           <div>
-            <p className="text-pixel/50 text-xs font-sans mb-4">Курсы, примеры багов, термины глоссария и гайды — удалённое отсюда можно вернуть, пока не нажали «Удалить навсегда».</p>
+            <p className="text-xs font-geist mb-4" style={{ color: TEXT_MUTED }}>Курсы, примеры багов, термины глоссария и гайды — удалённое отсюда можно вернуть, пока не нажали «Удалить навсегда».</p>
             {trash ? (
               trash.length === 0 ? (
-                <p className="text-pixel/50 text-sm font-sans">Корзина пуста.</p>
+                <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>Корзина пуста.</p>
               ) : (
                 <div className="space-y-1.5">
                   {trash.map(item => (
-                    <div key={`${item.type}-${item.id}`} className="p-3 rounded flex items-center justify-between gap-3 flex-wrap" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+                    <div key={`${item.type}-${item.id}`} className="p-3 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                       <div>
-                        <span className="text-xs font-sans px-1.5 py-0.5 rounded mr-2" style={{ background: 'rgba(232,232,208,0.08)', color: 'rgba(232,232,208,0.5)' }}>{item.typeLabel}</span>
-                        <span className="text-pixel text-sm font-sans">{item.title}</span>
-                        <span className="text-pixel/40 text-xs font-sans ml-2">удалено {parseServerDate(item.deleted_at).toLocaleString('ru-RU')}</span>
+                        <span className="text-xs font-geist px-1.5 py-0.5 rounded mr-2" style={{ background: 'rgba(197, 198, 199, 0.08)', color: 'rgba(197, 198, 199, 0.5)' }}>{item.typeLabel}</span>
+                        <span className="text-sm font-geist" style={{ color: TEXT_PRIMARY }}>{item.title}</span>
+                        <span className="text-xs font-geist ml-2" style={{ color: 'rgba(197, 198, 199, 0.4)' }}>удалено {parseServerDate(item.deleted_at).toLocaleString('ru-RU')}</span>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button onClick={() => restoreTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5">↺ Вернуть</button>
+                        <button onClick={() => restoreTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"><Icon name="undo" size={14} color="currentColor" /> Вернуть</button>
                         <button onClick={() => purgeTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5" style={{ color: '#e05252' }}>Удалить навсегда</button>
                       </div>
                     </div>

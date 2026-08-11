@@ -5,10 +5,10 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import BaselineSurvey from './pages/BaselineSurvey';
-import AmbientSnail from './components/AmbientSnail';
 import ScrollBug from './components/ScrollBug';
 import InstallPrompt from './components/InstallPrompt';
 import OnboardingTour from './components/OnboardingTour';
+import BgWatermark from './components/BgWatermark';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import {
   getAccessToken, getStoredUser, getNeedsBaselineSurvey, getMustChangePassword,
@@ -30,8 +30,10 @@ const BagodelnyaPage = lazy(() => import('./pages/BagodelnyaPage'));
 const CustomCourseDetailPage = lazy(() => import('./pages/CustomCourseDetailPage'));
 const CustomCourseLearningPage = lazy(() => import('./pages/CustomCourseLearningPage'));
 const CourseBuilderPage = lazy(() => import('./pages/CourseBuilderPage'));
-const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
-const ChecklistFormPage = lazy(() => import('./pages/ChecklistFormPage'));
+// Чеклисты — route pulled while the feature is reworked; nav entry is
+// commented out too (Navigation.tsx). Import/route kept, not deleted.
+// const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
+// const ChecklistFormPage = lazy(() => import('./pages/ChecklistFormPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
@@ -120,7 +122,7 @@ function App() {
     return (
       <div
         className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse"
-        style={{ background: '#0f0f1a', lineHeight: 1.8 }}
+        style={{ background: '#0B0C10', lineHeight: 1.8 }}
       >
         🐌 уже ползу...
       </div>
@@ -142,7 +144,7 @@ function App() {
 
   if (authState.mustChangePassword) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: '#0B0C10' }}>
         <ChangePasswordModal forced onDone={handlePasswordChanged} />
       </div>
     );
@@ -164,62 +166,72 @@ function App() {
   return (
     <BrowserRouter>
       {/* Global ambient decorations */}
-      <AmbientSnail />
+      {/* FrogCompanion (cursor-lean + click-to-catch corner mascot) is
+          paused per the user's request — she's designing a different
+          interaction for the frog. Component file kept, just unmounted;
+          see components/FrogCompanion.tsx. */}
       <ScrollBug />
       <InstallPrompt />
       <OnboardingTour user={u} />
 
-      <Suspense fallback={
-        <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0f0f1a', lineHeight: 1.8 }}>
-          🐌 уже ползу...
-        </div>
-      }>
-        <Routes>
-          {/* ===== SHARED ROUTES ===== */}
-          <Route path="/"                        element={<HomePage {...sharedProps} />} />
-          <Route path="/zhukademia"              element={<ZhukademiPage {...sharedProps} />} />
-          <Route path="/bagodelnya"              element={<BagodelnyaPage {...sharedProps} />} />
-          <Route path="/custom-course/:id"       element={<CustomCourseDetailPage {...sharedProps} />} />
-          <Route path="/custom-course/:id/learn" element={<CustomCourseLearningPage {...sharedProps} />} />
-          <Route path="/lead/course-builder"     element={<CourseBuilderPage {...sharedProps} />} />
-          <Route path="/lead/course-builder/:id" element={<CourseBuilderPage {...sharedProps} />} />
-          <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} />
-          <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} />
-          <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />
-          <Route path="/suggestions"             element={<SuggestionsPage {...sharedProps} />} />
-          <Route path="/profile/:id"             element={<PublicProfilePage {...sharedProps} />} />
-          <Route path="/news"                    element={<NewsPage {...sharedProps} />} />
-          <Route path="/help"                    element={<HelpPage {...sharedProps} />} />
+      {/* Sits behind every routed page — see BgWatermark.tsx. The routes
+          wrapper below gets an explicit z-index so it paints on top
+          regardless of DOM order (position:fixed + z-index:auto siblings
+          are ordered by z-index value first, not just tree order). */}
+      <BgWatermark />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <Suspense fallback={
+          <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0B0C10', lineHeight: 1.8 }}>
+            🐌 уже ползу...
+          </div>
+        }>
+          <Routes>
+            {/* ===== SHARED ROUTES ===== */}
+            <Route path="/"                        element={<HomePage {...sharedProps} />} />
+            <Route path="/zhukademia"              element={<ZhukademiPage {...sharedProps} />} />
+            <Route path="/bagodelnya"              element={<BagodelnyaPage {...sharedProps} />} />
+            <Route path="/custom-course/:id"       element={<CustomCourseDetailPage {...sharedProps} />} />
+            <Route path="/custom-course/:id/learn" element={<CustomCourseLearningPage {...sharedProps} />} />
+            <Route path="/lead/course-builder"     element={<CourseBuilderPage {...sharedProps} />} />
+            <Route path="/lead/course-builder/:id" element={<CourseBuilderPage {...sharedProps} />} />
+            {/* <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} /> */}
+            {/* <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} /> */}
+            <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />
+            <Route path="/suggestions"             element={<SuggestionsPage {...sharedProps} />} />
+            <Route path="/profile/:id"             element={<PublicProfilePage {...sharedProps} />} />
+            <Route path="/news"                    element={<NewsPage {...sharedProps} />} />
+            <Route path="/help"                    element={<HelpPage {...sharedProps} />} />
 
-          {/* ===== TESTER ROUTES ===== */}
-          {u.role === 'tester' && (
-            <>
-              <Route path="/cabinet"            element={<MoyaNora {...sharedProps} />} />
-              <Route path="/lecture/:id/quiz"   element={<QuizPage {...sharedProps} />} />
-              <Route path="*"                   element={<Navigate to="/cabinet" replace />} />
-            </>
-          )}
+            {/* ===== TESTER ROUTES ===== */}
+            {u.role === 'tester' && (
+              <>
+                <Route path="/cabinet"            element={<MoyaNora {...sharedProps} />} />
+                <Route path="/lecture/:id/quiz"   element={<QuizPage {...sharedProps} />} />
+                <Route path="*"                   element={<Navigate to="/cabinet" replace />} />
+              </>
+            )}
 
-          {/* ===== LEAD + ADMIN ROUTES ===== (admin can do everything lead
-              can — see requireRole()'s admin bypass server-side — so it
-              shares this branch rather than duplicating the route) */}
-          {(u.role === 'lead' || u.role === 'admin') && (
-            <>
-              <Route path="/dashboard" element={<UleyPage {...sharedProps} />} />
-              <Route path="/profile" element={<ProfilePage {...sharedProps} />} />
-            </>
-          )}
+            {/* ===== LEAD + ADMIN ROUTES ===== (admin can do everything lead
+                can — see requireRole()'s admin bypass server-side — so it
+                shares this branch rather than duplicating the route) */}
+            {(u.role === 'lead' || u.role === 'admin') && (
+              <>
+                <Route path="/dashboard" element={<UleyPage {...sharedProps} />} />
+                <Route path="/profile" element={<ProfilePage {...sharedProps} />} />
+              </>
+            )}
 
-          {/* ===== ADMIN-ONLY ROUTES ===== */}
-          {u.role === 'admin' && (
-            <Route path="/admin" element={<AdminPage {...sharedProps} />} />
-          )}
+            {/* ===== ADMIN-ONLY ROUTES ===== */}
+            {u.role === 'admin' && (
+              <Route path="/admin" element={<AdminPage {...sharedProps} />} />
+            )}
 
-          {(u.role === 'lead' || u.role === 'admin') && (
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          )}
-        </Routes>
-      </Suspense>
+            {(u.role === 'lead' || u.role === 'admin') && (
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            )}
+          </Routes>
+        </Suspense>
+      </div>
     </BrowserRouter>
   );
 }

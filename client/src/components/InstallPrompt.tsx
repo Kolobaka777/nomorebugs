@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import PixelIcon from './PixelIcon';
+import Icon from './Icon';
 
 const DISMISS_KEY = 'install_prompt_dismissed';
 
@@ -43,24 +43,24 @@ export default function InstallPrompt() {
 
   return (
     <div
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded shadow-lg"
-      style={{ background: '#1a1a2e', border: '2px solid #1D9E75', maxWidth: '92vw' }}
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg"
+      style={{ background: '#1F2833', border: '2px solid #66FCF1', maxWidth: '92vw' }}
       role="status"
     >
-      <PixelIcon name="bug" size={20} color="#1D9E75" />
+      <Icon name="bug" size={22} color="#66FCF1" />
       <span className="text-pixel text-xs">Можно установить baga-net как приложение</span>
       <button
         onClick={install}
-        className="font-pixel text-xs text-game bg-primary px-3 py-2 rounded cursor-pointer shrink-0"
+        className="font-pixel text-xs text-game bg-primary px-3 py-2 rounded-lg cursor-pointer shrink-0"
       >
         Установить
       </button>
       <button
         onClick={dismiss}
         aria-label="Закрыть предложение установки"
-        className="text-pixel/60 text-lg leading-none px-1 cursor-pointer shrink-0"
+        className="text-pixel/60 px-1 cursor-pointer shrink-0 flex items-center"
       >
-        ×
+        <Icon name="close" size={22} color="currentColor" />
       </button>
     </div>
   );

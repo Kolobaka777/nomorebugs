@@ -17,6 +17,7 @@ const router = express.Router();
 const MAX_SHORT_FIELD = 5000; // problem/bad_text/good_text, term/definition
 const MAX_TITLE = 200;
 const MAX_GUIDE_CONTENT = 50000; // guides are meant to be full articles
+const MAX_TAG_FIELD = 50; // tag/tag_color on bug_examples
 
 // ============== KNOWLEDGE BASE (Багодельня) ==============
 
@@ -38,6 +39,9 @@ router.post('/api/bug-examples', authMiddleware, requirePermission('manage_knowl
     if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
       return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
     }
+    if ((tag || '').trim().length > MAX_TAG_FIELD || (tag_color || '').trim().length > MAX_TAG_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный тег (макс ${MAX_TAG_FIELD} символов)` });
+    }
     const result = db.prepare(
       'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by) VALUES (?, ?, ?, ?, ?, ?)'
     ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.user.id);
@@ -58,6 +62,9 @@ router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
     }
     if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
       return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
+    }
+    if ((tag || '').trim().length > MAX_TAG_FIELD || (tag_color || '').trim().length > MAX_TAG_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный тег (макс ${MAX_TAG_FIELD} символов)` });
     }
     db.prepare(
       'UPDATE bug_examples SET tag = ?, tag_color = ?, problem = ?, bad_text = ?, good_text = ? WHERE id = ?'
@@ -81,7 +88,13 @@ router.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage
 
 router.get('/api/glossary', authMiddleware, (req, res) => {
   try {
-    res.json(db.prepare('SELECT * FROM glossary_terms WHERE deleted_at IS NULL ORDER BY term ASC').all());
+    // Plain `ORDER BY term ASC` is a byte-wise/binary comparison, which
+    // sorts every uppercase letter before every lowercase one — "DOM"
+    // (all-caps) used to land before "DevTools" even though "De" < "DO"
+    // alphabetically, because 'O' (0x4F) < 'e' (0x65) in raw byte order.
+    // COLLATE NOCASE compares case-insensitively instead, matching what a
+    // human means by "alphabetical".
+    res.json(db.prepare('SELECT * FROM glossary_terms WHERE deleted_at IS NULL ORDER BY term COLLATE NOCASE ASC').all());
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

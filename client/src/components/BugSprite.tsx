@@ -1,7 +1,7 @@
 // Pixel art bug sprite (16x16 beetle) with optional walking animation
 interface BugSpriteProps {
   size?: number;
-  color?: 'teal' | 'amber' | 'red';
+  color?: 'teal' | 'amber' | 'red' | 'cyan';
   walking?: boolean;
   direction?: 'right' | 'left';
 }
@@ -12,8 +12,8 @@ export default function BugSprite({
   walking = false,
   direction = 'right',
 }: BugSpriteProps) {
-  const mainColor = color === 'teal' ? '#1D9E75' : color === 'amber' ? '#EF9F27' : '#e05252';
-  const darkColor = color === 'teal' ? '#0f7a5a' : color === 'amber' ? '#c47e15' : '#a83232';
+  const mainColor = color === 'teal' ? '#66FCF1' : color === 'amber' ? '#EF9F27' : color === 'cyan' ? '#66FCF1' : '#e05252';
+  const darkColor = color === 'teal' ? '#45A29E' : color === 'amber' ? '#c47e15' : color === 'cyan' ? '#2a9e96' : '#a83232';
 
   return (
     <svg
@@ -31,10 +31,10 @@ export default function BugSprite({
       {/* Head */}
       <rect x="5" y="2" width="6" height="4" fill={darkColor} />
       {/* Eyes */}
-      <rect x="5" y="2" width="2" height="2" fill="#e8e8d0" />
-      <rect x="9" y="2" width="2" height="2" fill="#e8e8d0" />
-      <rect x="6" y="2" width="1" height="1" fill="#0f0f1a" />
-      <rect x="10" y="2" width="1" height="1" fill="#0f0f1a" />
+      <rect x="5" y="2" width="2" height="2" fill="#C5C6C7" />
+      <rect x="9" y="2" width="2" height="2" fill="#C5C6C7" />
+      <rect x="6" y="2" width="1" height="1" fill="#0B0C10" />
+      <rect x="10" y="2" width="1" height="1" fill="#0B0C10" />
       {/* Spots */}
       <rect x="5" y="6" width="2" height="2" fill={darkColor} />
       <rect x="9" y="6" width="2" height="2" fill={darkColor} />

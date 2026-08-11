@@ -1,9 +1,20 @@
 import { useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon, { IconName } from '../components/PixelIcon';
+import Icon, { IconName } from '../components/Icon';
 import { knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
+import {
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
+} from '../utils/theme';
+
+// "Как писать правильно" gets its own green (matching the app's other
+// "good/new" green — see ZhukademiPage's NEW_BADGE_COLOR) instead of the
+// site's usual teal ACCENT, so it reads visually distinct from "Как писать
+// НЕ надо" (red) without the two ever being confusable with a neutral
+// info color. Scoped to just this concept — the tabs/glossary sections on
+// this page keep the normal ACCENT teal.
+const GOOD_GREEN = '#4ADE80';
 
 interface BagodelnyaPageProps {
   user: any;
@@ -27,7 +38,7 @@ interface GlossaryTerm {
   definition: string;
 }
 
-const TAG_COLORS = ['#7F77DD', '#1D9E75', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
+const TAG_COLORS = ['#7F77DD', '#66FCF1', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
 
 function BugExampleForm({
   initial, onSave, onCancel,
@@ -61,40 +72,44 @@ function BugExampleForm({
   };
 
   return (
-    <div className="p-5 win98-panel mb-5 space-y-3">
+    <div className="p-5 rounded-lg mb-5 space-y-3" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-pixel/60 text-xs font-sans mb-1.5">Тег категории</label>
+          <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Тег категории</label>
           <input className="pixel-input" value={tag} onChange={e => setTag(e.target.value)} placeholder="Например: Визуал" />
         </div>
         <div>
-          <label className="block text-pixel/60 text-xs font-sans mb-1.5">Цвет тега</label>
+          <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Цвет тега</label>
           <div className="flex gap-2">
             {TAG_COLORS.map(c => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setTagColor(c)}
-                className="w-7 h-7 rounded cursor-pointer transition-transform"
-                style={{ background: c, outline: tagColor === c ? '3px solid #fff' : 'none', outlineOffset: 2, transform: tagColor === c ? 'scale(1.15)' : 'scale(1)' }}
+                className="w-7 h-7 rounded-full cursor-pointer transition-transform"
+                style={{ background: c, boxShadow: tagColor === c ? `0 0 0 2px ${PAGE_BG}, 0 0 0 4px ${c}` : 'none', transform: tagColor === c ? 'scale(1.1)' : 'scale(1)' }}
               />
             ))}
           </div>
         </div>
       </div>
       <div>
-        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Проблема (короткое описание)</label>
+        <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Проблема (короткое описание)</label>
         <input className="pixel-input" value={problem} onChange={e => setProblem(e.target.value)} placeholder="Например: Неверный отступ в секции" />
       </div>
       <div>
-        <label className="block text-pixel/60 text-xs font-sans mb-1.5" style={{ color: '#e05252' }}>✗ Как писать НЕ надо</label>
+        <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: '#e05252' }}>
+          <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
+        </label>
         <textarea className="pixel-input w-full resize-y" rows={3} value={badText} onChange={e => setBadText(e.target.value)} placeholder="Плохой пример баг-репорта" />
       </div>
       <div>
-        <label className="block text-pixel/60 text-xs font-sans mb-1.5" style={{ color: '#1D9E75' }}>✓ Как писать правильно</label>
+        <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: GOOD_GREEN }}>
+          <Icon name="check" size={13} color="currentColor" /> Как писать правильно
+        </label>
         <textarea className="pixel-input w-full resize-y" rows={5} value={goodText} onChange={e => setGoodText(e.target.value)} placeholder="Хороший пример баг-репорта" />
       </div>
-      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
           {saving ? 'Сохраняю...' : 'Сохранить'}
@@ -131,16 +146,16 @@ function GlossaryForm({
   };
 
   return (
-    <div className="p-5 win98-panel mb-5 space-y-3">
+    <div className="p-5 rounded-lg mb-5 space-y-3" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
       <div>
-        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Термин</label>
+        <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Термин</label>
         <input className="pixel-input" value={term} onChange={e => setTerm(e.target.value)} placeholder="Например: Regression" />
       </div>
       <div>
-        <label className="block text-pixel/60 text-xs font-sans mb-1.5">Определение</label>
+        <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Определение</label>
         <textarea className="pixel-input w-full resize-y" rows={3} value={definition} onChange={e => setDefinition(e.target.value)} />
       </div>
-      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
           {saving ? 'Сохраняю...' : 'Сохранить'}
@@ -213,32 +228,35 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-8 flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="font-pixel text-primary mb-2 flex items-center gap-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-              <PixelIcon name="books" size={14} color="#1D9E75" />
+            <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+              <Icon name="books" size={22} color={ACCENT} />
               Багодельня
             </h1>
-            <p className="text-pixel/60 text-sm font-sans">База знаний тестировщика</p>
+            <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>База знаний тестировщика</p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-8">
+        <div className="flex gap-2 mb-8 flex-wrap">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`win98-tab flex-1 py-3 ${tab === t.id ? 'win98-tab-active' : ''}`}
+              className="rounded-lg font-geist font-semibold cursor-pointer px-3.5 py-2 flex items-center gap-1.5 transition-colors"
+              style={{
+                fontSize: 13,
+                background: tab === t.id ? ACCENT : 'rgba(197, 198, 199, 0.06)',
+                color: tab === t.id ? PAGE_BG : 'rgba(197, 198, 199, 0.6)',
+              }}
             >
-              <span className="flex items-center justify-center gap-1.5">
-                <PixelIcon name={t.icon} size={12} color="currentColor" />
-                {t.label}
-              </span>
+              <Icon name={t.icon} size={14} color="currentColor" />
+              {t.label}
             </button>
           ))}
         </div>
@@ -246,117 +264,133 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
         {loading && <SnailLoader />}
 
         {!loading && loadError && (
-          <div className="card text-center py-8 mb-6">
-            <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{loadError}</p>
+          <div className="rounded-lg text-center py-8 mb-6" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
+            <p className="text-sm font-geist mb-3" style={{ color: '#e05252' }}>{loadError}</p>
             <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         )}
 
         {!loading && !loadError && tab === 'examples' && (
-          <div>
-            {canEdit && !addingExample && (
-              <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5">
-                + Добавить пример
-              </button>
-            )}
-            {addingExample && (
-              <BugExampleForm
-                onSave={async (data) => {
-                  const res = await knowledgeApi.createBugExample(data);
-                  setBugExamples(p => [{ id: res.data.id, ...data }, ...p]);
-                  setAddingExample(false);
-                }}
-                onCancel={() => setAddingExample(false)}
-              />
-            )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* LEFT: примеры */}
+            <div className="lg:col-span-2">
+              {canEdit && !addingExample && (
+                <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5 flex items-center gap-1.5">
+                  <Icon name="sparkle" size={14} color="currentColor" />
+                  Добавить пример
+                </button>
+              )}
+              {addingExample && (
+                <BugExampleForm
+                  onSave={async (data) => {
+                    const res = await knowledgeApi.createBugExample(data);
+                    setBugExamples(p => [{ id: res.data.id, ...data }, ...p]);
+                    setAddingExample(false);
+                  }}
+                  onCancel={() => setAddingExample(false)}
+                />
+              )}
 
-            {/* Column headers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 px-1">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: '#e05252' }} />
-                <span className="font-pixel" style={{ color: '#e05252', fontSize: '0.6rem', lineHeight: 1.8 }}>✗ Как писать НЕ надо</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: '#1D9E75' }} />
-                <span className="font-pixel" style={{ color: '#1D9E75', fontSize: '0.6rem', lineHeight: 1.8 }}>✓ Как писать правильно</span>
-              </div>
-            </div>
-
-            {bugExamples.length === 0 && (
-              <p className="text-pixel/55 text-sm font-sans text-center py-8">Пока нет примеров</p>
-            )}
-
-            <div className="space-y-5">
-              {bugExamples.map((pair) => (
-                <div key={pair.id}>
-                  {editingExampleId === pair.id ? (
-                    <BugExampleForm
-                      initial={pair}
-                      onSave={async (data) => {
-                        await knowledgeApi.updateBugExample(pair.id, data);
-                        setBugExamples(p => p.map(e => e.id === pair.id ? { ...e, ...data } : e));
-                        setEditingExampleId(null);
-                      }}
-                      onCancel={() => setEditingExampleId(null)}
-                    />
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <span
-                          className="text-xs font-sans px-2 py-0.5 rounded font-semibold"
-                          style={{ background: `${pair.tag_color}18`, color: pair.tag_color, fontSize: '0.65rem' }}
-                        >
-                          {pair.tag}
-                        </span>
-                        <span className="text-pixel/60 text-xs font-sans flex-1">{pair.problem}</span>
-                        {canEdit && (
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
-                              <PixelIcon name="pencil" size={11} color="currentColor" />
-                            </button>
-                            <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
-                              ✕
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        <div className="p-4 win98-panel-red flex flex-col gap-2">
-                          <span className="text-xs font-pixel shrink-0" style={{ color: '#e05252', fontSize: '0.5rem', lineHeight: 1.8 }}>✗ ПЛОХО</span>
-                          <p className="text-pixel/60 text-xs font-sans leading-relaxed whitespace-pre-line">{pair.bad_text}</p>
-                        </div>
-                        <div className="p-4 win98-panel-green flex flex-col gap-2">
-                          <span className="text-xs font-pixel shrink-0" style={{ color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8 }}>✓ ПРАВИЛЬНО</span>
-                          <p className="text-pixel/70 text-xs font-sans leading-relaxed whitespace-pre-line">{pair.good_text}</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
+              {/* Column headers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: '#e05252' }} />
+                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: '#e05252', fontSize: 13, letterSpacing: TRACK_WIDE }}>
+                    <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
+                  </span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: GOOD_GREEN }} />
+                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: GOOD_GREEN, fontSize: 13, letterSpacing: TRACK_WIDE }}>
+                    <Icon name="check" size={13} color="currentColor" /> Как писать правильно
+                  </span>
+                </div>
+              </div>
 
-            {/* Tips block */}
-            <div className="mt-10 p-5 win98-panel-amber">
-              <p className="font-pixel mb-3 flex items-center gap-2" style={{ fontSize: '0.55rem', color: '#EF9F27', lineHeight: 1.8 }}>
-                <PixelIcon name="lightbulb" size={12} color="#EF9F27" />
-                Правила хорошего баг-отчёта
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  ['Конкретность', 'Укажи точное место: блок, элемент, порядковый номер пункта чеклиста'],
-                  ['Воспроизводимость', 'Опиши шаги так, чтобы любой мог повторить и увидеть тот же баг'],
-                  ['Ссылка на стандарт', 'Всегда указывай пункт чеклиста — это доказывает что это действительно ошибка'],
-                  ['Факт, не мнение', '"Цвет #000 вместо #FF0000" — факт. "Выглядит некрасиво" — мнение'],
-                  ['Один баг — один отчёт', 'Не смешивай несколько проблем в одном сообщении'],
-                  ['Скриншот', 'Если возможно — прикрепи скриншот с выделенной областью ошибки'],
-                ].map(([title, desc]) => (
-                  <div key={title}>
-                    <p className="text-pixel/70 text-xs font-sans font-semibold mb-1">{title}</p>
-                    <p className="text-pixel/60 text-xs font-sans">{desc}</p>
+              {bugExamples.length === 0 && (
+                <p className="text-sm font-geist text-center py-8" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>Пока нет примеров</p>
+              )}
+
+              <div className="space-y-5">
+                {bugExamples.map((pair) => (
+                  <div key={pair.id}>
+                    {editingExampleId === pair.id ? (
+                      <BugExampleForm
+                        initial={pair}
+                        onSave={async (data) => {
+                          await knowledgeApi.updateBugExample(pair.id, data);
+                          setBugExamples(p => p.map(e => e.id === pair.id ? { ...e, ...data } : e));
+                          setEditingExampleId(null);
+                        }}
+                        onCancel={() => setEditingExampleId(null)}
+                      />
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
+                          <span
+                            className="text-xs font-geist px-2 py-0.5 rounded font-semibold"
+                            style={{ background: `${pair.tag_color}18`, color: pair.tag_color }}
+                          >
+                            {pair.tag}
+                          </span>
+                          <span className="text-xs font-geist flex-1" style={{ color: TEXT_MUTED }}>{pair.problem}</span>
+                          {canEdit && (
+                            <div className="flex gap-1 shrink-0">
+                              <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
+                                <Icon name="pencil" size={13} color="currentColor" />
+                              </button>
+                              <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                                <Icon name="close" size={13} color="currentColor" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: '3px solid #e05252', boxShadow: CARD_SHADOW }}>
+                            <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: '#e05252', letterSpacing: TRACK_WIDE }}>
+                              <Icon name="close" size={13} color="currentColor" /> ПЛОХО
+                            </span>
+                            <p className="text-xs font-geist leading-relaxed whitespace-pre-line" style={{ color: TEXT_MUTED }}>{pair.bad_text}</p>
+                          </div>
+                          <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${GOOD_GREEN}`, boxShadow: CARD_SHADOW }}>
+                            <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: GOOD_GREEN, letterSpacing: TRACK_WIDE }}>
+                              <Icon name="check" size={13} color="currentColor" /> ПРАВИЛЬНО
+                            </span>
+                            <p className="text-xs font-geist leading-relaxed whitespace-pre-line" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>{pair.good_text}</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* RIGHT: правила — was a full-width block below the list,
+                moved into its own sidebar column so it's visible without
+                scrolling past every example. */}
+            <div>
+              <div className="p-5 rounded-lg lg:sticky lg:top-20" style={{ background: CARD_BG, border: '1px solid rgba(239,159,39,0.35)', boxShadow: CARD_SHADOW }}>
+                <p className="font-montserrat font-semibold mb-4 flex items-center gap-2" style={{ fontSize: 13, color: '#EF9F27', letterSpacing: TRACK_WIDE }}>
+                  <Icon name="lightbulb" size={16} color="#EF9F27" />
+                  Правила хорошего баг-отчёта
+                </p>
+                <div className="space-y-4">
+                  {[
+                    ['Конкретность', 'Укажи точное место: блок, элемент, порядковый номер пункта чеклиста'],
+                    ['Воспроизводимость', 'Опиши шаги так, чтобы любой мог повторить и увидеть тот же баг'],
+                    ['Ссылка на стандарт', 'Всегда указывай пункт чеклиста — это доказывает что это действительно ошибка'],
+                    ['Факт, не мнение', '"Цвет #000 вместо #FF0000" — факт. "Выглядит некрасиво" — мнение'],
+                    ['Один баг — один отчёт', 'Не смешивай несколько проблем в одном сообщении'],
+                    ['Скриншот', 'Если возможно — прикрепи скриншот с выделенной областью ошибки'],
+                  ].map(([title, desc]) => (
+                    <div key={title}>
+                      <p className="text-xs font-geist font-semibold mb-1" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>{title}</p>
+                      <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>{desc}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -364,14 +398,15 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
 
         {!loading && !loadError && tab === 'glossary' && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-pixel text-pixel/60 flex items-center gap-2" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>
-                <PixelIcon name="books" size={12} color="currentColor" />
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <h2 className="font-montserrat font-semibold flex items-center gap-2" style={{ fontSize: 16, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+                <Icon name="books" size={18} color="currentColor" />
                 Словарь тестировщика
               </h2>
               {canEdit && !addingTerm && (
-                <button onClick={() => setAddingTerm(true)} className="btn-primary text-xs px-4 py-2">
-                  + Добавить термин
+                <button onClick={() => setAddingTerm(true)} className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5">
+                  <Icon name="sparkle" size={14} color="currentColor" />
+                  Добавить термин
                 </button>
               )}
             </div>
@@ -388,7 +423,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
             )}
 
             {glossary.length === 0 && (
-              <p className="text-pixel/55 text-sm font-sans text-center py-8">Пока нет терминов</p>
+              <p className="text-sm font-geist text-center py-8" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>Пока нет терминов</p>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -408,23 +443,23 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                 ) : (
                   <div
                     key={item.id}
-                    className="p-4 win98-panel flex gap-4"
-                    style={{ outline: '1px solid rgba(29,158,117,0.28)', outlineOffset: '-3px' }}
+                    className="p-4 rounded-lg flex gap-4"
+                    style={{ background: CARD_BG, border: '1px solid rgba(102, 252, 241, 0.28)', boxShadow: CARD_SHADOW }}
                   >
                     <div
-                      className="shrink-0 px-2 py-1 rounded text-xs font-pixel"
-                      style={{ background: 'rgba(29,158,117,0.15)', color: '#1D9E75', fontSize: '0.5rem', lineHeight: 1.8, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
+                      className="shrink-0 px-2 py-1 rounded text-xs font-montserrat font-semibold"
+                      style={{ background: 'rgba(102, 252, 241, 0.15)', color: ACCENT, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
                     >
                       {item.term}
                     </div>
-                    <p className="text-pixel/60 text-xs font-sans leading-relaxed flex-1">{item.definition}</p>
+                    <p className="text-xs font-geist leading-relaxed flex-1" style={{ color: TEXT_MUTED }}>{item.definition}</p>
                     {canEdit && (
                       <div className="flex gap-1 shrink-0">
                         <button onClick={() => setEditingTermId(item.id)} aria-label="Редактировать термин" className="btn-secondary text-xs px-2 py-0.5">
-                          <PixelIcon name="pencil" size={11} color="currentColor" />
+                          <Icon name="pencil" size={13} color="currentColor" />
                         </button>
                         <button onClick={() => deleteTerm(item.id)} aria-label="Удалить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
-                          ✕
+                          <Icon name="close" size={13} color="currentColor" />
                         </button>
                       </div>
                     )}

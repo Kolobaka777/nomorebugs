@@ -143,13 +143,20 @@ describe('team news feed — computed (birthday / leave) items', () => {
     const shiftedMonth = ((mm + 5) % 12) + 1; // +6 months, 1-indexed wraparound
     const otherMD = `${String(shiftedMonth).padStart(2, '0')}-01`;
 
+    // A fresh user, not fixtures.testerId — that fixture's birthday was
+    // already set (and locked, see presence.js's "set once" rule) by the
+    // previous test, so setting a *different* value on it here would be
+    // silently ignored rather than actually changing anything.
+    const reg = await request(app).post('/api/auth/register').send({
+      email: 'birthdaymismatch@test.local', password: 'password123', name: 'Birthday Mismatch',
+    });
     await request(app)
-      .patch('/api/lead/team/' + fixtures.testerId + '/presence')
+      .patch('/api/lead/team/' + reg.body.user.id + '/presence')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ birthday: otherMD });
 
     const news = await request(app).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
-    const item = news.body.rows.find(n => n.event_type === 'birthday' && n.user_id === fixtures.testerId);
+    const item = news.body.rows.find(n => n.event_type === 'birthday' && n.user_id === reg.body.user.id);
     expect(item).toBeFalsy();
   });
 

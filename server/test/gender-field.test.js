@@ -88,3 +88,33 @@ describe('gender can also be set at registration time, not just via profile edit
     expect(res.status).toBe(400);
   });
 });
+
+describe('birthday is collected once, at registration — not editable afterward (see presence.test.js for the lock itself)', () => {
+  it('accepts a birthday (MM-DD) at signup and it shows up in /api/team/presence', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'birthdayatreg@test.local', password: 'password123', name: 'Birthday At Reg', birthday: '03-21',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.user.birthday).toBe('03-21');
+
+    const token = await loginAs(request, app, 'birthdayatreg@test.local', 'password123');
+    const presence = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${token}`);
+    const me = presence.body.find(p => p.id === res.body.user.id);
+    expect(me.birthday).toBe('03-21');
+  });
+
+  it('registering with no birthday at all still works and defaults to null', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'nobirthdayatreg@test.local', password: 'password123', name: 'No Birthday At Reg',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.user.birthday).toBeNull();
+  });
+
+  it('rejects an invalid birthday format at registration', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'badbirthdayatreg@test.local', password: 'password123', name: 'Bad Birthday At Reg', birthday: '2024-08-15',
+    });
+    expect(res.status).toBe(400);
+  });
+});

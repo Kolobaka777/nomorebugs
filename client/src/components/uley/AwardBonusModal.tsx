@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { leadApi } from '../../api';
 import { useEscapeKey } from '../../utils/a11y';
 import { MAX_BONUS_AMOUNT } from './constants';
+import Modal from '../Modal';
+import { TEXT_MUTED } from '../../utils/theme';
 
 export default function AwardBonusModal({
   member,
@@ -42,53 +44,39 @@ export default function AwardBonusModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
-      style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-sm rounded p-6" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>🏆 Премия · {member.name}</p>
-          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
+    <Modal title={`Премия · ${member.name}`} onClose={onClose} maxWidth={384}>
+      <div className="space-y-4">
+        <div>
+          <label className="block font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>
+            Сколько премиальных баллов начислить? (макс. {MAX_BONUS_AMOUNT})
+          </label>
+          <input
+            className="pixel-input"
+            type="number"
+            min={1}
+            max={MAX_BONUS_AMOUNT}
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            placeholder="Например: 50"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>За что премия?</label>
+          <input
+            className="pixel-input"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="Например: отличная неделя"
+          />
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-pixel/60 text-xs font-sans mb-2">Сколько премиальных баллов начислить? (макс. {MAX_BONUS_AMOUNT})</label>
-            <input
-              className="pixel-input"
-              type="number"
-              min={1}
-              max={MAX_BONUS_AMOUNT}
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              placeholder="Например: 50"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-pixel/60 text-xs font-sans mb-2">За что премия?</label>
-            <input
-              className="pixel-input"
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="Например: отличная неделя"
-            />
-          </div>
+        {error && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{error}</p>}
 
-          {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
-
-          <button
-            onClick={submit}
-            disabled={saving}
-            className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
-            style={{ background: '#1D9E75', color: '#0f0f1a' }}
-          >
-            {saving ? '...' : 'Начислить'}
-          </button>
-        </div>
+        <button onClick={submit} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
+          {saving ? '...' : 'Начислить'}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }

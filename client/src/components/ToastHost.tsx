@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { TOAST_EVENT, ToastDetail } from '../utils/toast';
+import Icon from './Icon';
 
 interface Toast extends ToastDetail {
   id: number;
 }
 
 const COLORS: Record<ToastDetail['kind'], { bg: string; fg: string }> = {
-  error: { bg: '#e05252', fg: '#0f0f1a' },
-  success: { bg: '#1D9E75', fg: '#0f0f1a' },
-  info: { bg: '#7F77DD', fg: '#0f0f1a' },
+  error: { bg: '#e05252', fg: '#0B0C10' },
+  success: { bg: '#66FCF1', fg: '#0B0C10' },
+  info: { bg: '#7F77DD', fg: '#0B0C10' },
 };
 
 const ICON: Record<ToastDetail['kind'], string> = {
@@ -48,7 +49,7 @@ export default function ToastHost() {
           <div
             key={t.id}
             role={t.kind === 'error' ? 'alert' : 'status'}
-            className="px-4 py-3 rounded text-sm font-sans font-semibold flex items-start gap-2 fade-in"
+            className="px-4 py-3 rounded-lg text-sm font-sans font-semibold flex items-start gap-2 fade-in"
             style={{ background: c.bg, color: c.fg, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
           >
             <span className="shrink-0">{ICON[t.kind]}</span>
@@ -56,10 +57,10 @@ export default function ToastHost() {
             <button
               onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
               aria-label="Закрыть уведомление"
-              className="shrink-0 cursor-pointer opacity-70 hover:opacity-100"
+              className="shrink-0 cursor-pointer opacity-70 hover:opacity-100 flex items-center"
               style={{ color: c.fg }}
             >
-              ✕
+              <Icon name="close" size={22} color="currentColor" />
             </button>
           </div>
         );

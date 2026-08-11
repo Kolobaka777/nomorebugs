@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { testerApi } from '../api';
-import PixelIcon, { IconName } from '../components/PixelIcon';
+import Icon from '../components/Icon';
+import logoUrl from '../assets/logo.svg';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface BaselineSurveyProps {
   onComplete: () => void;
 }
+
+const RATING_LABELS = ['Не знаком', 'Базово', 'Уверен', 'Профи', 'Эксперт'];
 
 export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
   const [scores, setScores] = useState({
@@ -14,15 +18,26 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
     console_errors: 3,
     bug_report_quality: 3,
   });
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (key: keyof typeof scores, value: number) => {
-    setScores(prev => ({ ...prev, [key]: value }));
+  const skills: { key: keyof typeof scores; label: string; desc: string }[] = [
+    { key: 'html_structure', label: 'HTML структура', desc: 'Понимание тегов, семантики, атрибутов' },
+    { key: 'css_reading', label: 'Чтение CSS', desc: 'Чтение и понимание стилей' },
+    { key: 'devtools', label: 'DevTools', desc: 'Работа с инструментами разработчика' },
+    { key: 'console_errors', label: 'Ошибки консоли', desc: 'Чтение и понимание ошибок JS' },
+    { key: 'bug_report_quality', label: 'Баг-репорты', desc: 'Умение описывать дефекты' },
+  ];
+  const current = skills[step];
+  const isLast = step === skills.length - 1;
+  const progress = ((step + 1) / skills.length) * 100;
+
+  const handleChange = (value: number) => {
+    setScores(prev => ({ ...prev, [current.key]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setLoading(true);
     setError('');
     try {
@@ -35,120 +50,86 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
     }
   };
 
-  const skills: { key: string; label: string; icon: IconName; desc: string }[] = [
-    { key: 'html_structure', label: 'HTML структура', icon: 'construction', desc: 'Понимание тегов, семантики, атрибутов' },
-    { key: 'css_reading', label: 'Чтение CSS', icon: 'palette', desc: 'Чтение и понимание стилей' },
-    { key: 'devtools', label: 'DevTools', icon: 'wrench', desc: 'Работа с инструментами разработчика' },
-    { key: 'console_errors', label: 'Ошибки консоли', icon: 'warning', desc: 'Чтение и понимание ошибок JS' },
-    { key: 'bug_report_quality', label: 'Баг-репорты', icon: 'bug', desc: 'Умение описывать дефекты' },
-  ];
-
-  const LABELS = ['1 — новичок', '2 — знаком', '3 — понимаю', '4 — уверен', '5 — эксперт'];
+  const handleNext = () => {
+    if (isLast) { handleSubmit(); return; }
+    setStep(s => s + 1);
+  };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: '#0f0f1a' }}
-    >
-      {/* Background grid */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
-        style={{
-          backgroundImage: 'linear-gradient(#1D9E75 1px, transparent 1px), linear-gradient(90deg, #1D9E75 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }}
-      />
-
-      <div className="w-full max-w-2xl relative z-10 fade-in">
-        {/* Header */}
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PAGE_GRADIENT }}>
+      <div className="w-full max-w-lg relative z-10 fade-in">
         <div className="text-center mb-8">
-          <p className="font-pixel text-primary text-xs mb-3 pixel-pulse" style={{ lineHeight: 1.8 }}>
-            baga-net
-          </p>
-          <h1
-            className="font-pixel text-pixel mb-2"
-            style={{ fontSize: '0.75rem', lineHeight: 1.8 }}
-          >
-            НАЧАЛЬНАЯ ОЦЕНКА
-          </h1>
-          <p className="text-pixel/60 text-sm font-sans">
-            Оцени текущий уровень — это поможет отследить твой рост
-          </p>
+          <img src={logoUrl} alt="baganet" style={{ height: 40, width: 'auto', margin: '0 auto' }} />
         </div>
 
-        {/* Card */}
-        <div
-          className="p-8 rounded"
-          style={{
-            background: '#1a1a2e',
-            boxShadow: '4px 0 0 0 #EF9F27, -4px 0 0 0 #EF9F27, 0 4px 0 0 #EF9F27, 0 -4px 0 0 #EF9F27',
-          }}
-        >
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div
-                className="px-4 py-3 rounded text-sm font-sans"
-                style={{
-                  background: 'rgba(224,82,82,0.1)',
-                  color: '#e05252',
-                  boxShadow: '1px 0 0 0 #e05252, -1px 0 0 0 #e05252, 0 1px 0 0 #e05252, 0 -1px 0 0 #e05252',
-                }}
-              >
-                {error}
-              </div>
-            )}
+        <div className="p-8 rounded-lg" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
+          {error && (
+            <div className="px-4 py-3 rounded-lg text-sm font-geist mb-5" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252', border: '1px solid #e05252' }}>
+              {error}
+            </div>
+          )}
 
-            {skills.map(skill => (
-              <div key={skill.key}>
-                <div className="flex items-center gap-2 mb-3">
-                  <PixelIcon name={skill.icon} size={14} color="#EF9F27" />
-                  <div>
-                    <p className="text-pixel font-sans font-semibold text-sm">{skill.label}</p>
-                    <p className="text-pixel/60 text-xs font-sans">{skill.desc}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(num => {
-                    const isSelected = scores[skill.key as keyof typeof scores] === num;
-                    return (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => handleChange(skill.key as keyof typeof scores, num)}
-                        className="flex-1 py-2 rounded transition-all cursor-pointer relative group"
-                        style={{
-                          background: isSelected ? '#EF9F27' : '#0f0f1a',
-                          boxShadow: isSelected
-                            ? '2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27'
-                            : '2px 0 0 0 rgba(239,159,39,0.2), -2px 0 0 0 rgba(239,159,39,0.2), 0 2px 0 0 rgba(239,159,39,0.2), 0 -2px 0 0 rgba(239,159,39,0.2)',
-                          color: isSelected ? '#0f0f1a' : 'rgba(239,159,39,0.4)',
-                        }}
-                        title={LABELS[num - 1]}
-                      >
-                        <span className="font-pixel text-xs" style={{ lineHeight: 1.8 }}>{num}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* Selected label */}
-                <p className="text-pixel/55 text-xs font-sans mt-1.5 text-right">
-                  {LABELS[scores[skill.key as keyof typeof scores] - 1]}
-                </p>
-              </div>
-            ))}
+          {/* Progress */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.1)' }}>
+              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: ACCENT }} />
+            </div>
+            <span className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>Вопрос {step + 1} из {skills.length}</span>
+          </div>
 
+          {/* Question */}
+          <div className="text-center mb-8">
+            <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{current.label}</h1>
+            <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{current.desc}</p>
+          </div>
+
+          {/* Rating scale */}
+          <div className="flex flex-wrap gap-2 mb-8 justify-center">
+            {[1, 2, 3, 4, 5].map(num => {
+              const isSelected = scores[current.key] === num;
+              return (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleChange(num)}
+                  className="rounded-lg transition-all cursor-pointer flex flex-col items-center gap-1 px-3 py-2.5"
+                  style={{
+                    background: isSelected ? ACCENT : 'transparent',
+                    border: `1.5px solid ${isSelected ? ACCENT : 'rgba(102, 252, 241,0.35)'}`,
+                    color: isSelected ? PAGE_BG : ACCENT,
+                    minWidth: 78,
+                  }}
+                >
+                  <span className="font-geist" style={{ fontSize: 11 }}>{RATING_LABELS[num - 1]}</span>
+                  <span className="font-montserrat font-bold" style={{ fontSize: 18 }}>{num}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Nav */}
+          <div className="flex items-center justify-between gap-3">
             <button
-              type="submit"
+              type="button"
+              onClick={() => setStep(s => Math.max(0, s - 1))}
+              disabled={step === 0}
+              className="btn-secondary px-6 disabled:opacity-30"
+              style={{ padding: '12px 24px' }}
+            >
+              Назад
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
               disabled={loading}
-              className="btn-amber w-full disabled:opacity-50 mt-4"
-              style={{ padding: '14px', fontSize: '14px' }}
+              className="btn-primary flex-1 disabled:opacity-50"
+              style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading
-                ? <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> сохраняем...</span>
-                : <span className="flex items-center justify-center gap-1"><PixelIcon name="bug" size={13} color="currentColor" /> Начать обучение →</span>
-              }
+                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> сохраняем...</span>
+                : isLast ? 'Начать обучение' : 'Далее'}
             </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>

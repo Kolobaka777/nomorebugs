@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Icon from './Icon';
 
 interface Step {
   selector: string;
@@ -68,7 +69,16 @@ export default function OnboardingTour({ user }: Props) {
       else finish();
       return;
     }
-    setRect(el.getBoundingClientRect());
+    const updateRect = () => setRect(el.getBoundingClientRect());
+    updateRect();
+    // Keep the highlight aligned with its target if the user resizes the
+    // window or scrolls while this step is showing.
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
   }, [active, stepIndex, steps]);
 
   const finish = () => {
@@ -113,28 +123,30 @@ export default function OnboardingTour({ user }: Props) {
       <div
         role="dialog"
         aria-label={step.title}
-        className="fixed rounded p-4"
+        className="fixed rounded-lg p-4"
         style={{
           top: tooltipTop, left: tooltipLeft, width: 280,
-          background: '#1a1a2e', border: '2px solid #EF9F27',
+          background: '#1F2833', border: '2px solid #EF9F27',
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 202,
         }}
         onClick={e => e.stopPropagation()}
       >
         <p className="font-pixel text-amber mb-2" style={{ fontSize: '0.6rem', lineHeight: 1.7 }}>{step.title}</p>
-        <p className="font-sans text-xs mb-4" style={{ color: 'rgba(232,232,208,0.75)' }}>{step.body}</p>
+        <p className="font-sans text-xs mb-4" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{step.body}</p>
         <div className="flex items-center justify-between">
-          <button onClick={finish} className="font-sans text-xs cursor-pointer" style={{ color: 'rgba(232,232,208,0.6)' }}>
+          <button onClick={finish} className="font-sans text-xs cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
             Пропустить всё
           </button>
           <div className="flex items-center gap-3">
-            <span className="font-sans text-xs" style={{ color: 'rgba(232,232,208,0.6)' }}>{stepIndex + 1}/{steps.length}</span>
+            <span className="font-sans text-xs" style={{ color: 'rgba(197, 198, 199,0.6)' }}>{stepIndex + 1}/{steps.length}</span>
             <button
               onClick={next}
-              className="font-sans text-xs font-bold px-3 py-1.5 rounded cursor-pointer"
-              style={{ background: '#EF9F27', color: '#0f0f1a' }}
+              className="font-sans text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
+              style={{ background: '#EF9F27', color: '#0B0C10' }}
             >
-              {isLast ? 'Готово' : 'Далее →'}
+              {isLast ? 'Готово' : (
+                <span className="inline-flex items-center gap-1">Далее <Icon name="arrowRight" size={14} color="currentColor" /></span>
+              )}
             </button>
           </div>
         </div>

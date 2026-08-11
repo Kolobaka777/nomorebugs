@@ -11,6 +11,14 @@ if (process.env.NODE_ENV !== 'test') console.log('DB path:', dbPath);
 
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+// Explicit rather than relied-upon: this better-sqlite3 build already
+// defaults PRAGMA foreign_keys to ON (see the users-table rebuild comment
+// in initDb() below, and role-migration.test.js which asserts this), but
+// that default is undocumented build behavior, not a guarantee — stating
+// it explicitly here means FK enforcement no longer depends on that. Set
+// before any table creation/migration runs, so every CREATE TABLE/ALTER/
+// INSERT below always sees enforcement in its final, intended state.
+db.pragma('foreign_keys = ON');
 
 export function initDb() {
   db.exec(`
@@ -910,7 +918,15 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_checklist_submissions_task_type ON checklist_submissions(task_type);
     CREATE INDEX IF NOT EXISTS idx_checklist_item_results_submission_id ON checklist_item_results(submission_id);
     CREATE INDEX IF NOT EXISTS idx_checklist_item_results_item_id ON checklist_item_results(item_id);
+    -- Fail-rate reporting queries filter checklist_item_results by status
+    -- (e.g. counting 'fail' rows per item/template) without joining on
+    -- submission_id/item_id first, so those two indexes alone don't help.
+    CREATE INDEX IF NOT EXISTS idx_checklist_item_results_status ON checklist_item_results(status);
     CREATE INDEX IF NOT EXISTS idx_course_time_tracking_user_id ON course_time_tracking(user_id);
+    -- routes/courses.js queries course_time_tracking by course_id directly
+    -- (completed-count aggregation, finished-users list, progress lookup) —
+    -- no FK exists on this column to have implicitly indexed it.
+    CREATE INDEX IF NOT EXISTS idx_course_time_tracking_course_id ON course_time_tracking(course_id);
     CREATE INDEX IF NOT EXISTS idx_custom_modules_course_id ON custom_modules(course_id);
     CREATE INDEX IF NOT EXISTS idx_custom_lessons_module_id ON custom_lessons(module_id);
     CREATE INDEX IF NOT EXISTS idx_custom_lessons_prerequisite_lesson_id ON custom_lessons(prerequisite_lesson_id);
@@ -933,6 +949,10 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_course_deadline_overrides_course_id ON course_deadline_overrides(course_id);
     CREATE INDEX IF NOT EXISTS idx_suggestions_created_at ON suggestions(created_at);
     CREATE INDEX IF NOT EXISTS idx_suggestion_likes_suggestion_id ON suggestion_likes(suggestion_id);
+    -- Covers the (role, archived_at) filter combination repeated across
+    -- 8+ route call sites (e.g. "active testers", "active leads" listings)
+    -- so those lookups don't fall back to a full table scan of users.
+    CREATE INDEX IF NOT EXISTS idx_users_role_archived_at ON users(role, archived_at);
   `);
 }
 

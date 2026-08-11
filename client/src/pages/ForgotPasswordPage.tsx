@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
+import Icon from '../components/Icon';
+import logoUrl from '../assets/logo.svg';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -24,52 +27,52 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PAGE_GRADIENT }}>
       <div className="w-full max-w-md relative z-10 fade-in">
         <div className="text-center mb-8">
-          <h1 className="font-pixel text-primary mb-4" style={{ fontSize: '1.2rem', lineHeight: 1.8 }}>baga-net</h1>
+          <img src={logoUrl} alt="baganet" style={{ height: 40, width: 'auto', margin: '0 auto' }} />
         </div>
-        <div
-          className="p-8 rounded"
-          style={{ background: '#1a1a2e', boxShadow: '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75' }}
-        >
-          <h2 className="font-pixel text-pixel mb-6 text-center" style={{ fontSize: '0.65rem', lineHeight: 1.8 }}>
-            ВОССТАНОВЛЕНИЕ ПАРОЛЯ
+        <div className="p-8 rounded-lg" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
+          <h2 className="font-montserrat font-bold mb-2 text-center" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            Восстановление доступа
           </h2>
           {sent ? (
-            <div className="text-center space-y-4">
-              <p className="text-pixel/70 text-sm font-sans">
+            <div className="text-center space-y-4 mt-4">
+              <p className="font-geist text-sm" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
                 Если такой email зарегистрирован — на него (или в Telegram, если он привязан) отправлена ссылка для сброса пароля. Ссылка действует 30 минут.
               </p>
-              <button onClick={() => navigate('/')} className="text-primary font-sans text-sm hover:underline">← Ко входу</button>
+              <button onClick={() => navigate('/')} className="font-geist text-sm hover:underline cursor-pointer" style={{ color: ACCENT }}><Icon name="chevronLeft" size={22} color="currentColor" /> Ко входу</button>
             </div>
           ) : (
-            <form onSubmit={submit} className="space-y-4">
-              <p className="text-pixel/60 text-xs font-sans">Укажи email, которым регистрировался — пришлём ссылку для сброса пароля.</p>
-              {error && (
-                <div className="px-4 py-3 rounded text-sm font-sans" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252' }}>
-                  {error}
-                </div>
-              )}
-              <div>
-                <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">Email</label>
+            <>
+              <p className="font-geist text-sm text-center mb-6" style={{ color: TEXT_MUTED }}>Введите почту, на которую зарегистрирован аккаунт</p>
+              <form onSubmit={submit} className="space-y-4">
+                {error && (
+                  <div className="px-4 py-3 rounded-lg text-sm font-geist" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252' }}>
+                    {error}
+                  </div>
+                )}
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="pixel-input"
-                  placeholder="your@email.com"
+                  placeholder="Email"
+                  aria-label="Email"
                   disabled={loading}
                   required
                 />
-              </div>
-              <button type="submit" disabled={loading} className="btn-primary w-full mt-2 disabled:opacity-50" style={{ padding: '12px', fontSize: '14px' }}>
-                {loading ? '...' : 'Отправить ссылку'}
-              </button>
-              <button type="button" onClick={() => navigate('/')} className="w-full text-center text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80">
-                ← Ко входу
-              </button>
-            </form>
+                <button type="submit" disabled={loading} className="btn-primary w-full mt-2 disabled:opacity-50" style={{ padding: '12px', fontSize: '14px' }}>
+                  {loading ? '...' : 'ОТПРАВИТЬ ССЫЛКУ'}
+                </button>
+                <div className="text-center pt-2">
+                  <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Вспомнили пароль?</p>
+                  <button type="button" onClick={() => navigate('/')} className="font-geist text-sm cursor-pointer hover:underline" style={{ color: ACCENT }}>
+                    Войти
+                  </button>
+                </div>
+              </form>
+            </>
           )}
         </div>
       </div>

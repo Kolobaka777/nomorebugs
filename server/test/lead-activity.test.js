@@ -71,3 +71,31 @@ describe('GET /api/me/activity', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// course_completed reuses activity_log's lecture_id column to stash a
+// custom_courses id (a separate id space from lectures — see
+// POST /api/courses/time-track) — this checks the route resolves it
+// against custom_courses, not lectures, so "Прошла курс «X»" actually
+// names the right course instead of silently mismatching or showing none.
+describe('course_completed activity rows resolve a course_title from custom_courses', () => {
+  it('names the completed course, not a same-numbered lecture', async () => {
+    const created = await request(app)
+      .post('/api/custom-courses')
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ title: 'Playwright Prereqs', modules: [] });
+    expect(created.status).toBe(200);
+    const courseId = created.body.id;
+
+    const tracked = await request(app)
+      .post('/api/courses/time-track')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ course_id: courseId, seconds_spent: 120 });
+    expect(tracked.status).toBe(200);
+
+    const res = await request(app).get('/api/me/activity').set('Authorization', `Bearer ${testerToken}`);
+    const row = res.body.rows.find(r => r.action === 'course_completed');
+    expect(row).toBeTruthy();
+    expect(row.course_title).toBe('Playwright Prereqs');
+    expect(row.lecture_title).toBeFalsy();
+  });
+});

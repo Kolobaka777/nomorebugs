@@ -1,9 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { testerApi } from '../api';
-import { Question, QuestionExplanation } from '../types';
+import { Question, QuestionExplanation, Lecture } from '../types';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
+import Navigation from '../components/Navigation';
+import { BookOpenIcon, CheckCircleIcon } from '../components/CatalogIcons';
+import { getTopicTag, getCourseTagColor } from '../utils/topics';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface QuizPageProps {
   user: any;
@@ -41,6 +45,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const progressKey = `quiz_progress_${user.id}_${lectureId}`;
 
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [lecture, setLecture] = useState<Lecture | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -82,8 +87,9 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
       // Kept as a separate request from getQuestions (whose response is a
       // bare question array, not an object) rather than folding video_url
       // into it — reshaping that response would be a breaking change for
-      // every existing caller.
-      testerApi.getLecture(parseInt(lectureId!)).then(r => setVideoUrl(r.data.video_url || null)).catch(() => {});
+      // every existing caller. Also powers the course-card header above the
+      // quiz (title/tag), so the whole lecture row is kept, not just video_url.
+      testerApi.getLecture(parseInt(lectureId!)).then(r => { setLecture(r.data); setVideoUrl(r.data.video_url || null); }).catch(() => {});
       const res = await testerApi.getQuestions(parseInt(lectureId!));
       const shuffled = shuffle<Question>(res.data);
       setQuestions(shuffled);
@@ -189,17 +195,45 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     }
   };
 
+  const tag = lecture ? getTopicTag(lecture.skill_area) : null;
+  const tagColor = tag ? getCourseTagColor(tag) : ACCENT;
+
+  // Small course-context card + back link shown above the quiz — same
+  // hero language as the course catalog/detail pages, just compact, so the
+  // quiz doesn't feel like a separate mini-app bolted onto the site.
+  function CourseHeader() {
+    if (!lecture) return null;
+    return (
+      <div className="mb-6">
+        <button
+          onClick={() => navigate('/zhukademia')}
+          className="flex items-center gap-2 font-geist text-sm mb-4 transition-colors cursor-pointer"
+          style={{ color: 'rgba(197, 198, 199,0.6)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}
+        >
+          <Icon name="chevronLeft" size={22} color="currentColor" /> Вернуться к курсу
+        </button>
+        <div
+          className="rounded-lg px-5 py-4 flex items-center gap-3"
+          style={{ background: CARD_BG, border: `1px solid ${tagColor}`, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}
+        >
+          <BookOpenIcon size={20} color={tagColor} />
+          {tag && (
+            <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${tagColor}20`, color: tagColor, border: `1px solid ${tagColor}55` }}>
+              {tag}
+            </span>
+          )}
+          <span className="font-montserrat font-semibold truncate" style={{ fontSize: 16, color: TEXT_PRIMARY }}>{lecture.title}</span>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
-        {/* Mini header */}
-        <header
-          className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
-          style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
-        >
-          <span className="font-pixel text-primary text-xs pixel-pulse">baga-net</span>
-          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
-        </header>
+      <div className="min-h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
+        <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
     );
@@ -210,49 +244,28 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     const score = Math.round(result.score);
     const passed = result.passed;
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
-        <header
-          className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
-          style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
-        >
-          <span className="font-pixel text-primary text-xs">baga-net</span>
-          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
-        </header>
+      <div className="min-h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
+        <Navigation user={user} onLogout={onLogout} />
 
         <div className="flex-1 flex items-center justify-center p-6">
           <div
-            className="w-full max-w-md p-8 rounded text-center fade-in"
+            className="w-full max-w-md p-8 rounded-lg text-center fade-in"
             style={{
-              background: '#1a1a2e',
-              boxShadow: passed
-                ? '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75'
-                : '4px 0 0 0 #e05252, -4px 0 0 0 #e05252, 0 4px 0 0 #e05252, 0 -4px 0 0 #e05252',
+              background: CARD_BG,
+              border: passed ? `1px solid ${ACCENT}` : '1px solid #e05252',
+              boxShadow: '0 8px 12px 0 rgba(0, 0, 0, 0.25)',
             }}
           >
             <div className="mb-4 flex justify-center">
-              <PixelIcon name={passed ? 'trophy' : 'warning'} size={52} color={passed ? '#EF9F27' : '#e05252'} />
+              <Icon name={passed ? 'trophy' : 'warning'} size={52} color={passed ? '#EF9F27' : '#e05252'} />
             </div>
-            <p
-              className="font-pixel mb-2"
-              style={{
-                color: passed ? '#1D9E75' : '#e05252',
-                fontSize: '0.65rem',
-                lineHeight: 1.8,
-              }}
-            >
+            <p className="font-montserrat font-bold mb-2" style={{ color: passed ? ACCENT : '#e05252', fontSize: 20, letterSpacing: TRACK_WIDE }}>
               {passed ? 'ТЕСТ ПРОЙДЕН!' : 'ТЕСТ НЕ СДАН'}
             </p>
-            <p
-              className="font-pixel mb-6"
-              style={{
-                color: passed ? '#1D9E75' : '#e05252',
-                fontSize: '2.5rem',
-                lineHeight: 1.4,
-              }}
-            >
+            <p className="font-montserrat font-extrabold mb-6" style={{ color: passed ? ACCENT : '#e05252', fontSize: 44 }}>
               {score}%
             </p>
-            <p className="text-pixel/60 text-sm font-sans mb-8">
+            <p className="font-geist text-sm mb-8" style={{ color: TEXT_MUTED }}>
               {passed
                 ? 'Следующая лекция разблокирована!'
                 : 'Нужно минимум 60%. Попробуй ещё раз!'}
@@ -278,7 +291,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                   }}
                   className="btn-secondary"
                 >
-                  <span className="flex items-center gap-1"><PixelIcon name="wrench" size={12} color="currentColor" /> Реанимация</span>
+                  <span className="flex items-center gap-1"><Icon name="wrench" size={22} color="currentColor" /> Реанимация</span>
                 </button>
               )}
             </div>
@@ -290,15 +303,18 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#0f0f1a' }}>
-        <p className="text-pixel/60 font-sans">
-          {loadError ? 'Не удалось загрузить вопросы. Проверь соединение.' : 'Вопросы не найдены'}
-        </p>
-        {loadError && (
-          <button onClick={() => { setLoading(true); loadQuestions(); }} className="btn-primary text-xs px-4 py-2">
-            Попробовать снова
-          </button>
-        )}
+      <div className="min-h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
+        <Navigation user={user} onLogout={onLogout} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="font-geist" style={{ color: TEXT_MUTED }}>
+            {loadError ? 'Не удалось загрузить вопросы. Проверь соединение.' : 'Вопросы не найдены'}
+          </p>
+          {loadError && (
+            <button onClick={() => { setLoading(true); loadQuestions(); }} className="btn-primary text-xs px-4 py-2">
+              Попробовать снова
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -308,36 +324,23 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
   const isCorrect = explanation && selectedAnswer === explanation.correctAnswer;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
-      {/* Header */}
-      <header
-        className="sticky top-0 z-50 px-6 py-3 flex justify-between items-center"
-        style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
-      >
-        <span className="font-pixel text-primary text-xs">baga-net</span>
-        <div className="flex items-center gap-3">
-          <span className="text-pixel/60 text-xs font-sans">
-            {currentQuestionIdx + 1}/{questions.length}
-          </span>
-          <button onClick={onLogout} className="btn-secondary text-xs px-2 py-1">Выход</button>
-        </div>
-      </header>
+    <div className="min-h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
+      <Navigation user={user} onLogout={onLogout} />
 
       {/* Progress bar */}
-      <div style={{ background: '#0f0f1a', height: '6px' }}>
-        <div
-          className="h-full transition-all duration-300"
-          style={{ width: `${progPercent}%`, background: '#1D9E75' }}
-        />
+      <div style={{ background: 'rgba(197, 198, 199,0.08)', height: '4px' }}>
+        <div className="h-full transition-all duration-300" style={{ width: `${progPercent}%`, background: ACCENT }} />
       </div>
 
       {/* Content */}
-      <div className="flex-1 max-w-3xl mx-auto w-full px-6 py-8">
+      <div className="flex-1 max-w-3xl mx-auto w-full px-8 py-10">
+        <CourseHeader />
+
         {/* Video — shown once, above the first question */}
         {currentQuestionIdx === 0 && videoUrl && (() => {
           const embed = toEmbedUrl(videoUrl);
           return (
-            <div className="mb-6 rounded overflow-hidden" style={{ boxShadow: '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75' }}>
+            <div className="mb-6 rounded-lg overflow-hidden" style={{ border: `1px solid ${ACCENT}`, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
               {embed ? (
                 <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
                   <iframe
@@ -353,10 +356,10 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                   href={videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-4"
-                  style={{ background: '#1a1a2e', color: '#1D9E75' }}
+                  className="flex items-center gap-2 p-4 font-geist"
+                  style={{ background: CARD_BG, color: ACCENT }}
                 >
-                  <PixelIcon name="camera" size={14} color="currentColor" /> Открыть видео лекции →
+                  <Icon name="camera" size={22} color="currentColor" /> Открыть видео лекции <Icon name="chevronRight" size={22} color="currentColor" />
                 </a>
               )}
             </div>
@@ -365,26 +368,19 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
         {/* Question number */}
         <div className="flex items-center justify-between mb-4">
-          <p
-            className="font-pixel text-pixel/55"
-            style={{ fontSize: '0.55rem', lineHeight: 1.8 }}
-          >
-            ВОПРОС {currentQuestionIdx + 1}
+          <p className="font-montserrat font-bold" style={{ fontSize: 18, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            Тест: Итоговый тест
           </p>
-          <div className="xp-bar-track" style={{ width: '120px' }}>
-            <div className="xp-bar-fill" style={{ width: `${progPercent}%` }} />
-          </div>
+          <span className="font-geist text-sm shrink-0" style={{ color: TEXT_MUTED }}>{currentQuestionIdx + 1}/{questions.length}</span>
         </div>
 
         {/* Question card */}
         <div
-          className="p-6 rounded mb-6 fade-in"
-          style={{
-            background: '#1a1a2e',
-            boxShadow: '2px 0 0 0 #1D9E75, -2px 0 0 0 #1D9E75, 0 2px 0 0 #1D9E75, 0 -2px 0 0 #1D9E75',
-          }}
+          className="p-6 rounded-lg mb-6 fade-in"
+          style={{ background: CARD_BG, border: `1px solid ${ACCENT}`, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}
         >
-          <h2 className="text-pixel font-sans font-semibold text-base leading-relaxed mb-6">
+          <h2 className="font-geist font-semibold text-base leading-relaxed mb-6 flex gap-2" style={{ color: TEXT_PRIMARY }}>
+            <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold" style={{ fontSize: 12, background: ACCENT, color: PAGE_BG }}>{currentQuestionIdx + 1}</span>
             {currentQuestion.question_text}
           </h2>
 
@@ -395,11 +391,11 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               const isCorrectAnswer = showExplanation && explanation?.correctAnswer === option.key;
               const isWrongAnswer = showExplanation && isSelected && !isCorrect;
 
-              let borderColor = 'rgba(232,232,208,0.15)';
+              let borderColor = 'rgba(197, 198, 199,0.15)';
               let bgColor = 'transparent';
               if (isCorrectAnswer && showExplanation) {
-                borderColor = '#1D9E75';
-                bgColor = 'rgba(29,158,117,0.1)';
+                borderColor = ACCENT;
+                bgColor = 'rgba(102, 252, 241,0.1)';
               } else if (isWrongAnswer) {
                 borderColor = '#e05252';
                 bgColor = 'rgba(224,82,82,0.1)';
@@ -413,25 +409,21 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                   key={option.key}
                   onClick={() => !showExplanation && handleSelectAnswer(option.key)}
                   disabled={showExplanation}
-                  className="w-full p-4 rounded text-left transition-all cursor-pointer disabled:cursor-default"
-                  style={{
-                    background: bgColor,
-                    boxShadow: `1px 0 0 0 ${borderColor}, -1px 0 0 0 ${borderColor}, 0 1px 0 0 ${borderColor}, 0 -1px 0 0 ${borderColor}`,
-                  }}
+                  className="w-full p-4 rounded-lg text-left transition-all cursor-pointer disabled:cursor-default"
+                  style={{ background: bgColor, border: `1px solid ${borderColor}` }}
                 >
-                  <div className="flex gap-3 items-start">
+                  <div className="flex gap-3 items-center">
                     <span
-                      className="shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-pixel"
+                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-geist font-bold"
                       style={{
-                        background: isCorrectAnswer && showExplanation ? '#1D9E75' : isWrongAnswer ? '#e05252' : isSelected ? '#EF9F27' : 'rgba(232,232,208,0.08)',
-                        color: (isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? '#0f0f1a' : 'rgba(232,232,208,0.4)',
-                        fontSize: '0.62rem',
-                        lineHeight: 1.8,
+                        background: 'transparent',
+                        border: `1.5px solid ${(isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? borderColor : 'rgba(197, 198, 199,0.3)'}`,
+                        color: (isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? borderColor : 'rgba(197, 198, 199,0.5)',
                       }}
                     >
-                      {option.key.toUpperCase()}
+                      {isCorrectAnswer && showExplanation ? <CheckCircleIcon size={14} color={ACCENT} /> : isWrongAnswer ? '✗' : option.key.toUpperCase()}
                     </span>
-                    <span className="text-pixel font-sans text-sm leading-relaxed">
+                    <span className="font-geist text-sm leading-relaxed" style={{ color: TEXT_PRIMARY }}>
                       {option.text}
                     </span>
                   </div>
@@ -442,11 +434,8 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
           {/* Explanation failed to load — don't block progress, just say so */}
           {showExplanation && explanationFailed && (
-            <div
-              className="mt-6 p-4 rounded fade-in"
-              style={{ background: 'rgba(232,232,208,0.04)', boxShadow: '1px 0 0 0 rgba(232,232,208,0.15), -1px 0 0 0 rgba(232,232,208,0.15), 0 1px 0 0 rgba(232,232,208,0.15), 0 -1px 0 0 rgba(232,232,208,0.15)' }}
-            >
-              <p className="text-pixel/60 text-sm font-sans">
+            <div className="mt-6 p-4 rounded-lg fade-in" style={{ background: 'rgba(197, 198, 199,0.04)', border: '1px solid rgba(197, 198, 199,0.15)' }}>
+              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>
                 Не удалось загрузить объяснение — но можно двигаться дальше, ответ уже сохранён.
               </p>
             </div>
@@ -455,26 +444,19 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
           {/* Explanation */}
           {showExplanation && explanation && (
             <div
-              className="mt-6 p-4 rounded fade-in"
+              className="mt-6 p-4 rounded-lg fade-in"
               style={{
-                background: isCorrect ? 'rgba(29,158,117,0.08)' : 'rgba(224,82,82,0.08)',
-                boxShadow: `1px 0 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, -1px 0 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, 0 1px 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}, 0 -1px 0 0 ${isCorrect ? '#1D9E75' : '#e05252'}`,
+                background: isCorrect ? 'rgba(102, 252, 241,0.08)' : 'rgba(224,82,82,0.08)',
+                border: `1px solid ${isCorrect ? ACCENT : '#e05252'}`,
               }}
             >
-              <p
-                className="font-pixel mb-2"
-                style={{
-                  color: isCorrect ? '#1D9E75' : '#e05252',
-                  fontSize: '0.5rem',
-                  lineHeight: 1.8,
-                }}
-              >
-                {isCorrect ? '✓ ВЕРНО!' : '✗ НЕВЕРНО'}
+              <p className="font-montserrat font-bold mb-2" style={{ color: isCorrect ? ACCENT : '#e05252', fontSize: 14, letterSpacing: TRACK_WIDE }}>
+                {isCorrect ? '✓ Верно!' : `✗ Правильный ответ: ${explanation.correctAnswer.toUpperCase()}`}
               </p>
-              <p className="text-pixel/70 text-sm font-sans mb-2">{explanation.explanation}</p>
-              <p className="text-pixel/60 text-xs font-sans">
+              <p className="font-geist text-sm mb-2" style={{ color: 'rgba(197, 198, 199,0.85)' }}>{explanation.explanation}</p>
+              <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
                 Правильный ответ:{' '}
-                <span className="text-primary font-semibold">
+                <span className="font-semibold" style={{ color: ACCENT }}>
                   {explanation.correctAnswer.toUpperCase()}. {explanation.correctOption}
                 </span>
               </p>
@@ -483,11 +465,8 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
 
           {/* Submit error — answers stay saved, retry doesn't lose anything */}
           {submitError && (
-            <div
-              className="mt-4 p-4 rounded fade-in"
-              style={{ background: 'rgba(239,159,39,0.08)', boxShadow: '1px 0 0 0 #EF9F27, -1px 0 0 0 #EF9F27, 0 1px 0 0 #EF9F27, 0 -1px 0 0 #EF9F27' }}
-            >
-              <p className="text-sm font-sans" style={{ color: '#EF9F27' }}>{submitError}</p>
+            <div className="mt-4 p-4 rounded-lg fade-in" style={{ background: 'rgba(239,159,39,0.08)', border: '1px solid #EF9F27' }}>
+              <p className="font-geist text-sm" style={{ color: '#EF9F27' }}>{submitError}</p>
             </div>
           )}
 
@@ -499,12 +478,12 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               className="btn-primary w-full mt-6 disabled:opacity-50"
             >
               {submitting
-                ? <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> ползём...</span>
+                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
                 : submitError
                 ? 'Попробовать снова'
                 : currentQuestionIdx === questions.length - 1
                 ? 'Завершить тест'
-                : 'Следующий →'
+                : <span className="flex items-center justify-center gap-1">Следующий вопрос <Icon name="chevronRight" size={22} color="currentColor" /></span>
               }
             </button>
           )}

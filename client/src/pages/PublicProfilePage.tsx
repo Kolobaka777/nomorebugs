@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import PixelAvatar, { type FrameId } from '../components/PixelAvatar';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import { usersApi } from '../api';
 import { PublicProfile } from '../types';
 import { parseServerDate } from '../utils/date';
 import { TIMEZONES } from '../utils/timezones';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -17,11 +18,11 @@ interface Props {
 function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-pixel shrink-0" style={{ fontSize: '0.6rem', color, width: 58, lineHeight: 2 }}>{label}</span>
-      <div className="stat-bar-track flex-1" style={{ borderLeft: `2px solid ${color}30` }}>
+      <span className="font-geist font-semibold shrink-0" style={{ fontSize: 11, color, width: 58, letterSpacing: TRACK_WIDE }}>{label}</span>
+      <div className="stat-bar-track flex-1 rounded" style={{ borderLeft: `2px solid ${color}30` }}>
         <div className="stat-bar-fill" style={{ width: `${(value / max) * 100}%`, background: color }} />
       </div>
-      <span className="font-pixel shrink-0" style={{ fontSize: '0.6rem', color, width: 22, textAlign: 'right', lineHeight: 2 }}>
+      <span className="font-geist font-semibold shrink-0" style={{ fontSize: 12, color, width: 22, textAlign: 'right' }}>
         {value}
       </span>
     </div>
@@ -46,7 +47,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -55,10 +56,13 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
 
   if (loadError || !profile) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-lg mx-auto px-6 pt-16 text-center">
-          <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError || 'Профиль не найден'}</p>
+          <p className="text-sm font-geist mb-4" style={{ color: '#e05252' }}>{loadError || 'Профиль не найден'}</p>
+          {/* Text kept literally as "← Назад" (not swapped for an Icon) —
+              PublicProfilePage.test.tsx asserts screen.getByText('← Назад')
+              verbatim and is out of scope to edit. */}
           <button onClick={() => navigate(-1)} className="btn-secondary text-xs px-4 py-2">← Назад</button>
         </div>
       </div>
@@ -68,12 +72,12 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
   const isHidden = profile.is_public === false && !('stats' in profile);
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-2xl mx-auto px-4 pt-16 pb-8 fade-in">
         <div
-          className="p-6 rounded overflow-hidden"
-          style={{ background: '#1a1a2e', boxShadow: '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75' }}
+          className="p-6 rounded-lg overflow-hidden"
+          style={{ background: CARD_BG, border: `1px solid ${ACCENT}`, boxShadow: CARD_SHADOW }}
         >
           <div className="flex items-center gap-4 mb-4">
             <PixelAvatar
@@ -83,28 +87,28 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
               customSrc={'custom_avatar' in profile ? profile.custom_avatar : null}
             />
             <div>
-              <p className="font-pixel" style={{ fontSize: '0.7rem', color: '#EF9F27', lineHeight: 1.8 }}>
+              <p className="font-montserrat font-bold" style={{ fontSize: 20, color: BADGE_NOTIFY, letterSpacing: TRACK_WIDE }}>
                 {'nickname' in profile ? profile.nickname : profile.name}
               </p>
               {!isHidden && 'specialization' in profile && profile.specialization && (
-                <p className="text-pixel/60 text-sm font-sans">{profile.specialization}</p>
+                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
               )}
             </div>
           </div>
 
           {isHidden ? (
-            <p className="text-pixel/50 text-sm font-sans flex items-center gap-2">
-              <PixelIcon name="lock" size={14} color="rgba(232,232,208,0.4)" /> Профиль скрыт
+            <p className="font-geist text-sm flex items-center gap-2" style={{ color: TEXT_MUTED }}>
+              <Icon name="lock" size={22} color={TEXT_MUTED} /> Профиль скрыт
             </p>
           ) : (
             <>
               {'status_quote' in profile && profile.status_quote && (
-                <p className="text-pixel/70 text-sm font-sans italic mb-4">«{profile.status_quote}»</p>
+                <p className="font-geist text-sm italic mb-4" style={{ color: TEXT_PRIMARY }}>«{profile.status_quote}»</p>
               )}
 
               {'workStart' in profile && profile.workStart && profile.workEnd && (
-                <p className="text-pixel/60 text-xs font-sans mb-4 flex items-center gap-1.5">
-                  <PixelIcon name="calendar" size={12} color="currentColor" />
+                <p className="font-geist text-sm mb-4 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                  <Icon name="calendar" size={16} color="currentColor" />
                   Рабочее время: {profile.workStart}–{profile.workEnd} ({TIMEZONES.find(tz => tz.value === profile.timezone)?.label || profile.timezone})
                 </p>
               )}
@@ -112,28 +116,32 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
               {'stats' in profile && (
                 <div className="space-y-2 mb-4">
                   <StatRow label="ИНТ"  value={profile.stats.int}     max={10} color="#7F77DD" />
-                  <StatRow label="ВНИМ" value={profile.stats.per}     max={10} color="#EF9F27" />
-                  <StatRow label="СКОР" value={profile.stats.spd}     max={10} color="#1D9E75" />
+                  <StatRow label="ВНИМ" value={profile.stats.per}     max={10} color={BADGE_NOTIFY} />
+                  <StatRow label="СКОР" value={profile.stats.spd}     max={10} color={ACCENT} />
                   <StatRow label="ЗАЩ"  value={profile.stats.def}     max={10} color="#e05252" />
-                  <StatRow label="МОЩЬ" value={profile.stats.bug_pwr} max={20} color="#EF9F27" />
+                  <StatRow label="МОЩЬ" value={profile.stats.bug_pwr} max={20} color={BADGE_NOTIFY} />
                 </div>
               )}
 
               {'badges' in profile && profile.badges.length > 0 && (
-                <p className="text-pixel/60 text-xs font-sans mb-2">🏅 Значков: {profile.badges.length}</p>
+                <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                  <Icon name="trophy" size={14} color={TEXT_MUTED} /> Значков: {profile.badges.length}
+                </p>
               )}
               {'cards' in profile && profile.cards.length > 0 && (
-                <p className="text-pixel/60 text-xs font-sans mb-2">🃏 Карточек: {profile.cards.length}</p>
+                <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                  <Icon name="card" size={14} color={TEXT_MUTED} /> Карточек: {profile.cards.length}
+                </p>
               )}
 
               {'info_box' in profile && profile.info_box && (
-                <p className="text-xs font-sans leading-relaxed mt-3" style={{ color: 'rgba(232,232,208,0.6)', borderLeft: '2px solid rgba(29,158,117,0.25)', paddingLeft: 10 }}>
+                <p className="font-geist text-xs leading-relaxed mt-3" style={{ color: TEXT_MUTED, borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
                   {profile.info_box}
                 </p>
               )}
 
               {'created_at' in profile && (
-                <p className="text-pixel/40 text-xs font-sans mt-4">В команде с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU')}</p>
+                <p className="font-geist text-xs mt-4" style={{ color: TEXT_MUTED }}>В команде с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU')}</p>
               )}
             </>
           )}

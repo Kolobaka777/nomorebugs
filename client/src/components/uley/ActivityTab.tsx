@@ -1,7 +1,8 @@
-import PixelIcon from '../PixelIcon';
+import Icon from '../Icon';
 import { ActivityItem } from '../../types';
 import { parseServerDate } from '../../utils/date';
 import { formatActivityAction } from '../../utils/activity';
+import { ACCENT, BADGE_NOTIFY, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../../utils/theme';
 
 export default function ActivityTab({
   activity,
@@ -19,39 +20,36 @@ export default function ActivityTab({
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <h2
-          className="font-pixel text-pixel/60"
-          style={{ fontSize: '0.6rem', lineHeight: 1.8 }}
-        >
-          <span className="flex items-center gap-2"><PixelIcon name="bug" size={12} color="currentColor" />Жучиная нора</span>
+        <h2 className="font-montserrat font-semibold flex items-center gap-2" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+          <Icon name="bug" size={16} color="currentColor" />Жучиная нора
         </h2>
       </div>
       <div className="space-y-2">
         {(Array.isArray(activity) ? activity : []).length === 0 ? (
           <div className="card text-center py-8">
-            <p className="text-pixel/60 text-sm font-sans">Нет активности</p>
+            <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Нет активности</p>
           </div>
         ) : (
           (Array.isArray(activity) ? activity : []).map(item => (
             <div
               key={item.id}
-              className="p-3 rounded flex items-start justify-between gap-4"
+              className="p-3 rounded-lg flex items-start justify-between gap-4"
               style={{
-                background: '#1a1a2e',
+                background: CARD_BG,
                 borderLeft: `3px solid ${
-                  item.action === 'passed_lecture' ? '#1D9E75' :
+                  item.action === 'passed_lecture' ? ACCENT :
                   item.action === 'failed_lecture' ? '#e05252' :
-                  '#EF9F27'
+                  BADGE_NOTIFY
                 }`,
               }}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-pixel font-sans font-semibold text-sm">{item.name}</p>
-                <p className="text-pixel/60 text-xs font-sans">
-                  {formatActivityAction(item.action, { lectureTitle: item.lecture_title, nameById: teamNameById, gender: item.gender })}
+                <p className="font-geist font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{item.name}</p>
+                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
+                  {formatActivityAction(item.action, { lectureTitle: item.lecture_title, courseTitle: item.course_title, nameById: teamNameById, gender: item.gender })}
                 </p>
               </div>
-              <p className="text-pixel/55 text-xs font-sans shrink-0">
+              <p className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>
                 {parseServerDate(item.created_at).toLocaleString('ru-RU', {
                   month: 'short',
                   day: 'numeric',

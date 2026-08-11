@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import { checklistApi, knowledgeApi } from '../api';
-import PixelIcon, { IconName } from '../components/PixelIcon';
+import Icon, { IconName } from '../components/Icon';
 import { localDayStartUTC, localDayEndUTC } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import SubmissionDetailModal from '../components/checklists/SubmissionDetailModal';
@@ -13,6 +13,9 @@ import SubmissionsList from '../components/checklists/SubmissionsList';
 import ExportModal from '../components/checklists/ExportModal';
 import { catColor } from '../components/checklists/types';
 import type { Template, Stats, Submission, SubmissionDetail, Tab, StatsTab } from '../components/checklists/types';
+import {
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
+} from '../utils/theme';
 
 interface Props { user: any; onLogout: () => void; }
 
@@ -194,7 +197,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
       {detailSub && <SubmissionDetailModal sub={detailSub} onClose={() => setDetailSub(null)} />}
@@ -239,29 +242,30 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
       )}
       {justImportedId !== null && (
         <div
-          className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded text-sm font-sans font-semibold"
-          style={{ background: '#1D9E75', color: '#0f0f1a', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
+          className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm font-geist font-semibold flex items-center gap-2"
+          style={{ background: ACCENT, color: PAGE_BG, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
         >
-          ✓ Шаблон импортирован и уже доступен во вкладке «Чеклисты»
+          <Icon name="check" size={16} color="currentColor" />
+          Шаблон импортирован и уже доступен во вкладке «Чеклисты»
         </div>
       )}
 
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-8 fade-in">
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h1 className="font-pixel text-primary mb-2 flex items-center gap-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-              <PixelIcon name="check" size={14} color="#1D9E75" />
+            <h1 className="font-montserrat font-bold flex items-center gap-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+              <Icon name="check" size={22} color={ACCENT} />
               Чеклисты
             </h1>
-            <p className="text-pixel/60 text-sm font-sans">Проверяй, отмечай, отправляй</p>
+            <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>Проверяй, отмечай, отправляй</p>
           </div>
           {canManageChecklists && (
             <div className="flex gap-2">
-              <button onClick={() => setShowCreate(true)} className="btn-secondary text-xs py-2 px-4">
-                + Вручную
+              <button onClick={() => setShowCreate(true)} className="btn-secondary text-xs py-2 px-4 flex items-center gap-1.5">
+                <Icon name="sparkle" size={14} color="currentColor" /> Вручную
               </button>
-              <button onClick={() => setShowImport(true)} className="btn-primary text-xs py-2 px-4">
-                + Импорт Excel
+              <button onClick={() => setShowImport(true)} className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5">
+                <Icon name="sparkle" size={14} color="currentColor" /> Импорт Excel
               </button>
             </div>
           )}
@@ -276,7 +280,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
               className={`win98-tab ${tab === t.id ? 'win98-tab-active' : ''}`}
             >
               <span className="flex items-center justify-center gap-1.5">
-                <PixelIcon name={t.icon} size={12} color="currentColor" />
+                <Icon name={t.icon} size={14} color="currentColor" />
                 {t.label}
               </span>
             </button>
@@ -288,14 +292,14 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
           <>
             {loading && <SnailLoader />}
             {!loading && templatesError && (
-              <div className="p-8 rounded text-center" style={{ background: '#1a1a2e', border: '2px dashed rgba(224,82,82,0.3)' }}>
-                <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{templatesError}</p>
+              <div className="p-8 rounded-lg text-center" style={{ background: CARD_BG, border: '2px dashed rgba(224,82,82,0.3)' }}>
+                <p className="font-geist text-sm mb-3" style={{ color: '#e05252' }}>{templatesError}</p>
                 <button onClick={loadTemplates} className="btn-secondary text-xs px-4 py-2">Повторить</button>
               </div>
             )}
             {!loading && !templatesError && templates.length === 0 && (
-              <div className="p-8 rounded text-center" style={{ background: '#1a1a2e', border: '2px dashed rgba(232,232,208,0.1)' }}>
-                <p className="text-pixel/60 text-sm font-sans mb-2">Чеклистов пока нет</p>
+              <div className="p-8 rounded-lg text-center" style={{ background: CARD_BG, border: '2px dashed rgba(197, 198, 199,0.1)' }}>
+                <p className="font-geist text-sm mb-2" style={{ color: TEXT_MUTED }}>Чеклистов пока нет</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -304,58 +308,45 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 return (
                   <div
                     key={tpl.id}
-                    className="p-5 flex flex-col"
+                    className="rounded-lg flex flex-col overflow-hidden transition-all"
                     style={{
-                      background: '#1a1a2e',
-                      borderTop:    '2px solid rgba(255,255,255,0.12)',
-                      borderLeft:   '2px solid rgba(255,255,255,0.12)',
-                      borderBottom: '2px solid rgba(0,0,0,0.5)',
-                      borderRight:  '2px solid rgba(0,0,0,0.5)',
-                      outline: tpl.id === justImportedId ? `2px solid #1D9E75` : `1px solid ${tpl.color}40`,
-                      outlineOffset: '-3px',
-                      transition: 'outline-color 0.3s',
+                      background: CARD_BG,
+                      border: tpl.id === justImportedId ? `1px solid ${ACCENT}` : `1px solid ${tpl.color}40`,
+                      boxShadow: CARD_SHADOW,
                     }}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span
-                        className="font-pixel px-2 py-1 rounded"
-                        style={{ background: `${tpl.color}20`, color: tpl.color, fontSize: '0.55rem', lineHeight: 1.8 }}
-                      >
-                        {tpl.name}
-                      </span>
-                      {tpl.id === justImportedId && (
-                        <span className="text-xs font-sans font-bold px-2 py-0.5 rounded" style={{ background: '#1D9E75', color: '#0f0f1a' }}>NEW</span>
-                      )}
-                      <span className="text-pixel/55 text-xs font-sans">{tpl.items.length} пунктов</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mb-4 flex-1">
-                      {cats.map(cat => (
+                    <div className="p-5 flex flex-col flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                         <span
-                          key={cat}
-                          className="text-xs font-sans px-2 py-0.5 rounded"
-                          style={{ background: `${catColor(cat)}15`, color: catColor(cat), fontSize: '0.6rem' }}
+                          className="font-geist font-semibold rounded px-2 py-0.5"
+                          style={{ background: `${tpl.color}20`, color: tpl.color, fontSize: 12 }}
                         >
-                          {cat}
+                          {tpl.name}
                         </span>
-                      ))}
+                        {tpl.id === justImportedId && (
+                          <span className="font-geist text-xs font-bold px-2 py-0.5 rounded" style={{ background: ACCENT, color: PAGE_BG }}>NEW</span>
+                        )}
+                        <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{tpl.items.length} пунктов</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-4 flex-1">
+                        {cats.map(cat => (
+                          <span
+                            key={cat}
+                            className="font-geist text-xs px-2 py-0.5 rounded"
+                            style={{ background: `${catColor(cat)}15`, color: catColor(cat), fontSize: 11 }}
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => navigate(`/checklists/${tpl.id}`)}
+                        className="w-full py-2.5 rounded-lg font-geist text-xs font-semibold cursor-pointer mt-auto flex items-center justify-center gap-1.5 transition-transform hover:-translate-y-0.5"
+                        style={{ background: `${tpl.color}18`, color: tpl.color }}
+                      >
+                        Заполнить <Icon name="chevronRight" size={16} color="currentColor" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => navigate(`/checklists/${tpl.id}`)}
-                      className="w-full py-2.5 text-xs font-sans font-semibold cursor-pointer mt-auto"
-                      style={{
-                        background: '#12121f',
-                        color: tpl.color,
-                        borderTop:    '2px solid rgba(255,255,255,0.12)',
-                        borderLeft:   '2px solid rgba(255,255,255,0.12)',
-                        borderBottom: '2px solid rgba(0,0,0,0.5)',
-                        borderRight:  '2px solid rgba(0,0,0,0.5)',
-                        borderRadius: 0,
-                      }}
-                      onMouseEnter={e => { (e.currentTarget).style.background = '#1e1e35'; }}
-                      onMouseLeave={e => { (e.currentTarget).style.background = '#12121f'; }}
-                    >
-                      Заполнить →
-                    </button>
                   </div>
                 );
               })}
@@ -366,7 +357,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         {/* ===== HISTORY TAB ===== */}
         {tab === 'history' && (
           <div>
-            <p className="font-pixel mb-5" style={{ fontSize: '0.55rem', color: 'rgba(232,232,208,0.6)', lineHeight: 1.8 }}>
+            <p className="font-montserrat font-semibold mb-4" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
               История проверок команды
             </p>
 
@@ -425,7 +416,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                   onChange={e => setFilterFrom(e.target.value)}
                   aria-label="Дата проверки от"
                 />
-                <span className="text-pixel/40 text-xs">—</span>
+                <span className="text-xs" style={{ color: TEXT_MUTED }}>—</span>
                 <input
                   type="date"
                   className="pixel-input text-xs flex-1"
@@ -451,16 +442,16 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                   onClick={loadSubmissions}
                   disabled={subsLoading}
                   aria-label="Применить фильтры поиска"
-                  className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer shrink-0 flex-1 disabled:opacity-50 disabled:cursor-default"
+                  className="btn-primary px-3 py-1 text-xs font-geist cursor-pointer shrink-0 flex-1 disabled:opacity-50 disabled:cursor-default"
                 >
                   Применить
                 </button>
                 {isLead && (
                   <button
                     onClick={() => setShowExport(true)}
-                    className="btn-secondary px-3 py-1 text-xs font-sans cursor-pointer shrink-0"
+                    className="btn-secondary px-3 py-1 text-xs font-geist cursor-pointer shrink-0 flex items-center gap-1.5"
                   >
-                    ⬇ Экспорт
+                    <Icon name="floppy" size={14} color="currentColor" /> Экспорт
                   </button>
                 )}
               </div>
@@ -472,7 +463,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 <button
                   onClick={loadMoreSubmissions}
                   disabled={subsLoadingMore}
-                  className="btn-secondary px-4 py-2 text-xs font-sans cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-secondary px-4 py-2 text-xs font-geist cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {subsLoadingMore ? 'Загрузка...' : 'Загрузить ещё'}
                 </button>
@@ -515,7 +506,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                   onChange={e => setStatsFilterFrom(e.target.value)}
                   aria-label="Отчёт: дата от"
                 />
-                <span className="text-pixel/40 text-xs">—</span>
+                <span className="text-xs" style={{ color: TEXT_MUTED }}>—</span>
                 <input
                   type="date"
                   className="pixel-input text-xs flex-1"
@@ -525,7 +516,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 />
               </div>
 
-              <button onClick={loadStats} className="btn-primary px-3 py-1 text-xs font-sans cursor-pointer">
+              <button onClick={loadStats} className="btn-primary px-3 py-1 text-xs font-geist cursor-pointer">
                 Применить
               </button>
               {(statsFilterTpl || statsFilterType || statsFilterFrom || statsFilterTo) && (
@@ -541,7 +532,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                     }
                     finally { setStatsLoading(false); }
                   }}
-                  className="btn-secondary px-3 py-1 text-xs font-sans cursor-pointer"
+                  className="btn-secondary px-3 py-1 text-xs font-geist cursor-pointer"
                 >
                   Сбросить
                 </button>
@@ -553,12 +544,12 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
             {stats && (
               <>
                 {/* Summary counts */}
-                <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                   {stats.byTemplate.map(tpl => (
-                    <div key={tpl.id} className="p-4 rounded text-center" style={{ background: '#1a1a2e', boxShadow: `2px 0 0 0 ${tpl.color}50, -2px 0 0 0 ${tpl.color}50, 0 2px 0 0 ${tpl.color}50, 0 -2px 0 0 ${tpl.color}50` }}>
-                      <p className="text-pixel/60 text-xs font-sans mb-1">{tpl.name}</p>
-                      <p className="font-pixel text-2xl" style={{ color: tpl.color, lineHeight: 1.6 }}>{tpl.submissions}</p>
-                      <p className="text-pixel/55 text-xs font-sans">проверок</p>
+                    <div key={tpl.id} className="p-4 rounded-lg text-center" style={{ background: CARD_BG, border: `1px solid ${tpl.color}50`, boxShadow: CARD_SHADOW }}>
+                      <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>{tpl.name}</p>
+                      <p className="font-montserrat font-bold" style={{ color: tpl.color, fontSize: 28, letterSpacing: TRACK_WIDE }}>{tpl.submissions}</p>
+                      <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>проверок</p>
                     </div>
                   ))}
                 </div>
@@ -577,7 +568,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                       className={`win98-tab ${statsTab === st.id ? 'win98-tab-active' : ''}`}
                     >
                       <span className="flex items-center justify-center gap-1.5">
-                        <PixelIcon name={st.icon} size={11} color="currentColor" />
+                        <Icon name={st.icon} size={14} color="currentColor" />
                         {st.label}
                       </span>
                     </button>
@@ -586,20 +577,20 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
 
                 {statsTab === 'fails' && (
                   <div className="space-y-2 mb-10">
-                    {stats.topFails.length === 0 && <p className="text-pixel/55 text-sm font-sans text-center py-8">Нет данных</p>}
+                    {stats.topFails.length === 0 && <p className="font-geist text-sm text-center py-8" style={{ color: TEXT_MUTED }}>Нет данных</p>}
                     {stats.topFails.map((f, i) => (
-                      <div key={i} className="p-3 rounded flex items-center gap-4" style={{ background: '#1a1a2e', boxShadow: '2px 0 0 0 rgba(224,82,82,0.2), -2px 0 0 0 rgba(224,82,82,0.2), 0 2px 0 0 rgba(224,82,82,0.2), 0 -2px 0 0 rgba(224,82,82,0.2)' }}>
-                        <span className="font-pixel shrink-0" style={{ fontSize: '0.6rem', color: '#e05252', lineHeight: 1.8, width: 24 }}>#{i + 1}</span>
+                      <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(224,82,82,0.2)', boxShadow: CARD_SHADOW }}>
+                        <span className="font-montserrat font-bold shrink-0 text-center" style={{ fontSize: 13, color: '#e05252', width: 24 }}>#{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-pixel text-xs font-sans leading-snug">{f.item_text}</p>
-                          <div className="flex gap-2 mt-1">
-                            <span className="text-xs font-sans px-1.5 py-0.5 rounded" style={{ background: `${f.color}20`, color: f.color, fontSize: '0.6rem' }}>{f.template_name}</span>
-                            {f.category && <span className="text-xs font-sans px-1.5 py-0.5 rounded" style={{ background: `${catColor(f.category)}15`, color: catColor(f.category), fontSize: '0.6rem' }}>{f.category}</span>}
+                          <p className="font-geist text-xs leading-snug" style={{ color: TEXT_PRIMARY }}>{f.item_text}</p>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            <span className="font-geist text-xs px-1.5 py-0.5 rounded" style={{ background: `${f.color}20`, color: f.color, fontSize: 11 }}>{f.template_name}</span>
+                            {f.category && <span className="font-geist text-xs px-1.5 py-0.5 rounded" style={{ background: `${catColor(f.category)}15`, color: catColor(f.category), fontSize: 11 }}>{f.category}</span>}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="font-pixel" style={{ color: '#e05252', fontSize: '0.65rem', lineHeight: 1.8 }}>{f.fail_count}✗</p>
-                          <p className="text-pixel/55 text-xs font-sans">из {f.total_checks}</p>
+                          <p className="font-montserrat font-bold" style={{ color: '#e05252', fontSize: 15 }}>{f.fail_count}✗</p>
+                          <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>из {f.total_checks}</p>
                         </div>
                       </div>
                     ))}
@@ -608,21 +599,21 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
 
                 {statsTab === 'testers' && (
                   <div className="space-y-2 mb-10">
-                    {stats.byTester.length === 0 && <p className="text-pixel/55 text-sm font-sans text-center py-8">Нет данных</p>}
+                    {stats.byTester.length === 0 && <p className="font-geist text-sm text-center py-8" style={{ color: TEXT_MUTED }}>Нет данных</p>}
                     {stats.byTester.map((t, i) => (
-                      <div key={i} className="p-3 rounded flex items-center gap-4" style={{ background: '#1a1a2e', boxShadow: '2px 0 0 0 rgba(29,158,117,0.2), -2px 0 0 0 rgba(29,158,117,0.2), 0 2px 0 0 rgba(29,158,117,0.2), 0 -2px 0 0 rgba(29,158,117,0.2)' }}>
-                        <div className="w-8 h-8 rounded flex items-center justify-center font-pixel text-xs shrink-0" style={{ background: '#1D9E75', color: '#0f0f1a' }}>{t.avatar_initials}</div>
+                      <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(102, 252, 241,0.2)', boxShadow: CARD_SHADOW }}>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-geist font-semibold text-xs shrink-0" style={{ background: ACCENT, color: PAGE_BG }}>{t.avatar_initials}</div>
                         <div className="flex-1">
-                          <p className="text-pixel text-sm font-sans font-semibold">{t.tester_name}</p>
+                          <p className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{t.tester_name}</p>
                         </div>
                         <div className="flex gap-6 text-right">
                           <div>
-                            <p className="font-pixel" style={{ color: '#1D9E75', fontSize: '0.9rem', lineHeight: 1.6 }}>{t.submissions}</p>
-                            <p className="text-pixel/55 text-xs font-sans">проверок</p>
+                            <p className="font-montserrat font-bold" style={{ color: ACCENT, fontSize: 15 }}>{t.submissions}</p>
+                            <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>проверок</p>
                           </div>
                           <div>
-                            <p className="font-pixel" style={{ color: '#e05252', fontSize: '0.9rem', lineHeight: 1.6 }}>{t.bugs_found}</p>
-                            <p className="text-pixel/55 text-xs font-sans">ошибок</p>
+                            <p className="font-montserrat font-bold" style={{ color: '#e05252', fontSize: 15 }}>{t.bugs_found}</p>
+                            <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>ошибок</p>
                           </div>
                         </div>
                       </div>
@@ -633,24 +624,24 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                 {(statsTab === 'content' || statsTab === 'verska') && (
                   <div className="space-y-2 mb-10">
                     {(statsTab === 'content' ? stats.byContentAuthor : stats.byVerskaAuthor).length === 0
-                      ? <p className="text-pixel/55 text-sm font-sans text-center py-8">Нет данных</p>
+                      ? <p className="font-geist text-sm text-center py-8" style={{ color: TEXT_MUTED }}>Нет данных</p>
                       : (statsTab === 'content' ? stats.byContentAuthor : stats.byVerskaAuthor).map((a, i) => {
                         const name = 'content_author' in a ? (a as any).content_author : (a as any).verska_author;
                         return (
-                          <div key={i} className="p-3 rounded flex items-center gap-4" style={{ background: '#1a1a2e', boxShadow: '2px 0 0 0 rgba(127,119,221,0.2), -2px 0 0 0 rgba(127,119,221,0.2), 0 2px 0 0 rgba(127,119,221,0.2), 0 -2px 0 0 rgba(127,119,221,0.2)' }}>
-                            <div className="w-8 h-8 rounded flex items-center justify-center font-pixel text-xs shrink-0" style={{ background: '#7F77DD', color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</div>
+                          <div key={i} className="p-3 rounded-lg flex items-center gap-4" style={{ background: CARD_BG, border: '1px solid rgba(127,119,221,0.2)', boxShadow: CARD_SHADOW }}>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center font-geist font-semibold text-xs shrink-0" style={{ background: '#7F77DD', color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</div>
                             <div className="flex-1">
-                              <p className="text-pixel text-sm font-sans font-semibold">{name}</p>
-                              <p className="text-pixel/55 text-xs font-sans">{statsTab === 'content' ? 'Контентщик' : 'Верстальщик'}</p>
+                              <p className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{name}</p>
+                              <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{statsTab === 'content' ? 'Контентщик' : 'Верстальщик'}</p>
                             </div>
                             <div className="flex gap-6 text-right">
                               <div>
-                                <p className="font-pixel" style={{ color: '#7F77DD', fontSize: '0.9rem', lineHeight: 1.6 }}>{a.submissions}</p>
-                                <p className="text-pixel/55 text-xs font-sans">задач</p>
+                                <p className="font-montserrat font-bold" style={{ color: '#7F77DD', fontSize: 15 }}>{a.submissions}</p>
+                                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>задач</p>
                               </div>
                               <div>
-                                <p className="font-pixel" style={{ color: '#e05252', fontSize: '0.9rem', lineHeight: 1.6 }}>{a.bugs_found}</p>
-                                <p className="text-pixel/55 text-xs font-sans">ошибок</p>
+                                <p className="font-montserrat font-bold" style={{ color: '#e05252', fontSize: 15 }}>{a.bugs_found}</p>
+                                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>ошибок</p>
                               </div>
                             </div>
                           </div>

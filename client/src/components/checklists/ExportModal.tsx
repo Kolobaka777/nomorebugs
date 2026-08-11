@@ -4,6 +4,9 @@ import { useEscapeKey } from '../../utils/a11y';
 import { parseServerDate } from '../../utils/date';
 import { EXPORT_COLUMNS } from './types';
 import type { Submission } from './types';
+import Modal from '../Modal';
+import Icon from '../Icon';
+import { ACCENT, PAGE_BG, TEXT_MUTED } from '../../utils/theme';
 
 // Exports the currently-filtered submission list (not just the visible
 // page) to Excel — loops through every page via the existing paginated
@@ -30,11 +33,12 @@ export default function ExportModal({ filters, onClose }: { filters: Record<stri
       const rows: Submission[] = [];
       let offset = 0;
       let hasMore = true;
+      const EXPORT_PAGE_SIZE = 500;
       while (hasMore) {
-        const res = await checklistApi.getSubmissions({ ...filters, offset } as any);
+        const res = await checklistApi.getSubmissions({ ...filters, offset, limit: EXPORT_PAGE_SIZE } as any);
         rows.push(...res.data.rows);
         hasMore = res.data.hasMore;
-        offset += 50;
+        offset += EXPORT_PAGE_SIZE;
         if (offset > 5000) break; // sane upper bound, not a silent truncation in practice
       }
 
@@ -77,35 +81,26 @@ export default function ExportModal({ filters, onClose }: { filters: Record<stri
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
-      style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded p-6" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>Экспорт отчёта</p>
-          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
-        </div>
-        <p className="text-pixel/50 text-xs font-sans mb-3">Экспортируются записи с учётом применённых фильтров истории. Выберите колонки:</p>
+    <Modal title="Экспорт отчёта" onClose={onClose} maxWidth={448}>
+        <p className="font-geist text-xs mb-3" style={{ color: TEXT_MUTED }}>Экспортируются записи с учётом применённых фильтров истории. Выберите колонки:</p>
         <div className="space-y-1.5 mb-4">
           {EXPORT_COLUMNS.map(c => (
-            <label key={c.key} className="flex items-center gap-2 text-xs font-sans cursor-pointer" style={{ color: 'rgba(232,232,208,0.75)' }}>
+            <label key={c.key} className="flex items-center gap-2 text-xs font-geist cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
               <input type="checkbox" checked={selected.has(c.key)} onChange={() => toggle(c.key)} />
               {c.label}
             </label>
           ))}
         </div>
-        {error && <p className="text-xs font-sans mb-3" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="text-xs font-geist mb-3" style={{ color: '#e05252' }}>{error}</p>}
         <button
           onClick={runExport}
           disabled={exporting}
-          className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
-          style={{ background: '#1D9E75', color: '#0f0f1a' }}
+          className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50 transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+          style={{ background: ACCENT, color: PAGE_BG }}
         >
-          {exporting ? 'Формирую...' : '⬇ Скачать Excel'}
+          <Icon name="floppy" size={16} color="currentColor" />
+          {exporting ? 'Формирую...' : 'Скачать Excel'}
         </button>
-      </div>
-    </div>
+    </Modal>
   );
 }

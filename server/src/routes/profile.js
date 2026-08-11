@@ -256,8 +256,12 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
     if (db.prepare('SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?').get(userId, skill_area))
       return res.status(400).json({ error: 'Значок уже скрафчен' });
 
-    db.prepare('INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)').run(userId, skill_area);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(userId, `crafted_badge:${skill_area}`);
+    // Both writes must land together — a crash between them would otherwise
+    // leave the badge crafted with no matching activity_log record of it.
+    db.transaction(() => {
+      db.prepare('INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)').run(userId, skill_area);
+      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(userId, `crafted_badge:${skill_area}`);
+    })();
 
     const unlocks = BADGE_UNLOCKS[skill_area] || { frame: 'gold', bg: 'forest', spec: '' };
     res.json({ success: true, badge_id: skill_area, unlocks });

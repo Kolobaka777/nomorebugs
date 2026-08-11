@@ -95,6 +95,12 @@ export function hardDeleteCourse(courseId) {
     // action) hit a foreign-key-constraint failure here, rolling back the
     // whole transaction and leaving it permanently un-purgeable from trash.
     db.prepare('DELETE FROM course_deadline_overrides WHERE course_id = ?').run(courseId);
+    // Was also missing — course_time_tracking has no FK on course_id (see
+    // schema.js), so nothing enforced this cleanup; without it, every course
+    // that ever had a tester's time logged against it left permanently
+    // orphaned rows behind (no FK violation to surface the bug, just silent
+    // orphans accumulating with no course to belong to).
+    db.prepare('DELETE FROM course_time_tracking WHERE course_id = ?').run(courseId);
     db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
   })();
 }

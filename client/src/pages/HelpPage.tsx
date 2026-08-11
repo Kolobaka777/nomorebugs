@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Navigation from '../components/Navigation';
-import PixelIcon, { IconName } from '../components/PixelIcon';
+import Icon, { IconName } from '../components/Icon';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -33,11 +34,6 @@ const TESTER_FAQ: FaqItem[] = [
     icon: 'card',
     q: 'Что такое баг-коины и Багодельня?',
     a: 'Баг-коины начисляются за сдачу тестов. В «Багодельне» на них можно купить косметику для профиля — рамки аватара, фон и т.д. Это никак не влияет на прогресс обучения.',
-  },
-  {
-    icon: 'lightning',
-    q: 'Что такое «серия дней» (стрик)?',
-    a: 'Считаются только дни с реальным прогрессом — пройденная лекция, чек-лист или урок. Просто зайти в приложение не считается.',
   },
   {
     icon: 'lock',
@@ -81,18 +77,23 @@ function FaqSection({ items }: { items: FaqItem[] }) {
       {items.map((item, i) => {
         const open = openIdx === i;
         return (
-          <div key={i} className="rounded overflow-hidden" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.08)' }}>
+          <div key={i} className="rounded-lg overflow-hidden" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
             <button
               onClick={() => setOpenIdx(open ? null : i)}
               aria-expanded={open}
               className="w-full flex items-center gap-3 px-4 py-3 text-left cursor-pointer"
             >
-              <PixelIcon name={item.icon} size={14} color="#1D9E75" />
-              <span className="flex-1 font-sans text-sm font-semibold" style={{ color: '#e8e8d0' }}>{item.q}</span>
-              <span className="font-sans text-xs" style={{ color: 'rgba(232,232,208,0.6)', transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>›</span>
+              <Icon name={item.icon} size={22} color={ACCENT} />
+              <span className="flex-1 font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{item.q}</span>
+              <Icon
+                name="chevronRight"
+                size={22}
+                color={TEXT_MUTED}
+                style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}
+              />
             </button>
             {open && (
-              <p className="px-4 pb-4 font-sans text-sm leading-relaxed" style={{ color: 'rgba(232,232,208,0.65)' }}>
+              <p className="px-4 pb-4 font-geist text-sm leading-relaxed" style={{ color: TEXT_MUTED }}>
                 {item.a}
               </p>
             )}
@@ -107,14 +108,14 @@ export default function HelpPage({ user, onLogout }: Props) {
   const faq = user.role === 'lead' ? LEAD_FAQ : TESTER_FAQ;
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-8">
-          <h1 className="font-pixel text-primary mb-2" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-            <span className="flex items-center gap-2"><PixelIcon name="lightbulb" size={14} color="#1D9E75" /> Помощь</span>
+          <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <Icon name="lightbulb" size={22} color={ACCENT} /> Помощь
           </h1>
-          <p className="text-pixel/60 text-sm font-sans">Частые вопросы о том, как всё устроено</p>
+          <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Частые вопросы о том, как всё устроено</p>
         </div>
         <FaqSection items={faq} />
       </div>

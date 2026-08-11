@@ -126,7 +126,7 @@ router.get('/api/admin/trash', authMiddleware, requireRole('admin'), (req, res) 
 router.post('/api/admin/trash/:type/:id/restore', authMiddleware, requireRole('admin'), (req, res) => {
   try {
     const { type, id } = req.params;
-    if (!TRASH_TABLES[type]) return res.status(400).json({ error: 'Неизвестный тип' });
+    if (!Object.prototype.hasOwnProperty.call(TRASH_TABLES, type)) return res.status(400).json({ error: 'Неизвестный тип' });
     db.prepare(`UPDATE ${type} SET deleted_at = NULL WHERE id = ?`).run(id);
     res.json({ ok: true });
   } catch (err) {
@@ -138,7 +138,7 @@ router.post('/api/admin/trash/:type/:id/restore', authMiddleware, requireRole('a
 router.delete('/api/admin/trash/:type/:id', authMiddleware, requireRole('admin'), (req, res) => {
   try {
     const { type, id } = req.params;
-    if (!TRASH_TABLES[type]) return res.status(400).json({ error: 'Неизвестный тип' });
+    if (!Object.prototype.hasOwnProperty.call(TRASH_TABLES, type)) return res.status(400).json({ error: 'Неизвестный тип' });
     if (type === 'custom_courses') {
       hardDeleteCourse(parseInt(id, 10));
     } else if (type === 'suggestions') {

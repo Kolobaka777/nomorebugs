@@ -44,8 +44,8 @@ export const authApi = {
     return { data: { token, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
   },
 
-  register: async (email: string, password: string, name: string, gender: 'male' | 'female' | null = null) => {
-    const res = await api.post('/auth/register', { email, password, name, gender });
+  register: async (email: string, password: string, name: string, gender: 'male' | 'female' | null = null, birthday: string | null = null) => {
+    const res = await api.post('/auth/register', { email, password, name, gender, birthday });
     const { token, user, needsBaselineSurvey } = res.data;
     return { data: { token, user, needsBaselineSurvey, mustChangePassword: false } };
   },

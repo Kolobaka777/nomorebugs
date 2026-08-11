@@ -39,9 +39,9 @@ router.get('/api/tester/metrics', authMiddleware, (req, res) => {
       FROM baseline_survey WHERE user_id = ?
     `).get(userId);
 
-    const currentSkills = db.prepare(`
-      SELECT AVG(score) as avg FROM test_results WHERE user_id = ?
-    `).get(userId);
+    // currentSkills is the same average-test-score value as avgScore above —
+    // reuse it instead of running the identical query twice.
+    const currentSkills = avgScore;
 
     // Both sides normalized to a 0-100 scale: baseline is a 1-5 self-rating (x20),
     // current is the average test score (already 0-100).
@@ -156,17 +156,36 @@ router.get('/api/tester/before-after', authMiddleware, (req, res) => {
 
 // ============== GLOBAL STATS ==============
 
+// These 5 COUNT/AVG queries run over the whole table on every homepage load
+// but change slowly — a simple in-process cache keeps that off the hot path
+// without pulling in an external cache library for one endpoint.
+const STATS_CACHE_MS = 60 * 1000;
+let statsCache = { data: null, expiresAt: 0 };
+
 router.get('/api/stats', (req, res) => {
   try {
+    if (statsCache.data && Date.now() < statsCache.expiresAt) {
+      return res.json(statsCache.data);
+    }
+
     const courses = db.prepare('SELECT COUNT(*) as count FROM lectures').get();
     const testers = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'tester'").get();
     const bugsCaught = db.prepare('SELECT COUNT(*) as count FROM test_results WHERE score >= 60').get();
+    const avgScore = db.prepare('SELECT AVG(score) as avg FROM test_results').get();
+    const checklistsCompleted = db.prepare('SELECT COUNT(*) as count FROM checklist_submissions').get();
 
-    res.json({
+    const data = {
       courses: courses?.count || 0,
       testers: testers?.count || 0,
       bugsCaught: bugsCaught?.count || 0,
-    });
+      // Homepage's "Балл" stat card — global average test score, rescaled
+      // from the 0-100 DB range to the /5 the design shows (e.g. "4.7").
+      avgScore: Math.round(((avgScore?.avg || 0) / 100) * 5 * 10) / 10,
+      checklistsCompleted: checklistsCompleted?.count || 0,
+    };
+
+    statsCache = { data, expiresAt: Date.now() + STATS_CACHE_MS };
+    res.json(data);
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });
@@ -250,6 +269,13 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
       SELECT id, correct_answer, question_text, option_a, option_b, option_c, option_d
       FROM questions WHERE lecture_id = ? ORDER BY order_num
     `).all(lectureId);
+
+    // A lecture with no questions (shouldn't normally happen, but nothing
+    // else here guarantees it) would otherwise divide by zero below and
+    // silently produce a NaN score.
+    if (questions.length === 0) {
+      return res.status(400).json({ error: 'У этой лекции нет вопросов' });
+    }
 
     let score = 0;
     const answersMap = {};
@@ -396,23 +422,34 @@ router.post('/api/tester/shop/buy', authMiddleware, (req, res) => {
     if (!item) return res.status(400).json({ error: 'Неизвестный товар' });
 
     const userId = req.user.id;
-    const row = db.prepare('SELECT bug_coins, purchased_items FROM user_profiles WHERE user_id = ?').get(userId) || {};
-    const coins     = row.bug_coins || 0;
-    const purchased = JSON.parse(row.purchased_items || '[]');
 
-    if (purchased.includes(item_id)) return res.status(400).json({ error: 'Уже куплено' });
-    if (coins < item.cost) return res.status(400).json({ error: `Недостаточно монет (нужно ${item.cost})` });
+    // Read-check-write on bug_coins — wrapped so two concurrent purchases
+    // can't both read the same starting balance and each independently
+    // decide they can afford it (better-sqlite3 transactions are
+    // synchronous, so this makes the whole read-check-write atomic).
+    const result = db.transaction(() => {
+      const row = db.prepare('SELECT bug_coins, purchased_items FROM user_profiles WHERE user_id = ?').get(userId) || {};
+      const coins     = row.bug_coins || 0;
+      const purchased = JSON.parse(row.purchased_items || '[]');
 
-    const newCoins     = coins - item.cost;
-    const newPurchased = JSON.stringify([...purchased, item_id]);
+      if (purchased.includes(item_id)) return { error: 'Уже куплено' };
+      if (coins < item.cost) return { error: `Недостаточно монет (нужно ${item.cost})` };
 
-    db.prepare(`
-      INSERT INTO user_profiles (user_id, bug_coins, purchased_items)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET bug_coins = ?, purchased_items = ?
-    `).run(userId, newCoins, newPurchased, newCoins, newPurchased);
+      const newCoins     = coins - item.cost;
+      const newPurchased = JSON.stringify([...purchased, item_id]);
 
-    res.json({ success: true, newCoins, item_id });
+      db.prepare(`
+        INSERT INTO user_profiles (user_id, bug_coins, purchased_items)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET bug_coins = ?, purchased_items = ?
+      `).run(userId, newCoins, newPurchased, newCoins, newPurchased);
+
+      return { newCoins };
+    })();
+
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    res.json({ success: true, newCoins: result.newCoins, item_id });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

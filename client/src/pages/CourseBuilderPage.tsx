@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
+import {
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
+} from '../utils/theme';
 
 interface Props {
   user: any;
@@ -23,7 +26,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     title: '',
     description: '',
     tag: 'Custom',
-    color: '#1D9E75',
+    color: '#66FCF1',
     requirements: '',
     deadline_at: '',
     modules: [emptyModule()],
@@ -49,7 +52,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           title: data.title,
           description: data.description || '',
           tag: data.tag || 'Custom',
-          color: data.color || '#1D9E75',
+          color: data.color || '#66FCF1',
           requirements: data.requirements || '',
           deadline_at: data.deadline_at ? String(data.deadline_at).slice(0, 10) : '',
           modules: (data.modules || []).map((m: any) => ({
@@ -165,7 +168,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
   if (loadingEdit) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -173,7 +176,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-4xl mx-auto px-6 pt-16 pb-8 fade-in">
@@ -181,18 +184,17 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => navigate('/zhukademia')}
-            className="font-sans text-sm transition-colors"
-            style={{ color: 'rgba(232,232,208,0.6)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#e8e8d0')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(232,232,208,0.35)')}
+            className="font-geist text-sm transition-colors cursor-pointer flex items-center gap-1"
+            style={{ color: 'rgba(197, 198, 199, 0.6)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199, 0.6)')}
           >
-            ← Назад
+            <Icon name="chevronLeft" size={18} color="currentColor" />
+            Назад
           </button>
-          <h1 className="font-pixel text-pixel" style={{ fontSize: '0.7rem', lineHeight: 2 }}>
-            <span className="flex items-center gap-2">
-              <PixelIcon name={isEdit ? 'pencil' : 'sparkle'} size={13} color="currentColor" />
-              {isEdit ? 'Редактировать курс' : 'Новый курс'}
-            </span>
+          <h1 className="font-montserrat font-bold flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <Icon name={isEdit ? 'pencil' : 'sparkle'} size={22} color={ACCENT} />
+            {isEdit ? 'Редактировать курс' : 'Новый курс'}
           </h1>
         </div>
 
@@ -201,32 +203,31 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           <div className="lg:col-span-1 space-y-4">
             <div
               className="rounded-lg p-5"
-              style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.07)' }}
+              style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}
             >
-              <p className="font-pixel text-pixel/60 mb-4" style={{ fontSize: '0.55rem', lineHeight: 2 }}>
+              <p className="font-montserrat font-semibold mb-4" style={{ fontSize: 13, color: ACCENT, letterSpacing: TRACK_WIDE }}>
                 Основная информация
               </p>
 
               {/* Title */}
               <div className="mb-4">
-                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Название курса *</label>
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Название курса *</label>
                 <input
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Напр.: Тестирование API для начинающих"
-                  className="w-full rounded px-3 py-2 font-sans text-sm outline-none"
-                  style={{ background: '#0f0f1a', color: '#e8e8d0', border: `1px solid ${form.title ? color + '50' : 'rgba(232,232,208,0.1)'}` }}
+                  className="pixel-input text-sm"
+                  style={{ borderColor: form.title ? color + '50' : undefined }}
                 />
               </div>
 
               {/* Tag */}
               <div className="mb-4">
-                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Тег</label>
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Тег</label>
                 <select
                   value={form.tag}
                   onChange={e => setForm(f => ({ ...f, tag: e.target.value }))}
-                  className="w-full rounded px-3 py-2 font-sans text-sm outline-none"
-                  style={{ background: '#0f0f1a', color: '#e8e8d0', border: '1px solid rgba(232,232,208,0.1)' }}
+                  className="pixel-input text-sm"
                 >
                   {TAGS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -234,17 +235,17 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
               {/* Color */}
               <div className="mb-4">
-                <label className="font-sans text-xs text-pixel/60 block mb-2">Цвет карточки</label>
+                <label className="font-geist text-xs block mb-2" style={{ color: TEXT_MUTED }}>Цвет карточки</label>
                 <div className="flex gap-2 flex-wrap">
                   {PRESET_COLORS.map(c => (
                     <button
                       key={c.value}
                       onClick={() => setForm(f => ({ ...f, color: c.value }))}
                       title={c.name}
-                      className="w-7 h-7 rounded-full transition-transform hover:scale-110"
+                      className="w-7 h-7 rounded-full transition-transform hover:scale-110 cursor-pointer"
                       style={{
                         background: c.value,
-                        boxShadow: form.color === c.value ? `0 0 0 2px #0f0f1a, 0 0 0 4px ${c.value}` : 'none',
+                        boxShadow: form.color === c.value ? `0 0 0 2px ${PAGE_BG}, 0 0 0 4px ${c.value}` : 'none',
                       }}
                     />
                   ))}
@@ -253,41 +254,41 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
               {/* Description */}
               <div className="mb-4">
-                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Описание</label>
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Описание</label>
                 <textarea
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Что студент узнает из этого курса?"
                   rows={4}
-                  className="w-full rounded px-3 py-2 font-sans text-xs resize-none outline-none"
-                  style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.75)', border: '1px solid rgba(232,232,208,0.1)', lineHeight: 1.7 }}
+                  className="pixel-input text-xs resize-none"
+                  style={{ lineHeight: 1.7 }}
                 />
               </div>
 
               {/* Requirements */}
               <div>
-                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Требования / аудитория</label>
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Требования / аудитория</label>
                 <textarea
                   value={form.requirements}
                   onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
                   placeholder="Подходит для новичков, не нужен опыт..."
                   rows={3}
-                  className="w-full rounded px-3 py-2 font-sans text-xs resize-none outline-none"
-                  style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.75)', border: '1px solid rgba(232,232,208,0.1)', lineHeight: 1.7 }}
+                  className="pixel-input text-xs resize-none"
+                  style={{ lineHeight: 1.7 }}
                 />
               </div>
 
               {/* Deadline */}
               <div className="mt-4">
-                <label className="font-sans text-xs text-pixel/60 block mb-1.5">Дедлайн прохождения (необязательно)</label>
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Дедлайн прохождения (необязательно)</label>
                 <input
                   type="date"
                   value={form.deadline_at}
                   onChange={e => setForm(f => ({ ...f, deadline_at: e.target.value }))}
-                  className="rounded px-3 py-2 font-sans text-xs outline-none"
-                  style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.75)', border: '1px solid rgba(232,232,208,0.1)' }}
+                  className="pixel-input text-xs"
+                  style={{ width: 'auto' }}
                 />
-                <p className="text-pixel/45 text-xs font-sans mt-1">Для отдельных сотрудников дедлайн можно продлить на странице курса.</p>
+                <p className="text-xs font-geist mt-1" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>Для отдельных сотрудников дедлайн можно продлить на странице курса.</p>
               </div>
             </div>
 
@@ -295,12 +296,13 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
             <div
               className="rounded-lg overflow-hidden"
               style={{
-                background: '#141424',
-                boxShadow: `2px 0 0 0 ${color}, -2px 0 0 0 ${color}, 0 2px 0 0 ${color}, 0 -2px 0 0 ${color}`,
+                background: CARD_BG,
+                border: `1px solid ${color}`,
+                boxShadow: CARD_SHADOW,
               }}
             >
-              <div className="h-16 flex items-center justify-center text-2xl" style={{ background: `${color}12` }}>
-                <PixelIcon name={
+              <div className="h-16 flex items-center justify-center" style={{ background: `${color}12` }}>
+                <Icon name={
                   form.tag === 'HTML' ? 'globe' :
                   form.tag === 'CSS' ? 'palette' :
                   form.tag === 'DevTools' ? 'microscope' :
@@ -309,14 +311,14 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 } size={28} color={color} />
               </div>
               <div className="p-3">
-                <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ background: `${color}20`, color }}>
+                <span className="text-xs font-geist font-semibold px-1.5 py-0.5 rounded" style={{ background: `${color}20`, color }}>
                   {form.tag}
                 </span>
-                <p className="font-sans font-semibold text-xs mt-2 text-pixel leading-snug">
+                <p className="font-geist font-semibold text-xs mt-2 leading-snug" style={{ color: TEXT_PRIMARY }}>
                   {form.title || 'Название курса'}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
-                  <span className="text-xs font-sans font-bold px-1.5 py-0.5 rounded" style={{ background: '#EF9F27', color: '#0f0f1a' }}>NEW</span>
+                  <span className="text-xs font-geist font-bold px-1.5 py-0.5 rounded" style={{ background: '#EF9F27', color: PAGE_BG }}>NEW</span>
                 </div>
               </div>
             </div>
@@ -325,10 +327,10 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           {/* ─── RIGHT: Structure builder ─── */}
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
-              <p className="font-pixel text-pixel/60" style={{ fontSize: '0.55rem', lineHeight: 2 }}>
+              <p className="font-montserrat font-semibold" style={{ fontSize: 13, color: ACCENT, letterSpacing: TRACK_WIDE }}>
                 Структура курса
               </p>
-              <span className="font-sans text-xs text-pixel/55">
+              <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>
                 {form.modules.length} модул{form.modules.length === 1 ? 'ь' : 'я'}
               </span>
             </div>
@@ -347,17 +349,18 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
             <button
               onClick={addModule}
-              className="w-full py-3 rounded font-sans text-sm transition-all mb-6"
-              style={{ background: 'rgba(232,232,208,0.04)', color: 'rgba(232,232,208,0.6)', border: '1px dashed rgba(232,232,208,0.12)' }}
+              className="w-full py-3 rounded-lg font-geist text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 mb-6"
+              style={{ background: 'rgba(197, 198, 199, 0.04)', color: 'rgba(197, 198, 199, 0.6)', border: '1px dashed rgba(197, 198, 199, 0.2)' }}
             >
-              + Добавить модуль
+              <Icon name="sparkle" size={14} color="currentColor" />
+              Добавить модуль
             </button>
 
             {/* Error */}
             {error && (
               <div
-                className="rounded p-3 mb-4 font-sans text-sm text-center"
-                style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252', border: '1px solid rgba(224,82,82,0.2)' }}
+                className="rounded-lg p-3 mb-4 font-geist text-sm text-center"
+                style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252', border: '1px solid rgba(224,82,82,0.4)' }}
               >
                 {error}
               </div>
@@ -368,18 +371,18 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               <button
                 onClick={() => save(false)}
                 disabled={saving}
-                className="flex-1 py-3 rounded font-sans font-semibold text-sm transition-all"
-                style={{ background: 'rgba(232,232,208,0.07)', color: 'rgba(232,232,208,0.6)' }}
+                className="flex-1 py-3 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
+                style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.6)' }}
               >
-                {saving ? 'Сохраняю...' : <span className="flex items-center justify-center gap-2"><PixelIcon name="floppy" size={13} color="currentColor" />Сохранить черновик</span>}
+                {saving ? 'Сохраняю...' : <span className="flex items-center justify-center gap-2"><Icon name="floppy" size={16} color="currentColor" />Сохранить черновик</span>}
               </button>
               <button
                 onClick={() => save(true)}
                 disabled={saving}
-                className="flex-1 py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5"
-                style={{ background: color, color: '#0f0f1a', boxShadow: saving ? 'none' : `0 4px 0 0 ${color}50` }}
+                className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
+                style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
               >
-                {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><PixelIcon name="rocket" size={13} color="currentColor" />Опубликовать</span>}
+                {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />Опубликовать</span>}
               </button>
             </div>
           </div>

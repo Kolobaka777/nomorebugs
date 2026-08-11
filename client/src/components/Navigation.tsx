@@ -1,10 +1,17 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import PixelIcon from './PixelIcon';
+import Icon from './Icon';
+import PixelAvatar from './PixelAvatar';
 import TelegramLinkWidget from './TelegramLinkWidget';
 import ChangePasswordModal from './ChangePasswordModal';
 import { ROLE_META } from '../utils/roles';
 import { computeInitials } from '../utils/initials';
+import { usersApi } from '../api';
+import logoUrl from '../assets/logo.svg';
+import {
+  ACCENT, TEXT_PRIMARY, TRACK_WIDE,
+  HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER,
+} from '../utils/theme';
 
 interface NavigationProps {
   user: any;
@@ -17,6 +24,20 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  // Own equipped avatar for the nav-bar button — avatar_id/frame/custom_avatar
+  // live on the per-page profile record, not the top-level `user` passed in
+  // here, so it's fetched once via the same role-agnostic route
+  // PublicProfilePage uses (self-view always returns the full shape).
+  // Silent-fails to the initials circle below if it doesn't load.
+  const [avatarProfile, setAvatarProfile] = useState<{ avatar_id: string; avatar_frame: string; custom_avatar: string | null } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    usersApi.getProfile(user.id)
+      .then((r: any) => { if (!cancelled) setAvatarProfile(r.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user.id]);
 
   // Testers get their full gamified /cabinet; lead/admin get the dedicated
   // /profile page (see ProfilePage.tsx), which also hosts the same
@@ -30,7 +51,8 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/', label: 'Главная', tourId: 'nav-home' },
     { path: '/news', label: 'Новости', tourId: 'nav-news' },
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
-    { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
+    // Чеклисты — temporarily pulled from the nav, still being reworked.
+    // { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
@@ -42,7 +64,8 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/news', label: 'Новости', tourId: 'nav-news' },
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
     { path: '/dashboard', label: 'Команда', tourId: 'nav-team' },
-    { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
+    // Чеклисты — temporarily pulled from the nav, still being reworked.
+    // { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
     { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
@@ -72,19 +95,29 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   return (
     <header
       className="sticky top-0 z-50"
-      style={{ background: '#1a1a2e', borderBottom: '2px solid #1D9E75' }}
+      style={{
+        height: 80,
+        background: HEADER_BG,
+        boxShadow: HEADER_SHADOW,
+        backdropFilter: HEADER_BLUR,
+        WebkitBackdropFilter: HEADER_BLUR,
+      }}
     >
-      <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
+      {/* Full-bleed glass bar — the frosted fill spans the whole viewport
+          width edge to edge (per the full-canvas Figma screenshot: no side
+          margins, no visible rounding); only the row of content inside it
+          is capped at 1280px and centered, same as the page below. */}
+      <div className="max-w-[1280px] mx-auto h-full flex justify-between items-center gap-4" style={{ padding: '0 24px' }}>
         {/* Logo */}
         <button
           onClick={() => navigate('/')}
-          className="font-pixel text-primary text-xs pixel-pulse shrink-0"
-          style={{ letterSpacing: '0.05em' }}
+          className="flex items-center shrink-0 cursor-pointer"
         >
-          baga-net
+          <img src={logoUrl} alt="baganet" style={{ height: 46, width: 'auto' }} />
         </button>
 
-        {/* Nav links */}
+        {/* Nav links — Geist 16px, active tab gets a bordered box (8px
+            radius) instead of a filled/pill background (matches Figma). */}
         <nav className="flex gap-1 flex-wrap">
           {links.map(link => {
             const isActive = location.pathname === link.path;
@@ -93,7 +126,14 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 key={link.path}
                 data-tour={link.tourId}
                 onClick={() => navigate(link.path)}
-                className={`nav-link ${isActive ? 'active' : ''}`}
+                className="font-geist text-base px-2 py-1.5 rounded-lg transition-all duration-150 cursor-pointer"
+                style={{
+                  // Border stays the accent color; the label itself goes
+                  // white on the active tab (kit: bordered box, white text —
+                  // was accent-on-accent, too low-contrast against the box).
+                  color: isActive ? '#FFFFFF' : TEXT_PRIMARY,
+                  border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
+                }}
               >
                 {link.label}
               </button>
@@ -101,38 +141,73 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           })}
         </nav>
 
-        {/* Avatar with dropdown */}
-        <div className="relative shrink-0" ref={menuRef}>
-          <button
-            data-tour="nav-account"
-            onClick={() => setMenuOpen(p => !p)}
-            aria-label="Меню аккаунта"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="w-8 h-8 rounded flex items-center justify-center font-pixel text-game text-xs cursor-pointer transition-all"
-            style={{
-              background: '#1D9E75',
-              ...(menuOpen ? { outline: '2px solid #EF9F27', outlineOffset: 2 } : {}),
-            }}
-          >
-            {computeInitials(user.displayName || user.name)}
-          </button>
+        {/* Name + role + avatar, with dropdown */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right hidden sm:block">
+            <p className="font-geist text-sm font-normal leading-tight" style={{ color: TEXT_PRIMARY }}>
+              {user.displayName || user.name}
+            </p>
+            <span
+              className="font-montserrat font-medium inline-block mt-0.5"
+              style={{
+                fontSize: 10,
+                lineHeight: 1.6,
+                letterSpacing: TRACK_WIDE,
+                color: '#0B0C10',
+                background: BADGE_BG,
+                border: `1px solid ${BADGE_BORDER}`,
+                borderRadius: 4,
+                padding: '2px 4px',
+              }}
+            >
+              {roleMeta.label.toUpperCase()}
+            </span>
+          </div>
+
+          <div className="relative" ref={menuRef}>
+            <button
+              data-tour="nav-account"
+              onClick={() => setMenuOpen(p => !p)}
+              aria-label="Меню аккаунта"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="rounded-full overflow-hidden flex items-center justify-center font-geist text-xs font-semibold cursor-pointer transition-all"
+              style={{
+                width: 38,
+                height: 38,
+                background: '#1F2833',
+                color: ACCENT,
+                border: `1px solid ${ACCENT}`,
+                ...(menuOpen ? { outline: '2px solid #EF9F27', outlineOffset: 2 } : {}),
+              }}
+            >
+              {avatarProfile ? (
+                <PixelAvatar
+                  id={avatarProfile.avatar_id as any}
+                  frame={avatarProfile.avatar_frame as any}
+                  customSrc={avatarProfile.custom_avatar}
+                  size={36}
+                />
+              ) : (
+                computeInitials(user.displayName || user.name)
+              )}
+            </button>
 
           {menuOpen && (
             <div
               className="absolute right-0 top-full mt-2 w-48 rounded overflow-hidden"
               style={{
-                background: '#1a1a2e',
-                border: '2px solid rgba(29,158,117,0.5)',
+                background: '#1F2833',
+                border: `2px solid ${ACCENT}80`,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                 zIndex: 100,
               }}
             >
               {/* User info header */}
-              <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(29,158,117,0.15)' }}>
+              <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(102, 252, 241,0.15)' }}>
                 <p className="text-pixel text-xs font-sans font-medium leading-tight">{user.displayName || user.name}</p>
                 <p className="text-pixel/60 text-xs font-sans leading-tight mt-0.5 flex items-center gap-1">
-                  <PixelIcon name={roleMeta.icon} size={10} color={roleMeta.color} />
+                  <Icon name={roleMeta.icon} size={10} color={roleMeta.color} />
                   {roleMeta.label}
                 </p>
               </div>
@@ -145,19 +220,19 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
               <button
                 onClick={handleProfileClick}
                 className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
-                style={{ color: 'rgba(232,232,208,0.7)' }}
-                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(29,158,117,0.08)'; (e.currentTarget).style.color = '#1D9E75'; }}
-                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(232,232,208,0.7)'; }}
+                style={{ color: 'rgba(197, 198, 199,0.7)' }}
+                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(102, 252, 241,0.08)'; (e.currentTarget).style.color = '#66FCF1'; }}
+                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(197, 198, 199,0.7)'; }}
               >
-                Мой профиль →
+                <span className="inline-flex items-center gap-1">Мой профиль <Icon name="arrowRight" size={14} color="currentColor" /></span>
               </button>
 
               <button
                 onClick={() => { setShowPasswordChange(true); setMenuOpen(false); }}
                 className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
-                style={{ color: 'rgba(232,232,208,0.7)' }}
-                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(29,158,117,0.08)'; (e.currentTarget).style.color = '#1D9E75'; }}
-                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(232,232,208,0.7)'; }}
+                style={{ color: 'rgba(197, 198, 199,0.7)' }}
+                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(102, 252, 241,0.08)'; (e.currentTarget).style.color = '#66FCF1'; }}
+                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(197, 198, 199,0.7)'; }}
               >
                 Сменить пароль
               </button>
@@ -166,14 +241,15 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
               <button
                 onClick={() => { onLogout(); setMenuOpen(false); }}
                 className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
-                style={{ color: 'rgba(232,232,208,0.6)', borderTop: '1px solid rgba(29,158,117,0.08)' }}
+                style={{ color: 'rgba(197, 198, 199,0.6)', borderTop: '1px solid rgba(102, 252, 241,0.08)' }}
                 onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(224,82,82,0.06)'; (e.currentTarget).style.color = '#e05252'; }}
-                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(232,232,208,0.45)'; }}
+                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(197, 198, 199,0.45)'; }}
               >
                 Выйти
               </button>
             </div>
           )}
+          </div>
         </div>
       </div>
 

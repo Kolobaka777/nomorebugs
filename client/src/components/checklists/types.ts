@@ -32,7 +32,7 @@ export type StatsTab = 'fails' | 'testers' | 'content' | 'verska';
 export const CATEGORY_COLORS: Record<string, string> = {
   'Критически важно!': '#e05252',
   'Визуал': '#7F77DD',
-  'Функционал': '#1D9E75',
+  'Функционал': '#66FCF1',
   'Ссылки': '#EF9F27',
   'Картинки': '#4fc3f7',
   'Пунктуация': '#ff8a65',
@@ -41,9 +41,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Комментарии': '#80deea',
   'Новые проверки': '#ffcc02',
 };
-export const catColor = (cat: string) => CATEGORY_COLORS[cat] || '#1D9E75';
+export const catColor = (cat: string) => CATEGORY_COLORS[cat] || '#66FCF1';
 
-export const MODAL_COLORS = ['#1D9E75', '#7F77DD', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
+export const MODAL_COLORS = ['#66FCF1', '#7F77DD', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
 
 export const EXPORT_COLUMNS: { key: keyof Submission; label: string }[] = [
   { key: 'tester_name', label: 'Тестировщик' },

@@ -46,7 +46,7 @@ export interface FormState {
 export const uid = () => Math.random().toString(36).slice(2);
 
 export const PRESET_COLORS = [
-  { name: 'Зелёный', value: '#1D9E75' },
+  { name: 'Зелёный', value: '#66FCF1' },
   { name: 'Фиолетовый', value: '#7F77DD' },
   { name: 'Янтарный', value: '#EF9F27' },
   { name: 'Красный', value: '#e05252' },

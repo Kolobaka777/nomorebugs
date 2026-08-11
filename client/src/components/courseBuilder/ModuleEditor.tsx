@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { clickableProps } from '../../utils/a11y';
+import Icon from '../Icon';
 import LessonEditor from './LessonEditor';
 import { emptyLesson } from './types';
 import type { BLesson, BModule } from './types';
+import { CARD_BG, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
 
 export default function ModuleEditor({
   mod,
@@ -30,7 +32,7 @@ export default function ModuleEditor({
   return (
     <div
       className="rounded-lg mb-4"
-      style={{ background: '#1a1a2e', border: `1px solid ${color}25` }}
+      style={{ background: CARD_BG, border: `1px solid ${color}25` }}
     >
       {/* Module header */}
       <div
@@ -39,7 +41,7 @@ export default function ModuleEditor({
         {...clickableProps(() => setCollapsed(c => !c))}
         aria-expanded={!collapsed}
       >
-        <span className="font-sans text-xs font-bold" style={{ color, minWidth: '20px' }}>
+        <span className="font-geist text-xs font-bold" style={{ color, minWidth: '20px' }}>
           М{modIdx + 1}
         </span>
         <input
@@ -47,19 +49,28 @@ export default function ModuleEditor({
           onChange={e => { e.stopPropagation(); onChange({ ...mod, title: e.target.value }); }}
           onClick={e => e.stopPropagation()}
           placeholder={`Название модуля ${modIdx + 1}`}
-          className="flex-1 rounded px-3 py-1.5 font-sans text-sm font-semibold outline-none"
-          style={{ background: 'rgba(232,232,208,0.04)', color: '#e8e8d0', border: '1px solid rgba(232,232,208,0.08)' }}
+          className="flex-1 rounded-lg px-3 py-1.5 font-geist text-sm font-semibold outline-none"
+          style={{ background: 'rgba(197, 198, 199, 0.04)', color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199, 0.12)' }}
         />
-        <span className="text-pixel/55 font-sans text-xs flex-shrink-0">
+        <span className="font-geist text-xs flex-shrink-0" style={{ color: TEXT_MUTED }}>
           {mod.lessons.length} эл.
         </span>
-        <span className="text-pixel/55 text-xs flex-shrink-0" style={{ transform: collapsed ? 'none' : 'rotate(90deg)', display: 'inline-block', transition: 'transform 0.15s' }}>›</span>
+        <Icon
+          name={collapsed ? 'chevronDown' : 'chevronUp'}
+          size={18}
+          color={TEXT_MUTED}
+          className="flex-shrink-0"
+          style={{ transition: 'transform 0.15s' }}
+        />
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
           aria-label="Удалить модуль"
-          className="flex-shrink-0 text-pixel/55 hover:text-red-400 transition-colors text-sm"
+          className="flex-shrink-0 transition-colors cursor-pointer"
+          style={{ color: TEXT_MUTED }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#e05252')}
+          onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
         >
-          ×
+          <Icon name="close" size={16} color="currentColor" />
         </button>
       </div>
 
@@ -79,17 +90,19 @@ export default function ModuleEditor({
           <div className="flex gap-2 mt-2">
             <button
               onClick={addLesson}
-              className="flex-1 py-2 rounded font-sans text-xs transition-colors"
-              style={{ background: 'rgba(232,232,208,0.05)', color: 'rgba(232,232,208,0.6)', border: '1px dashed rgba(232,232,208,0.15)' }}
+              className="flex-1 py-2 rounded-lg font-geist text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              style={{ background: 'rgba(197, 198, 199, 0.05)', color: 'rgba(197, 198, 199, 0.6)', border: '1px dashed rgba(197, 198, 199, 0.2)' }}
             >
-              + Добавить урок
+              <Icon name="sparkle" size={13} color="currentColor" />
+              Добавить урок
             </button>
             <button
               onClick={addQuiz}
-              className="flex-1 py-2 rounded font-sans text-xs transition-colors"
+              className="flex-1 py-2 rounded-lg font-geist text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               style={{ background: `${color}10`, color, border: `1px dashed ${color}40` }}
             >
-              + Добавить тест
+              <Icon name="sparkle" size={13} color="currentColor" />
+              Добавить тест
             </button>
           </div>
         </div>

@@ -4,6 +4,8 @@ import { useEscapeKey } from '../../utils/a11y';
 import { TIMEZONES, HOUR_OPTIONS } from '../../utils/timezones';
 import { PresenceEntry, LeaveType } from '../../types';
 import { WEEKDAY_LABELS, LEAVE_LABELS } from './constants';
+import Modal from '../Modal';
+import { ACCENT, TEXT_MUTED, BADGE_NOTIFY } from '../../utils/theme';
 
 // Lets a lead configure a tester's working hours/status and schedule leave
 // — powers both the "работают сейчас" dots below and the team news feed's
@@ -86,111 +88,100 @@ export default function PresenceEditModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
-      style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-sm rounded p-6 max-h-[90vh] overflow-y-auto" style={{ background: '#1a1a2e', border: '2px solid rgba(29,158,117,0.4)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>🕒 Рабочее время · {member.name}</p>
-          <button onClick={onClose} aria-label="Закрыть" className="text-pixel/60 cursor-pointer hover:text-pixel/80">✕</button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-pixel/60 text-xs font-sans mb-1">Начало</label>
-              <select value={workStart} onChange={e => setWorkStart(e.target.value)} className="pixel-input">
-                <option value="">—</option>
-                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-pixel/60 text-xs font-sans mb-1">Конец</label>
-              <select value={workEnd} onChange={e => setWorkEnd(e.target.value)} className="pixel-input">
-                <option value="">—</option>
-                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
-          </div>
-
+    <Modal title={`Рабочее время · ${member.name}`} onClose={onClose} maxWidth={384}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-pixel/60 text-xs font-sans mb-1">Рабочие дни</label>
-            <div className="flex gap-1">
-              {WEEKDAY_LABELS.map(([d, label]) => (
-                <button
-                  key={d}
-                  onClick={() => toggleDay(d)}
-                  className="flex-1 py-1.5 rounded text-xs font-sans cursor-pointer"
-                  style={{ background: days.has(d) ? 'rgba(29,158,117,0.2)' : 'rgba(232,232,208,0.04)', color: days.has(d) ? '#1D9E75' : 'rgba(232,232,208,0.4)' }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-pixel/60 text-xs font-sans mb-1">Часовой пояс</label>
-            <select value={timezone} onChange={e => setTimezone(e.target.value)} className="pixel-input">
-              {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+            <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Начало</label>
+            <select value={workStart} onChange={e => setWorkStart(e.target.value)} className="pixel-input">
+              <option value="">—</option>
+              {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
           </div>
-
-          {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
-
-          <button
-            onClick={saveHours}
-            disabled={saving}
-            className="w-full py-3 text-sm font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
-            style={{ background: '#1D9E75', color: '#0f0f1a' }}
-          >
-            {saving ? '...' : 'Сохранить'}
-          </button>
-
-          <div style={{ borderTop: '1px solid rgba(232,232,208,0.1)' }} className="pt-4 mt-2">
-            <p className="text-pixel/60 text-xs font-sans mb-2">Отпуск / больничный / отгул</p>
-
-            {entry?.currentLeave && (
-              <div className="mb-3 p-2 rounded flex items-center justify-between gap-2" style={{ background: 'rgba(239,159,39,0.08)' }}>
-                <p className="text-xs font-sans" style={{ color: '#EF9F27' }}>
-                  {LEAVE_LABELS[entry.currentLeave.type]}{entry.currentLeave.end_date ? ` до ${entry.currentLeave.end_date}` : ' (без даты окончания)'}
-                </p>
-                <button onClick={cancelCurrentLeave} disabled={savingLeave} className="text-xs font-sans cursor-pointer shrink-0" style={{ color: '#e05252' }}>
-                  Отменить
-                </button>
-              </div>
-            )}
-
-            <div className="flex gap-2 mb-2">
-              {(Object.keys(LEAVE_LABELS) as LeaveType[]).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setLeaveType(t)}
-                  className="flex-1 py-1.5 rounded text-xs font-sans cursor-pointer"
-                  style={{ background: leaveType === t ? 'rgba(127,119,221,0.15)' : 'rgba(232,232,208,0.04)', color: leaveType === t ? '#7F77DD' : 'rgba(232,232,208,0.5)' }}
-                >
-                  {LEAVE_LABELS[t]}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <input type="date" value={leaveStart} onChange={e => setLeaveStart(e.target.value)} className="pixel-input" />
-              <input type="date" value={leaveEnd} onChange={e => setLeaveEnd(e.target.value)} className="pixel-input" placeholder="без даты" />
-            </div>
-            <input value={leaveNote} onChange={e => setLeaveNote(e.target.value.slice(0, 300))} className="pixel-input mb-2" placeholder="Комментарий (необязательно)" />
-            <button
-              onClick={addLeave}
-              disabled={savingLeave}
-              className="w-full py-2 text-xs font-sans font-semibold rounded cursor-pointer disabled:opacity-50"
-              style={{ background: 'rgba(127,119,221,0.2)', color: '#7F77DD' }}
-            >
-              {savingLeave ? '...' : 'Добавить'}
-            </button>
+          <div>
+            <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Конец</label>
+            <select value={workEnd} onChange={e => setWorkEnd(e.target.value)} className="pixel-input">
+              <option value="">—</option>
+              {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
           </div>
         </div>
+
+        <div>
+          <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Рабочие дни</label>
+          <div className="flex gap-1">
+            {WEEKDAY_LABELS.map(([d, label]) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                className="flex-1 py-1.5 rounded-lg text-xs font-geist cursor-pointer"
+                style={{ background: days.has(d) ? `${ACCENT}20` : 'rgba(197, 198, 199, 0.04)', color: days.has(d) ? ACCENT : TEXT_MUTED }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Own full-width row — timezone labels ("Владивосток (UTC+10)")
+            would clip sharing a half/quarter-width cell; mirrors the same
+            fix in MoyaNora's equivalent working-hours form. */}
+        <div>
+          <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Часовой пояс</label>
+          <select value={timezone} onChange={e => setTimezone(e.target.value)} className="pixel-input w-full">
+            {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+          </select>
+        </div>
+
+        {error && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{error}</p>}
+
+        <button onClick={saveHours} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
+          {saving ? '...' : 'Сохранить'}
+        </button>
+
+        <div style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }} className="pt-4 mt-2">
+          <p className="font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>Отпуск / больничный / отгул</p>
+
+          {entry?.currentLeave && (
+            <div className="mb-3 p-2 rounded-lg flex items-center justify-between gap-2" style={{ background: `${BADGE_NOTIFY}14` }}>
+              <p className="font-geist text-xs" style={{ color: BADGE_NOTIFY }}>
+                {LEAVE_LABELS[entry.currentLeave.type]}{entry.currentLeave.end_date ? ` до ${entry.currentLeave.end_date}` : ' (без даты окончания)'}
+              </p>
+              <button onClick={cancelCurrentLeave} disabled={savingLeave} className="font-geist text-xs cursor-pointer shrink-0" style={{ color: '#e05252' }}>
+                Отменить
+              </button>
+            </div>
+          )}
+
+          <div className="flex gap-2 mb-2">
+            {(Object.keys(LEAVE_LABELS) as LeaveType[]).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setLeaveType(t)}
+                className="flex-1 py-1.5 rounded-lg text-xs font-geist cursor-pointer"
+                style={{ background: leaveType === t ? 'rgba(127, 119, 221, 0.15)' : 'rgba(197, 198, 199, 0.04)', color: leaveType === t ? '#7F77DD' : TEXT_MUTED }}
+              >
+                {LEAVE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <input type="date" value={leaveStart} onChange={e => setLeaveStart(e.target.value)} className="pixel-input" />
+            <input type="date" value={leaveEnd} onChange={e => setLeaveEnd(e.target.value)} className="pixel-input" placeholder="без даты" />
+          </div>
+          <input value={leaveNote} onChange={e => setLeaveNote(e.target.value.slice(0, 300))} className="pixel-input mb-2" placeholder="Комментарий (необязательно)" />
+          <button
+            onClick={addLeave}
+            disabled={savingLeave}
+            className="w-full py-2 text-xs font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50"
+            style={{ background: 'rgba(127, 119, 221, 0.2)', color: '#7F77DD' }}
+          >
+            {savingLeave ? '...' : 'Добавить'}
+          </button>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

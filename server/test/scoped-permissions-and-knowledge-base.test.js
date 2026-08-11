@@ -192,6 +192,23 @@ describe('knowledge base — read access and validation', () => {
     expect(Array.isArray(glossary.body)).toBe(true);
   });
 
+  it('sorts terms alphabetically case-insensitively, not by raw byte order', async () => {
+    // Byte/binary ordering puts every uppercase letter before every
+    // lowercase one, so e.g. "ZQLModule" would sort ahead of "Zebrafish"
+    // (byte order: 'Q' 0x51 < 'e' 0x65) even though "Ze" < "ZQ"
+    // alphabetically — this is the reported bug ("по алфавиту сортировку в
+    // словаре"), fixed via COLLATE NOCASE in the route's ORDER BY.
+    // Distinctive nonsense terms — schema.js auto-seeds a handful of real
+    // ones (Bug/Console/DOM/DevTools/Viewport) on a fresh DB, so reusing
+    // one of those would double up rather than testing anything new.
+    for (const term of ['ZQLModule', 'Zebrafish', 'amoeba']) {
+      await request(app).post('/api/glossary').set('Authorization', `Bearer ${leadToken}`).send({ term, definition: 'x' });
+    }
+    const res = await request(app).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
+    const order = res.body.map(t => t.term).filter(t => ['ZQLModule', 'Zebrafish', 'amoeba'].includes(t));
+    expect(order).toEqual(['amoeba', 'Zebrafish', 'ZQLModule']);
+  });
+
   it('rejects a bug example missing required fields', async () => {
     const res = await request(app)
       .post('/api/bug-examples')

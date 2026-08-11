@@ -1,5 +1,5 @@
 import { getLevel, getLevelXpPercent } from '../types';
-import PixelIcon, { IconName } from './PixelIcon';
+import Icon, { IconName } from './Icon';
 
 interface LevelBadgeProps {
   lecturesCompleted: number;
@@ -18,13 +18,14 @@ export default function LevelBadge({ lecturesCompleted, isLead = false, showXp =
   return (
     <div className="flex flex-col items-center gap-1">
       <div
-        className="flex items-center gap-2 px-3 py-2 rounded"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg"
         style={{
-          background: '#1a1a2e',
-          boxShadow: '2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27',
+          background: '#1F2833',
+          border: '1px solid #EF9F27',
+          boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
         }}
       >
-        <PixelIcon name={level.icon as IconName} size={iconSize} color="#EF9F27" />
+        <Icon name={level.icon as IconName} size={iconSize} color="#EF9F27" />
         <div>
           <p className={`font-pixel ${level.color} ${nameSize}`} style={{ lineHeight: 1.6 }}>
             {level.name}

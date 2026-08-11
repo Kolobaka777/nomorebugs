@@ -3,7 +3,7 @@ import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import { leadApi, permissionsApi, adminApi, presenceApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, PresenceEntry } from '../types';
-import PixelIcon, { IconName } from '../components/PixelIcon';
+import Icon, { IconName } from '../components/Icon';
 import { showApiError } from '../utils/toast';
 import AwardBonusModal from '../components/uley/AwardBonusModal';
 import PresenceEditModal from '../components/uley/PresenceEditModal';
@@ -13,6 +13,9 @@ import LecturesTab from '../components/uley/LecturesTab';
 import RatingsTab from '../components/uley/RatingsTab';
 import ActivityTab from '../components/uley/ActivityTab';
 import { Tab } from '../components/uley/constants';
+import {
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
+} from '../utils/theme';
 
 interface UleyPageProps {
   user: any;
@@ -239,7 +242,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -248,11 +251,11 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
 
   if (loadError) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
           <div className="card text-center py-10">
-            <p className="text-sm font-sans mb-4" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="font-geist text-sm mb-4" style={{ color: '#e05252' }}>{loadError}</p>
             <button onClick={() => { setLoading(true); loadData(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         </div>
@@ -279,43 +282,44 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-8 fade-in">
         {/* ===== HEADER ===== */}
         <div className="mb-8">
           <h1
-            className="font-pixel text-primary mb-2"
-            style={{ fontSize: '0.8rem', lineHeight: 1.8 }}
+            className="font-montserrat font-bold mb-2 flex items-center gap-2"
+            style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}
           >
-            <span className="flex items-center gap-2"><PixelIcon name="crown" size={14} color="#EF9F27" /><PixelIcon name="bee" size={14} color="#EF9F27" /> Улей</span>
+            <Icon name="crown" size={22} color={BADGE_NOTIFY} /><Icon name="bee" size={22} color={BADGE_NOTIFY} /> Улей
           </h1>
-          <p className="text-pixel/60 text-sm font-sans">Дашборд тимлида · {team.length} жуков в улье</p>
+          <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Дашборд тимлида · {team.length} жуков в улье</p>
         </div>
 
         {/* ===== METRIC CARDS ===== */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Средний прогресс', value: `${avgProgress}%`, color: '#1D9E75' },
-            { label: 'Средний балл', value: `${avgScore}%`, color: '#EF9F27' },
+            { label: 'Средний прогресс', value: `${avgProgress}%`, color: ACCENT },
+            { label: 'Средний балл', value: `${avgScore}%`, color: BADGE_NOTIFY },
             { label: 'Жуков в улье', value: team.length, color: '#7F77DD' },
             {
               label: 'Могут ждать поддержки',
               value: checkInCount,
-              color: checkInCount > 0 ? '#EF9F27' : '#1D9E75',
+              color: checkInCount > 0 ? BADGE_NOTIFY : ACCENT,
             },
           ].map((m, idx) => (
             <div
               key={idx}
-              className="p-4 rounded"
+              className="p-4 rounded-lg"
               style={{
-                background: '#1a1a2e',
-                boxShadow: `2px 0 0 0 ${m.color}40, -2px 0 0 0 ${m.color}40, 0 2px 0 0 ${m.color}40, 0 -2px 0 0 ${m.color}40`,
+                background: CARD_BG,
+                border: `1px solid ${m.color}40`,
+                boxShadow: CARD_SHADOW,
               }}
             >
-              <p className="text-pixel/60 text-xs font-sans mb-2">{m.label}</p>
-              <p className="font-pixel" style={{ color: m.color, fontSize: '1.1rem', lineHeight: 1.6 }}>
+              <p className="font-geist text-xs mb-2" style={{ color: TEXT_MUTED }}>{m.label}</p>
+              <p className="font-montserrat font-bold" style={{ color: m.color, fontSize: 20 }}>
                 {m.value}
               </p>
             </div>
@@ -325,18 +329,19 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         {/* ===== CHECK-IN SUGGESTION ===== */}
         {checkInCount > 0 && (
           <div
-            className="mb-6 p-4 rounded flex items-start gap-3"
+            className="mb-6 p-4 rounded-lg flex items-start gap-3"
             style={{
-              background: 'rgba(239,159,39,0.06)',
-              boxShadow: '2px 0 0 0 rgba(239,159,39,0.4), -2px 0 0 0 rgba(239,159,39,0.4), 0 2px 0 0 rgba(239,159,39,0.4), 0 -2px 0 0 rgba(239,159,39,0.4)',
+              background: 'rgba(239, 159, 39, 0.06)',
+              border: `1px solid ${BADGE_NOTIFY}66`,
+              boxShadow: CARD_SHADOW,
             }}
           >
-            <PixelIcon name="snail" size={22} color="#EF9F27" />
+            <Icon name="snail" size={22} color={BADGE_NOTIFY} />
             <div>
-              <p className="font-pixel text-xs" style={{ color: '#EF9F27', lineHeight: 1.8 }}>
+              <p className="font-montserrat font-semibold text-sm" style={{ color: BADGE_NOTIFY }}>
                 Возможно, стоит написать
               </p>
-              <p className="text-pixel/60 text-sm font-sans mt-1">
+              <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>
                 {team.filter(m => m.needsCheckIn).map(m => m.name).join(', ')} —{' '}
                 {checkInCount === 1
                   ? (team.find(m => m.needsCheckIn)?.gender === 'female' ? 'не заходила' : team.find(m => m.needsCheckIn)?.gender === 'male' ? 'не заходил' : 'не заходил(а)') + ' неделю или больше'
@@ -348,25 +353,20 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         )}
 
         {/* ===== TABS ===== */}
-        <div
-          className="flex gap-0 mb-6 rounded overflow-hidden"
-          style={{ border: '2px solid rgba(29,158,117,0.2)' }}
-        >
+        <div className="flex flex-wrap gap-1.5 mb-6">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex-1 py-3 text-xs font-sans font-medium transition-all cursor-pointer"
+              className="rounded-lg font-geist font-semibold cursor-pointer px-3.5 py-2 flex items-center gap-1.5 transition-colors"
               style={{
-                background: tab === t.id ? '#1D9E75' : 'transparent',
-                color: tab === t.id ? '#0f0f1a' : 'rgba(232,232,208,0.5)',
-                borderRight: '1px solid rgba(29,158,117,0.2)',
+                fontSize: 13,
+                background: tab === t.id ? ACCENT : 'rgba(197, 198, 199, 0.06)',
+                color: tab === t.id ? PAGE_BG : 'rgba(197, 198, 199, 0.6)',
               }}
             >
-              <span className="flex items-center justify-center gap-1.5">
-                <PixelIcon name={t.icon} size={12} color="currentColor" />
-                {t.label}
-              </span>
+              <Icon name={t.icon} size={14} color="currentColor" />
+              {t.label}
             </button>
           ))}
         </div>

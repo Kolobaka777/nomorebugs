@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import PixelIcon from '../PixelIcon';
+import Icon from '../Icon';
+import { TEXT_MUTED } from '../../utils/theme';
 import { TASK_TYPE_OPTIONS } from './types';
 
 // Overlays a transparent native date input over a styled display div
@@ -13,8 +14,8 @@ export function DateInput({ value, onChange }: { value: string; onChange: (v: st
         className="pixel-input flex items-center justify-between select-none"
         style={{ pointerEvents: 'none' }}
       >
-        <span style={{ color: 'rgba(232,232,208,0.82)' }}>{formatted}</span>
-        <PixelIcon name="calendar" size={13} color="rgba(232,232,208,0.35)" />
+        <span style={{ color: 'rgba(197, 198, 199,0.82)' }}>{formatted}</span>
+        <Icon name="calendar" size={16} color={TEXT_MUTED} />
       </div>
       <input
         type="date"
@@ -61,10 +62,13 @@ export function AuthorSelect({
         <button
           type="button"
           onClick={() => { setIsCustom(false); onChange(''); }}
-          className="text-sm cursor-pointer shrink-0"
-          style={{ color: 'rgba(232,232,208,0.6)' }}
+          className="shrink-0 cursor-pointer flex items-center transition-colors"
+          style={{ color: TEXT_MUTED }}
           title="Назад к списку"
-        >↩</button>
+          aria-label="Назад к списку"
+        >
+          <Icon name="chevronLeft" size={16} color="currentColor" />
+        </button>
       </div>
     );
   }
@@ -104,10 +108,13 @@ export function TaskTypeSelect({ value, onChange }: { value: string; onChange: (
         <button
           type="button"
           onClick={() => { setIsCustom(false); onChange(''); }}
-          className="text-sm cursor-pointer shrink-0"
-          style={{ color: 'rgba(232,232,208,0.6)' }}
+          className="shrink-0 cursor-pointer flex items-center transition-colors"
+          style={{ color: TEXT_MUTED }}
           title="Назад к списку"
-        >↩</button>
+          aria-label="Назад к списку"
+        >
+          <Icon name="chevronLeft" size={16} color="currentColor" />
+        </button>
       </div>
     );
   }

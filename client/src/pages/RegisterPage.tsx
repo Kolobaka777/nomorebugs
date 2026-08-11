@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
 import BugSprite from '../components/BugSprite';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface RegisterPageProps {
@@ -16,8 +16,13 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
+  // Set once, here, at registration — there's no editable birthday field
+  // anywhere else in the app afterward (see MoyaNora.tsx/presence.js).
+  const [birthday, setBirthday] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +36,14 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
       setError('Пароль должен быть не короче 8 символов');
       return;
     }
+    if (birthday && !BIRTHDAY_RE.test(birthday)) {
+      setError('Дата рождения — в формате ММ-ДД, например 08-15');
+      return;
+    }
 
     setLoading(true);
     try {
-      const { data } = await authApi.register(email, password, name, gender);
+      const { data } = await authApi.register(email, password, name, gender, birthday || null);
       onLogin(data.token, data.user, data.needsBaselineSurvey);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка регистрации');
@@ -46,12 +55,12 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: '#0f0f1a' }}
+      style={{ background: '#0B0C10' }}
     >
       <div
         className="fixed inset-0 pointer-events-none opacity-5"
         style={{
-          backgroundImage: 'linear-gradient(#1D9E75 1px, transparent 1px), linear-gradient(90deg, #1D9E75 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(#66FCF1 1px, transparent 1px), linear-gradient(90deg, #66FCF1 1px, transparent 1px)',
           backgroundSize: '32px 32px',
         }}
       />
@@ -67,7 +76,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
         <div className="text-center mb-8">
           <h1
             className="font-pixel text-primary mb-4"
-            style={{ fontSize: '1.5rem', lineHeight: 1.8, textShadow: '4px 4px 0 rgba(29,158,117,0.3)' }}
+            style={{ fontSize: '1.5rem', lineHeight: 1.8, textShadow: '4px 4px 0 rgba(102, 252, 241,0.3)' }}
           >
             baga-net
           </h1>
@@ -77,10 +86,11 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
         </div>
 
         <div
-          className="p-8 rounded"
+          className="p-8 rounded-lg"
           style={{
-            background: '#1a1a2e',
-            boxShadow: '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75',
+            background: '#1F2833',
+            border: '1px solid #66FCF1',
+            boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
           }}
         >
           <h2
@@ -93,11 +103,12 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div
-                className="px-4 py-3 rounded text-sm font-sans"
+                className="px-4 py-3 rounded-lg text-sm font-sans"
                 style={{
                   background: 'rgba(224,82,82,0.1)',
                   color: '#e05252',
-                  boxShadow: '1px 0 0 0 #e05252, -1px 0 0 0 #e05252, 0 1px 0 0 #e05252, 0 -1px 0 0 #e05252',
+                  border: '1px solid #e05252',
+                  boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
                 }}
               >
                 {error}
@@ -176,19 +187,35 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
                     type="button"
                     onClick={() => setGender(opt.value)}
                     disabled={loading}
-                    className="flex-1 py-2 rounded text-xs font-sans cursor-pointer transition-colors"
+                    className="flex-1 py-2 rounded-lg text-xs font-sans cursor-pointer transition-colors"
                     style={{
-                      background: gender === opt.value ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                      color: gender === opt.value ? '#1D9E75' : 'rgba(232,232,208,0.5)',
-                      boxShadow: gender === opt.value
-                        ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75'
-                        : 'none',
+                      background: gender === opt.value ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                      color: gender === opt.value ? '#66FCF1' : 'rgba(197, 198, 199,0.5)',
+                      border: gender === opt.value ? '1px solid #66FCF1' : 'none',
                     }}
                   >
                     {opt.label}
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
+                День рождения (необязательно)
+              </label>
+              <input
+                type="text"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+                className="pixel-input"
+                placeholder="ММ-ДД, например 08-15"
+                disabled={loading}
+                maxLength={5}
+              />
+              <p className="text-pixel/40 text-xs font-sans mt-1.5">
+                Указывается один раз — потом её не получится изменить самостоятельно
+              </p>
             </div>
 
             <button
@@ -198,7 +225,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
               style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading ? (
-                <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> ползём...</span>
+                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
               ) : (
                 'ЗАРЕГИСТРИРОВАТЬСЯ'
               )}
@@ -209,7 +236,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
             onClick={() => navigate('/')}
             className="w-full text-center mt-4 text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
           >
-            Уже есть аккаунт? Войти →
+            Уже есть аккаунт? Войти <Icon name="arrowRight" size={16} color="currentColor" />
           </button>
 
           <TelegramLoginButton onLogin={onLogin} />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { authApi } from '../api';
 import { setAccessToken } from '../auth';
+import Modal from './Modal';
 
 interface Props {
   forced?: boolean;
@@ -43,25 +44,19 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.6)', zIndex: 300 }}
-      onClick={() => !forced && onClose?.()}
+    <Modal
+      title={forced ? 'Нужно сменить пароль' : 'Смена пароля'}
+      onClose={forced ? undefined : onClose}
+      zIndex={300}
+      maxWidth={384}
     >
-      <div
-        className="rounded-lg p-6 w-full max-w-sm"
-        style={{ background: '#1a1a2e', border: '2px solid #1D9E75' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <p className="font-pixel text-primary mb-1" style={{ fontSize: '0.65rem', lineHeight: 1.8 }}>
-          {forced ? 'Нужно сменить пароль' : 'Смена пароля'}
-        </p>
+      <>
         {forced && (
           <p className="text-pixel/60 text-xs font-sans mb-4">
             Твой пароль был сброшен администратором — задай новый, чтобы продолжить.
           </p>
         )}
-        <form onSubmit={submit} className="space-y-3 mt-4">
+        <form onSubmit={submit} className="space-y-3">
           <div>
             <label className="text-pixel/60 text-xs font-sans block mb-1">Текущий пароль</label>
             <input
@@ -100,8 +95,8 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2 rounded font-sans font-bold text-sm"
-              style={{ background: '#1D9E75', color: '#0f0f1a' }}
+              className="flex-1 py-2 rounded-lg font-sans font-bold text-sm"
+              style={{ background: '#66FCF1', color: '#0B0C10' }}
             >
               {saving ? '...' : 'Сохранить'}
             </button>
@@ -109,15 +104,15 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded font-sans text-sm"
-                style={{ background: 'rgba(232,232,208,0.07)', color: 'rgba(232,232,208,0.7)' }}
+                className="px-4 py-2 rounded-lg font-sans text-sm"
+                style={{ background: 'rgba(197, 198, 199,0.07)', color: 'rgba(197, 198, 199,0.7)' }}
               >
                 Отмена
               </button>
             )}
           </div>
         </form>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }

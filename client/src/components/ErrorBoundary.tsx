@@ -26,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div
           className="flex flex-col justify-center items-center h-screen text-center px-6"
-          style={{ background: '#0f0f1a' }}
+          style={{ background: '#0B0C10' }}
         >
           <p className="font-pixel text-primary text-xs mb-4" style={{ lineHeight: 1.8 }}>
             что-то пошло не так

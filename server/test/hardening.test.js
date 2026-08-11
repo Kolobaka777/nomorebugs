@@ -76,25 +76,29 @@ describe('admin-action audit log', () => {
 });
 
 describe('checklist submission is atomic (transaction rollback on a bad item)', () => {
-  it('a submission referencing a nonexistent item_id rolls back entirely — no orphaned submission row', async () => {
+  it('a submission referencing an item_id from another template is rejected upfront — no orphaned submission row', async () => {
     const tplId = db.prepare("INSERT INTO checklist_templates (name, task_type) VALUES ('Atomicity Fixture', 'prelending')").run().lastInsertRowid;
     const testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
 
     const before = db.prepare('SELECT COUNT(*) as c FROM checklist_submissions').get().c;
 
+    // item_id 999999999 belongs to no template at all (in particular, not
+    // this one) — the item/template ownership check now rejects this with a
+    // 400 before any row is written, instead of letting it reach an FK
+    // violation on the insert.
     const res = await request(app)
       .post('/api/checklists/submit')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({
         template_id: tplId,
         task_name: 'Should Roll Entirely Back',
-        results: [{ item_id: 999999999, status: 'ok' }], // FK violation — checklist_items has no such row
+        results: [{ item_id: 999999999, status: 'ok' }],
       });
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
 
     const after = db.prepare('SELECT COUNT(*) as c FROM checklist_submissions').get().c;
-    expect(after).toBe(before); // not before + 1 — the whole transaction rolled back
+    expect(after).toBe(before); // not before + 1 — rejected before any write happened
     expect(db.prepare("SELECT id FROM checklist_submissions WHERE task_name = 'Should Roll Entirely Back'").get()).toBeUndefined();
   });
 

@@ -85,6 +85,7 @@ export interface ActivityItem {
   name: string;
   gender?: Gender;
   lecture_title?: string;
+  course_title?: string;
 }
 
 export interface RpgStats {
@@ -165,6 +166,8 @@ export interface GlobalStats {
   courses: number;
   testers: number;
   bugsCaught: number;
+  avgScore: number;
+  checklistsCompleted: number;
 }
 
 export interface LectureStat {
@@ -203,14 +206,14 @@ export function getLevelXpPercent(completed: number): number {
 }
 
 export const TOPIC_TAGS: Record<string, string> = {
-  'HTML': '#1D9E75',
+  'HTML': '#66FCF1',
   'CSS': '#7F77DD',
   'DevTools': '#EF9F27',
   'Console': '#e05252',
   'Bug Reports': '#EF9F27',
   'JS': '#7F77DD',
-  'Network': '#1D9E75',
-  'AIO': '#e8e8d0',
+  'Network': '#66FCF1',
+  'AIO': '#C5C6C7',
 };
 
 // ===== PRESENCE ("работают сейчас") =====

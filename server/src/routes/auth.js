@@ -18,6 +18,11 @@ import { isUniqueConstraintError, revokeAllRefreshTokens } from '../routeHelpers
 
 const router = express.Router();
 
+// Same pattern as presence.js's own BIRTHDAY_RE (MM-DD, deliberately no
+// year) — duplicated rather than imported since presence.js doesn't export
+// it and this is the only other place that needs it.
+const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
 // Same allowlist app.js's CORS config computes — the reset-password email
 // link needs the client's real origin, not a hardcoded one.
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
@@ -139,7 +144,7 @@ function initialsFromName(name) {
 // the client can treat "just registered" and "just logged in" identically.
 router.post('/api/auth/register', registerLimiter, (req, res) => {
   try {
-    const { email, password, name, gender } = req.body;
+    const { email, password, name, gender, birthday } = req.body;
 
     // Was `!email || !password || !name?.trim()` — a non-string field (e.g.
     // a JSON number) slipped past that falsy check and then crashed a
@@ -160,6 +165,9 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
     }
     if (gender !== undefined && gender !== null && gender !== 'male' && gender !== 'female') {
       return res.status(400).json({ error: 'Некорректное значение пола' });
+    }
+    if (birthday !== undefined && birthday !== null && birthday !== '' && !BIRTHDAY_RE.test(birthday)) {
+      return res.status(400).json({ error: 'Некорректная дата рождения (формат ММ-ДД)' });
     }
 
     const passwordHash = bcryptjs.hashSync(password, 10);
@@ -184,10 +192,20 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
       .run(user.id, refresh.hash, refresh.expiresAt.toISOString());
 
     // Safe partial insert — every other user_profiles column has a default,
-    // so this just creates the row with gender set (or skips it entirely
-    // when unspecified, same as before this field existed).
-    if (gender === 'male' || gender === 'female') {
-      db.prepare('INSERT INTO user_profiles (user_id, gender) VALUES (?, ?)').run(user.id, gender);
+    // so this just creates the row with whichever of gender/birthday were
+    // actually provided (or skips it entirely when neither was, same as
+    // before birthday existed here). Birthday is deliberately collected
+    // only here, at registration — PATCH /api/me/presence refuses to
+    // change it once it's set (see presence.js), so this is the one and
+    // only place a birthday gets written for a normal signup.
+    const hasGender = gender === 'male' || gender === 'female';
+    const hasBirthday = birthday !== undefined && birthday !== null && birthday !== '';
+    if (hasGender || hasBirthday) {
+      const cols = ['user_id'];
+      const vals = [user.id];
+      if (hasGender) { cols.push('gender'); vals.push(gender); }
+      if (hasBirthday) { cols.push('birthday'); vals.push(birthday); }
+      db.prepare(`INSERT INTO user_profiles (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...vals);
     }
 
     db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'register');
@@ -202,7 +220,7 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
     setRefreshCookie(res, refresh.token);
     res.status(201).json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null, gender: gender ?? null },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials, displayName: null, gender: gender ?? null, birthday: hasBirthday ? birthday : null },
       needsBaselineSurvey: user.role === 'tester',
     });
   } catch (err) {

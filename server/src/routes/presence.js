@@ -18,6 +18,14 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
     const parsed = String(work_days).split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 7);
     if (parsed.length) days = parsed.join(',');
   }
+  // Birthday is set once — normally at registration (see auth.js) — and
+  // locked after that; it's "once per person", not an editable working-hours
+  // field. If a birthday is already on file, an incoming value here is
+  // silently ignored (kept as-is) rather than overwritten; only a
+  // currently-null birthday can be set through this path, which mainly
+  // covers accounts that existed before this field did.
+  const existing = db.prepare('SELECT birthday FROM user_profiles WHERE user_id = ?').get(userId);
+  const nextBirthday = existing?.birthday ? existing.birthday : (birthday || null);
   db.prepare(`
     INSERT INTO user_profiles (user_id, work_start, work_end, work_days, timezone, status, birthday)
     VALUES (?,?,?,?,?,?,?)
@@ -28,7 +36,7 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
       timezone   = excluded.timezone,
       status     = excluded.status,
       birthday   = excluded.birthday
-  `).run(userId, work_start || null, work_end || null, days, timezone || 'Europe/Moscow', status || 'active', birthday || null);
+  `).run(userId, work_start || null, work_end || null, days, timezone || 'Europe/Moscow', status || 'active', nextBirthday);
 }
 
 function validatePresenceBody(body) {

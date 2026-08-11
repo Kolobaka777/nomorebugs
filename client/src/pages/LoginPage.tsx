@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
 import BugSprite from '../components/BugSprite';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
 interface LoginPageProps {
@@ -34,13 +34,13 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: '#0f0f1a' }}
+      style={{ background: '#0B0C10' }}
     >
       {/* Background grid */}
       <div
         className="fixed inset-0 pointer-events-none opacity-5"
         style={{
-          backgroundImage: 'linear-gradient(#1D9E75 1px, transparent 1px), linear-gradient(90deg, #1D9E75 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(#66FCF1 1px, transparent 1px), linear-gradient(90deg, #66FCF1 1px, transparent 1px)',
           backgroundSize: '32px 32px',
         }}
       />
@@ -61,7 +61,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
         <div className="text-center mb-8">
           <h1
             className="font-pixel text-primary mb-4"
-            style={{ fontSize: '1.5rem', lineHeight: 1.8, textShadow: '4px 4px 0 rgba(29,158,117,0.3)' }}
+            style={{ fontSize: '1.5rem', lineHeight: 1.8, textShadow: '4px 4px 0 rgba(102, 252, 241,0.3)' }}
           >
             baga-net
           </h1>
@@ -72,10 +72,11 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
 
         {/* Card */}
         <div
-          className="p-8 rounded"
+          className="p-8 rounded-lg"
           style={{
-            background: '#1a1a2e',
-            boxShadow: '4px 0 0 0 #1D9E75, -4px 0 0 0 #1D9E75, 0 4px 0 0 #1D9E75, 0 -4px 0 0 #1D9E75',
+            background: '#1F2833',
+            border: '1px solid #66FCF1',
+            boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
           }}
         >
           <h2
@@ -88,11 +89,12 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {sessionExpired && !error && (
               <div
-                className="px-4 py-3 rounded text-sm font-sans"
+                className="px-4 py-3 rounded-lg text-sm font-sans"
                 style={{
                   background: 'rgba(239,159,39,0.1)',
                   color: '#EF9F27',
-                  boxShadow: '1px 0 0 0 #EF9F27, -1px 0 0 0 #EF9F27, 0 1px 0 0 #EF9F27, 0 -1px 0 0 #EF9F27',
+                  border: '1px solid #EF9F27',
+                  boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
                 }}
               >
                 Сессия истекла. Войди ещё раз.
@@ -100,11 +102,12 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
             )}
             {error && (
               <div
-                className="px-4 py-3 rounded text-sm font-sans"
+                className="px-4 py-3 rounded-lg text-sm font-sans"
                 style={{
                   background: 'rgba(224,82,82,0.1)',
                   color: '#e05252',
-                  boxShadow: '1px 0 0 0 #e05252, -1px 0 0 0 #e05252, 0 1px 0 0 #e05252, 0 -1px 0 0 #e05252',
+                  border: '1px solid #e05252',
+                  boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
                 }}
               >
                 {error}
@@ -153,7 +156,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
               style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading ? (
-                <span className="pixel-pulse flex items-center justify-center gap-1"><PixelIcon name="snail" size={13} color="currentColor" /> ползём...</span>
+                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
               ) : (
                 'ВОЙТИ'
               )}
@@ -164,7 +167,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
             onClick={() => navigate('/register')}
             className="w-full text-center mt-4 text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
           >
-            Нет аккаунта? Зарегистрироваться →
+            Нет аккаунта? Зарегистрироваться <Icon name="arrowRight" size={16} color="currentColor" />
           </button>
 
           <TelegramLoginButton onLogin={onLogin} />
@@ -174,10 +177,10 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
               passwords never ship to a real login screen. */}
           {import.meta.env.DEV && (
             <div
-              className="mt-6 p-3 rounded"
+              className="mt-6 p-3 rounded-lg"
               style={{
-                background: 'rgba(29,158,117,0.05)',
-                border: '1px solid rgba(29,158,117,0.2)',
+                background: 'rgba(102, 252, 241,0.05)',
+                border: '1px solid rgba(102, 252, 241,0.2)',
               }}
             >
               <p className="text-pixel/60 text-xs font-sans mb-1 font-semibold">Тестовые аккаунты (dev):</p>

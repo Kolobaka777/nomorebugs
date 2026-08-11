@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
+import { BookOpenIcon, PagesIcon, CapIcon, PencilLineIcon, SearchIcon, TrashLineIcon } from '../components/CatalogIcons';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import { leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -25,7 +27,22 @@ function deadlineInfo(deadline: string | null): { label: string; color: string }
   if (diffDays < 0) return { label: `Дедлайн просрочен (${dateStr})`, color: '#e05252' };
   if (diffDays === 0) return { label: 'Дедлайн сегодня', color: '#EF9F27' };
   if (diffDays <= 3) return { label: `Дедлайн через ${diffDays} дн.`, color: '#EF9F27' };
-  return { label: `Дедлайн: ${dateStr}`, color: 'rgba(232,232,208,0.6)' };
+  return { label: `Дедлайн: ${dateStr}`, color: 'rgba(197, 198, 199,0.6)' };
+}
+
+// Card shell shared by every panel on this page ("О курсе", "Программа
+// курса", "Требования", "Содержание", "Прогресс команды") — one place to
+// keep the border/radius/shadow/heading style consistent.
+function Panel({ title, children, pad = 'p-6' }: { title: string; children: React.ReactNode; pad?: string }) {
+  return (
+    <section
+      className={`rounded-lg ${pad}`}
+      style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.08)', boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}
+    >
+      <h2 className="font-montserrat font-semibold mb-4" style={{ fontSize: 16, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{title}</h2>
+      {children}
+    </section>
+  );
 }
 
 export default function CustomCourseDetailPage({ user, onLogout }: Props) {
@@ -82,7 +99,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -91,20 +108,20 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
 
   if (!course) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
-          <p className="text-pixel/60 font-sans">
+          <p className="font-geist" style={{ color: TEXT_MUTED }}>
             {loadError ? 'Не удалось загрузить курс — проверьте соединение и попробуйте снова.' : 'Курс не найден'}
           </p>
           <div className="flex items-center justify-center gap-4 mt-4">
             {loadError && (
-              <button onClick={load} className="text-primary font-sans text-sm hover:underline">
+              <button onClick={load} className="font-geist text-sm hover:underline" style={{ color: ACCENT }}>
                 ↻ Повторить
               </button>
             )}
-            <button onClick={() => navigate('/zhukademia')} className="text-primary font-sans text-sm hover:underline">
-              ← К каталогу
+            <button onClick={() => navigate('/zhukademia')} className="font-geist text-sm hover:underline" style={{ color: ACCENT }}>
+              <Icon name="chevronLeft" size={22} color="currentColor" /> К каталогу
             </button>
           </div>
         </div>
@@ -112,7 +129,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
     );
   }
 
-  const color = course.color || '#1D9E75';
+  const color = course.color || ACCENT;
   const courseIsNew = isNew(course.created_at);
   // Server truth (custom_lesson_progress), not localStorage — progress must
   // survive a logout/new-device/redeploy, and a local-only flag can't do that.
@@ -120,6 +137,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
 
   const totalLessons = (course.modules || []).reduce((acc: number, m: any) => acc + (m.lessons || []).filter((l: any) => l.type === 'lesson').length, 0);
   const totalTests = (course.modules || []).reduce((acc: number, m: any) => acc + (m.lessons || []).filter((l: any) => l.type === 'quiz').length, 0);
+  const totalModules = (course.modules || []).length;
 
   const togglePublish = async () => {
     setActionError('');
@@ -150,78 +168,66 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
   };
 
   return (
-    <div className="min-h-screen fade-in" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen fade-in" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
-      <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
+      <div className="max-w-5xl mx-auto px-8 pt-16 pb-16">
         {/* Back */}
         <button
           onClick={() => navigate('/zhukademia')}
-          className="flex items-center gap-2 font-sans text-sm mb-8 transition-colors"
-          style={{ color: 'rgba(232,232,208,0.6)' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#e8e8d0')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(232,232,208,0.4)')}
+          className="flex items-center gap-2 font-geist text-sm mb-8 transition-colors cursor-pointer"
+          style={{ color: 'rgba(197, 198, 199,0.6)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}
         >
-          ← К каталогу курсов
+          <Icon name="chevronLeft" size={22} color="currentColor" /> К каталогу курсов
         </button>
 
         {/* Hero */}
         <div
           className="rounded-lg p-8 mb-8"
-          style={{
-            background: '#1a1a2e',
-            boxShadow: `3px 0 0 0 ${color}, -3px 0 0 0 ${color}, 0 3px 0 0 ${color}, 0 -3px 0 0 ${color}`,
-          }}
+          style={{ background: CARD_BG, border: `1px solid ${color}`, boxShadow: '0 8px 12px 0 rgba(0, 0, 0, 0.25)' }}
         >
           <div className="flex items-start gap-6 flex-wrap">
             <div
-              className="flex-shrink-0 w-16 h-16 rounded flex items-center justify-center"
-              style={{ background: `${color}20`, border: `2px solid ${color}40` }}
+              className="flex-shrink-0 w-16 h-16 rounded-lg flex items-center justify-center"
+              style={{ background: `${color}18`, border: `1.5px solid ${color}55` }}
             >
-              <PixelIcon name="books" size={28} color={color} />
+              <BookOpenIcon size={28} color={color} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-3">
-                <span
-                  className="inline-block text-xs font-sans font-semibold px-2 py-0.5 rounded"
-                  style={{ background: `${color}20`, color }}
-                >
+                <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: `${color}20`, color, border: `1px solid ${color}55` }}>
                   {course.tag}
                 </span>
                 {courseIsNew && (
-                  <span
-                    className="inline-block text-xs font-sans font-bold px-2 py-0.5 rounded"
-                    style={{ background: '#EF9F27', color: '#0f0f1a' }}
-                  >
+                  <span className="font-geist font-bold rounded px-2 py-0.5" style={{ fontSize: 11, background: '#4ADE80', color: PAGE_BG }}>
                     NEW
                   </span>
                 )}
                 {!course.is_published && user.role === 'lead' && (
-                  <span
-                    className="inline-block text-xs font-sans px-2 py-0.5 rounded"
-                    style={{ background: 'rgba(232,232,208,0.08)', color: 'rgba(232,232,208,0.6)' }}
-                  >
+                  <span className="font-geist rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.08)', color: 'rgba(197, 198, 199,0.6)' }}>
                     черновик
                   </span>
                 )}
                 {(() => {
                   const info = deadlineInfo(course.effectiveDeadline);
                   return info ? (
-                    <span className="inline-block text-xs font-sans px-2 py-0.5 rounded" style={{ background: `${info.color}20`, color: info.color }}>
+                    <span className="font-geist rounded px-2 py-0.5" style={{ fontSize: 11, background: `${info.color}20`, color: info.color }}>
                       {info.label}
                     </span>
                   ) : null;
                 })()}
               </div>
 
-              <h1 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
+              <h1 className="font-montserrat font-bold mb-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
                 {course.title}
               </h1>
 
-              <div className="flex flex-wrap gap-4">
-                <span className="text-pixel/60 text-sm font-sans flex items-center gap-1"><PixelIcon name="books" size={12} color="currentColor" /> {totalLessons} урок{totalLessons !== 1 ? 'а' : ''}</span>
-                <span className="text-pixel/60 text-sm font-sans flex items-center gap-1"><PixelIcon name="memo" size={12} color="currentColor" /> {totalTests} тест{totalTests !== 1 ? 'а' : ''}</span>
-                <span className="text-pixel/60 text-sm font-sans flex items-center gap-1"><PixelIcon name="pencil" size={12} color="currentColor" /> {course.author_name}</span>
+              <div className="flex flex-wrap gap-5">
+                <span className="font-geist text-sm flex items-center gap-1.5" style={{ color: TEXT_MUTED }}><BookOpenIcon size={16} color="currentColor" /> {totalLessons} урок{totalLessons !== 1 ? 'а' : ''}</span>
+                <span className="font-geist text-sm flex items-center gap-1.5" style={{ color: TEXT_MUTED }}><PagesIcon size={16} color="currentColor" /> {totalModules} модул{totalModules === 1 ? 'ь' : 'я'}</span>
+                <span className="font-geist text-sm flex items-center gap-1.5" style={{ color: TEXT_MUTED }}><CapIcon size={16} color="currentColor" /> {totalTests} тест{totalTests !== 1 ? 'а' : ''}</span>
               </div>
             </div>
           </div>
@@ -230,62 +236,46 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left */}
           <div className="lg:col-span-2 space-y-6">
-            {/* About */}
             {course.description && (
-              <section
-                className="rounded-lg p-6"
-                style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}
-              >
-                <h2 className="font-pixel text-pixel mb-4" style={{ fontSize: '0.65rem', lineHeight: 2 }}>О курсе</h2>
-                <p className="text-pixel/70 font-sans text-sm leading-relaxed">{course.description}</p>
-              </section>
+              <Panel title="О курсе">
+                <p className="font-geist text-sm leading-relaxed" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{course.description}</p>
+              </Panel>
             )}
 
-            {/* Program */}
             {course.modules?.length > 0 && (
-              <section
-                className="rounded-lg p-6"
-                style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}
-              >
-                <h2 className="font-pixel text-pixel mb-5" style={{ fontSize: '0.65rem', lineHeight: 2 }}>Программа курса</h2>
+              <Panel title="Программа курса">
                 <div className="space-y-4">
                   {course.modules.map((mod: any, i: number) => (
                     <div key={mod.id}>
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2.5 mb-2">
                         <span
-                          className="w-5 h-5 rounded text-xs flex items-center justify-center font-sans font-bold flex-shrink-0"
-                          style={{ background: `${color}30`, color }}
+                          className="w-6 h-6 rounded flex items-center justify-center font-geist font-bold flex-shrink-0"
+                          style={{ fontSize: 12, background: color, color: PAGE_BG }}
                         >
                           {i + 1}
                         </span>
-                        <span className="text-pixel font-sans font-semibold text-sm">{mod.title}</span>
+                        <span className="font-montserrat font-semibold text-sm" style={{ color: TEXT_PRIMARY }}>{mod.title}</span>
                       </div>
-                      <ul className="ml-7 space-y-1">
-                        {(mod.lessons || []).map((l: any, j: number) => (
-                          <li key={l.id} className="text-pixel/60 font-sans text-xs flex items-center gap-2">
-                            <span style={{ color: `${color}80` }}>›</span>
-                            {l.type === 'quiz' ? <span className="flex items-center gap-1"><PixelIcon name="memo" size={10} color="currentColor" />{l.title}</span> : l.title}
+                      <ul className="ml-8 space-y-1">
+                        {(mod.lessons || []).map((l: any) => (
+                          <li key={l.id} className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
+                            <Icon name="chevronRight" size={14} color={`${color}90`} />
+                            {l.title}
                           </li>
                         ))}
                       </ul>
                     </div>
                   ))}
                 </div>
-              </section>
+              </Panel>
             )}
 
             {/* Per-tester progress — lead/admin only (server omits
-                progressByTester for everyone else). Previously there was no
-                way to see who on the team had actually engaged with a
-                course short of asking them. */}
+                progressByTester for everyone else). */}
             {course.progressByTester && (
-              <section
-                className="rounded-lg p-6"
-                style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}
-              >
-                <h2 className="font-pixel text-pixel mb-4" style={{ fontSize: '0.65rem', lineHeight: 2 }}>Прогресс команды</h2>
+              <Panel title="Прогресс команды">
                 {course.progressByTester.length === 0 ? (
-                  <p className="text-pixel/50 text-sm font-sans">В команде пока нет тестировщиков.</p>
+                  <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>В команде пока нет тестировщиков.</p>
                 ) : (
                   <div className="space-y-2">
                     {course.progressByTester.map((t: any) => {
@@ -293,11 +283,11 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                       const override = (course.deadlineOverrides || []).find((o: any) => o.user_id === t.id);
                       return (
                         <div key={t.id} className="flex items-center gap-3">
-                          <span className="text-pixel font-sans text-sm w-32 truncate shrink-0">{t.name}</span>
+                          <span className="font-geist text-sm w-32 truncate shrink-0" style={{ color: TEXT_PRIMARY }}>{t.name}</span>
                           <div className="xp-bar-track flex-1">
                             <div className="xp-bar-fill" style={{ width: `${pct}%`, background: t.finished ? color : undefined }} />
                           </div>
-                          <span className="text-pixel/55 text-xs font-sans w-20 text-right shrink-0">
+                          <span className="font-geist text-xs w-20 text-right shrink-0" style={{ color: TEXT_MUTED }}>
                             {t.finished ? '✓ пройден' : `${t.completedLessons}/${t.totalLessons}`}
                           </span>
                           {deadlineEditFor === t.id ? (
@@ -309,52 +299,60 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                                 className="pixel-input text-xs"
                                 style={{ width: 130, padding: '2px 6px' }}
                               />
-                              <button onClick={() => saveDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-sans cursor-pointer" style={{ color }}>✓</button>
-                              <button onClick={() => setDeadlineEditFor(null)} className="text-xs font-sans cursor-pointer text-pixel/40">✕</button>
+                              <button onClick={() => saveDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-geist cursor-pointer" style={{ color }}>✓</button>
+                              <button onClick={() => setDeadlineEditFor(null)} className="text-xs font-geist cursor-pointer flex items-center" style={{ color: TEXT_MUTED }}><Icon name="close" size={14} color="currentColor" /></button>
                             </div>
                           ) : (
                             <button
                               onClick={() => { setDeadlineEditFor(t.id); setDeadlineDraft(override?.deadline_at?.slice(0, 10) || course.deadline_at?.slice(0, 10) || ''); }}
-                              className="text-xs font-sans cursor-pointer shrink-0 hover:underline"
-                              style={{ color: override ? '#EF9F27' : 'rgba(232,232,208,0.4)' }}
+                              className="text-xs font-geist cursor-pointer shrink-0 hover:underline flex items-center gap-1"
+                              style={{ color: override ? '#EF9F27' : 'rgba(197, 198, 199,0.4)' }}
                               title="Продлить дедлайн для этого сотрудника"
                             >
-                              🕒{override ? ` до ${override.deadline_at.slice(0, 10)}` : ''}
+                              <Icon name="clock" size={14} color="currentColor" />{override ? ` до ${override.deadline_at.slice(0, 10)}` : ''}
                             </button>
                           )}
                           {override && deadlineEditFor !== t.id && (
-                            <button onClick={() => removeDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-sans cursor-pointer text-pixel/30 hover:text-pixel/60 shrink-0" title="Сбросить к дедлайну по умолчанию">↺</button>
+                            <button onClick={() => removeDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-geist cursor-pointer shrink-0 flex items-center" style={{ color: 'rgba(197, 198, 199,0.3)' }} title="Сбросить к дедлайну по умолчанию"><Icon name="undo" size={14} color="currentColor" /></button>
                           )}
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </section>
+              </Panel>
             )}
           </div>
 
           {/* Right */}
           <div className="space-y-4">
-            {/* Requirements */}
             {course.requirements && (
-              <section
-                className="rounded-lg p-5"
-                style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}
-              >
-                <h2 className="font-pixel text-pixel mb-3" style={{ fontSize: '0.6rem', lineHeight: 2 }}>Требования</h2>
-                <p className="text-pixel/60 font-sans text-xs leading-relaxed">{course.requirements}</p>
-              </section>
+              <Panel title="Требования" pad="p-5">
+                <p className="font-geist text-xs leading-relaxed" style={{ color: TEXT_MUTED }}>{course.requirements}</p>
+              </Panel>
+            )}
+
+            {course.modules?.length > 0 && (
+              <Panel title="Содержание" pad="p-5">
+                <div className="space-y-3">
+                  {course.modules.map((mod: any, i: number) => (
+                    <div key={mod.id}>
+                      <p className="font-geist font-semibold text-xs" style={{ color }}>МОДУЛЬ {i + 1}: {mod.title}</p>
+                      <p className="font-geist text-xs mt-0.5" style={{ color: TEXT_MUTED }}>{(mod.lessons || []).length} элемент{(mod.lessons || []).length === 1 ? '' : 'ов'}</p>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
             )}
 
             {/* CTA — tester */}
             {user.role === 'tester' && course.is_published && (
               <button
                 onClick={() => navigate(`/custom-course/${id}/learn`)}
-                className="w-full py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5"
-                style={{ background: color, color: '#0f0f1a', boxShadow: `0 4px 0 0 ${color}60` }}
+                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+                style={{ background: color, color: PAGE_BG }}
               >
-                {hasProgress ? '▶ Продолжить курс' : '▶ Начать курс'}
+                {hasProgress ? 'Продолжить курс' : 'Начать курс'} <span aria-hidden="true">🧪</span>
               </button>
             )}
 
@@ -362,43 +360,40 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             {user.role === 'lead' && (
               <div className="space-y-2">
                 {actionError && (
-                  <p className="text-xs font-sans mb-1" style={{ color: '#e05252' }}>{actionError}</p>
+                  <p className="text-xs font-geist mb-1" style={{ color: '#e05252' }}>{actionError}</p>
                 )}
                 <button
                   onClick={() => navigate(`/custom-course/${id}/learn`)}
-                  className="w-full py-2.5 rounded font-sans font-semibold text-sm transition-all"
-                  style={{ background: `${color}20`, color }}
+                  className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                  style={{ background: `${color}18`, color }}
                 >
-                  <span className="flex items-center justify-center gap-1"><PixelIcon name="search" size={12} color="currentColor" /> Предпросмотр</span>
+                  <SearchIcon size={14} color="currentColor" /> Предпросмотр
                 </button>
                 <button
                   onClick={() => navigate(`/lead/course-builder/${id}`)}
-                  className="w-full py-2.5 rounded font-sans font-semibold text-sm transition-all"
-                  style={{ background: 'rgba(232,232,208,0.07)', color: 'rgba(232,232,208,0.7)' }}
+                  className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                  style={{ background: 'rgba(197, 198, 199,0.07)', color: 'rgba(197, 198, 199,0.7)' }}
                 >
-                  <span className="flex items-center justify-center gap-1"><PixelIcon name="pencil" size={12} color="currentColor" /> Редактировать</span>
+                  <PencilLineIcon size={14} color="currentColor" /> Редактировать
                 </button>
                 <button
                   onClick={togglePublish}
                   disabled={publishing}
-                  className="w-full py-2.5 rounded font-sans font-semibold text-sm transition-all"
+                  className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
                   style={{
-                    background: course.is_published ? 'rgba(224,82,82,0.1)' : 'rgba(29,158,117,0.1)',
-                    color: course.is_published ? '#e05252' : '#1D9E75',
+                    background: course.is_published ? 'rgba(224,82,82,0.1)' : 'rgba(102, 252, 241,0.1)',
+                    color: course.is_published ? '#e05252' : ACCENT,
                   }}
                 >
-                  {publishing ? '...' : course.is_published
-                    ? <span className="flex items-center justify-center gap-1"><PixelIcon name="warning" size={12} color="currentColor" /> Снять с публикации</span>
-                    : <span className="flex items-center justify-center gap-1"><PixelIcon name="rocket" size={12} color="currentColor" /> Опубликовать</span>
-                  }
+                  {publishing ? '...' : course.is_published ? 'Снять с публикации' : 'Опубликовать'}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="w-full py-2 rounded font-sans text-xs transition-all"
-                  style={{ background: 'transparent', color: 'rgba(224,82,82,0.4)' }}
+                  className="w-full py-2 rounded-lg font-geist text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  style={{ background: 'transparent', color: 'rgba(224,82,82,0.5)' }}
                 >
-                  {deleting ? 'Удаляю...' : <span className="flex items-center justify-center gap-1"><PixelIcon name="wrench" size={11} color="currentColor" /> Удалить курс</span>}
+                  <TrashLineIcon size={12} color="currentColor" /> {deleting ? 'Удаляю...' : 'Удалить курс'}
                 </button>
               </div>
             )}

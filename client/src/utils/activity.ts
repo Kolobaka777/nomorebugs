@@ -33,6 +33,7 @@ function verb(masculine: string, feminine: string, gender: Gender | undefined): 
 
 interface FormatOptions {
   lectureTitle?: string | null;
+  courseTitle?: string | null;
   // Best-effort id → name lookup (e.g. from a team roster already loaded on
   // the page) for actions that reference a target user by id — falls back
   // to "#id" when the id isn't in the map (still far better than the raw
@@ -54,7 +55,7 @@ export function formatActivityAction(action: string, opts: FormatOptions = {}): 
     case 'completed_baseline': return `${verb('Заполнил', 'Заполнила', g)} анкету "до"`;
     case 'passed_lecture': return `${verb('Прошёл', 'Прошла', g)} лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
     case 'failed_lecture': return `${verb('Не прошёл', 'Не прошла', g)} лекцию${opts.lectureTitle ? ` «${opts.lectureTitle}»` : ''}`;
-    case 'course_completed': return `${verb('Прошёл', 'Прошла', g)} курс`;
+    case 'course_completed': return `${verb('Прошёл', 'Прошла', g)} курс${opts.courseTitle ? ` «${opts.courseTitle}»` : ''}`;
   }
 
   let m: RegExpMatchArray | null;

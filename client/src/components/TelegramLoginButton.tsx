@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
-import PixelIcon from './PixelIcon';
+import Icon from './Icon';
 
 interface TelegramLoginButtonProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -59,7 +59,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
     return (
       <div
         className="mt-4 p-3 rounded text-center"
-        style={{ background: 'rgba(29,158,117,0.05)', border: '1px solid rgba(29,158,117,0.2)' }}
+        style={{ background: 'rgba(102, 252, 241,0.05)', border: '1px solid rgba(102, 252, 241,0.2)' }}
       >
         <p className="text-pixel/70 text-xs font-sans mb-2">Открой Telegram и нажми «Старт» в боте</p>
         <a
@@ -69,7 +69,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
           className="btn-primary inline-block"
           style={{ padding: '8px 16px', fontSize: '12px' }}
         >
-          Открыть Telegram →
+          <span className="inline-flex items-center gap-1">Открыть Telegram <Icon name="arrowRight" size={14} color="currentColor" /></span>
         </a>
         <p className="pixel-pulse text-pixel/50 text-xs font-sans mt-3">🐌 ждём подтверждения...</p>
       </div>
@@ -86,7 +86,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
           onClick={start}
           className="w-full text-center text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
         >
-          Попробовать снова →
+          <span className="inline-flex items-center gap-1">Попробовать снова <Icon name="arrowRight" size={14} color="currentColor" /></span>
         </button>
       </div>
     );
@@ -100,14 +100,14 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
       style={{
         padding: '10px',
         fontSize: '13px',
-        borderRadius: '4px',
+        borderRadius: '8px',
         border: '2px solid #229ED9',
         background: 'rgba(34,158,217,0.08)',
         color: '#229ED9',
         cursor: 'pointer',
       }}
     >
-      <PixelIcon name="bug" size={13} color="#229ED9" />
+      <Icon name="bug" size={13} color="#229ED9" />
       {phase === 'starting' ? 'секунду...' : 'Войти через Telegram'}
     </button>
   );

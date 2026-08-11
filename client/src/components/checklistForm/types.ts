@@ -19,12 +19,12 @@ export type Status = 'ok' | 'fail' | 'na';
 export type CheckMode = 'mvt' | 'full';
 
 export const STATUS_LABELS: Record<Status, string> = { ok: 'Ок', fail: 'Ошибка', na: '-' };
-export const STATUS_COLORS: Record<Status, string> = { ok: '#1D9E75', fail: '#e05252', na: 'rgba(232,232,208,0.35)' };
+export const STATUS_COLORS: Record<Status, string> = { ok: '#66FCF1', fail: '#e05252', na: 'rgba(197, 198, 199,0.35)' };
 
 export const CATEGORY_COLORS: Record<string, string> = {
   'Критически важно!': '#e05252',
   'Визуал': '#7F77DD',
-  'Функционал': '#1D9E75',
+  'Функционал': '#66FCF1',
   'Ссылки': '#EF9F27',
   'Картинки': '#4fc3f7',
   'Пунктуация': '#ff8a65',

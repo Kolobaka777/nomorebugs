@@ -20,6 +20,12 @@ describe('formatActivityAction', () => {
     expect(formatActivityAction('failed_lecture', { gender: 'male' })).toBe('Не прошёл лекцию');
   });
 
+  it('embeds the course title for course_completed when given, falls back to a bare "курс" without it', () => {
+    expect(formatActivityAction('course_completed', { gender: 'female', courseTitle: 'Playwright Basics' }))
+      .toBe('Прошла курс «Playwright Basics»');
+    expect(formatActivityAction('course_completed', { gender: 'male' })).toBe('Прошёл курс');
+  });
+
   it('parses permission_granted/revoked into a readable sentence, resolving the target name when known', () => {
     expect(formatActivityAction('permission_granted:target=4:permission=manage_checklists', {
       gender: 'female',

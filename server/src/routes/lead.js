@@ -286,10 +286,19 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
         a.id, a.action, a.created_at,
         u.id as user_id, u.name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
-        l.title as lecture_title
+        l.title as lecture_title,
+        c.title as course_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
-      LEFT JOIN lectures l ON a.lecture_id = l.id
+      -- 'course_completed' reuses the lecture_id column to stash a
+      -- custom_courses id instead — a separate id space from lectures (see
+      -- POST /api/courses/time-track) — so each join is scoped to the
+      -- actions that actually populate it that way; without the a.action
+      -- guard here too, a course_completed row could coincidentally join a
+      -- same-numbered lecture and show the wrong title alongside the right
+      -- course_title.
+      LEFT JOIN lectures l ON a.lecture_id = l.id AND a.action != 'course_completed'
+      LEFT JOIN custom_courses c ON a.action = 'course_completed' AND a.lecture_id = c.id
       ${where}
       ORDER BY a.created_at DESC
       LIMIT ? OFFSET ?
@@ -315,10 +324,12 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
         a.id, a.action, a.created_at,
         u.id as user_id, u.name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
-        l.title as lecture_title
+        l.title as lecture_title,
+        c.title as course_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
-      LEFT JOIN lectures l ON a.lecture_id = l.id
+      LEFT JOIN lectures l ON a.lecture_id = l.id AND a.action != 'course_completed'
+      LEFT JOIN custom_courses c ON a.action = 'course_completed' AND a.lecture_id = c.id
       WHERE a.user_id = ?
       ORDER BY a.created_at DESC
       LIMIT ? OFFSET ?

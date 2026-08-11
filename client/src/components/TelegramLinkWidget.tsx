@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
 import { showApiError } from '../utils/toast';
+import Icon from './Icon';
 
 type Status =
   | { phase: 'loading' }
@@ -65,11 +66,11 @@ export default function TelegramLinkWidget() {
   if (status.phase === 'loading') return null;
 
   return (
-    <div className="px-3 py-2 text-xs font-sans" style={{ borderTop: '1px solid rgba(29,158,117,0.08)' }}>
+    <div className="px-3 py-2 text-xs font-sans" style={{ borderTop: '1px solid rgba(102, 252, 241,0.08)' }}>
       {status.phase === 'linked' && (
         <div className="flex items-center justify-between gap-2">
           <span style={{ color: '#229ED9' }}>Telegram: @{status.username || '…'}</span>
-          <button onClick={unlink} className="cursor-pointer" style={{ color: 'rgba(232,232,208,0.45)' }}>
+          <button onClick={unlink} className="cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.45)' }}>
             отвязать
           </button>
         </div>
@@ -81,7 +82,7 @@ export default function TelegramLinkWidget() {
         </button>
       )}
 
-      {status.phase === 'starting' && <span style={{ color: 'rgba(232,232,208,0.45)' }}>секунду...</span>}
+      {status.phase === 'starting' && <span style={{ color: 'rgba(197, 198, 199,0.45)' }}>секунду...</span>}
 
       {status.phase === 'waiting' && (
         <div>
@@ -91,9 +92,9 @@ export default function TelegramLinkWidget() {
             rel="noopener noreferrer"
             style={{ color: '#229ED9' }}
           >
-            Открыть Telegram →
+            <span className="inline-flex items-center gap-1">Открыть Telegram <Icon name="arrowRight" size={14} color="currentColor" /></span>
           </a>
-          <p className="pixel-pulse mt-1" style={{ color: 'rgba(232,232,208,0.45)' }}>ждём подтверждения...</p>
+          <p className="pixel-pulse mt-1" style={{ color: 'rgba(197, 198, 199,0.45)' }}>ждём подтверждения...</p>
         </div>
       )}
 

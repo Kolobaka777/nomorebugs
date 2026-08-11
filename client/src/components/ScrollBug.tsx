@@ -30,7 +30,7 @@ export default function ScrollBug() {
       {/* Track */}
       <div
         className="absolute"
-        style={{ bottom: '6px', left: 0, right: 0, height: '2px', background: 'rgba(29,158,117,0.1)' }}
+        style={{ bottom: '6px', left: 0, right: 0, height: '2px', background: 'rgba(102, 252, 241,0.1)' }}
       />
       {/* Progress fill */}
       <div
@@ -40,7 +40,7 @@ export default function ScrollBug() {
           left: 0,
           height: '2px',
           width: `${pct * 100}%`,
-          background: 'rgba(29,158,117,0.4)',
+          background: 'rgba(102, 252, 241,0.4)',
           transition: 'width 0.12s linear',
         }}
       />

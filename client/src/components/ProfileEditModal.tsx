@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { testerApi } from '../api';
 import { FullProfile, Lecture } from '../types';
 import PixelAvatar, { AVATAR_LIST, FRAME_LIST, BG_LIST, AvatarId, FrameId, BgId } from './PixelAvatar';
-import PixelIcon, { IconName } from './PixelIcon';
+import Icon, { IconName } from './Icon';
+import Modal from './Modal';
 import { useEscapeKey } from '../utils/a11y';
 
 const SPECIALIZATIONS = [
@@ -105,12 +106,12 @@ export default function ProfileEditModal({
   };
 
   const inputStyle: React.CSSProperties = {
-    background: '#0f0f1a', border: 'none', outline: 'none',
-    color: '#e8e8d0', fontSize: 13, fontFamily: 'Inter, sans-serif',
-    padding: '8px 10px', width: '100%', borderBottom: '2px solid rgba(29,158,117,0.3)',
+    background: '#0B0C10', border: 'none', outline: 'none',
+    color: '#C5C6C7', fontSize: 13, fontFamily: 'Geist, system-ui, sans-serif',
+    padding: '8px 10px', width: '100%', borderBottom: '2px solid rgba(102, 252, 241,0.3)',
   };
   const labelStyle: React.CSSProperties = {
-    fontSize: '0.6rem', fontFamily: 'Press Start 2P', color: 'rgba(29,158,117,0.7)',
+    fontSize: '0.6rem', fontFamily: 'Montserrat', color: 'rgba(102, 252, 241,0.7)',
     display: 'block', marginBottom: 6, lineHeight: 1.8,
   };
 
@@ -121,44 +122,22 @@ export default function ProfileEditModal({
   ];
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.8)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded"
-        style={{
-          background: '#1a1a2e',
-          boxShadow: '2px 0 0 0 #1D9E75,-2px 0 0 0 #1D9E75,0 2px 0 0 #1D9E75,0 -2px 0 0 #1D9E75',
-        }}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4" style={{ borderBottom: '1px solid rgba(29,158,117,0.2)' }}>
-          <p className="font-pixel text-primary" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>
-            РЕДАКТИРОВАТЬ ПРОФИЛЬ
-          </p>
-          <button
-            onClick={onClose}
-            aria-label="Закрыть окно профиля"
-            className="text-pixel/60 hover:text-pixel text-xl font-sans cursor-pointer"
-          >×</button>
-        </div>
-
+    <Modal title="Редактировать профиль" onClose={onClose} maxWidth={576} zIndex={100} noBodyPadding>
+      <>
         {/* Sub-tabs */}
-        <div className="flex" style={{ borderBottom: '1px solid rgba(29,158,117,0.15)' }}>
+        <div className="flex" style={{ borderBottom: '1px solid rgba(102, 252, 241,0.15)' }}>
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className="flex-1 py-2 text-xs font-sans cursor-pointer transition-colors"
               style={{
-                background: tab === t.id ? 'rgba(29,158,117,0.15)' : 'transparent',
-                color: tab === t.id ? '#1D9E75' : 'rgba(232,232,208,0.4)',
+                background: tab === t.id ? 'rgba(102, 252, 241,0.15)' : 'transparent',
+                color: tab === t.id ? '#66FCF1' : 'rgba(197, 198, 199,0.4)',
               }}
             >
               <span className="flex items-center justify-center gap-1.5">
-                <PixelIcon name={t.icon} size={11} color="currentColor" />
+                <Icon name={t.icon} size={11} color="currentColor" />
                 {t.label}
               </span>
             </button>
@@ -220,7 +199,7 @@ export default function ProfileEditModal({
 
               {/* МОЙ АНЕКДОТ ПРО УЛИТКУ — скрыт
               <div>
-                <label style={labelStyle} className="flex items-center gap-1.5">МОЙ АНЕКДОТ ПРО УЛИТКУ <PixelIcon name="snail" size={12} color="currentColor" /></label>
+                <label style={labelStyle} className="flex items-center gap-1.5">МОЙ АНЕКДОТ ПРО УЛИТКУ <Icon name="snail" size={12} color="currentColor" /></label>
                 <textarea
                   value={snailJoke}
                   onChange={e => setSnailJoke(e.target.value.slice(0, 300))}
@@ -244,10 +223,10 @@ export default function ProfileEditModal({
                       onClick={() => setGender(opt.value)}
                       className="flex-1 py-2 rounded text-xs font-sans cursor-pointer transition-colors"
                       style={{
-                        background: gender === opt.value ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                        color: gender === opt.value ? '#1D9E75' : 'rgba(232,232,208,0.5)',
+                        background: gender === opt.value ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                        color: gender === opt.value ? '#66FCF1' : 'rgba(197, 198, 199,0.5)',
                         boxShadow: gender === opt.value
-                          ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75'
+                          ? '1px 0 0 0 #66FCF1,-1px 0 0 0 #66FCF1,0 1px 0 0 #66FCF1,0 -1px 0 0 #66FCF1'
                           : 'none',
                       }}
                     >
@@ -264,13 +243,13 @@ export default function ProfileEditModal({
                   className="font-pixel cursor-pointer px-3 py-1 rounded"
                   style={{
                     fontSize: '0.45rem',
-                    background: isPublic ? 'rgba(29,158,117,0.2)' : 'rgba(232,232,208,0.05)',
-                    color: isPublic ? '#1D9E75' : 'rgba(232,232,208,0.3)',
-                    boxShadow: isPublic ? '1px 0 0 0 #1D9E75,-1px 0 0 0 #1D9E75,0 1px 0 0 #1D9E75,0 -1px 0 0 #1D9E75' : 'none',
+                    background: isPublic ? 'rgba(102, 252, 241,0.2)' : 'rgba(197, 198, 199,0.05)',
+                    color: isPublic ? '#66FCF1' : 'rgba(197, 198, 199,0.3)',
+                    boxShadow: isPublic ? '1px 0 0 0 #66FCF1,-1px 0 0 0 #66FCF1,0 1px 0 0 #66FCF1,0 -1px 0 0 #66FCF1' : 'none',
                   }}
                 >
                   <span className="flex items-center gap-1.5">
-                    {isPublic ? '✓' : <PixelIcon name="lock" size={10} color="currentColor" />}
+                    {isPublic ? '✓' : <Icon name="lock" size={10} color="currentColor" />}
                     {isPublic ? 'ПУБЛИЧНЫЙ' : 'ПРИВАТНЫЙ'}
                   </span>
                 </button>
@@ -291,9 +270,9 @@ export default function ProfileEditModal({
                       onClick={() => { setAvatarId(av.id); setCustomAvatar(null); }}
                       className="flex flex-col items-center gap-1 p-2 rounded cursor-pointer transition-all"
                       style={{
-                        background: avatarId === av.id ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
+                        background: avatarId === av.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
                         boxShadow: avatarId === av.id
-                          ? '2px 0 0 0 #1D9E75,-2px 0 0 0 #1D9E75,0 2px 0 0 #1D9E75,0 -2px 0 0 #1D9E75'
+                          ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
                           : 'none',
                       }}
                     >
@@ -307,16 +286,16 @@ export default function ProfileEditModal({
                     onClick={() => fileInputRef.current?.click()}
                     className="flex flex-col items-center justify-center gap-1 p-2 rounded cursor-pointer transition-all"
                     style={{
-                      background: avatarId === 'custom' ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
+                      background: avatarId === 'custom' ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
                       boxShadow: avatarId === 'custom'
-                        ? '2px 0 0 0 #1D9E75,-2px 0 0 0 #1D9E75,0 2px 0 0 #1D9E75,0 -2px 0 0 #1D9E75'
+                        ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
                         : 'none',
                       minHeight: 64,
                     }}
                   >
                     {customAvatar
                       ? <PixelAvatar id="custom" size={40} customSrc={customAvatar} />
-                      : <PixelIcon name="camera" size={24} color="rgba(232,232,208,0.3)" />
+                      : <Icon name="camera" size={24} color="rgba(197, 198, 199,0.3)" />
                     }
                     <span className="text-pixel/60 font-sans" style={{ fontSize: '0.6rem' }}>
                       {customAvatar ? 'Своя' : 'Загрузить'}
@@ -334,7 +313,7 @@ export default function ProfileEditModal({
                     <button key={f.id} onClick={() => !locked && setFrame(f.id)} disabled={locked}
                       className="flex flex-col items-center gap-1 p-2 rounded transition-all"
                       style={{ cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.4 : 1,
-                        background: frame === f.id ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)' }}>
+                        background: frame === f.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)' }}>
                       <PixelAvatar id="bug1" size={32} frame={f.id} />
                       <span className="text-pixel/60 font-sans text-center" style={{ fontSize: '0.55rem' }}>{f.name}</span>
                     </button>
@@ -349,8 +328,8 @@ export default function ProfileEditModal({
                     <button key={b.id} onClick={() => !locked && setBg(b.id)} disabled={locked}
                       className="flex flex-col items-center gap-1 p-2 rounded cursor-pointer transition-all"
                       style={{ ...b.style, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1,
-                        border: bg === b.id ? '2px solid #1D9E75' : '2px solid transparent', minHeight: 56, justifyContent: 'center' }}>
-                      <span className="font-pixel" style={{ fontSize: '0.45rem', color: '#e8e8d0' }}>{b.name}</span>
+                        border: bg === b.id ? '2px solid #66FCF1' : '2px solid transparent', minHeight: 56, justifyContent: 'center' }}>
+                      <span className="font-pixel" style={{ fontSize: '0.45rem', color: '#C5C6C7' }}>{b.name}</span>
                     </button>
                   );})}
                 </div>
@@ -374,8 +353,8 @@ export default function ProfileEditModal({
                       onClick={() => setFavLectureId(null)}
                       className="w-full p-2 rounded text-left text-xs font-sans transition-colors"
                       style={{
-                        background: favLectureId === null ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                        color: 'rgba(232,232,208,0.6)',
+                        background: favLectureId === null ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                        color: 'rgba(197, 198, 199,0.6)',
                         cursor: 'pointer',
                       }}
                     >
@@ -387,16 +366,16 @@ export default function ProfileEditModal({
                         onClick={() => setFavLectureId(lec.id)}
                         className="w-full p-2 rounded text-left text-xs font-sans flex justify-between transition-colors"
                         style={{
-                          background: favLectureId === lec.id ? 'rgba(29,158,117,0.15)' : 'rgba(232,232,208,0.04)',
-                          color: favLectureId === lec.id ? '#e8e8d0' : 'rgba(232,232,208,0.6)',
+                          background: favLectureId === lec.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                          color: favLectureId === lec.id ? '#C5C6C7' : 'rgba(197, 198, 199,0.6)',
                           cursor: 'pointer',
                           boxShadow: favLectureId === lec.id
-                            ? '2px 0 0 0 #1D9E75,-2px 0 0 0 #1D9E75,0 2px 0 0 #1D9E75,0 -2px 0 0 #1D9E75'
+                            ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
                             : 'none',
                         }}
                       >
                         <span>{lec.title}</span>
-                        <span style={{ color: '#1D9E75', marginLeft: 8 }}>{lec.score}%</span>
+                        <span style={{ color: '#66FCF1', marginLeft: 8 }}>{lec.score}%</span>
                       </button>
                     ))}
                   </div>
@@ -425,7 +404,7 @@ export default function ProfileEditModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }

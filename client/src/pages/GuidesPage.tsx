@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import PixelIcon from '../components/PixelIcon';
+import Icon from '../components/Icon';
 import { guidesApi, knowledgeApi } from '../api';
+import { showApiError } from '../utils/toast';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, PAGE_BG } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -35,7 +37,7 @@ function renderMarkdown(content: string) {
     const parts = text.split(/(`[^`]+`)/g);
     return parts.map((part, idx) =>
       part.startsWith('`') && part.endsWith('`') && part.length > 1
-        ? <code key={idx} className="px-1 rounded text-xs" style={{ background: 'rgba(232,232,208,0.1)', color: '#EF9F27' }}>{part.slice(1, -1)}</code>
+        ? <code key={idx} className="px-1 rounded text-xs" style={{ background: 'rgba(197, 198, 199,0.1)', color: '#EF9F27' }}>{part.slice(1, -1)}</code>
         : part
     );
   };
@@ -48,19 +50,19 @@ function renderMarkdown(content: string) {
       while (i < lines.length && !lines[i].startsWith('```')) { codeLines.push(lines[i]); i++; }
       i++;
       blocks.push(
-        <pre key={key++} className="p-3 rounded text-xs font-mono overflow-x-auto my-3" style={{ background: '#0f0f1a', color: 'rgba(232,232,208,0.8)' }}>
+        <pre key={key++} className="p-3 rounded-lg text-xs font-mono overflow-x-auto my-3" style={{ background: PAGE_BG, color: TEXT_PRIMARY }}>
           {codeLines.join('\n')}
         </pre>
       );
       continue;
     }
     if (line.startsWith('## ')) {
-      blocks.push(<h3 key={key++} className="font-pixel text-pixel mt-5 mb-2" style={{ fontSize: '0.6rem', lineHeight: 1.8 }}>{renderInline(line.slice(3))}</h3>);
+      blocks.push(<h3 key={key++} className="font-montserrat font-semibold mt-5 mb-2" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{renderInline(line.slice(3))}</h3>);
       i++;
       continue;
     }
     if (line.startsWith('# ')) {
-      blocks.push(<h2 key={key++} className="font-pixel text-primary mt-6 mb-3" style={{ fontSize: '0.7rem', lineHeight: 1.8 }}>{renderInline(line.slice(2))}</h2>);
+      blocks.push(<h2 key={key++} className="font-montserrat font-bold mt-6 mb-3" style={{ fontSize: 18, color: TEXT_PRIMARY }}>{renderInline(line.slice(2))}</h2>);
       i++;
       continue;
     }
@@ -69,7 +71,7 @@ function renderMarkdown(content: string) {
       while (i < lines.length && lines[i].startsWith('- ')) { items.push(lines[i].slice(2)); i++; }
       blocks.push(
         <ul key={key++} className="list-disc ml-5 space-y-1 my-2">
-          {items.map((it, idx) => <li key={idx} className="text-pixel/80 font-sans text-sm">{renderInline(it)}</li>)}
+          {items.map((it, idx) => <li key={idx} className="font-geist text-sm" style={{ color: TEXT_PRIMARY }}>{renderInline(it)}</li>)}
         </ul>
       );
       continue;
@@ -79,7 +81,7 @@ function renderMarkdown(content: string) {
     while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('- ') && !lines[i].startsWith('```')) {
       paraLines.push(lines[i]); i++;
     }
-    blocks.push(<p key={key++} className="text-pixel/80 font-sans text-sm leading-relaxed my-2">{renderInline(paraLines.join(' '))}</p>);
+    blocks.push(<p key={key++} className="font-geist text-sm leading-relaxed my-2" style={{ color: TEXT_PRIMARY }}>{renderInline(paraLines.join(' '))}</p>);
   }
   return blocks;
 }
@@ -90,7 +92,7 @@ function GuideForm({ initial, onSave, onCancel, error, saving }: { initial?: Gui
   const [content, setContent] = useState(initial?.content || '');
 
   return (
-    <div className="p-4 rounded space-y-3" style={{ background: '#1a1a2e', border: '1px solid rgba(29,158,117,0.3)' }}>
+    <div className="p-4 rounded-lg space-y-3" style={{ background: CARD_BG, border: `1px solid ${ACCENT}4D`, boxShadow: CARD_SHADOW }}>
       <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
       <input className="pixel-input w-full text-sm" placeholder="Категория" value={category} onChange={e => setCategory(e.target.value)} />
       <textarea
@@ -100,7 +102,7 @@ function GuideForm({ initial, onSave, onCancel, error, saving }: { initial?: Gui
         value={content}
         onChange={e => setContent(e.target.value)}
       />
-      {error && <p className="text-xs font-sans" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={() => onSave({ title, category, content })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
           {saving ? '...' : 'Сохранить'}
@@ -138,7 +140,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
   }, []);
 
   const openGuide = (id: number) => {
-    guidesApi.get(id).then(r => setSelected(r.data)).catch(() => {});
+    guidesApi.get(id).then(r => setSelected(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить гайд'));
   };
 
   const save = async (data: { title: string; category: string; content: string }) => {
@@ -173,7 +175,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
       setSelected(null);
       load();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Не удалось удалить гайд');
+      showApiError(err, 'Не удалось удалить гайд');
     }
   };
 
@@ -184,7 +186,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+      <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <SnailLoader />
       </div>
@@ -192,12 +194,12 @@ export default function GuidesPage({ user, onLogout }: Props) {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0f0f1a' }}>
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="font-pixel text-primary" style={{ fontSize: '0.8rem', lineHeight: 1.8 }}>
-            <span className="flex items-center gap-2"><PixelIcon name="books" size={14} color="#1D9E75" /> Гайды</span>
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <h1 className="font-montserrat font-bold flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <Icon name="books" size={22} color={ACCENT} /> Гайды
           </h1>
           {canEdit && (
             <button onClick={() => { setSelected(null); setFormError(''); setCreating(true); setEditing(false); }} className="btn-primary text-xs px-4 py-2">
@@ -208,7 +210,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
 
         {listError && (
           <div className="card text-center py-4 mb-6">
-            <p className="text-sm font-sans mb-3" style={{ color: '#e05252' }}>{listError}</p>
+            <p className="text-sm font-geist mb-3" style={{ color: '#e05252' }}>{listError}</p>
             <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         )}
@@ -216,21 +218,22 @@ export default function GuidesPage({ user, onLogout }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 space-y-4">
             {!listError && Object.keys(grouped).length === 0 && (
-              <p className="text-pixel/50 text-sm font-sans">Гайдов пока нет{canEdit ? ' — добавь первый.' : '.'}</p>
+              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Гайдов пока нет{canEdit ? ' — добавь первый.' : '.'}</p>
             )}
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
-                <p className="text-pixel/50 text-xs font-sans uppercase mb-1.5">{category}</p>
+                <p className="font-geist text-xs uppercase mb-1.5" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{category}</p>
                 <div className="space-y-1">
                   {items.map(g => (
                     <button
                       key={g.id}
                       onClick={() => { openGuide(g.id); setCreating(false); setEditing(false); }}
-                      className="w-full text-left px-3 py-2 rounded text-sm font-sans transition-colors"
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-geist transition-colors"
                       style={{
-                        background: selected?.id === g.id ? 'rgba(29,158,117,0.15)' : '#1a1a2e',
-                        color: selected?.id === g.id ? '#1D9E75' : 'rgba(232,232,208,0.8)',
-                        border: '1px solid rgba(232,232,208,0.06)',
+                        background: selected?.id === g.id ? 'rgba(102, 252, 241,0.12)' : CARD_BG,
+                        color: selected?.id === g.id ? ACCENT : TEXT_PRIMARY,
+                        border: selected?.id === g.id ? `1px solid ${ACCENT}66` : '1px solid rgba(197, 198, 199, 0.2)',
+                        boxShadow: CARD_SHADOW,
                       }}
                     >
                       {g.title}
@@ -247,16 +250,16 @@ export default function GuidesPage({ user, onLogout }: Props) {
             ) : editing && selected ? (
               <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} error={formError} saving={saving} />
             ) : selected ? (
-              <div className="p-6 rounded" style={{ background: '#1a1a2e', border: '1px solid rgba(232,232,208,0.06)' }}>
+              <div className="p-6 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                 <div className="flex items-start justify-between mb-2">
-                  <p className="text-pixel/50 text-xs font-sans">{selected.category}</p>
+                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{selected.category}</p>
                   {canEdit && (
                     <div className="flex gap-1.5 shrink-0">
-                      <button onClick={() => { setFormError(''); setEditing(true); }} className="btn-secondary text-xs px-2 py-1">
-                        <PixelIcon name="pencil" size={11} color="currentColor" />
+                      <button onClick={() => { setFormError(''); setEditing(true); }} aria-label="Редактировать гайд" className="btn-secondary text-xs px-2 py-1">
+                        <Icon name="pencil" size={14} color="currentColor" />
                       </button>
-                      <button onClick={() => remove(selected.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}>
-                        <PixelIcon name="wrench" size={11} color="currentColor" />
+                      <button onClick={() => remove(selected.id)} aria-label="Удалить гайд" className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}>
+                        <Icon name="close" size={14} color="currentColor" />
                       </button>
                     </div>
                   )}
@@ -265,13 +268,13 @@ export default function GuidesPage({ user, onLogout }: Props) {
               </div>
             ) : !listError ? (
               <div
-                className="h-full min-h-[280px] rounded flex flex-col items-center justify-center text-center p-8"
-                style={{ background: '#1a1a2e', border: '1px dashed rgba(232,232,208,0.12)' }}
+                className="h-full min-h-[280px] rounded-lg flex flex-col items-center justify-center text-center p-8"
+                style={{ background: CARD_BG, border: '1px dashed rgba(197, 198, 199,0.2)' }}
               >
-                <PixelIcon name="books" size={28} color="rgba(232,232,208,0.25)" className="mb-3" />
-                <p className="text-pixel/60 text-sm font-sans">Выбери гайд слева, чтобы посмотреть его тут.</p>
+                <Icon name="books" size={32} color="rgba(197, 198, 199,0.25)" className="mb-3" />
+                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери гайд слева, чтобы посмотреть его тут.</p>
                 {Object.keys(grouped).length === 0 && (
-                  <p className="text-pixel/40 text-xs font-sans mt-1">Гайдов пока нет — начни с любого раздела.</p>
+                  <p className="font-geist text-xs mt-1" style={{ color: 'rgba(197, 198, 199,0.4)' }}>Гайдов пока нет — начни с любого раздела.</p>
                 )}
               </div>
             ) : null}
