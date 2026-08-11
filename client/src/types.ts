@@ -152,6 +152,16 @@ export interface FullProfile {
     id: number; title: string; skill_area: string;
     score?: number; completed_at?: string;
   } | null;
+  lecturesCompleted: number;
+  averageScore: number;
+  // How many courses/guides this person has ever submitted via the
+  // propose-then-approve flow (see PROPOSAL_STATUS_* in api.ts) —
+  // "proposed" counts pending+approved+rejected, "approved" is the subset
+  // that actually went live.
+  coursesProposed: number;
+  coursesApproved: number;
+  guidesProposed: number;
+  guidesApproved: number;
 }
 
 export interface TestHistoryItem {

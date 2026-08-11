@@ -194,6 +194,11 @@ function App() {
             <Route path="/custom-course/:id/learn" element={<CustomCourseLearningPage {...sharedProps} />} />
             <Route path="/lead/course-builder"     element={<CourseBuilderPage {...sharedProps} />} />
             <Route path="/lead/course-builder/:id" element={<CourseBuilderPage {...sharedProps} />} />
+            {/* Same builder component, own URL — a tester proposing a
+                course shouldn't see "/lead/..." in their address bar. No
+                :id variant: proposals are one-shot submissions, not
+                editable by their author after the fact (see courses.js). */}
+            <Route path="/propose-course"          element={<CourseBuilderPage {...sharedProps} />} />
             {/* <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} /> */}
             {/* <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} /> */}
             <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />

@@ -274,9 +274,15 @@ export const knowledgeApi = {
 export const guidesApi = {
   list: () => api.get('/guides'),
   get: (id: number) => api.get(`/guides/${id}`),
+  // Lead/admin/a manage_guides grant publishes immediately; anyone else is
+  // proposing one — the server forces it unpublished + pending review
+  // regardless of what's sent (see POST /api/guides).
   create: (data: { title: string; category: string; content: string }) => api.post('/guides', data),
   update: (id: number, data: { title: string; category: string; content: string }) => api.put(`/guides/${id}`, data),
+  // Doubles as "decline a proposal" when the target is pending — see
+  // DELETE /api/guides/:id.
   remove: (id: number) => api.delete(`/guides/${id}`),
+  approve: (id: number) => api.patch(`/guides/${id}/approve`),
 };
 
 // Lead: scoped permission grants (e.g. letting a tester manage the knowledge base)

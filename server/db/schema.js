@@ -897,6 +897,26 @@ export function initDb() {
     for (const name of existingTypes) insTaskType.run(name);
   }
 
+  // Migration: course/guide proposals — lets a plain tester submit a full
+  // course or guide that only goes live once a lead approves it (see
+  // routes/courses.js POST /api/custom-courses and routes/knowledge.js
+  // POST /api/guides). NULL means "not a proposal" (the normal case for
+  // everything created before this and for anything a lead/admin authors
+  // directly); 'pending' while awaiting review; 'approved'/'rejected' are
+  // kept as a permanent record even after is_published flips or the row
+  // gets soft-deleted, so "how many courses has this person proposed" can
+  // still be counted later regardless of outcome.
+  const customCoursesCols = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
+  if (!customCoursesCols.includes('proposal_status')) db.exec('ALTER TABLE custom_courses ADD COLUMN proposal_status TEXT DEFAULT NULL');
+
+  // Guides never had a draft/publish concept before (creation = publishing,
+  // always by a lead) — is_published defaults to 1 so every existing guide
+  // stays visible exactly as before. A tester-submitted proposal is
+  // inserted with is_published=0 instead.
+  const guidesCols = db.prepare("PRAGMA table_info(guides)").all().map(c => c.name);
+  if (!guidesCols.includes('is_published')) db.exec('ALTER TABLE guides ADD COLUMN is_published INTEGER DEFAULT 1');
+  if (!guidesCols.includes('proposal_status')) db.exec('ALTER TABLE guides ADD COLUMN proposal_status TEXT DEFAULT NULL');
+
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,
   // but every one of these queries was a full table scan waiting to

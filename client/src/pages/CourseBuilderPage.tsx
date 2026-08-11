@@ -5,6 +5,7 @@ import SnailLoader from '../components/SnailLoader';
 import Icon from '../components/Icon';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
+import { knowledgeApi } from '../api';
 import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
@@ -21,6 +22,19 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = !!id;
+
+  // Lead/admin (or a tester with a manage_courses grant) publish directly,
+  // exactly like before. A plain tester lands here to *propose* a course
+  // instead — same builder, but the server always forces it unpublished +
+  // pending review regardless of what's sent (see POST /api/custom-courses),
+  // so the UI below swaps the draft/publish choice for a single submit
+  // action rather than offering a publish toggle that wouldn't do anything.
+  const [canPublishDirectly, setCanPublishDirectly] = useState(user.role === 'lead' || user.role === 'admin');
+  useEffect(() => {
+    if (canPublishDirectly) return;
+    knowledgeApi.getMyPermissions().then(r => { if (r.data.includes('manage_courses')) setCanPublishDirectly(true); }).catch(() => {});
+  }, []);
+  const isProposing = !canPublishDirectly;
 
   const [form, setForm] = useState<FormState>({
     title: '',
@@ -193,10 +207,16 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
             Назад
           </button>
           <h1 className="font-montserrat font-bold flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
-            <Icon name={isEdit ? 'pencil' : 'sparkle'} size={22} color={ACCENT} />
-            {isEdit ? 'Редактировать курс' : 'Новый курс'}
+            <Icon name={isEdit ? 'pencil' : isProposing ? 'lightbulb' : 'sparkle'} size={22} color={ACCENT} />
+            {isEdit ? 'Редактировать курс' : isProposing ? 'Предложить курс' : 'Новый курс'}
           </h1>
         </div>
+
+        {isProposing && !isEdit && (
+          <p className="font-geist text-sm mb-6 -mt-4" style={{ color: TEXT_MUTED, maxWidth: 640 }}>
+            Заполни курс полностью — он отправится лиду на рассмотрение и появится в общем каталоге для всей команды, если его одобрят.
+          </p>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ─── LEFT: Basic info ─── */}
@@ -366,25 +386,39 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               </div>
             )}
 
-            {/* Save buttons */}
-            <div className="flex gap-3">
+            {/* Save buttons — a proposing tester gets one action (there's no
+                "draft" state for them to save to: the server always
+                requires the full structure and marks it pending review
+                regardless), instead of the lead's draft/publish choice. */}
+            {isProposing ? (
               <button
                 onClick={() => save(false)}
                 disabled={saving}
-                className="flex-1 py-3 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
-                style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.6)' }}
-              >
-                {saving ? 'Сохраняю...' : <span className="flex items-center justify-center gap-2"><Icon name="floppy" size={16} color="currentColor" />Сохранить черновик</span>}
-              </button>
-              <button
-                onClick={() => save(true)}
-                disabled={saving}
-                className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
+                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
                 style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
               >
-                {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />Опубликовать</span>}
+                {saving ? 'Отправляю...' : <span className="flex items-center justify-center gap-2"><Icon name="lightbulb" size={16} color="currentColor" />Отправить на рассмотрение</span>}
               </button>
-            </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => save(false)}
+                  disabled={saving}
+                  className="flex-1 py-3 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
+                  style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.6)' }}
+                >
+                  {saving ? 'Сохраняю...' : <span className="flex items-center justify-center gap-2"><Icon name="floppy" size={16} color="currentColor" />Сохранить черновик</span>}
+                </button>
+                <button
+                  onClick={() => save(true)}
+                  disabled={saving}
+                  className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
+                  style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
+                >
+                  {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />Опубликовать</span>}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

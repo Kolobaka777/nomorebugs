@@ -4,17 +4,30 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission } from '../routeHelpers.js';
+import { requirePermission, hasPermission } from '../routeHelpers.js';
 
 const router = express.Router();
 
 // A custom course can be edited/published/deleted by whoever authored it,
-// or by an admin. Shared so the rule only has to change in one place.
+// or by an admin. A lead can additionally manage *any* pending proposal
+// (not just their own courses) — that's the whole point of the review
+// queue: a tester's proposal needs a lead's approve/decline regardless of
+// who happens to review it, while an ordinary lead-authored course stays
+// "own only" as before.
 function canManageCourse(course, user) {
-  return course.created_by === user.id || user.role === 'admin';
+  if (user.role === 'admin') return true;
+  if (course.created_by === user.id) return true;
+  if (course.proposal_status === 'pending' && user.role === 'lead') return true;
+  return false;
 }
 
-// List: testers see published; lead sees own + published
+function hasManageCourses(user) {
+  return user.role === 'lead' || user.role === 'admin' || hasPermission(user.id, 'manage_courses');
+}
+
+// List: testers see published (+ their own proposals, any status); lead
+// sees own + published + everyone's pending proposals (the review queue —
+// see canManageCourse above for why "pending" specifically is the carve-out).
 router.get('/api/custom-courses', authMiddleware, (req, res) => {
   try {
     let rows;
@@ -26,7 +39,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
           COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
-        WHERE (cc.created_by = ? OR cc.is_published = 1) AND cc.deleted_at IS NULL
+        WHERE (cc.created_by = ? OR cc.is_published = 1 OR cc.proposal_status = 'pending') AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id, req.user.id);
       const totalTesters = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'tester' AND archived_at IS NULL").get().c;
@@ -38,9 +51,9 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
           COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
-        WHERE cc.is_published = 1 AND cc.deleted_at IS NULL
+        WHERE (cc.is_published = 1 OR cc.created_by = ?) AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
-      `).all(req.user.id, req.user.id);
+      `).all(req.user.id, req.user.id, req.user.id);
     }
     res.json(rows);
   } catch (err) {
@@ -372,12 +385,22 @@ function validateCourseStructureInDb(courseId) {
   return null;
 }
 
-// Create course (lead only)
-router.post('/api/custom-courses', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+// Create course — lead/admin/a manage_courses grant publishes (or saves a
+// draft) directly, exactly as before. Anyone else is submitting a
+// *proposal*: forced unpublished + proposal_status='pending' regardless of
+// what they send, and — unlike a lead's own WIP draft — the structure must
+// already be complete, since a proposal is a submission for review, not a
+// work in progress only the author can see.
+router.post('/api/custom-courses', authMiddleware, (req, res) => {
   try {
-    const { title, description, tag, color, requirements, modules, is_published, deadline_at } = req.body;
+    const { title, description, tag, color, requirements, modules, deadline_at } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
-    if (is_published) {
+
+    const canPublishDirectly = hasManageCourses(req.user);
+    const isPublished = canPublishDirectly ? !!req.body.is_published : false;
+    const proposalStatus = canPublishDirectly ? null : 'pending';
+
+    if (isPublished || !canPublishDirectly) {
       const structureError = validateCourseStructureFromRequest(modules);
       if (structureError) return res.status(400).json({ error: structureError });
     }
@@ -387,24 +410,25 @@ router.post('/api/custom-courses', authMiddleware, requirePermission('manage_cou
     // can't leave a course with, say, a module but no lessons in it.
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
-        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         title.trim(),
         description || '',
         tag || 'Custom',
         color || '#1D9E75',
         requirements || '',
-        is_published ? 1 : 0,
+        isPublished ? 1 : 0,
         deadline_at || null,
         req.user.id,
-        new Date().toISOString()
+        new Date().toISOString(),
+        proposalStatus
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
     })();
 
-    if (is_published) {
+    if (isPublished) {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('course_published', req.user.id, courseId);
     }
@@ -488,7 +512,13 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
   }
 });
 
-// Delete course (lead, own only)
+// Delete course (lead, own only) — also doubles as "decline a proposal":
+// canManageCourse lets a lead soft-delete any pending tester proposal even
+// though they didn't author it, so this is the reject action, no separate
+// route needed. When the target was a pending proposal, stamp
+// proposal_status='rejected' before it goes to trash — deleted_at already
+// hides it everywhere, but the outcome stays on the row so "how many
+// proposals has this person submitted" can still count it later.
 // Soft-delete — moves the course to the trash (see /api/admin/trash)
 // instead of removing it. The full cascade delete this used to do inline
 // now only runs on a real purge (hardDeleteCourse, in routeHelpers.js),
@@ -500,7 +530,8 @@ router.delete('/api/custom-courses/:id', authMiddleware, requirePermission('mana
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    db.prepare('UPDATE custom_courses SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?').run(course.id);
+    const rejected = course.proposal_status === 'pending';
+    db.prepare(`UPDATE custom_courses SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(course.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -508,7 +539,11 @@ router.delete('/api/custom-courses/:id', authMiddleware, requirePermission('mana
   }
 });
 
-// Toggle publish
+// Toggle publish — also doubles as "approve a proposal" when the target is
+// pending: canManageCourse lets a lead flip it regardless of authorship,
+// and the 0->1 transition clears proposal_status to 'approved' (kept, not
+// nulled, so it still counts toward the author's proposal history) so the
+// course reads as an ordinary published one everywhere else from then on.
 router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
     const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
@@ -519,10 +554,12 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
       const structureError = validateCourseStructureInDb(course.id);
       if (structureError) return res.status(400).json({ error: structureError });
     }
-    db.prepare('UPDATE custom_courses SET is_published=?, updated_at=? WHERE id=?').run(newStatus, new Date().toISOString(), course.id);
+    const approvingProposal = newStatus === 1 && course.proposal_status === 'pending';
+    db.prepare(`UPDATE custom_courses SET is_published=?, updated_at=?${approvingProposal ? ", proposal_status = 'approved'" : ''} WHERE id=?`)
+      .run(newStatus, new Date().toISOString(), course.id);
     if (newStatus === 1) {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
-        .run('course_published', req.user.id, course.id);
+        .run('course_published', course.created_by, course.id);
     }
 
     res.json({ is_published: newStatus });

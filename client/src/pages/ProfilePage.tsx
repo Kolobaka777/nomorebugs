@@ -99,6 +99,8 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
     streak: 0, cards: [], badges: [], craftable: [], favLecture: null,
+    lecturesCompleted: 0, averageScore: 0,
+    coursesProposed: 0, coursesApproved: 0, guidesProposed: 0, guidesApproved: 0,
   } as FullProfile;
 
   const shown = profile ?? defaultProfile;

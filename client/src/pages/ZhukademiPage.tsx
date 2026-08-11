@@ -46,7 +46,7 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
 // custom courses — same border/radius/type treatment either way so the two
 // sections read as one design language, not two.
 function CourseCard({
-  modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, isLocked, isPassed, ctaLabel, ctaColor,
+  modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
   statsLabel, onClick, clickable, editHref, onEdit,
 }: {
   modulesLabel: string;
@@ -55,6 +55,10 @@ function CourseCard({
   title: string;
   isNew?: boolean;
   isDraft?: boolean;
+  // A tester's proposal awaiting lead review — distinct from isDraft (a
+  // lead's own work-in-progress): different badge color/label so the two
+  // unpublished states don't read as the same thing.
+  pendingReview?: boolean;
   isLocked?: boolean;
   isPassed?: boolean;
   ctaLabel: string;
@@ -110,7 +114,11 @@ function CourseCard({
           <span className="font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
             {modulesLabel}
           </span>
-          {isDraft ? (
+          {pendingReview ? (
+            <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+              На рассмотрении
+            </span>
+          ) : isDraft ? (
             <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.1)', color: 'rgba(197, 198, 199,0.6)' }}>
               Draft
             </span>
@@ -274,13 +282,25 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             </p>
           </div>
 
-          {user.role === 'lead' && (
+          {user.role === 'lead' ? (
             <button
               onClick={() => navigate('/lead/course-builder')}
               className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-transform hover:-translate-y-0.5"
               style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
             >
               <PlusIcon size={16} color={PAGE_BG} /> Создать курс
+            </button>
+          ) : (
+            // Any other role can propose one instead of creating it
+            // outright — the button looks the same as the lead's, just
+            // worded as a suggestion; the server enforces the actual gate
+            // (see POST /api/custom-courses) regardless of who clicks it.
+            <button
+              onClick={() => navigate('/propose-course')}
+              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-transform hover:-translate-y-0.5"
+              style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14 }}
+            >
+              <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс
             </button>
           )}
         </div>
@@ -413,7 +433,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 <h2 className="font-montserrat font-semibold" style={{ fontSize: 18, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
                   Дополнительные курсы
                 </h2>
-                <p className="font-geist mt-0.5" style={{ fontSize: 12, color: TEXT_MUTED }}>Созданы лидом команды</p>
+                <p className="font-geist mt-0.5" style={{ fontSize: 12, color: TEXT_MUTED }}>Созданы лидом команды или предложены тестировщиками</p>
               </div>
               {user.role === 'lead' && (
                 <button onClick={() => navigate('/lead/course-builder')} className="btn-secondary text-xs px-3 py-1.5">
@@ -427,8 +447,14 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 const color = cc.color || ACCENT;
                 const courseIsNew = isNew(cc.created_at, !!cc.viewed);
                 const isDraft = !cc.is_published;
+                const isPending = cc.proposal_status === 'pending';
                 const isLead = user.role === 'lead';
-                const hidden = isDraft && !isLead;
+                const isOwn = cc.created_by === user.id;
+                // A lead sees every draft/proposal (their own review queue);
+                // anyone else only sees their own — the server already only
+                // sends rows they're allowed to see, this just mirrors that
+                // instead of flashing someone else's hidden work.
+                const hidden = isDraft && !isLead && !isOwn;
 
                 return (
                   <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
@@ -440,9 +466,10 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       title={cc.title}
                       isNew={courseIsNew}
                       isDraft={isDraft}
+                      pendingReview={isPending}
                       ctaLabel="ОТКРЫТЬ КУРС"
                       ctaColor={color}
-                      statsLabel={cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
+                      statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                       clickable
                       onClick={() => navigate(`/custom-course/${cc.id}`)}
                       editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}

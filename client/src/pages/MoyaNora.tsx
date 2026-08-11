@@ -16,6 +16,7 @@ import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
+import { BADGE_META } from '../utils/badges';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE, BADGE_BG, BADGE_BORDER,
 } from '../utils/theme';
@@ -40,15 +41,6 @@ function formatBirthday(mmdd: string): string {
   const month = MONTHS_GENITIVE[mm - 1];
   return month ? `${dd} ${month}` : mmdd;
 }
-
-// ── Badge metadata ────────────────────────────────────────────────────────────
-const BADGE_META: Record<string, { name: string; icon: IconName; color: string }> = {
-  'HTML structure':     { name: 'HTML-жук',        icon: 'globe',     color: ACCENT },
-  'CSS reading':        { name: 'CSS-жук',         icon: 'palette',   color: '#7F77DD' },
-  'DevTools':           { name: 'DevTools-жук',    icon: 'search',    color: '#EF9F27' },
-  'Console errors':     { name: 'Консольный жук',  icon: 'lightning', color: '#e05252' },
-  'Bug report quality': { name: 'Жук-репортёр',    icon: 'bug',       color: '#EF9F27' },
-};
 
 // ── Before/After summary (kept for future use on this page — not currently
 //    wired into any tab) ─────────────────────────────────────────────────────
@@ -303,6 +295,8 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
     streak: 0, cards: [], badges: [], craftable: [], favLecture: null,
+    lecturesCompleted: 0, averageScore: 0,
+    coursesProposed: 0, coursesApproved: 0, guidesProposed: 0, guidesApproved: 0,
   } as FullProfile;
 
   const totalTasks = taskCounts.reduce((s, t) => s + t.count, 0);
@@ -439,6 +433,37 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Пока нет ачивок — пройди первую лекцию</p>
               )}
             </Panel>
+
+            {/* Proposals — only shown once the tester has actually
+                submitted one, so it doesn't clutter the cabinet for
+                everyone who's never used "Предложить курс/гайд". */}
+            {profile && ((profile.coursesProposed ?? 0) > 0 || (profile.guidesProposed ?? 0) > 0) && (
+              <Panel pad="p-5">
+                <SectionLabel>Мои предложения</SectionLabel>
+                <div className="space-y-2">
+                  {profile.coursesProposed > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                        <Icon name="lightbulb" size={14} color={TEXT_MUTED} /> Курсов предложено
+                      </span>
+                      <span className="font-montserrat font-bold text-sm" style={{ color: TEXT_PRIMARY }}>
+                        {profile.coursesProposed} <span style={{ color: ACCENT, fontSize: 11 }}>({profile.coursesApproved} одобрено)</span>
+                      </span>
+                    </div>
+                  )}
+                  {profile.guidesProposed > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                        <Icon name="books" size={14} color={TEXT_MUTED} /> Гайдов предложено
+                      </span>
+                      <span className="font-montserrat font-bold text-sm" style={{ color: TEXT_PRIMARY }}>
+                        {profile.guidesProposed} <span style={{ color: ACCENT, fontSize: 11 }}>({profile.guidesApproved} одобрено)</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </Panel>
+            )}
 
             {nextLecture && (
               <button

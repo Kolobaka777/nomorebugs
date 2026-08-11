@@ -16,6 +16,10 @@ interface GuideListItem {
   title: string;
   category: string;
   updated_at: string;
+  is_published?: boolean | number;
+  proposal_status?: 'pending' | 'approved' | 'rejected' | null;
+  created_by?: number;
+  author_name?: string;
 }
 
 interface Guide extends GuideListItem {
@@ -123,6 +127,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [listError, setListError] = useState('');
+  const [approving, setApproving] = useState(false);
 
   const load = () => {
     setListError('');
@@ -168,14 +173,27 @@ export default function GuidesPage({ user, onLogout }: Props) {
     }
   };
 
-  const remove = async (id: number) => {
-    if (!confirm('Удалить гайд?')) return;
+  const remove = async (id: number, isDecline = false) => {
+    if (!confirm(isDecline ? 'Отклонить это предложение?' : 'Удалить гайд?')) return;
     try {
       await guidesApi.remove(id);
       setSelected(null);
       load();
     } catch (err: any) {
-      showApiError(err, 'Не удалось удалить гайд');
+      showApiError(err, isDecline ? 'Не удалось отклонить предложение' : 'Не удалось удалить гайд');
+    }
+  };
+
+  const approve = async (id: number) => {
+    setApproving(true);
+    try {
+      await guidesApi.approve(id);
+      openGuide(id);
+      load();
+    } catch (err: any) {
+      showApiError(err, 'Не удалось одобрить предложение');
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -201,9 +219,20 @@ export default function GuidesPage({ user, onLogout }: Props) {
           <h1 className="font-montserrat font-bold flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
             <Icon name="books" size={22} color={ACCENT} /> Гайды
           </h1>
-          {canEdit && (
+          {canEdit ? (
             <button onClick={() => { setSelected(null); setFormError(''); setCreating(true); setEditing(false); }} className="btn-primary text-xs px-4 py-2">
               + Новый гайд
+            </button>
+          ) : (
+            // Anyone without edit rights can still propose one — same form,
+            // the server just forces it unpublished + pending review (see
+            // POST /api/guides) until a lead approves it.
+            <button
+              onClick={() => { setSelected(null); setFormError(''); setCreating(true); setEditing(false); }}
+              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-4 py-2 cursor-pointer"
+              style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 12 }}
+            >
+              <Icon name="lightbulb" size={14} color={ACCENT} /> Предложить гайд
             </button>
           )}
         </div>
@@ -218,7 +247,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 space-y-4">
             {!listError && Object.keys(grouped).length === 0 && (
-              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Гайдов пока нет{canEdit ? ' — добавь первый.' : '.'}</p>
+              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Гайдов пока нет — добавь первый.</p>
             )}
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
@@ -228,7 +257,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                     <button
                       key={g.id}
                       onClick={() => { openGuide(g.id); setCreating(false); setEditing(false); }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-geist transition-colors"
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-geist transition-colors flex items-center gap-2"
                       style={{
                         background: selected?.id === g.id ? 'rgba(102, 252, 241,0.12)' : CARD_BG,
                         color: selected?.id === g.id ? ACCENT : TEXT_PRIMARY,
@@ -236,7 +265,10 @@ export default function GuidesPage({ user, onLogout }: Props) {
                         boxShadow: CARD_SHADOW,
                       }}
                     >
-                      {g.title}
+                      <span className="flex-1 truncate">{g.title}</span>
+                      {g.proposal_status === 'pending' && (
+                        <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: '#EF9F27' }} title="На рассмотрении" />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -251,19 +283,45 @@ export default function GuidesPage({ user, onLogout }: Props) {
               <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} error={formError} saving={saving} />
             ) : selected ? (
               <div className="p-6 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
-                <div className="flex items-start justify-between mb-2">
-                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{selected.category}</p>
+                <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
+                  <p className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
+                    {selected.category}
+                    {selected.proposal_status === 'pending' && (
+                      <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 10, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+                        НА РАССМОТРЕНИИ
+                      </span>
+                    )}
+                  </p>
                   {canEdit && (
                     <div className="flex gap-1.5 shrink-0">
+                      {selected.proposal_status === 'pending' && (
+                        <button onClick={() => approve(selected.id)} disabled={approving} className="btn-primary text-xs px-3 py-1 disabled:opacity-50">
+                          {approving ? '...' : 'Одобрить'}
+                        </button>
+                      )}
                       <button onClick={() => { setFormError(''); setEditing(true); }} aria-label="Редактировать гайд" className="btn-secondary text-xs px-2 py-1">
                         <Icon name="pencil" size={14} color="currentColor" />
                       </button>
-                      <button onClick={() => remove(selected.id)} aria-label="Удалить гайд" className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}>
+                      <button
+                        onClick={() => remove(selected.id, selected.proposal_status === 'pending')}
+                        aria-label={selected.proposal_status === 'pending' ? 'Отклонить предложение' : 'Удалить гайд'}
+                        className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}
+                      >
                         <Icon name="close" size={14} color="currentColor" />
                       </button>
                     </div>
                   )}
                 </div>
+                {canEdit && selected.proposal_status === 'pending' && selected.author_name && (
+                  <p className="font-geist text-xs mb-4" style={{ color: TEXT_MUTED }}>
+                    Предложил(а): <span style={{ color: TEXT_PRIMARY }}>{selected.author_name}</span>
+                  </p>
+                )}
+                {!canEdit && selected.created_by === user.id && selected.proposal_status === 'pending' && (
+                  <p className="font-geist text-xs mb-4 flex items-center gap-2" style={{ color: '#EF9F27' }}>
+                    <Icon name="clock" size={14} color="#EF9F27" /> Ждёт рассмотрения лидом — как только одобрят, гайд станет виден всей команде.
+                  </p>
+                )}
                 {renderMarkdown(selected.content)}
               </div>
             ) : !listError ? (

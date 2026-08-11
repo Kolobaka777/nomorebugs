@@ -205,7 +205,12 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                     NEW
                   </span>
                 )}
-                {!course.is_published && user.role === 'lead' && (
+                {!course.is_published && course.proposal_status === 'pending' && (user.role === 'lead' || user.role === 'admin' || course.created_by === user.id) && (
+                  <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+                    на рассмотрении
+                  </span>
+                )}
+                {!course.is_published && course.proposal_status !== 'pending' && user.role === 'lead' && (
                   <span className="font-geist rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.08)', color: 'rgba(197, 198, 199,0.6)' }}>
                     черновик
                   </span>
@@ -356,11 +361,29 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
               </button>
             )}
 
+            {/* Author's own view of their pending proposal — read-only,
+                no lead controls below since only a lead reviews it. */}
+            {user.role !== 'lead' && course.created_by === user.id && course.proposal_status === 'pending' && (
+              <div className="rounded-lg p-4" style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}>
+                <p className="font-geist text-sm flex items-center gap-2" style={{ color: '#EF9F27' }}>
+                  <Icon name="clock" size={16} color="#EF9F27" /> Ждёт рассмотрения лидом
+                </p>
+                <p className="font-geist text-xs mt-1.5" style={{ color: TEXT_MUTED }}>
+                  Как только курс одобрят, он появится в общем каталоге для всей команды.
+                </p>
+              </div>
+            )}
+
             {/* Lead controls */}
             {user.role === 'lead' && (
               <div className="space-y-2">
                 {actionError && (
                   <p className="text-xs font-geist mb-1" style={{ color: '#e05252' }}>{actionError}</p>
+                )}
+                {course.proposal_status === 'pending' && (
+                  <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>
+                    Предложил(а): <span style={{ color: TEXT_PRIMARY }}>{course.author_name}</span>
+                  </p>
                 )}
                 <button
                   onClick={() => navigate(`/custom-course/${id}/learn`)}
@@ -376,25 +399,48 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 >
                   <PencilLineIcon size={14} color="currentColor" /> Редактировать
                 </button>
-                <button
-                  onClick={togglePublish}
-                  disabled={publishing}
-                  className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
-                  style={{
-                    background: course.is_published ? 'rgba(224,82,82,0.1)' : 'rgba(102, 252, 241,0.1)',
-                    color: course.is_published ? '#e05252' : ACCENT,
-                  }}
-                >
-                  {publishing ? '...' : course.is_published ? 'Снять с публикации' : 'Опубликовать'}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="w-full py-2 rounded-lg font-geist text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  style={{ background: 'transparent', color: 'rgba(224,82,82,0.5)' }}
-                >
-                  <TrashLineIcon size={12} color="currentColor" /> {deleting ? 'Удаляю...' : 'Удалить курс'}
-                </button>
+                {course.proposal_status === 'pending' ? (
+                  <>
+                    <button
+                      onClick={togglePublish}
+                      disabled={publishing}
+                      className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
+                      style={{ background: 'rgba(102, 252, 241,0.1)', color: ACCENT }}
+                    >
+                      {publishing ? '...' : 'Одобрить и опубликовать'}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="w-full py-2 rounded-lg font-geist text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      style={{ background: 'transparent', color: 'rgba(224,82,82,0.5)' }}
+                    >
+                      <TrashLineIcon size={12} color="currentColor" /> {deleting ? 'Отклоняю...' : 'Отклонить предложение'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={togglePublish}
+                      disabled={publishing}
+                      className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
+                      style={{
+                        background: course.is_published ? 'rgba(224,82,82,0.1)' : 'rgba(102, 252, 241,0.1)',
+                        color: course.is_published ? '#e05252' : ACCENT,
+                      }}
+                    >
+                      {publishing ? '...' : course.is_published ? 'Снять с публикации' : 'Опубликовать'}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="w-full py-2 rounded-lg font-geist text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      style={{ background: 'transparent', color: 'rgba(224,82,82,0.5)' }}
+                    >
+                      <TrashLineIcon size={12} color="currentColor" /> {deleting ? 'Удаляю...' : 'Удалить курс'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

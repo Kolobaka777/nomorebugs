@@ -193,8 +193,15 @@ describe('editing a course preserves lesson identity and progress', () => {
 });
 
 describe('role guard', () => {
-  it('a tester cannot create a custom course', async () => {
+  // Was a flat 403 — a tester posting to this route is now proposing a
+  // course instead of being rejected outright (see routes/courses.js):
+  // the server accepts it but forces it unpublished and pending review,
+  // regardless of the is_published: true the body asks for.
+  it('a tester creating a custom course gets a pending proposal, not a live course', async () => {
     const res = await request(app).post('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`).send(courseBody());
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT is_published, proposal_status FROM custom_courses WHERE id = ?').get(res.body.id);
+    expect(row.is_published).toBe(0);
+    expect(row.proposal_status).toBe('pending');
   });
 });

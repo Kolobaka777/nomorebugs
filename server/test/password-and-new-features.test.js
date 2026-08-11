@@ -160,15 +160,27 @@ describe('forgot-password / reset-password (public)', () => {
 });
 
 describe('guides CMS', () => {
-  it('any authed user can read guides; only a permission-holder can write', async () => {
+  it('any authed user can read guides; a permission-holder publishes immediately, anyone else proposes one', async () => {
     const list = await request(app).get('/api/guides').set('Authorization', `Bearer ${testerToken}`);
     expect(list.status).toBe(200);
 
-    const denied = await request(app)
+    // Was a flat 403 — a tester posting here now proposes a guide instead
+    // of being rejected outright (see routes/knowledge.js): accepted, but
+    // forced unpublished + pending review.
+    const proposed = await request(app)
       .post('/api/guides')
       .set('Authorization', `Bearer ${testerToken}`)
-      .send({ title: 'Should fail', category: 'Общее', content: 'x' });
-    expect(denied.status).toBe(403);
+      .send({ title: 'Tester-proposed guide', category: 'Общее', content: 'x' });
+    expect(proposed.status).toBe(200);
+    const proposedRow = db.prepare('SELECT is_published, proposal_status FROM guides WHERE id = ?').get(proposed.body.id);
+    expect(proposedRow.is_published).toBe(0);
+    expect(proposedRow.proposal_status).toBe('pending');
+    // Invisible to a second, unrelated tester — pending proposals are
+    // author + lead/admin only.
+    await request(app).post('/api/auth/register').send({ email: 'guide-proposal-viewer@test.local', password: 'otherpass123', name: 'Other Tester' });
+    const otherTesterToken = await loginAs(request, app, 'guide-proposal-viewer@test.local', 'otherpass123');
+    const otherView = await request(app).get(`/api/guides/${proposed.body.id}`).set('Authorization', `Bearer ${otherTesterToken}`);
+    expect(otherView.status).toBe(403);
 
     const created = await request(app)
       .post('/api/guides')

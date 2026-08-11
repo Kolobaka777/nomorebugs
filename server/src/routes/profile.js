@@ -81,6 +81,24 @@ function buildFullProfile(userId) {
     `).get(userId, profile.favorite_lecture_id);
   }
 
+  // Same "lectures passed" definition testerApi.getMetrics() uses (score >=
+  // 60) — reused here so a colleague's public profile and the owner's own
+  // cabinet agree on what "completed" means, instead of a second, possibly
+  // drifting definition.
+  const lecturesCompleted = db.prepare('SELECT COUNT(*) as c FROM test_results WHERE user_id = ? AND score >= 60').get(userId)?.c || 0;
+  const averageScore = Math.round(avgScore) || 0;
+
+  // How many courses/guides this person has ever submitted through the
+  // propose-then-approve flow (routes/courses.js, routes/knowledge.js) —
+  // proposal_status is only ever set on a row that went through that flow,
+  // so counting non-null covers pending/approved/rejected alike regardless
+  // of outcome. "Approved" is broken out separately since "proposed" and
+  // "got published" are different things worth showing distinctly.
+  const coursesProposed = db.prepare("SELECT COUNT(*) as c FROM custom_courses WHERE created_by = ? AND proposal_status IS NOT NULL").get(userId)?.c || 0;
+  const coursesApproved = db.prepare("SELECT COUNT(*) as c FROM custom_courses WHERE created_by = ? AND proposal_status = 'approved'").get(userId)?.c || 0;
+  const guidesProposed = db.prepare("SELECT COUNT(*) as c FROM guides WHERE created_by = ? AND proposal_status IS NOT NULL").get(userId)?.c || 0;
+  const guidesApproved = db.prepare("SELECT COUNT(*) as c FROM guides WHERE created_by = ? AND proposal_status = 'approved'").get(userId)?.c || 0;
+
   return {
     ...user,
     nickname:           profile.nickname    || user.name,
@@ -99,6 +117,8 @@ function buildFullProfile(userId) {
     bug_coins:          profile.bug_coins    || 0,
     purchased_items:    JSON.parse(profile.purchased_items || '[]'),
     stats, streak, cards, badges, craftable, favLecture,
+    lecturesCompleted, averageScore,
+    coursesProposed, coursesApproved, guidesProposed, guidesApproved,
   };
 }
 
