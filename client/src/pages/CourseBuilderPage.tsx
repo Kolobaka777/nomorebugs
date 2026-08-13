@@ -45,8 +45,13 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     deadline_at: '',
     modules: [emptyModule()],
     is_onboarding: false,
+    section_id: null,
   });
   const [saving, setSaving] = useState(false);
+  const [sections, setSections] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => {
+    authFetch(`${API}/course-sections`).then(r => r.json()).then(data => { if (Array.isArray(data)) setSections(data); }).catch(() => {});
+  }, []);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const [error, setError] = useState('');
   // Captured at load time, compared against the server's current value
@@ -71,6 +76,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           requirements: data.requirements || '',
           deadline_at: data.deadline_at ? String(data.deadline_at).slice(0, 10) : '',
           is_onboarding: !!data.is_onboarding,
+          section_id: data.section_id ?? null,
           modules: (data.modules || []).map((m: any) => ({
             // Same reasoning as lessons below: reusing the real DB id lets
             // the server diff modules on save instead of deleting and
@@ -312,6 +318,25 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 />
                 <p className="text-xs font-geist mt-1" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>Для отдельных сотрудников дедлайн можно продлить на странице курса.</p>
               </div>
+
+              {/* Section — lead/admin only, same reasoning as is_onboarding
+                  below: cross-cutting catalog organization, not something a
+                  proposing tester should set. Sections themselves are
+                  managed from the catalog page (create/rename/delete), not
+                  here — this is just "which one", not "manage the list". */}
+              {!isProposing && (
+                <div className="mt-4">
+                  <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Раздел каталога</label>
+                  <select
+                    value={form.section_id ?? ''}
+                    onChange={e => setForm(f => ({ ...f, section_id: e.target.value ? Number(e.target.value) : null }))}
+                    className="pixel-input text-sm"
+                  >
+                    <option value="">Без раздела</option>
+                    {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               {/* Onboarding flag — lead/admin only, mirrors why the propose
                   flow itself never shows a publish toggle: a proposing

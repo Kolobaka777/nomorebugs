@@ -160,6 +160,10 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [loading, setLoading] = useState(true);
   const [customCourses, setCustomCourses] = useState<any[]>([]);
+  const [sections, setSections] = useState<{ id: number; name: string }[]>([]);
+  const [newSectionName, setNewSectionName] = useState('');
+  const [renamingSectionId, setRenamingSectionId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [draftOnly, setDraftOnly] = useState(false);
@@ -208,6 +212,68 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
 
   useEffect(() => { loadLectures(); }, []);
 
+  // Course sections — a public catalog-organization layer (unlike suggestion
+  // folders, every role sees these, not just the lead who manages them).
+  const loadSections = () => {
+    authFetch(`${API_BASE}/course-sections`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setSections(data); })
+      .catch(() => {});
+  };
+  useEffect(() => { loadSections(); }, []);
+
+  const createSection = () => {
+    const name = newSectionName.trim();
+    if (!name) return;
+    authFetch(`${API_BASE}/course-sections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(data?.error || 'Не удалось создать раздел');
+        setNewSectionName('');
+        loadSections();
+      })
+      .catch((err: any) => showApiError(err, 'Не удалось создать раздел'));
+  };
+
+  const startRenameSection = (s: { id: number; name: string }) => {
+    setRenamingSectionId(s.id);
+    setRenameValue(s.name);
+  };
+
+  const saveRenameSection = () => {
+    const name = renameValue.trim();
+    if (!name || renamingSectionId == null) { setRenamingSectionId(null); return; }
+    authFetch(`${API_BASE}/course-sections/${renamingSectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(data?.error || 'Не удалось переименовать раздел');
+        setRenamingSectionId(null);
+        loadSections();
+        loadLectures();
+      })
+      .catch((err: any) => { showApiError(err, 'Не удалось переименовать раздел'); setRenamingSectionId(null); });
+  };
+
+  const deleteSection = (id: number) => {
+    if (!window.confirm('Удалить раздел? Курсы из него не удалятся — просто станут «Без раздела».')) return;
+    authFetch(`${API_BASE}/course-sections/${id}`, { method: 'DELETE' })
+      .then(() => { loadSections(); loadLectures(); })
+      .catch((err: any) => showApiError(err, 'Не удалось удалить раздел'));
+  };
+
+  // Quick reassignment from the catalog grid itself — a full PUT is
+  // overkill-looking, but the route already treats every field as optional
+  // (falls back to the current DB value when omitted), so sending just
+  // { section_id } is a safe, minimal update — no risk to the course's
+  // modules/lessons since `modules` is never included here.
+  const assignSection = (courseId: number, sectionId: number | null) => {
+    authFetch(`${API_BASE}/custom-courses/${courseId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section_id: sectionId }),
+    })
+      .then(() => loadLectures())
+      .catch((err: any) => showApiError(err, 'Не удалось перенести курс в раздел'));
+  };
+
   // Onboarding courses (is_onboarding) get their own permanent "Для
   // новичков" section — always visible regardless of the topic tag filter,
   // and excluded from the regular "Дополнительные курсы" grid/tag
@@ -240,6 +306,31 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const filteredOnboardingCourses = useMemo(() => onboardingCourses.filter((cc: any) =>
     matchesSearch(cc.title) && (!draftOnly || !cc.is_published)
   ), [onboardingCourses, search, draftOnly]);
+
+  // Group the regular custom-courses grid by section (a public catalog
+  // layer, unlike suggestion_folders' lead-private ones — every role sees
+  // this grouping). Only shown once at least one section actually exists;
+  // otherwise it stays the flat grid it always was. Sections with nothing
+  // matching the current filters are simply skipped rather than shown
+  // empty; unfiled courses land in a synthetic trailing "Без раздела"
+  // group, shown only when there's something in it.
+  const courseGroups = useMemo(() => {
+    const bySection = new Map<number, any[]>();
+    const unfiled: any[] = [];
+    for (const cc of filteredCustomCourses) {
+      if (cc.section_id) {
+        if (!bySection.has(cc.section_id)) bySection.set(cc.section_id, []);
+        bySection.get(cc.section_id)!.push(cc);
+      } else {
+        unfiled.push(cc);
+      }
+    }
+    const groups = sections
+      .filter(s => bySection.has(s.id))
+      .map(s => ({ id: s.id as number | null, name: s.name, courses: bySection.get(s.id)! }));
+    if (unfiled.length > 0) groups.push({ id: null, name: 'Без раздела', courses: unfiled });
+    return groups;
+  }, [filteredCustomCourses, sections]);
 
   if (loading) {
     return (
@@ -504,50 +595,114 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCustomCourses.map((cc: any) => {
-                const color = cc.color || ACCENT;
-                const courseIsNew = isNew(cc.created_at, !!cc.viewed);
-                const isDraft = !cc.is_published;
-                const isPending = cc.proposal_status === 'pending';
-                const isLead = user.role === 'lead';
-                const isOwn = cc.created_by === user.id;
-                // A lead sees every draft/proposal (their own review queue);
-                // anyone else only sees their own — the server already only
-                // sends rows they're allowed to see, this just mirrors that
-                // instead of flashing someone else's hidden work.
-                const hidden = isDraft && !isLead && !isOwn;
+            {/* Lead-only section management — unlike suggestion folders,
+                these sections are part of the public catalog everyone sees
+                below, not a private sorting tool. */}
+            {user.role === 'lead' && (
+              <div className="p-4 rounded-lg mb-6" style={{ background: CARD_BG, border: '1px dashed rgba(197, 198, 199,0.2)' }}>
+                <p className="text-xs font-geist mb-2" style={{ color: TEXT_MUTED }}>Разделы каталога — видят все, помогают ориентироваться среди курсов. Раздел для конкретного курса выбирается в его карточке ниже или в редакторе курса.</p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {sections.map(s => (
+                    <span key={s.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199,0.07)', color: TEXT_PRIMARY }}>
+                      {renamingSectionId === s.id ? (
+                        <input
+                          autoFocus
+                          className="pixel-input text-xs"
+                          style={{ height: 22, padding: '0 6px', width: 140 }}
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveRenameSection(); if (e.key === 'Escape') setRenamingSectionId(null); }}
+                          onBlur={saveRenameSection}
+                        />
+                      ) : (
+                        <span className="break-words min-w-0">{s.name}</span>
+                      )}
+                      <button onClick={() => startRenameSection(s)} aria-label={`Переименовать раздел ${s.name}`} style={{ color: TEXT_MUTED }}>
+                        <Icon name="pencil" size={11} color="currentColor" />
+                      </button>
+                      <button onClick={() => deleteSection(s.id)} aria-label={`Удалить раздел ${s.name}`} style={{ color: '#e05252' }}>
+                        <Icon name="close" size={12} color="currentColor" />
+                      </button>
+                    </span>
+                  ))}
+                  {sections.length === 0 && <p className="text-xs font-geist" style={{ color: TEXT_MUTED }}>Разделов пока нет.</p>}
+                </div>
+                <div className="flex gap-2 max-w-sm">
+                  <input
+                    className="pixel-input text-xs"
+                    placeholder="Например: Основы"
+                    value={newSectionName}
+                    onChange={e => setNewSectionName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && createSection()}
+                  />
+                  <button onClick={createSection} className="btn-secondary text-xs px-4 py-2 shrink-0">+ Раздел</button>
+                </div>
+              </div>
+            )}
 
-                return (
-                  <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
-                    <div className="flex-1">
-                    <CourseCard
-                      modulesLabel="Дополнительный курс"
-                      tag={cc.tag || 'Custom'}
-                      tagColor={color}
-                      title={cc.title}
-                      isNew={courseIsNew}
-                      isDraft={isDraft}
-                      pendingReview={isPending}
-                      ctaLabel="ОТКРЫТЬ КУРС"
-                      ctaColor={color}
-                      statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
-                      clickable
-                      onClick={() => navigate(`/custom-course/${cc.id}`)}
-                      editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
-                      onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
-                    />
-                    </div>
-                    {(() => {
-                      const chip = deadlineChip(cc.effectiveDeadline);
-                      return chip ? (
-                        <p className="font-geist text-center mt-1.5" style={{ fontSize: 11, color: chip.color }}>{chip.label}</p>
-                      ) : null;
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
+            {(sections.length > 0 ? courseGroups : [{ id: null, name: '', courses: filteredCustomCourses }]).map(group => (
+              <div key={String(group.id)} className="mb-8 last:mb-0">
+                {sections.length > 0 && (
+                  <p className="font-montserrat font-semibold mb-3" style={{ color: TEXT_MUTED, fontSize: 13, letterSpacing: TRACK_WIDE }}>{group.name.toUpperCase()}</p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {group.courses.map((cc: any) => {
+                    const color = cc.color || ACCENT;
+                    const courseIsNew = isNew(cc.created_at, !!cc.viewed);
+                    const isDraft = !cc.is_published;
+                    const isPending = cc.proposal_status === 'pending';
+                    const isLead = user.role === 'lead';
+                    const isOwn = cc.created_by === user.id;
+                    // A lead sees every draft/proposal (their own review queue);
+                    // anyone else only sees their own — the server already only
+                    // sends rows they're allowed to see, this just mirrors that
+                    // instead of flashing someone else's hidden work.
+                    const hidden = isDraft && !isLead && !isOwn;
+
+                    return (
+                      <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
+                        <div className="flex-1">
+                        <CourseCard
+                          modulesLabel="Дополнительный курс"
+                          tag={cc.tag || 'Custom'}
+                          tagColor={color}
+                          title={cc.title}
+                          isNew={courseIsNew}
+                          isDraft={isDraft}
+                          pendingReview={isPending}
+                          ctaLabel="ОТКРЫТЬ КУРС"
+                          ctaColor={color}
+                          statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
+                          clickable
+                          onClick={() => navigate(`/custom-course/${cc.id}`)}
+                          editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
+                          onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
+                        />
+                        </div>
+                        {(() => {
+                          const chip = deadlineChip(cc.effectiveDeadline);
+                          return chip ? (
+                            <p className="font-geist text-center mt-1.5" style={{ fontSize: 11, color: chip.color }}>{chip.label}</p>
+                          ) : null;
+                        })()}
+                        {isLead && sections.length > 0 && (
+                          <select
+                            value={cc.section_id ?? ''}
+                            onChange={e => assignSection(cc.id, e.target.value ? Number(e.target.value) : null)}
+                            aria-label={`Раздел для курса ${cc.title}`}
+                            className="mt-1.5 font-geist text-xs rounded-lg outline-none"
+                            style={{ background: CARD_BG, color: TEXT_MUTED, border: '1px solid rgba(197, 198, 199,0.15)', padding: '4px 8px' }}
+                          >
+                            <option value="">Без раздела</option>
+                            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

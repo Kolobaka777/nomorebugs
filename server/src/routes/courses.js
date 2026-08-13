@@ -34,11 +34,13 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
     if (req.user.role === 'lead') {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
+          cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
           (SELECT COUNT(DISTINCT ctt.user_id) FROM course_time_tracking ctt WHERE ctt.course_id = cc.id) as completedCount,
           COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
+        LEFT JOIN course_sections cs ON cs.id = cc.section_id
         WHERE (cc.created_by = ? OR cc.is_published = 1 OR cc.proposal_status = 'pending') AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id, req.user.id);
@@ -47,10 +49,12 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
     } else {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
+          cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
           COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
         FROM custom_courses cc
         JOIN users u ON u.id = cc.created_by
+        LEFT JOIN course_sections cs ON cs.id = cc.section_id
         WHERE (cc.is_published = 1 OR cc.created_by = ?) AND cc.deleted_at IS NULL
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id, req.user.id);
@@ -393,15 +397,16 @@ function validateCourseStructureInDb(courseId) {
 // work in progress only the author can see.
 router.post('/api/custom-courses', authMiddleware, (req, res) => {
   try {
-    const { title, description, tag, color, requirements, modules, deadline_at } = req.body;
+    const { title, description, tag, color, requirements, modules, deadline_at, section_id } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
 
     const canPublishDirectly = hasManageCourses(req.user);
     const isPublished = canPublishDirectly ? !!req.body.is_published : false;
     const proposalStatus = canPublishDirectly ? null : 'pending';
     // A proposing tester's submission ignores this — only a lead/admin can
-    // mark a course as the/an onboarding track.
+    // mark a course as the/an onboarding track or file it into a section.
     const isOnboarding = canPublishDirectly ? !!req.body.is_onboarding : false;
+    const sectionId = canPublishDirectly ? (section_id || null) : null;
 
     if (isPublished || !canPublishDirectly) {
       const structureError = validateCourseStructureFromRequest(modules);
@@ -413,8 +418,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
     // can't leave a course with, say, a module but no lessons in it.
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
-        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status, is_onboarding)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status, is_onboarding, section_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         title.trim(),
         description || '',
@@ -426,7 +431,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
         req.user.id,
         new Date().toISOString(),
         proposalStatus,
-        isOnboarding ? 1 : 0
+        isOnboarding ? 1 : 0,
+        sectionId
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
@@ -451,9 +457,10 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    const { title, description, tag, color, requirements, modules, is_published, is_onboarding, deadline_at, expected_updated_at } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, is_onboarding, section_id, deadline_at, expected_updated_at } = req.body;
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
     const newOnboardingFlag = is_onboarding !== undefined ? (is_onboarding ? 1 : 0) : course.is_onboarding;
+    const newSectionId = section_id !== undefined ? (section_id || null) : course.section_id;
 
     // Optimistic locking for module-tree edits specifically: updateCourseModules
     // diffs against whatever's in the DB right now and deletes anything the
@@ -486,7 +493,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     // the course in a genuinely broken half-edited state, not just a
     // failed request, so this needs to be all-or-nothing.
     db.transaction(() => {
-      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, is_onboarding=?, deadline_at=?, updated_at=? WHERE id=?`).run(
+      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, is_onboarding=?, section_id=?, deadline_at=?, updated_at=? WHERE id=?`).run(
         title?.trim() || course.title,
         description ?? course.description,
         tag || course.tag,
@@ -494,6 +501,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
         requirements ?? course.requirements,
         newPublishedFlag,
         newOnboardingFlag,
+        newSectionId,
         deadline_at !== undefined ? (deadline_at || null) : course.deadline_at,
         new Date().toISOString(),
         course.id
@@ -670,6 +678,62 @@ router.get('/api/courses/time-stats', authMiddleware, requireRole('lead'), (req,
       ORDER BY ctt.completed_at DESC
     `).all();
     res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== COURSE SECTIONS ==============
+// Unlike suggestion_folders (private to the lead), these ARE part of the
+// public catalog — every tester sees the same section grouping. CRUD is
+// gated the same way course editing already is (hasManageCourses: admin,
+// role lead, or a manage_courses grant), not the stricter requireRole('lead')
+// suggestion_folders uses, since anyone who can already edit a course
+// should be able to file it into a section.
+
+router.get('/api/course-sections', authMiddleware, (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM course_sections ORDER BY name').all());
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/api/course-sections', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Укажите название раздела' });
+    const id = db.prepare('INSERT INTO course_sections (name, created_by) VALUES (?, ?)').run(name, req.user.id).lastInsertRowid;
+    res.status(201).json({ id, name });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/api/course-sections/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Укажите название раздела' });
+    const section = db.prepare('SELECT id FROM course_sections WHERE id = ?').get(req.params.id);
+    if (!section) return res.status(404).json({ error: 'Не найдено' });
+    db.prepare('UPDATE course_sections SET name = ? WHERE id = ?').run(name, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/api/course-sections/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE custom_courses SET section_id = NULL WHERE section_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM course_sections WHERE id = ?').run(req.params.id);
+    })();
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

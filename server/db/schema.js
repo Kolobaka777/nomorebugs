@@ -536,6 +536,11 @@ export function initDb() {
     db.exec("ALTER TABLE suggestions ADD COLUMN folder_id INTEGER DEFAULT NULL REFERENCES suggestion_folders(id)");
   }
 
+  // 'idea' and 'suggestion' were merged into one type (see suggestions.js) —
+  // a plain data fix, not a schema change, so it's safe to just re-run
+  // every boot rather than gate it behind a migration guard.
+  db.exec("UPDATE suggestions SET type = 'idea' WHERE type = 'suggestion'");
+
   // Telegram linkage. SQLite's ALTER TABLE ADD COLUMN can't declare UNIQUE
   // inline, so uniqueness is enforced via a separate partial index instead
   // (partial so any number of NULLs — i.e. accounts with no Telegram linked
@@ -916,6 +921,25 @@ export function initDb() {
   // course is unaffected.
   if (!customCoursesCols.includes('is_onboarding')) db.exec('ALTER TABLE custom_courses ADD COLUMN is_onboarding INTEGER DEFAULT 0');
 
+  // Course sections — lead-managed groups for organizing the catalog
+  // (e.g. "Основы", "Продвинутое"). Unlike suggestion_folders (private to
+  // the lead), these ARE shown to every tester — the catalog itself is
+  // grouped by section, not just a lead-side triage view. Deleting a
+  // section un-files its courses (section_id -> NULL) rather than deleting
+  // them, same semantics as suggestion_folders.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_sections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+  `);
+  if (!customCoursesCols.includes('section_id')) {
+    db.exec('ALTER TABLE custom_courses ADD COLUMN section_id INTEGER DEFAULT NULL REFERENCES course_sections(id)');
+  }
+
   // Guides never had a draft/publish concept before (creation = publishing,
   // always by a lead) — is_published defaults to 1 so every existing guide
   // stays visible exactly as before. A tester-submitted proposal is
@@ -923,6 +947,11 @@ export function initDb() {
   const guidesCols = db.prepare("PRAGMA table_info(guides)").all().map(c => c.name);
   if (!guidesCols.includes('is_published')) db.exec('ALTER TABLE guides ADD COLUMN is_published INTEGER DEFAULT 1');
   if (!guidesCols.includes('proposal_status')) db.exec('ALTER TABLE guides ADD COLUMN proposal_status TEXT DEFAULT NULL');
+
+  // A single emoji character shown next to the guide's title in the list
+  // (picked from a curated set or typed in freely) — purely decorative,
+  // no validation on the string's shape/length beyond a generous cap.
+  if (!guidesCols.includes('icon')) db.exec('ALTER TABLE guides ADD COLUMN icon TEXT DEFAULT NULL');
 
   // Migration: bug-example and glossary proposals — same shape as the
   // course/guide proposal flow above. A plain tester can submit a bug

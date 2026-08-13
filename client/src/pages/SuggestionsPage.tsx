@@ -16,14 +16,12 @@ interface Props {
 
 const TYPE_LABELS: Record<SuggestionType, string> = {
   idea: 'Идея',
-  suggestion: 'Предложение',
   complaint: 'Что бесит',
   question: 'Вопрос',
 };
-const TYPE_ORDER: SuggestionType[] = ['idea', 'suggestion', 'complaint', 'question'];
+const TYPE_ORDER: SuggestionType[] = ['idea', 'complaint', 'question'];
 const TYPE_COLORS: Record<SuggestionType, string> = {
   idea: '#7F77DD',
-  suggestion: ACCENT,
   complaint: '#e05252',
   question: '#4fc3f7',
 };
@@ -429,7 +427,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             <Icon name="lightbulb" size={22} color={BADGE_NOTIFY} /> Идеи и предложения
           </h1>
           <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>
-            Идея, предложение, то, что бесит, или вопрос — пиши сюда. На вопрос ответит тимлид, ответ увидят все (это заодно и мини-FAQ команды). Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним». Своё можно править или удалить в течение суток после публикации.
+            Идея, то, что бесит, или вопрос — пиши сюда. На вопрос ответит тимлид, ответ увидят все (это заодно и мини-FAQ команды). Можно анонимно: тимлид всё равно увидит автора (чтобы было кому сказать спасибо), но остальные увидят только «Аноним». Своё можно править или удалить в течение суток после публикации.
           </p>
         </div>
 

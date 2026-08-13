@@ -25,6 +25,16 @@ describe('suggestions board — submission', () => {
     expect(res.status).toBe(400);
   });
 
+  // 'idea' and 'suggestion' were merged into one type — 'suggestion' is no
+  // longer a valid value to submit.
+  it('rejects the retired "suggestion" type', async () => {
+    const res = await request(app)
+      .post('/api/suggestions')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'suggestion', text: 'x', is_anonymous: false });
+    expect(res.status).toBe(400);
+  });
+
   it('rejects empty text', async () => {
     const res = await request(app)
       .post('/api/suggestions')
@@ -86,7 +96,7 @@ describe('suggestions board — likes and triage', () => {
     const create = await request(app)
       .post('/api/suggestions')
       .set('Authorization', `Bearer ${testerToken}`)
-      .send({ type: 'suggestion', text: 'Move standup to 11am', is_anonymous: false });
+      .send({ type: 'idea', text: 'Move standup to 11am', is_anonymous: false });
     suggestionId = create.body.id;
   });
 
@@ -168,13 +178,13 @@ describe('suggestions board — 24h author edit/delete window', () => {
     const res = await request(app)
       .put(`/api/suggestions/${ownId}`)
       .set('Authorization', `Bearer ${testerToken}`)
-      .send({ type: 'suggestion', text: 'Edited text', is_anonymous: true });
+      .send({ type: 'complaint', text: 'Edited text', is_anonymous: true });
     expect(res.status).toBe(200);
 
     const list = await request(app).get('/api/suggestions').set('Authorization', `Bearer ${leadToken}`);
     const row = list.body.rows.find(s => s.id === ownId);
     expect(row.text).toBe('Edited text');
-    expect(row.type).toBe('suggestion');
+    expect(row.type).toBe('complaint');
     expect(row.is_anonymous).toBe(true);
   });
 

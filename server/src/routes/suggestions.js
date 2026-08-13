@@ -19,8 +19,12 @@ const router = express.Router();
 // triage flow. The board is shared (not a private inbox), so an answered
 // question doubles as a lightweight public FAQ: anyone browsing sees it
 // already answered instead of asking the same thing again.
-const SUGGESTION_TYPES = ['idea', 'suggestion', 'complaint', 'question'];
-const SUGGESTION_TYPE_LABELS = { idea: 'идея', suggestion: 'предложение', complaint: 'жалоба', question: 'вопрос' };
+// 'idea' and 'suggestion' used to be two separate types, but they meant
+// the same thing to users (an idea IS a suggestion) — merged into one
+// canonical 'idea' value. Kept as a single migration step below rather
+// than silently dropping old 'suggestion' rows.
+const SUGGESTION_TYPES = ['idea', 'complaint', 'question'];
+const SUGGESTION_TYPE_LABELS = { idea: 'идея', complaint: 'жалоба', question: 'вопрос' };
 const SUGGESTION_STATUSES = ['new', 'reviewed', 'implemented', 'declined'];
 const MAX_SUGGESTION_LENGTH = 2000;
 // How long an author can still edit/delete their own post — after this,

@@ -45,6 +45,10 @@ export interface FormState {
   // onboarding course(s), always shown in its own catalog section
   // regardless of tag filters. Never sent/honored for a proposing tester.
   is_onboarding: boolean;
+  // Lead/admin-only — which course_sections group this course is filed
+  // under in the catalog (null = "Без раздела"). Never sent/honored for a
+  // proposing tester, same as is_onboarding above.
+  section_id: number | null;
 }
 
 export const uid = () => Math.random().toString(36).slice(2);

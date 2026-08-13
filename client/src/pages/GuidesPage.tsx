@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import Icon from '../components/Icon';
+import GuideEditor from '../components/GuideEditor';
+import EmojiPicker from '../components/EmojiPicker';
 import { guidesApi, knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, PAGE_BG } from '../utils/theme';
+import { parseGuideContent } from '../utils/guideContent';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -15,6 +18,7 @@ interface GuideListItem {
   id: number;
   title: string;
   category: string;
+  icon: string | null;
   updated_at: string;
   is_published?: boolean | number;
   proposal_status?: 'pending' | 'approved' | 'rejected' | null;
@@ -26,89 +30,70 @@ interface Guide extends GuideListItem {
   content: string;
 }
 
-// Renders a small safe subset of markdown as real React elements — never
-// dangerouslySetInnerHTML, so there's no XSS surface no matter what a lead
-// pastes in (matches the rest of the codebase: dangerouslySetInnerHTML
-// doesn't appear anywhere in client/src). Supports: # / ## headings, ```
-// code blocks, `inline code`, - bullets, and plain paragraphs.
-function renderMarkdown(content: string) {
-  const lines = content.split('\n');
-  const blocks: React.ReactNode[] = [];
-  let i = 0;
-  let key = 0;
-
-  const renderInline = (text: string) => {
-    const parts = text.split(/(`[^`]+`)/g);
-    return parts.map((part, idx) =>
-      part.startsWith('`') && part.endsWith('`') && part.length > 1
-        ? <code key={idx} className="px-1 rounded text-xs" style={{ background: 'rgba(197, 198, 199,0.1)', color: '#EF9F27' }}>{part.slice(1, -1)}</code>
-        : part
+// Category select: existing categories as a dropdown (so a lead reaches for
+// one rather than retyping "Общее" with a typo that silently forks the
+// group), plus a free-text fallback for a genuinely new one.
+function CategoryPicker({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+  const [customMode, setCustomMode] = useState(!options.includes(value) && value !== '');
+  if (customMode) {
+    return (
+      <div className="flex gap-2">
+        <input className="pixel-input w-full text-sm" placeholder="Новая категория" value={value} onChange={e => onChange(e.target.value)} />
+        {options.length > 0 && (
+          <button type="button" onClick={() => setCustomMode(false)} className="btn-secondary text-xs px-3 shrink-0">Список</button>
+        )}
+      </div>
     );
-  };
-
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.startsWith('```')) {
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].startsWith('```')) { codeLines.push(lines[i]); i++; }
-      i++;
-      blocks.push(
-        <pre key={key++} className="p-3 rounded-lg text-xs font-mono overflow-x-auto my-3" style={{ background: PAGE_BG, color: TEXT_PRIMARY }}>
-          {codeLines.join('\n')}
-        </pre>
-      );
-      continue;
-    }
-    if (line.startsWith('## ')) {
-      blocks.push(<h3 key={key++} className="font-montserrat font-semibold mt-5 mb-2 break-words" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{renderInline(line.slice(3))}</h3>);
-      i++;
-      continue;
-    }
-    if (line.startsWith('# ')) {
-      blocks.push(<h2 key={key++} className="font-montserrat font-bold mt-6 mb-3 break-words" style={{ fontSize: 18, color: TEXT_PRIMARY }}>{renderInline(line.slice(2))}</h2>);
-      i++;
-      continue;
-    }
-    if (line.startsWith('- ')) {
-      const items: string[] = [];
-      while (i < lines.length && lines[i].startsWith('- ')) { items.push(lines[i].slice(2)); i++; }
-      blocks.push(
-        <ul key={key++} className="list-disc ml-5 space-y-1 my-2">
-          {items.map((it, idx) => <li key={idx} className="font-geist text-sm break-words" style={{ color: TEXT_PRIMARY }}>{renderInline(it)}</li>)}
-        </ul>
-      );
-      continue;
-    }
-    if (line.trim() === '') { i++; continue; }
-    const paraLines: string[] = [];
-    while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('- ') && !lines[i].startsWith('```')) {
-      paraLines.push(lines[i]); i++;
-    }
-    blocks.push(<p key={key++} className="font-geist text-sm leading-relaxed my-2 break-words" style={{ color: TEXT_PRIMARY }}>{renderInline(paraLines.join(' '))}</p>);
   }
-  return blocks;
+  return (
+    <select className="pixel-input w-full text-sm" value={value} onChange={e => {
+      if (e.target.value === '__new__') { setCustomMode(true); onChange(''); } else { onChange(e.target.value); }
+    }}>
+      {!options.includes(value) && <option value={value}>{value}</option>}
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      <option value="__new__">+ Новая категория...</option>
+    </select>
+  );
 }
 
-function GuideForm({ initial, onSave, onCancel, error, saving }: { initial?: Guide; onSave: (data: { title: string; category: string; content: string }) => void; onCancel: () => void; error: string; saving: boolean }) {
+function GuideForm({
+  initial, onSave, onCancel, error, saving, categories,
+}: {
+  initial?: Guide;
+  onSave: (data: { title: string; category: string; content: string; icon: string | null }) => void;
+  onCancel: () => void;
+  error: string;
+  saving: boolean;
+  categories: string[];
+}) {
   const [title, setTitle] = useState(initial?.title || '');
   const [category, setCategory] = useState(initial?.category || 'Общее');
-  const [content, setContent] = useState(initial?.content || '');
+  const [icon, setIcon] = useState<string | null>(initial?.icon || null);
+  const [content, setContent] = useState<string>(initial?.content || '');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className="p-4 rounded-lg space-y-3" style={{ background: CARD_BG, border: `1px solid ${ACCENT}4D`, boxShadow: CARD_SHADOW }}>
-      <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
-      <input className="pixel-input w-full text-sm" placeholder="Категория" value={category} onChange={e => setCategory(e.target.value)} />
-      <textarea
-        className="pixel-input w-full text-sm font-mono"
-        style={{ minHeight: 240 }}
-        placeholder={'# Заголовок\n\nТекст. Поддерживается:\n## Подзаголовок\n- пункт списка\n`код`\n```\nблок кода\n```'}
-        value={content}
-        onChange={e => setContent(e.target.value)}
-      />
+      <div className="flex gap-2 items-start">
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(o => !o)}
+            aria-label="Выбрать иконку"
+            className="rounded-lg flex items-center justify-center cursor-pointer"
+            style={{ width: 40, height: 40, fontSize: 18, background: 'rgba(197, 198, 199, 0.08)', border: '1px solid rgba(197, 198, 199, 0.2)' }}
+          >
+            {icon || <Icon name="books" size={16} color={TEXT_MUTED} />}
+          </button>
+          {pickerOpen && <EmojiPicker value={icon} onChange={setIcon} onClose={() => setPickerOpen(false)} />}
+        </div>
+        <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
+      </div>
+      <CategoryPicker value={category} onChange={setCategory} options={categories} />
+      <GuideEditor content={parseGuideContent(content)} editable onChangeJSON={setContent} />
       {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
-        <button onClick={() => onSave({ title, category, content })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
+        <button onClick={() => onSave({ title, category, content, icon })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
           {saving ? '...' : 'Сохранить'}
         </button>
         <button onClick={onCancel} className="btn-secondary text-xs px-4 py-2">Отмена</button>
@@ -128,6 +113,8 @@ export default function GuidesPage({ user, onLogout }: Props) {
   const [saving, setSaving] = useState(false);
   const [listError, setListError] = useState('');
   const [approving, setApproving] = useState(false);
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const load = () => {
     setListError('');
@@ -148,7 +135,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
     guidesApi.get(id).then(r => setSelected(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить гайд'));
   };
 
-  const save = async (data: { title: string; category: string; content: string }) => {
+  const save = async (data: { title: string; category: string; content: string; icon: string | null }) => {
     if (!data.title.trim()) { setFormError('Укажите заголовок'); return; }
     setSaving(true);
     setFormError('');
@@ -197,6 +184,21 @@ export default function GuidesPage({ user, onLogout }: Props) {
     }
   };
 
+  const startRenameCategory = (cat: string) => { setRenamingCategory(cat); setRenameValue(cat); };
+  const saveRenameCategory = async () => {
+    const to = renameValue.trim();
+    if (!to || !renamingCategory || to === renamingCategory) { setRenamingCategory(null); return; }
+    try {
+      await guidesApi.renameCategory(renamingCategory, to);
+      setRenamingCategory(null);
+      load();
+    } catch (err: any) {
+      showApiError(err, 'Не удалось переименовать категорию');
+      setRenamingCategory(null);
+    }
+  };
+
+  const categories = Array.from(new Set(guides.map(g => g.category)));
   const grouped = guides.reduce((acc: Record<string, GuideListItem[]>, g) => {
     (acc[g.category] = acc[g.category] || []).push(g);
     return acc;
@@ -251,7 +253,26 @@ export default function GuidesPage({ user, onLogout }: Props) {
             )}
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
-                <p className="font-geist text-xs uppercase mb-1.5 break-words" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{category}</p>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  {renamingCategory === category ? (
+                    <input
+                      autoFocus
+                      className="pixel-input text-xs"
+                      style={{ height: 22, padding: '0 6px', width: 140 }}
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveRenameCategory(); if (e.key === 'Escape') setRenamingCategory(null); }}
+                      onBlur={saveRenameCategory}
+                    />
+                  ) : (
+                    <p className="font-geist text-xs uppercase break-words" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{category}</p>
+                  )}
+                  {canEdit && renamingCategory !== category && (
+                    <button onClick={() => startRenameCategory(category)} aria-label={`Переименовать категорию ${category}`} style={{ color: 'rgba(197, 198, 199,0.4)' }}>
+                      <Icon name="pencil" size={10} color="currentColor" />
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-1">
                   {items.map(g => (
                     <button
@@ -265,6 +286,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
                         boxShadow: CARD_SHADOW,
                       }}
                     >
+                      <span className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 22, height: 22, fontSize: 13, background: 'rgba(197, 198, 199, 0.08)' }}>
+                        {g.icon || <Icon name="memo" size={11} color={TEXT_MUTED} />}
+                      </span>
                       <span className="flex-1 truncate">{g.title}</span>
                       {g.proposal_status === 'pending' && (
                         <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: '#EF9F27' }} title="На рассмотрении" />
@@ -278,13 +302,14 @@ export default function GuidesPage({ user, onLogout }: Props) {
 
           <div className="lg:col-span-2">
             {creating ? (
-              <GuideForm onSave={save} onCancel={() => setCreating(false)} error={formError} saving={saving} />
+              <GuideForm onSave={save} onCancel={() => setCreating(false)} error={formError} saving={saving} categories={categories} />
             ) : editing && selected ? (
-              <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} error={formError} saving={saving} />
+              <GuideForm initial={selected} onSave={save} onCancel={() => setEditing(false)} error={formError} saving={saving} categories={categories} />
             ) : selected ? (
               <div className="p-6 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                 <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
                   <p className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
+                    {selected.icon && <span style={{ fontSize: 14 }}>{selected.icon}</span>}
                     <span className="break-words min-w-0">{selected.category}</span>
                     {selected.proposal_status === 'pending' && (
                       <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 10, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
@@ -322,7 +347,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                     <Icon name="clock" size={14} color="#EF9F27" /> Ждёт рассмотрения лидом — как только одобрят, гайд станет виден всей команде.
                   </p>
                 )}
-                {renderMarkdown(selected.content)}
+                <GuideEditor content={parseGuideContent(selected.content)} editable={false} />
               </div>
             ) : !listError ? (
               <div

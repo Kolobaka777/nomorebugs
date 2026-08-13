@@ -24,7 +24,13 @@ function hasManageKB(user) {
 // bound, not abuse-hardening.
 const MAX_SHORT_FIELD = 5000; // problem/bad_text/good_text, term/definition
 const MAX_TITLE = 200;
-const MAX_GUIDE_CONTENT = 50000; // guides are meant to be full articles
+// guides.content is a JSON-serialized Tiptap document, not raw text — a
+// short article with a couple of images (stored as base64 data URIs right
+// in the doc, same trade-off as user_profiles.custom_avatar) weighs far
+// more than the same words as plain markdown, hence the much higher cap
+// than MAX_SHORT_FIELD/the old 50000 text limit.
+const MAX_GUIDE_CONTENT = 200000;
+const MAX_ICON_LENGTH = 16; // one emoji (incl. multi-codepoint ones like flags) plus headroom
 const MAX_TAG_FIELD = 50; // tag/tag_color on bug_examples
 
 // ============== KNOWLEDGE BASE (Багодельня) ==============
@@ -261,14 +267,14 @@ router.get('/api/guides', authMiddleware, (req, res) => {
       // Lead/admin/grantee: everything, including everyone's pending
       // proposals — this doubles as the review queue, no separate route.
       ? db.prepare(`
-          SELECT g.id, g.title, g.category, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
+          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
           FROM guides g JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL ORDER BY g.category, g.title
         `).all()
       // Everyone else: published guides, plus their own proposals whatever
       // their status (so they can at least see what they submitted).
       : db.prepare(`
-          SELECT g.id, g.title, g.category, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
+          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
           FROM guides g JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.category, g.title
         `).all(req.user.id);
@@ -301,17 +307,30 @@ router.get('/api/guides/:id', authMiddleware, (req, res) => {
 // before. Anyone else is proposing one: forced is_published=0,
 // proposal_status='pending', visible only to its author and to a lead
 // until approved (see GET routes above).
+// guides.content is now a JSON-serialized Tiptap document rather than the
+// old hand-rolled markdown-subset text — but the server never parses or
+// interprets it either way (the client is the only thing that ever renders
+// it, via its own read-only Tiptap instance), so it stays an opaque string
+// here, same as before. Deliberately NOT validated as JSON: the client's
+// parseGuideContent already tolerates plain, non-JSON text (wraps it as a
+// single paragraph) specifically so older content — or anything sent by a
+// non-browser API caller — still renders as something instead of erroring.
+
 router.post('/api/guides', authMiddleware, (req, res) => {
   try {
-    const { title, category, content } = req.body;
+    const { title, category, content, icon } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
     if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
       return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
     }
     const canPublishDirectly = hasManageGuides(req.user);
     const result = db.prepare(
-      'INSERT INTO guides (title, category, content, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(title.trim(), (category || 'Общее').trim(), content || '', req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending');
+      'INSERT INTO guides (title, category, content, icon, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      title.trim(), (category || 'Общее').trim(), content || '',
+      icon ? String(icon).slice(0, MAX_ICON_LENGTH) : null,
+      req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending'
+    );
     if (canPublishDirectly) {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('guide_published', req.user.id, result.lastInsertRowid);
@@ -327,13 +346,30 @@ router.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides')
   try {
     const existing = db.prepare('SELECT id FROM guides WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
-    const { title, category, content } = req.body;
+    const { title, category, content, icon } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
     if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
       return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
     }
-    db.prepare('UPDATE guides SET title = ?, category = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(title.trim(), (category || 'Общее').trim(), content || '', req.params.id);
+    db.prepare('UPDATE guides SET title = ?, category = ?, content = ?, icon = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(title.trim(), (category || 'Общее').trim(), content || '', icon ? String(icon).slice(0, MAX_ICON_LENGTH) : null, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk-rename a category across every guide that has it — categories are a
+// plain free-text field (no separate table, unlike course_sections), so
+// "rename" is just a mass UPDATE rather than editing one row.
+router.patch('/api/guides/categories/rename', authMiddleware, requirePermission('manage_guides'), (req, res) => {
+  try {
+    const from = (req.body.from || '').trim();
+    const to = (req.body.to || '').trim();
+    if (!from || !to) return res.status(400).json({ error: 'Укажите старое и новое название категории' });
+    if (to.length > MAX_TITLE) return res.status(400).json({ error: `Слишком длинное название (макс ${MAX_TITLE})` });
+    db.prepare('UPDATE guides SET category = ? WHERE category = ?').run(to, from);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

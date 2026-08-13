@@ -263,7 +263,7 @@ export interface TeamNewsItem {
 }
 
 // ===== SUGGESTION / IDEAS BOARD =====
-export type SuggestionType = 'idea' | 'suggestion' | 'complaint' | 'question';
+export type SuggestionType = 'idea' | 'complaint' | 'question';
 export type SuggestionStatus = 'new' | 'reviewed' | 'implemented' | 'declined';
 
 export interface Suggestion {
