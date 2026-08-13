@@ -5,7 +5,6 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import BaselineSurvey from './pages/BaselineSurvey';
-import ScrollBug from './components/ScrollBug';
 import InstallPrompt from './components/InstallPrompt';
 import OnboardingTour from './components/OnboardingTour';
 import BgWatermark from './components/BgWatermark';
@@ -169,8 +168,10 @@ function App() {
       {/* FrogCompanion (cursor-lean + click-to-catch corner mascot) is
           paused per the user's request — she's designing a different
           interaction for the frog. Component file kept, just unmounted;
-          see components/FrogCompanion.tsx. */}
-      <ScrollBug />
+          see components/FrogCompanion.tsx.
+          ScrollBug (the beetle that walked along a bottom scroll-progress
+          bar) was removed outright per her request — old-design cruft,
+          unlike FrogCompanion which she's actively redesigning. */}
       <InstallPrompt />
       <OnboardingTour user={u} />
 

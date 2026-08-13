@@ -35,6 +35,13 @@ interface NavigationProps {
   onLogout: () => void;
 }
 
+interface AvatarProfile { avatar_id: string; avatar_frame: string; custom_avatar: string | null }
+
+// Module-level (outside the component) so it survives Navigation's own
+// remounts across route changes — see the comment at avatarProfile's
+// useState for why that matters. Cleared naturally on a full page reload.
+const avatarCache = new Map<number, AvatarProfile>();
+
 export default function Navigation({ user, onLogout }: NavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,12 +61,25 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   // here, so it's fetched once via the same role-agnostic route
   // PublicProfilePage uses (self-view always returns the full shape).
   // Silent-fails to the initials circle below if it doesn't load.
-  const [avatarProfile, setAvatarProfile] = useState<{ avatar_id: string; avatar_frame: string; custom_avatar: string | null } | null>(null);
+  //
+  // No page in this app shares a persistent layout — every route owns its
+  // own <Navigation>, so this component fully unmounts/remounts on every
+  // navigation. Without a cache, avatarProfile reset to null on each mount
+  // and the initials circle flashed for a moment before the refetch
+  // resolved, every single time. This module-level cache (keyed by user id,
+  // survives remounts for the lifetime of the tab) makes every navigation
+  // after the first paint the avatar immediately — letters only ever show
+  // once, on true first load of the session, never again after.
+  const [avatarProfile, setAvatarProfile] = useState<AvatarProfile | null>(() => avatarCache.get(user.id) ?? null);
 
   useEffect(() => {
     let cancelled = false;
     usersApi.getProfile(user.id)
-      .then((r: any) => { if (!cancelled) setAvatarProfile(r.data); })
+      .then((r: any) => {
+        if (cancelled) return;
+        avatarCache.set(user.id, r.data);
+        setAvatarProfile(r.data);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user.id]);
@@ -145,7 +165,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
             visually squashed to fit that box. */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center shrink-0 cursor-pointer"
+          className="flex items-center shrink-0 cursor-pointer transition-all duration-150 hover:brightness-125 hover:-translate-y-0.5"
         >
           <img src={logoUrl} alt="baganet" style={{ width: 95, height: 23, objectFit: 'contain' }} />
         </button>
@@ -174,7 +194,10 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                   // was accent-on-accent, too low-contrast against the box).
                   color: isActive ? '#FFFFFF' : STAT_LABEL_COLOR,
                   border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
+                  background: 'transparent',
                 }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; e.currentTarget.style.color = '#66FCF1'; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = STAT_LABEL_COLOR; } }}
               >
                 {link.label}
               </button>
@@ -192,8 +215,10 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
               aria-label="Меню разделов"
               aria-haspopup="menu"
               aria-expanded={mobileNavOpen}
-              className="flex items-center justify-center cursor-pointer rounded-lg"
-              style={{ width: TAB_HEIGHT, height: TAB_HEIGHT, border: `1px solid ${mobileNavOpen ? ACCENT : 'transparent'}` }}
+              className="flex items-center justify-center cursor-pointer rounded-lg transition-all duration-150"
+              style={{ width: TAB_HEIGHT, height: TAB_HEIGHT, border: `1px solid ${mobileNavOpen ? ACCENT : 'transparent'}`, background: 'transparent' }}
+              onMouseEnter={e => { if (!mobileNavOpen) e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; }}
+              onMouseLeave={e => { if (!mobileNavOpen) e.currentTarget.style.background = 'transparent'; }}
             >
               {mobileNavOpen ? (
                 <Icon name="close" size={18} color={ACCENT} />
@@ -233,6 +258,8 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                         background: isActive ? 'rgba(102, 252, 241,0.1)' : 'transparent',
                         border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
                       }}
+                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; e.currentTarget.style.color = '#66FCF1'; } }}
+                      onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = STAT_LABEL_COLOR; } }}
                     >
                       {link.label}
                     </button>
@@ -280,6 +307,8 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 border: `1px solid ${ACCENT}`,
                 ...(menuOpen ? { outline: '2px solid #EF9F27', outlineOffset: 2 } : {}),
               }}
+              onMouseEnter={e => { if (!menuOpen) { e.currentTarget.style.outline = `2px solid ${ACCENT}66`; e.currentTarget.style.outlineOffset = '2px'; } }}
+              onMouseLeave={e => { if (!menuOpen) { e.currentTarget.style.outline = 'none'; } }}
             >
               {avatarProfile ? (
                 <PixelAvatar

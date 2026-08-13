@@ -58,6 +58,32 @@
   [tabindex]:focus-visible {
     box-shadow: 0 0 0 2px #0B0C10, 0 0 0 4px #66FCF1;
   }
+
+  /* Sitewide hover feedback floor — every plain button/link/clickable
+     element gets *some* unified hover response even if it never opted
+     into one of the dedicated .btn-primary/.nav-link/.card treatments
+     below. Lives in @layer base (Tailwind's lowest-priority layer), so any of
+     those more specific component/utility hover rules still win outright
+     — this only fills the gap they don't cover, same idea as the
+     focus-visible floor above. filter-only (no transform): a lift looks
+     right on a card or a button, but would jank arbitrary inline/flex
+     items we haven't individually vetted for the space to move into.
+     `hover: hover` keeps it off touch devices, where ":hover" would
+     otherwise stick after a tap instead of behaving like a real hover. */
+  @media (hover: hover) {
+    button:not(:disabled),
+    a[href],
+    [role="button"],
+    .cursor-pointer {
+      transition: filter 0.15s, opacity 0.15s;
+    }
+    button:not(:disabled):hover,
+    a[href]:hover,
+    [role="button"]:hover,
+    .cursor-pointer:hover {
+      filter: brightness(1.12);
+    }
+  }
 }
 
 @layer components {
@@ -570,34 +596,6 @@
 .stat-bar-fill {
   height: 100%;
   transition: width 0.6s ease-out;
-}
-
-/* ===== BUG WALKING LEGS ===== */
-@keyframes leg-alt-a {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-2px); }
-}
-@keyframes leg-alt-b {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(2px); }
-}
-@keyframes bug-run-hop {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-3px); }
-}
-
-.bug-leg-a {
-  animation: leg-alt-a 0.18s steps(1) infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.bug-leg-b {
-  animation: leg-alt-b 0.18s steps(1) infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.bug-running {
-  animation: bug-run-hop 0.18s steps(2) infinite;
 }
 
 /* ===== FROG COMPANION ===== */
