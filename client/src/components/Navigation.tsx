@@ -9,7 +9,7 @@ import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
 import logoUrl from '../assets/logo.svg';
 import {
-  ACCENT, TRACK_WIDE, STAT_LABEL_COLOR,
+  ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG,
   HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER,
 } from '../utils/theme';
 
@@ -92,6 +92,11 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   // hamburger button next to the avatar (see the `lg:hidden` button below).
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const mobileNavRef = useRef<HTMLDivElement>(null);
+  // Tracked in state (not a direct DOM style mutation like the nav tabs
+  // above) because the hover here also needs to flip the hamburger icon's
+  // own stroke color to match the quick-links buttons' fill+dark-icon
+  // treatment, and that icon is built from several nested <path> elements.
+  const [hamburgerHover, setHamburgerHover] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   // Own equipped avatar for the nav-bar button — avatar_id/frame/custom_avatar
   // live on the per-page profile record, not the top-level `user` passed in
@@ -204,14 +209,19 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           WebkitBackdropFilter: HEADER_BLUR,
         }}
       >
-        {/* Logo — 95×23 box per the kit; object-fit:contain rather than a
-            flat width/height so the mark itself (native ~95×50) doesn't get
-            visually squashed to fit that box. */}
+        {/* Logo — the mark's native artwork is 95×50 (crown icon stacked
+            over the "baganet" wordmark), so a 95×23 box (this used to be
+            the box size) forced object-fit:contain to shrink it to ~46% to
+            fit the height constraint, leaving it reading as tiny with a lot
+            of dead space on either side. Sizing the box to the same 95:50
+            ratio (here 76×40, matching the nav tabs' own height for a
+            clean shared baseline) lets it render at full box size with no
+            extra shrinkage. */}
         <button
           onClick={() => navigate('/')}
           className="flex items-center shrink-0 cursor-pointer transition-all duration-150 hover:brightness-125 hover:-translate-y-0.5"
         >
-          <img src={logoUrl} alt="baganet" style={{ width: 95, height: 23, objectFit: 'contain' }} />
+          <img src={logoUrl} alt="baganet" style={{ width: 76, height: 40, objectFit: 'contain' }} />
         </button>
 
         {/* Nav links — Geist 16px/400, #E0E0E0; active tab gets a bordered
@@ -240,7 +250,11 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                   border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
                   background: 'transparent',
                 }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; e.currentTarget.style.color = '#66FCF1'; } }}
+                // Same solid-fill treatment as the homepage's quick-links
+                // rows (LinkRow in HomePage.tsx: bg → ACCENT, text → PAGE_BG)
+                // instead of the previous translucent tint, so every
+                // "button-shaped" element in the app hovers the same way.
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = ACCENT; e.currentTarget.style.color = PAGE_BG; } }}
                 onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = STAT_LABEL_COLOR; } }}
               >
                 {link.label}
@@ -256,21 +270,27 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           <div className="relative lg:hidden" ref={mobileNavRef}>
             <button
               onClick={() => setMobileNavOpen(o => !o)}
+              onMouseEnter={() => setHamburgerHover(true)}
+              onMouseLeave={() => setHamburgerHover(false)}
               aria-label="Меню разделов"
               aria-haspopup="menu"
               aria-expanded={mobileNavOpen}
               className="flex items-center justify-center cursor-pointer rounded-lg transition-all duration-150"
-              style={{ width: TAB_HEIGHT, height: TAB_HEIGHT, border: `1px solid ${mobileNavOpen ? ACCENT : 'transparent'}`, background: 'transparent' }}
-              onMouseEnter={e => { if (!mobileNavOpen) e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; }}
-              onMouseLeave={e => { if (!mobileNavOpen) e.currentTarget.style.background = 'transparent'; }}
+              style={{
+                width: TAB_HEIGHT, height: TAB_HEIGHT,
+                border: `1px solid ${mobileNavOpen ? ACCENT : 'transparent'}`,
+                // Same solid-fill treatment as the quick-links buttons —
+                // see the nav tabs above for the same swap.
+                background: !mobileNavOpen && hamburgerHover ? ACCENT : 'transparent',
+              }}
             >
               {mobileNavOpen ? (
                 <Icon name="close" size={18} color={ACCENT} />
               ) : (
                 <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
-                  <path d="M0 1H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
-                  <path d="M0 7H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
-                  <path d="M0 13H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                  <path d="M0 1H20" stroke={hamburgerHover ? PAGE_BG : STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                  <path d="M0 7H20" stroke={hamburgerHover ? PAGE_BG : STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                  <path d="M0 13H20" stroke={hamburgerHover ? PAGE_BG : STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
                 </svg>
               )}
             </button>
@@ -302,7 +322,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                         background: isActive ? 'rgba(102, 252, 241,0.1)' : 'transparent',
                         border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
                       }}
-                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(102, 252, 241,0.08)'; e.currentTarget.style.color = '#66FCF1'; } }}
+                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = ACCENT; e.currentTarget.style.color = PAGE_BG; } }}
                       onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = STAT_LABEL_COLOR; } }}
                     >
                       {link.label}
