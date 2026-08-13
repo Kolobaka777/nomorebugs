@@ -10,6 +10,86 @@ interface BaselineSurveyProps {
 
 const RATING_LABELS = ['Не знаком', 'Базово', 'Уверен', 'Профи', 'Эксперт'];
 
+// Muted stand-in for ACCENT on a disabled solid pill — same teal family,
+// just dimmed, instead of the generic opacity-fade every other disabled
+// control in the app uses. Not in theme.ts since this exact pairing is
+// specific to this pill component.
+const ACCENT_MUTED = '#45A29E';
+
+// The "Назад"/"Далее" pill per spec: solid ACCENT when enabled, solid
+// ACCENT_MUTED when disabled — a plain color swap, not the opacity-fade
+// .btn-primary/.btn-secondary use elsewhere. Hover is a smooth brightness
+// shift only (no lift), matching the site-wide hover convention.
+function SurveyPillButton({ children, onClick, disabled, style }: {
+  children: React.ReactNode; onClick?: () => void; disabled?: boolean; style?: React.CSSProperties;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="font-geist font-semibold text-sm"
+      style={{
+        display: 'flex',
+        height: 44,
+        padding: '14px 39px 14px 32px',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 8,
+        border: 'none',
+        color: PAGE_BG,
+        background: disabled ? ACCENT_MUTED : ACCENT,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'filter 0.15s',
+        filter: !disabled && hover ? 'brightness(1.1)' : 'none',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// The 1-5 rating buttons' own pill shape — default/unselected state per
+// spec (bordered, 60%-opacity ACCENT fill); selected flips to the same
+// solid-ACCENT/dark-text look as SurveyPillButton so "this is the chosen
+// answer" reads with the same visual weight as "this is the primary
+// action" elsewhere on the page. Hover is a smooth brightness shift only.
+function RatingPill({ children, onClick, selected }: {
+  children: React.ReactNode; onClick: () => void; selected: boolean;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex flex-col items-center cursor-pointer"
+      style={{
+        display: 'flex',
+        padding: '12px 32px',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 8,
+        border: `1px solid ${ACCENT}`,
+        background: selected ? ACCENT : 'rgba(102, 252, 241,0.60)',
+        color: PAGE_BG,
+        minWidth: 78,
+        transition: 'filter 0.15s, background-color 0.15s',
+        filter: hover ? 'brightness(1.1)' : 'none',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
   const [scores, setScores] = useState({
     html_structure: 3,
@@ -83,52 +163,32 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
             <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{current.desc}</p>
           </div>
 
-          {/* Rating scale */}
+          {/* Rating scale — default/unselected state is the outline pill per
+              spec (border ACCENT, 60%-opacity ACCENT fill); selected reuses
+              the solid-pill look so "confirmed choice" reads the same
+              language as the primary Далее button below. */}
           <div className="flex flex-wrap gap-2 mb-8 justify-center">
             {[1, 2, 3, 4, 5].map(num => {
               const isSelected = scores[current.key] === num;
               return (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleChange(num)}
-                  className="rounded-lg transition-all cursor-pointer flex flex-col items-center gap-1 px-3 py-2.5"
-                  style={{
-                    background: isSelected ? ACCENT : 'transparent',
-                    border: `1.5px solid ${isSelected ? ACCENT : 'rgba(102, 252, 241,0.35)'}`,
-                    color: isSelected ? PAGE_BG : ACCENT,
-                    minWidth: 78,
-                  }}
-                >
+                <RatingPill key={num} selected={isSelected} onClick={() => handleChange(num)}>
                   <span className="font-geist" style={{ fontSize: 11 }}>{RATING_LABELS[num - 1]}</span>
                   <span className="font-montserrat font-bold" style={{ fontSize: 18 }}>{num}</span>
-                </button>
+                </RatingPill>
               );
             })}
           </div>
 
           {/* Nav */}
           <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setStep(s => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="btn-secondary px-6 disabled:opacity-30"
-              style={{ padding: '12px 24px' }}
-            >
+            <SurveyPillButton onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>
               Назад
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={loading}
-              className="btn-primary flex-1 disabled:opacity-50"
-              style={{ padding: '12px', fontSize: '14px' }}
-            >
+            </SurveyPillButton>
+            <SurveyPillButton onClick={handleNext} disabled={loading} style={{ flex: 1 }}>
               {loading
                 ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> сохраняем...</span>
                 : isLast ? 'Начать обучение' : 'Далее'}
-            </button>
+            </SurveyPillButton>
           </div>
         </div>
       </div>

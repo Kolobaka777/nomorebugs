@@ -355,7 +355,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             {user.role === 'tester' && course.is_published && (
               <button
                 onClick={() => navigate(`/custom-course/${id}/learn`)}
-                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer flex items-center justify-center gap-2"
                 style={{ background: color, color: PAGE_BG }}
               >
                 {hasProgress ? 'Продолжить курс' : 'Начать курс'} <span aria-hidden="true">🧪</span>

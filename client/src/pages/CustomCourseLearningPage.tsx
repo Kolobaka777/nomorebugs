@@ -3,11 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import Icon from '../components/Icon';
-import { LockIcon, CheckCircleIcon, PagesIcon } from '../components/CatalogIcons';
+import { LockIcon, CheckCircleIcon, PagesIcon, BookOpenIcon } from '../components/CatalogIcons';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import { useEscapeKey } from '../utils/a11y';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import successFrogUrl from '../assets/icons/success-frog.svg';
+import failedFrogUrl from '../assets/icons/failed-frog.svg';
+
+// Semantic pass/fail colors for the course-result screen — deliberately
+// independent of the course's own accent `color` (a course themed amber can
+// still show a green "passed" percentage), matching the green already used
+// elsewhere for "fresh/positive" state (ZhukademiPage's NEW_BADGE_COLOR) and
+// the red already used throughout this file for wrong-answer states.
+const RESULT_PASS_COLOR = '#4ADE80';
+const RESULT_FAIL_COLOR = '#e05252';
 
 interface Props {
   user: any;
@@ -224,7 +234,7 @@ function CustomQuizView({
             Проверить ответы <Icon name="arrowRight" size={22} color="currentColor" />
           </button>
         ) : (
-          <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:-translate-y-0.5" style={{ background: color, color: '#0B0C10', boxShadow: `0 4px 0 0 ${color}50` }}>
+          <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110" style={{ background: color, color: '#0B0C10', boxShadow: `0 4px 0 0 ${color}50` }}>
             {isLastLesson ? '🏁 Завершить курс' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
           </button>
         )}
@@ -330,6 +340,114 @@ function LeadTimer({ startTimeMs, color }: { startTimeMs: number; color: string 
   );
 }
 
+// ─── Course result screen (pass/fail) ──────────────────────────────────────────
+
+// Shown once the last lesson is completed, *if* the course had at least one
+// completed quiz to score — a course made entirely of reading lessons has
+// nothing to grade, so it still gets the older plain "Курс завершён!" screen
+// (see the render logic in the main component below) rather than a
+// fabricated 100%.
+function CourseResultScreen({ course, color, passed, score, weakModules, onRetry, onBackToCourse, onNext, onModuleClick }: {
+  course: any; color: string; passed: boolean; score: number;
+  weakModules: string[]; onRetry: () => void; onBackToCourse: () => void; onNext: () => void;
+  onModuleClick: (title: string) => void;
+}) {
+  return (
+    <div className="max-w-2xl mx-auto px-8 py-10">
+      {/* Mini course hero — same recipe as CustomCourseDetailPage's hero
+          card (icon box + tag pill + title), just without the lesson/module/
+          test stat row, which has nothing to add once you've already
+          finished. The checkmark on the right only appears when passed. */}
+      <div className="rounded-lg p-5 flex items-center gap-4 mb-10" style={{ background: CARD_BG, border: `1px solid ${color}` }}>
+        <div className="w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}18`, border: `1.5px solid ${color}55` }}>
+          <BookOpenIcon size={26} color={color} />
+        </div>
+        <div className="min-w-0 flex-1">
+          {course.tag && (
+            <span className="inline-block rounded px-2 py-0.5 font-geist text-xs font-semibold mb-1.5" style={{ background: `${color}20`, color, border: `1px solid ${color}55` }}>
+              {course.tag}
+            </span>
+          )}
+          <h2 className="font-montserrat font-bold break-words" style={{ fontSize: 17, color: TEXT_PRIMARY }}>{course.title}</h2>
+        </div>
+        {passed && <CheckCircleIcon size={28} color={ACCENT} className="flex-shrink-0" />}
+      </div>
+
+      <div className="text-center">
+        <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 26, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          {passed ? 'ПОЗДРАВЛЯЕМ!' : 'Результат не засчитан'}
+        </h1>
+        <p className="font-geist text-sm mb-8" style={{ color: TEXT_MUTED }}>
+          {passed ? <>Ты успешно завершил курс <span style={{ color: TEXT_PRIMARY, fontWeight: 600 }}>{course.title}</span></> : 'Но это не провал.'}
+        </p>
+
+        <div className="flex items-center justify-center gap-5 mb-8">
+          <img src={passed ? successFrogUrl : failedFrogUrl} alt="" style={{ height: 110, width: 'auto' }} />
+          <div className="text-left">
+            <p className="font-montserrat font-bold tabular-nums" style={{ fontSize: 44, color: passed ? RESULT_PASS_COLOR : RESULT_FAIL_COLOR, lineHeight: 1 }}>{score}%</p>
+            <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>Правильных ответов</p>
+          </div>
+        </div>
+
+        {passed ? (
+          <p className="font-geist text-sm leading-relaxed mb-10" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
+            Твой результат говорит о глубоком понимании темы курса<br />
+            Новая ачивка уже в твоём профиле<br />
+            Ты её заслужил!
+          </p>
+        ) : (
+          <p className="font-geist text-sm leading-relaxed mb-10" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
+            Это всего лишь сигнал, что нужно немного подтянуть знания.<br />
+            {weakModules.length > 0 && (
+              <>
+                Рекомендуем заново посмотреть модул{weakModules.length === 1 ? 'ь' : 'и'}{' '}
+                {weakModules.map((m, i) => (
+                  <span key={m}>
+                    <button onClick={() => onModuleClick(m)} className="font-semibold cursor-pointer hover:underline" style={{ color }}>{m}</button>
+                    {i < weakModules.length - 1 && (i === weakModules.length - 2 ? ' и ' : ', ')}
+                  </span>
+                ))}
+                <br />
+              </>
+            )}
+            Перед тем как снова проходить тест
+          </p>
+        )}
+
+        <div className="flex items-center justify-center gap-4">
+          {passed ? (
+            <SolidPill color={color} onClick={onNext}>Следующий Курс <Icon name="arrowRight" size={16} color="currentColor" /></SolidPill>
+          ) : (
+            <>
+              <SolidPill color="rgba(197, 198, 199,0.12)" textColor={TEXT_PRIMARY} onClick={onBackToCourse}><Icon name="chevronLeft" size={16} color="currentColor" /> Вернуться к курсу</SolidPill>
+              <SolidPill color={color} onClick={onRetry}>Пройти тест снова <Icon name="arrowRight" size={16} color="currentColor" /></SolidPill>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small shared pill button for the result screen — smooth brightness-only
+// hover per the site-wide hover convention, no lift.
+function SolidPill({ color, textColor = PAGE_BG, onClick, children }: {
+  color: string; textColor?: string; onClick: () => void; children: React.ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="font-geist font-bold text-sm rounded-lg cursor-pointer flex items-center gap-2"
+      style={{ padding: '12px 28px', background: color, color: textColor, transition: 'filter 0.15s', filter: hover ? 'brightness(1.1)' : 'none' }}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CustomCourseLearningPage({ user, onLogout }: Props) {
@@ -377,6 +495,13 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     try { const s = localStorage.getItem(`custom_course_notes_${user.id}_${id}`); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [quizStates, setQuizStates] = useState<Record<number, any>>({});
+  // Keyed the same way as quizStates (global lesson index, not lesson id) —
+  // feeds the course-result screen's aggregate percentage once the course
+  // is finished. A quiz lesson can only ever be marked complete *after*
+  // it's been submitted (see CustomQuizView: markComplete is only reachable
+  // once submitted is true), so every quiz-type lesson that ends up in
+  // completedLessons is guaranteed to have a matching entry here.
+  const [quizScores, setQuizScores] = useState<Record<number, number>>({});
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   // Below the lg breakpoint the module/lesson list collapses into this
   // toggle instead of eating a fixed-width column — on a phone a 256px
@@ -467,6 +592,65 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     if (!lesson) return false;
     if (lesson.prerequisite_type !== 'mandatory' || lesson.prerequisite_lesson_id == null) return true;
     return completedLessons.has(lesson.prerequisite_lesson_id);
+  };
+
+  // Course-level result (drives the pass/fail screen once showCompleted is
+  // true) — average of every completed quiz-type lesson's score. Only
+  // *completed* quizzes count, so a quiz that was reachable but skipped via
+  // an optional prerequisite doesn't drag the average down for a lesson the
+  // user never actually took. `null` means the course had no gradable
+  // quizzes at all (pure reading material), which keeps the plain "Курс
+  // завершён!" screen instead of fabricating a percentage.
+  const modules = course.modules || [];
+  const quizLessonEntries = allLessons
+    .map((l, i) => ({ lesson: l, idx: i }))
+    .filter(({ lesson }) => lesson.type === 'quiz');
+  const completedQuizScores = quizLessonEntries
+    .filter(({ lesson }) => completedLessons.has(lesson.id))
+    .map(({ idx }) => quizScores[idx])
+    .filter((s): s is number => typeof s === 'number');
+  const courseScore = completedQuizScores.length > 0
+    ? Math.round(completedQuizScores.reduce((a, b) => a + b, 0) / completedQuizScores.length)
+    : null;
+  const coursePassed = courseScore === null ? true : courseScore >= 60;
+
+  // Modules containing a completed quiz scored below the pass threshold —
+  // what the fail screen recommends revisiting. Deduped, in course order.
+  const weakModuleTitles: string[] = [];
+  if (courseScore !== null && !coursePassed) {
+    let gi = 0;
+    for (const mod of modules) {
+      const modLessons = mod.lessons || [];
+      const hasWeakQuiz = modLessons.some((lesson: any, li: number) => {
+        const globalIdx = gi + li;
+        return lesson.type === 'quiz' && completedLessons.has(lesson.id) && (quizScores[globalIdx] ?? 100) < 60;
+      });
+      if (hasWeakQuiz && mod.title) weakModuleTitles.push(mod.title);
+      gi += modLessons.length;
+    }
+  }
+
+  const jumpToModule = (moduleTitle: string) => {
+    let gi = 0;
+    for (const mod of modules) {
+      const modLessons = mod.lessons || [];
+      if (mod.title === moduleTitle) { setCurrentIdx(gi); setShowCompleted(false); return; }
+      gi += modLessons.length;
+    }
+  };
+
+  // "Пройти тест снова" — clears every recorded quiz answer/score for this
+  // session (not just the failed one) and drops the user back at the first
+  // quiz in the course. Lesson *completion* itself is left alone (it's the
+  // server-tracked progress gate — see markComplete — and passing was never
+  // required to advance past a quiz), so this only resets grading, not
+  // access.
+  const retryQuizzes = () => {
+    setQuizStates({});
+    setQuizScores({});
+    const firstQuizIdx = quizLessonEntries[0]?.idx;
+    setCurrentIdx(firstQuizIdx ?? 0);
+    setShowCompleted(false);
   };
 
   // Find module index for current lesson
@@ -576,12 +760,27 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">
-          {showCompleted ? (
+          {showCompleted && courseScore !== null ? (
+            <CourseResultScreen
+              course={course}
+              color={color}
+              passed={coursePassed}
+              score={courseScore}
+              weakModules={weakModuleTitles}
+              onRetry={retryQuizzes}
+              onBackToCourse={() => navigate(`/custom-course/${id}`)}
+              onNext={() => navigate('/zhukademia')}
+              onModuleClick={jumpToModule}
+            />
+          ) : showCompleted ? (
+            // No gradable quizzes in this course — nothing to score, so this
+            // stays the original plain completion screen rather than
+            // fabricating a percentage.
             <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
               <div className="mb-6"><Icon name="trophy" size={64} color="#EF9F27" /></div>
               <h2 className="font-montserrat font-bold mb-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>Курс завершён!</h2>
               <p className="font-geist text-sm mb-10" style={{ color: TEXT_MUTED }}>{course.title}</p>
-              <button onClick={() => navigate('/zhukademia')} className="px-8 py-3 rounded-lg font-geist font-bold text-sm hover:-translate-y-0.5 transition-all cursor-pointer" style={{ background: color, color: PAGE_BG }}><Icon name="chevronLeft" size={22} color="currentColor" /> Вернуться к курсам</button>
+              <button onClick={() => navigate('/zhukademia')} className="px-8 py-3 rounded-lg font-geist font-bold text-sm hover:brightness-110 transition-all cursor-pointer" style={{ background: color, color: PAGE_BG }}><Icon name="chevronLeft" size={22} color="currentColor" /> Вернуться к курсам</button>
             </div>
           ) : currentLesson ? (
             <div className="max-w-3xl mx-auto px-8 py-8">
@@ -620,7 +819,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     ) : <div />}
                     <button
                       onClick={() => markComplete(currentLesson.id)}
-                      className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+                      className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer flex items-center gap-2"
                       style={{ background: color, color: PAGE_BG }}
                     >
                       {allLessons[currentIdx + 1]?.type === 'quiz'
@@ -642,6 +841,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     const correct = qs.filter((q: any, qi: number) => state.answers[qi] === q.correct_idx).length;
                     const score = qs.length ? Math.round((correct / qs.length) * 100) : 100;
                     setQuizStates(prev => ({ ...prev, [currentIdx]: { ...state, submitted: true, score } }));
+                    setQuizScores(prev => ({ ...prev, [currentIdx]: score }));
                   }}
                   onNext={() => markComplete(currentLesson.id)}
                   isLastLesson={isLastLesson}
@@ -665,7 +865,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} userId={user.id} courseId={id || ''} />
 
       {!showNotes && (
-        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:-translate-y-0.5" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
           <Icon name="memo" size={22} color="currentColor" /> <span className="text-xs">Заметки</span>
           {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0B0C10', fontSize: '0.6rem' }}>{notes.length}</span>}
         </button>

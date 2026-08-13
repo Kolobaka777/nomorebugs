@@ -270,7 +270,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                       key={c.value}
                       onClick={() => setForm(f => ({ ...f, color: c.value }))}
                       title={c.name}
-                      className="w-7 h-7 rounded-full transition-transform hover:scale-110 cursor-pointer"
+                      className="w-7 h-7 rounded-full transition-all hover:brightness-110 cursor-pointer"
                       style={{
                         background: c.value,
                         boxShadow: form.color === c.value ? `0 0 0 2px ${PAGE_BG}, 0 0 0 4px ${c.value}` : 'none',
@@ -440,7 +440,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               <button
                 onClick={() => save(false)}
                 disabled={saving}
-                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
+                className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer"
                 style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
               >
                 {saving ? 'Отправляю...' : <span className="flex items-center justify-center gap-2"><Icon name="lightbulb" size={16} color="currentColor" />Отправить на рассмотрение</span>}
@@ -458,7 +458,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 <button
                   onClick={() => save(true)}
                   disabled={saving}
-                  className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:-translate-y-0.5 cursor-pointer"
+                  className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer"
                   style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
                 >
                   {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />Опубликовать</span>}

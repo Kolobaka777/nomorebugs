@@ -480,7 +480,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             {nextLecture && (
               <button
                 onClick={() => navigate(`/lecture/${nextLecture.id}/quiz`)}
-                className="w-full rounded-lg font-geist font-semibold cursor-pointer flex items-center justify-center gap-2 py-3 transition-transform hover:-translate-y-0.5"
+                className="w-full rounded-lg font-geist font-semibold cursor-pointer flex items-center justify-center gap-2 py-3 transition-all hover:brightness-110"
                 style={{ background: '#EF9F27', color: PAGE_BG, fontSize: 14 }}
               >
                 Продолжить обучение <Icon name="rocket" size={22} color={PAGE_BG} />

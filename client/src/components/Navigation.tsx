@@ -219,7 +219,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
             extra shrinkage. */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center shrink-0 cursor-pointer transition-all duration-150 hover:brightness-125 hover:-translate-y-0.5"
+          className="flex items-center shrink-0 cursor-pointer transition-all duration-150 hover:brightness-125"
         >
           <img src={logoUrl} alt="baganet" style={{ width: 76, height: 40, objectFit: 'contain' }} />
         </button>

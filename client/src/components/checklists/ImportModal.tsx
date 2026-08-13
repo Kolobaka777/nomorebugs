@@ -60,7 +60,7 @@ export default function ImportModal({ onClose, onImported }: { onClose: () => vo
             </div>
             <button
               onClick={() => onImported(result.id)}
-              className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer transition-all hover:brightness-110"
               style={{ background: ACCENT, color: PAGE_BG }}
             >
               Готово
@@ -109,7 +109,7 @@ export default function ImportModal({ onClose, onImported }: { onClose: () => vo
             <button
               onClick={handleImport}
               disabled={loading}
-              className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer transition-all hover:brightness-110"
               style={{ background: ACCENT, color: PAGE_BG, opacity: loading ? 0.6 : 1 }}
             >
               {loading ? 'Загружаю...' : 'Импортировать'}

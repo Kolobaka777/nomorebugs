@@ -95,7 +95,7 @@ export default function ExportModal({ filters, onClose }: { filters: Record<stri
         <button
           onClick={runExport}
           disabled={exporting}
-          className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50 transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+          className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50 transition-transform hover:brightness-110 flex items-center justify-center gap-2"
           style={{ background: ACCENT, color: PAGE_BG }}
         >
           <Icon name="floppy" size={16} color="currentColor" />

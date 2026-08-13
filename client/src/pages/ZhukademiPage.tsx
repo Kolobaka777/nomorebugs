@@ -75,7 +75,7 @@ function CourseCard({
     <div
       onClick={onClick}
       {...(clickable && onClick ? clickableProps(onClick) : {})}
-      className={`relative rounded-lg transition-all h-full ${clickable ? 'cursor-pointer hover:-translate-y-1' : ''}`}
+      className={`relative rounded-lg transition-all h-full ${clickable ? 'cursor-pointer hover:brightness-105' : ''}`}
       style={{
         background: CARD_BG,
         border: `1.5px solid ${isLocked ? 'rgba(197, 198, 199, 0.18)' : `${tagColor}70`}`,
@@ -393,7 +393,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
           {user.role === 'lead' ? (
             <button
               onClick={() => navigate('/lead/course-builder')}
-              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
               style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
             >
               <PlusIcon size={16} color={PAGE_BG} /> Создать курс
@@ -405,7 +405,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             // (see POST /api/custom-courses) regardless of who clicks it.
             <button
               onClick={() => navigate('/propose-course')}
-              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
               style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14 }}
             >
               <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс

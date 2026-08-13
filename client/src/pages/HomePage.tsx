@@ -217,7 +217,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                     </p>
                     <button
                       onClick={() => navigate('/zhukademia')}
-                      className="font-geist rounded-lg cursor-pointer transition-transform hover:-translate-y-0.5 flex items-center"
+                      className="font-geist rounded-lg cursor-pointer transition-all hover:brightness-110 flex items-center"
                       style={{
                         width: 322,
                         maxWidth: '100%',

@@ -124,66 +124,58 @@
   }
 
   /* ===== BUTTONS ===== */
-  /* Unified with HomePage's flat accent-fill buttons: no bevel border, a
-     small lift + brightness on hover (matches the "Начать первую лекцию"
-     CTA's hover:-translate-y-0.5) instead of the old raised/sunken border
-     flip on press. */
+  /* Unified hover language, site-wide: a smooth color/brightness shift only
+     — no translateY lift. A lift reads as the element physically jumping
+     under the cursor; asked to stop that everywhere and keep hover to a
+     plain, smooth color change instead. */
   .btn-primary {
     @apply px-4 py-2 bg-primary text-game font-sans font-semibold cursor-pointer rounded-lg;
     box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-    transition: filter 0.15s, transform 0.15s;
+    transition: filter 0.15s;
   }
   .btn-primary:hover:not(:disabled) {
     filter: brightness(1.08);
-    transform: translateY(-2px);
   }
   .btn-primary:active:not(:disabled) {
     filter: brightness(0.96);
-    transform: translateY(0);
   }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-amber {
     @apply px-4 py-2 bg-amber text-game font-sans font-semibold cursor-pointer rounded-lg;
     box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-    transition: filter 0.15s, transform 0.15s;
+    transition: filter 0.15s;
   }
   .btn-amber:hover:not(:disabled) {
     filter: brightness(1.08);
-    transform: translateY(-2px);
   }
   .btn-amber:active:not(:disabled) {
     filter: brightness(0.96);
-    transform: translateY(0);
   }
 
   .btn-secondary {
     @apply px-4 py-2 bg-game-card text-pixel font-sans cursor-pointer rounded-lg;
     border: 1px solid rgba(197, 198, 199, 0.2);
-    transition: filter 0.15s, transform 0.15s, border-color 0.15s;
+    transition: filter 0.15s, border-color 0.15s;
   }
   .btn-secondary:hover:not(:disabled) {
     filter: brightness(1.1);
     border-color: rgba(102, 252, 241, 0.4);
-    transform: translateY(-2px);
   }
   .btn-secondary:active:not(:disabled) {
     filter: brightness(0.96);
-    transform: translateY(0);
   }
 
   .btn-purple {
     @apply px-4 py-2 bg-purple text-pixel font-sans font-semibold cursor-pointer rounded-lg;
     box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-    transition: filter 0.15s, transform 0.15s;
+    transition: filter 0.15s;
   }
   .btn-purple:hover:not(:disabled) {
     filter: brightness(1.08);
-    transform: translateY(-2px);
   }
   .btn-purple:active:not(:disabled) {
     filter: brightness(0.96);
-    transform: translateY(0);
   }
 
   /* ===== XP / HP BARS ===== */
@@ -662,13 +654,12 @@
   100% { transform: translateY(-24px) scale(0.96); opacity: 0; }
 }
 
-/* ===== CARD HOVER — soft lift, no bevel/outline flip ===== */
+/* ===== CARD HOVER — deeper shadow only, no lift/bevel flip ===== */
 .card:hover, .card-amber:hover, .card-purple:hover {
-  transform: translateY(-2px);
   box-shadow: 0 10px 16px 0 rgba(0, 0, 0, 0.3);
 }
 .card, .card-amber, .card-purple {
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: box-shadow 0.15s;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -808,12 +799,11 @@
   border: 1px solid rgba(127,119,221,0.3);
   border-radius: 8px;
   box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .shop-card:hover {
   border-color: rgba(239,159,39,0.5);
   box-shadow: 0 10px 16px 0 rgba(0, 0, 0, 0.3);
-  transform: translateY(-2px);
 }
 .shop-card-owned {
   border-color: #66FCF1;

@@ -99,7 +99,7 @@ export default function CreateTemplateModal({ onClose, onCreated }: { onClose: (
           <button
             onClick={handleCreate}
             disabled={loading}
-            className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50 transition-transform hover:-translate-y-0.5"
+            className="w-full py-3 text-sm font-geist font-semibold rounded-lg cursor-pointer disabled:opacity-50 transition-all hover:brightness-110"
             style={{ background: ACCENT, color: PAGE_BG }}
           >
             {loading ? '...' : 'Создать'}

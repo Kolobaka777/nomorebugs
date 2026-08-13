@@ -341,7 +341,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
                       </div>
                       <button
                         onClick={() => navigate(`/checklists/${tpl.id}`)}
-                        className="w-full py-2.5 rounded-lg font-geist text-xs font-semibold cursor-pointer mt-auto flex items-center justify-center gap-1.5 transition-transform hover:-translate-y-0.5"
+                        className="w-full py-2.5 rounded-lg font-geist text-xs font-semibold cursor-pointer mt-auto flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
                         style={{ background: `${tpl.color}18`, color: tpl.color }}
                       >
                         Заполнить <Icon name="chevronRight" size={16} color="currentColor" />
