@@ -44,6 +44,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     requirements: '',
     deadline_at: '',
     modules: [emptyModule()],
+    is_onboarding: false,
   });
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
@@ -69,6 +70,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           color: data.color || '#66FCF1',
           requirements: data.requirements || '',
           deadline_at: data.deadline_at ? String(data.deadline_at).slice(0, 10) : '',
+          is_onboarding: !!data.is_onboarding,
           modules: (data.modules || []).map((m: any) => ({
             // Same reasoning as lessons below: reusing the real DB id lets
             // the server diff modules on save instead of deleting and
@@ -310,6 +312,25 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 />
                 <p className="text-xs font-geist mt-1" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>Для отдельных сотрудников дедлайн можно продлить на странице курса.</p>
               </div>
+
+              {/* Onboarding flag — lead/admin only, mirrors why the propose
+                  flow itself never shows a publish toggle: a proposing
+                  tester has no say over cross-cutting catalog placement. */}
+              {!isProposing && (
+                <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>
+                  <label className="flex items-start gap-2 text-xs font-geist cursor-pointer" style={{ color: TEXT_MUTED }}>
+                    <input
+                      type="checkbox"
+                      checked={form.is_onboarding}
+                      onChange={e => setForm(f => ({ ...f, is_onboarding: e.target.checked }))}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Это вводный курс для новичков — будет отдельным блоком «Для новичков» в каталоге, доступным всем в любое время.
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Preview card */}

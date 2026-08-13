@@ -399,6 +399,9 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
     const canPublishDirectly = hasManageCourses(req.user);
     const isPublished = canPublishDirectly ? !!req.body.is_published : false;
     const proposalStatus = canPublishDirectly ? null : 'pending';
+    // A proposing tester's submission ignores this — only a lead/admin can
+    // mark a course as the/an onboarding track.
+    const isOnboarding = canPublishDirectly ? !!req.body.is_onboarding : false;
 
     if (isPublished || !canPublishDirectly) {
       const structureError = validateCourseStructureFromRequest(modules);
@@ -410,8 +413,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
     // can't leave a course with, say, a module but no lessons in it.
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
-        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status, is_onboarding)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         title.trim(),
         description || '',
@@ -422,7 +425,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
         deadline_at || null,
         req.user.id,
         new Date().toISOString(),
-        proposalStatus
+        proposalStatus,
+        isOnboarding ? 1 : 0
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
@@ -447,8 +451,9 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    const { title, description, tag, color, requirements, modules, is_published, deadline_at, expected_updated_at } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, is_onboarding, deadline_at, expected_updated_at } = req.body;
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
+    const newOnboardingFlag = is_onboarding !== undefined ? (is_onboarding ? 1 : 0) : course.is_onboarding;
 
     // Optimistic locking for module-tree edits specifically: updateCourseModules
     // diffs against whatever's in the DB right now and deletes anything the
@@ -481,13 +486,14 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     // the course in a genuinely broken half-edited state, not just a
     // failed request, so this needs to be all-or-nothing.
     db.transaction(() => {
-      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, deadline_at=?, updated_at=? WHERE id=?`).run(
+      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, is_onboarding=?, deadline_at=?, updated_at=? WHERE id=?`).run(
         title?.trim() || course.title,
         description ?? course.description,
         tag || course.tag,
         color || course.color,
         requirements ?? course.requirements,
         newPublishedFlag,
+        newOnboardingFlag,
         deadline_at !== undefined ? (deadline_at || null) : course.deadline_at,
         new Date().toISOString(),
         course.id

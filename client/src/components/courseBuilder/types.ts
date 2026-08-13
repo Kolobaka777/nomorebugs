@@ -41,6 +41,10 @@ export interface FormState {
   requirements: string;
   deadline_at: string; // 'YYYY-MM-DD', empty = no deadline
   modules: BModule[];
+  // Lead/admin-only — marks this as (one of) the permanent new-hire
+  // onboarding course(s), always shown in its own catalog section
+  // regardless of tag filters. Never sent/honored for a proposing tester.
+  is_onboarding: boolean;
 }
 
 export const uid = () => Math.random().toString(36).slice(2);

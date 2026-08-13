@@ -52,7 +52,10 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
   const [loading, setLoading] = useState(true);
 
   // Tester-facing
-  const [metrics, setMetrics] = useState<{ lecturesCompleted: number; averageScore: number; skillGrowth: string } | null>(null);
+  const [metrics, setMetrics] = useState<{
+    lecturesCompleted: number; averageScore: number; skillGrowth: string;
+    onboardingCourseCompleted: boolean; onboardingCourseId: number | null;
+  } | null>(null);
   // "Последние результаты" used to be a flat quiz-score list (getHistory) —
   // switched to the same activity-log feed MoyaNora's "Активность" tab
   // uses (richer, explanatory entries: passed/failed a lecture, submitted a
@@ -158,7 +161,32 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               <div>
                 <TwoTone first="ПОСЛЕДНИЕ" second="РЕЗУЛЬТАТЫ" />
                 {loading && <SnailLoader />}
-                {!loading && myActivity.length === 0 && (
+                {/* Onboarding nudge — deliberately tenure-neutral copy (not
+                    "welcome, newbie!"), so it reads fine for a long-tenured
+                    tester who just never got around to it. Shown to anyone
+                    who hasn't finished it, no matter how long they've been
+                    here; disappears the moment onboardingCourseCompleted
+                    flips true, or if no onboarding course is published yet. */}
+                {!loading && metrics && !metrics.onboardingCourseCompleted && metrics.onboardingCourseId != null && (
+                  <div
+                    className="p-5 rounded-lg mt-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-4 justify-between"
+                    style={{ background: CARD_BG_PATTERN, boxShadow: CARD_SHADOW, border: `1px solid ${ACCENT}40` }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon name="graduation" size={20} color={ACCENT} className="shrink-0" />
+                      <p className="font-geist text-sm min-w-0 break-words" style={{ color: TEXT_PRIMARY }}>
+                        «Вводный курс» — про сервисы, к кому обращаться и какие бывают задачи. Ещё не пройден — загляни, если не смотрел(а).
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/custom-course/${metrics.onboardingCourseId}`)}
+                      className="btn-primary text-xs px-4 py-2 shrink-0 flex items-center gap-1.5"
+                    >
+                      Открыть <Icon name="chevronRight" size={13} color="currentColor" />
+                    </button>
+                  </div>
+                )}
+                {!loading && myActivity.length === 0 && (!metrics || metrics.onboardingCourseCompleted || metrics.onboardingCourseId == null) && (
                   <div
                     className="p-10 flex flex-col items-center gap-8 rounded-lg mt-3"
                     style={{ background: CARD_BG_PATTERN, boxShadow: CARD_SHADOW }}

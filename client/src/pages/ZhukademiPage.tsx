@@ -208,6 +208,13 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
 
   useEffect(() => { loadLectures(); }, []);
 
+  // Onboarding courses (is_onboarding) get their own permanent "Для
+  // новичков" section — always visible regardless of the topic tag filter,
+  // and excluded from the regular "Дополнительные курсы" grid/tag
+  // vocabulary below so nothing renders twice.
+  const onboardingCourses = customCourses.filter((cc: any) => cc.is_onboarding);
+  const nonOnboardingCourses = customCourses.filter((cc: any) => !cc.is_onboarding);
+
   // Filters apply across both the seeded-lecture catalog and custom courses,
   // matched by title search + a shared tag vocabulary (topic tag for
   // lectures, the course's own `tag` field for custom courses). Status
@@ -223,11 +230,16 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     (statusFilter === 'all' || l.status === statusFilter) &&
     !draftOnly
   ), [lectures, search, tagFilter, statusFilter, draftOnly]);
-  const filteredCustomCourses = useMemo(() => customCourses.filter((cc: any) =>
+  const filteredCustomCourses = useMemo(() => nonOnboardingCourses.filter((cc: any) =>
     matchesSearch(cc.title) &&
     (!tagFilter || (cc.tag || 'Custom') === tagFilter) &&
     (!draftOnly || !cc.is_published)
-  ), [customCourses, search, tagFilter, draftOnly]);
+  ), [nonOnboardingCourses, search, tagFilter, draftOnly]);
+  // No tag filter here — the "Для новичков" section is a permanent fixture,
+  // not part of the browse-by-topic grids.
+  const filteredOnboardingCourses = useMemo(() => onboardingCourses.filter((cc: any) =>
+    matchesSearch(cc.title) && (!draftOnly || !cc.is_published)
+  ), [onboardingCourses, search, draftOnly]);
 
   if (loading) {
     return (
@@ -254,16 +266,20 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
 
   const availableTags = Array.from(new Set([
     ...lectures.map(l => getTopicTag(l.skill_area)),
-    ...customCourses.map((cc: any) => cc.tag || 'Custom'),
+    ...nonOnboardingCourses.map((cc: any) => cc.tag || 'Custom'),
   ]));
 
+  // These all deliberately look at the regular catalog only (lectures +
+  // non-onboarding custom courses) — the "Для новичков" section is a
+  // separate, always-there fixture, not part of "is there anything to
+  // browse/search here".
   const hasActiveFilters = search.trim() !== '' || tagFilter !== null || statusFilter !== 'all' || draftOnly;
   const noResultsAtAll = hasActiveFilters && filteredLectures.length === 0 && filteredCustomCourses.length === 0
-    && (lectures.length > 0 || customCourses.length > 0);
+    && (lectures.length > 0 || nonOnboardingCourses.length > 0);
   // Genuinely nothing exists yet (no filters involved) — distinct from both
   // the error state above and "no results for these filters" below, so it
   // doesn't get mistaken for either.
-  const nothingExistsYet = !hasActiveFilters && lectures.length === 0 && customCourses.length === 0;
+  const nothingExistsYet = !hasActiveFilters && lectures.length === 0 && nonOnboardingCourses.length === 0;
 
   return (
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
@@ -385,6 +401,52 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
           )}
         </div>
 
+        {/* ===== FOR NEWCOMERS — permanent, not affected by the tag filter ===== */}
+        {filteredOnboardingCourses.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-6">
+              <h2 className="font-montserrat font-semibold flex items-center gap-2" style={{ fontSize: 18, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+                <Icon name="graduation" size={18} color={ACCENT} />
+                Для новичков
+              </h2>
+              <p className="font-geist mt-0.5" style={{ fontSize: 12, color: TEXT_MUTED }}>
+                Справочные материалы — про сервисы, контакты и задачи команды. Можно пройти в любой момент, не только в первый день.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredOnboardingCourses.map((cc: any) => {
+                const color = cc.color || ACCENT;
+                const isDraft = !cc.is_published;
+                const isPending = cc.proposal_status === 'pending';
+                const isLead = user.role === 'lead';
+                const isOwn = cc.created_by === user.id;
+                const hidden = isDraft && !isLead && !isOwn;
+
+                return (
+                  <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
+                    <CourseCard
+                      modulesLabel="Вводный курс"
+                      tag={cc.tag || 'Custom'}
+                      tagColor={color}
+                      title={cc.title}
+                      isDraft={isDraft}
+                      pendingReview={isPending}
+                      ctaLabel="ОТКРЫТЬ КУРС"
+                      ctaColor={color}
+                      statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
+                      clickable
+                      onClick={() => navigate(`/custom-course/${cc.id}`)}
+                      editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
+                      onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ===== COURSE GRID ===== */}
         {lectures.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -418,7 +480,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             })}
           </div>
         )}
-        {lectures.length === 0 && !hasActiveFilters && customCourses.length === 0 && (
+        {lectures.length === 0 && !hasActiveFilters && nonOnboardingCourses.length === 0 && (
           <div className="rounded-lg p-8 text-center" style={{ background: CARD_BG, border: '1px dashed rgba(197, 198, 199,0.1)', boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
             <BookOpenIcon size={26} color="rgba(197, 198, 199,0.3)" className="mb-3" />
             <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Курсы пока не добавлены</p>
@@ -511,7 +573,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
         )}
 
         {/* Lead empty state */}
-        {user.role === 'lead' && customCourses.length === 0 && (
+        {user.role === 'lead' && nonOnboardingCourses.length === 0 && (
           <div className="mt-12 rounded-lg p-8 text-center" style={{ background: CARD_BG, border: '1px dashed rgba(197, 198, 199,0.1)', boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
             <p className="font-geist text-sm mb-4" style={{ color: TEXT_MUTED }}>Вы ещё не создали ни одного курса</p>
             <button

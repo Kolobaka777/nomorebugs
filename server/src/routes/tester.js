@@ -48,11 +48,38 @@ router.get('/api/tester/metrics', authMiddleware, (req, res) => {
     const skillGrowth = (currentSkills?.avg || 0) - (baseline?.avg || 0) * 20;
     const weeksRemaining = 10 - (completedCount?.count || 0);
 
+    // Onboarding-course progress, for HomePage's "haven't finished the intro
+    // course yet" nudge. Same "every lesson has a matching progress row"
+    // shape as the skill-badge craftability check (profile.js) — false, not
+    // vacuously true, while no onboarding course has been published yet
+    // (totalLessons === 0).
+    const onboardingLessons = db.prepare(`
+      SELECT COUNT(*) as total,
+        (SELECT COUNT(*) FROM custom_lesson_progress clp
+          JOIN custom_lessons cl2 ON cl2.id = clp.lesson_id
+          JOIN custom_modules cm2 ON cm2.id = cl2.module_id
+          JOIN custom_courses cc2 ON cc2.id = cm2.course_id
+          WHERE clp.user_id = ? AND cc2.is_onboarding = 1 AND cc2.is_published = 1 AND cc2.deleted_at IS NULL
+        ) as completed
+      FROM custom_lessons cl
+      JOIN custom_modules cm ON cm.id = cl.module_id
+      JOIN custom_courses cc ON cc.id = cm.course_id
+      WHERE cc.is_onboarding = 1 AND cc.is_published = 1 AND cc.deleted_at IS NULL
+    `).get(userId);
+    const onboardingCourseCompleted = (onboardingLessons?.total || 0) > 0 && onboardingLessons.completed >= onboardingLessons.total;
+    // Which course to link the HomePage nudge to — arbitrary but stable
+    // pick (lowest id) if more than one onboarding course ever exists.
+    const onboardingCourse = onboardingCourseCompleted ? null : db.prepare(
+      `SELECT id FROM custom_courses WHERE is_onboarding = 1 AND is_published = 1 AND deleted_at IS NULL ORDER BY id LIMIT 1`
+    ).get();
+
     res.json({
       lecturesCompleted: completedCount?.count || 0,
       averageScore: Math.round(avgScore?.avg || 0),
       skillGrowth: skillGrowth.toFixed(1),
       weeksRemaining,
+      onboardingCourseCompleted,
+      onboardingCourseId: onboardingCourse?.id ?? null,
     });
   } catch (err) {
     logError(err);

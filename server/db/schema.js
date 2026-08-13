@@ -909,6 +909,13 @@ export function initDb() {
   const customCoursesCols = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
   if (!customCoursesCols.includes('proposal_status')) db.exec('ALTER TABLE custom_courses ADD COLUMN proposal_status TEXT DEFAULT NULL');
 
+  // Marks a course as the (or one of the) new-hire onboarding track — a
+  // permanent, always-in-the-catalog reference course rather than a
+  // topic-of-the-week one. Settable only by a lead/admin (see courses.js);
+  // a proposing tester's submission ignores it. Default 0 so every existing
+  // course is unaffected.
+  if (!customCoursesCols.includes('is_onboarding')) db.exec('ALTER TABLE custom_courses ADD COLUMN is_onboarding INTEGER DEFAULT 0');
+
   // Guides never had a draft/publish concept before (creation = publishing,
   // always by a lead) — is_published defaults to 1 so every existing guide
   // stays visible exactly as before. A tester-submitted proposal is
@@ -999,6 +1006,71 @@ export function initDb() {
     -- so those lookups don't fall back to a full table scan of users.
     CREATE INDEX IF NOT EXISTS idx_users_role_archived_at ON users(role, archived_at);
   `);
+
+  seedOnboardingCourseSkeleton();
+}
+
+// One-time: creates an empty, unpublished draft "Вводный курс" (new-hire
+// onboarding) the first time a lead/admin account exists and no onboarding
+// course has been created yet — gives the lead a ready-made module/lesson
+// skeleton (titles only, no content) to fill in via the normal Course
+// Builder rather than starting from a blank page. Runs on every boot but is
+// a no-op the moment either guard fails, so it never re-creates or touches
+// a course a lead has since renamed/restructured/deleted.
+function seedOnboardingCourseSkeleton() {
+  const alreadyExists = db.prepare('SELECT 1 FROM custom_courses WHERE is_onboarding = 1').get();
+  if (alreadyExists) return;
+  // custom_courses.created_by is NOT NULL — on a completely fresh install
+  // (or a test DB before its own fixtures run) there may be no lead/admin
+  // yet to attribute this to. Skip for now; re-checked on every future boot.
+  const author = db.prepare("SELECT id FROM users WHERE role IN ('lead','admin') ORDER BY id LIMIT 1").get();
+  if (!author) return;
+
+  // Module 4's lessons are seeded from today's real checklist templates
+  // (Прелендинг/Оффер/Вайт) rather than hand-typed — accurate on day one,
+  // but a one-time title seed, not a live join: a lead can freely
+  // rename/add/remove lessons afterward with no ongoing coupling to
+  // checklist_templates (see the plan's reasoning for not wiring this to
+  // task_types as a live foreign key).
+  const taskTypeLessons = db.prepare('SELECT name FROM checklist_templates ORDER BY id').all().map(t => t.name);
+
+  db.transaction(() => {
+    const courseId = db.prepare(`
+      INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, created_by, is_onboarding)
+      VALUES (?, ?, ?, ?, ?, 0, ?, 1)
+    `).run(
+      'Вводный курс',
+      'Что стоит знать новому человеку в команде: с какими сервисами работаем, к кому обращаться и какие бывают задачи.',
+      'Custom', '#66FCF1', 'Для всех — можно проходить в любой момент',
+      author.id
+    ).lastInsertRowid;
+
+    const insModule = db.prepare('INSERT INTO custom_modules (course_id, title, order_num) VALUES (?, ?, ?)');
+    const insLesson = db.prepare("INSERT INTO custom_lessons (module_id, title, type, content, order_num) VALUES (?, ?, 'lesson', '', ?)");
+    const setPrereq = db.prepare("UPDATE custom_lessons SET prerequisite_type = 'mandatory', prerequisite_lesson_id = ? WHERE id = ?");
+
+    const outline = [
+      { module: 'Добро пожаловать', lessons: ['Коротко о команде'] },
+      { module: 'Инструменты и сервисы', lessons: ['Чем мы пользуемся'] },
+      { module: 'Кто за что отвечает', lessons: ['Контакты и эскалация'] },
+      { module: 'Какие задачи мы выполняем', lessons: taskTypeLessons.length ? taskTypeLessons : ['Виды задач'] },
+    ];
+
+    const lessonIds = [];
+    outline.forEach((mod, mi) => {
+      const moduleId = insModule.run(courseId, mod.module, mi).lastInsertRowid;
+      mod.lessons.forEach((title, li) => {
+        lessonIds.push(insLesson.run(moduleId, title, li).lastInsertRowid);
+      });
+    });
+
+    // Strictly sequential across the whole course, same shape as
+    // backfillSequentialPrerequisites below — first lesson open, every
+    // later one gated on the immediately preceding one.
+    for (let i = 1; i < lessonIds.length; i++) {
+      setPrereq.run(lessonIds[i - 1], lessonIds[i]);
+    }
+  })();
 }
 
 // One-time backfill: preserves the exact lock behavior that existed before
