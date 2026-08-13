@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { formatActivityAction, formatTeamEvent } from './activity';
 
 describe('formatActivityAction', () => {
-  it('falls back to a masc/fem slash form when gender is unknown', () => {
-    expect(formatActivityAction('login')).toBe('Вошёл/Вошла в систему');
-    expect(formatActivityAction('register')).toBe('Зарегистрировался/Зарегистрировалась');
+  // A slash form ("Вошёл/Вошла") used to be the unknown-gender fallback —
+  // replaced with a real neutral (usually passive) sentence, since nobody
+  // actually writes "Вошёл/Вошла в систему" as a sentence.
+  it('falls back to a neutral phrasing when gender is unknown', () => {
+    expect(formatActivityAction('login')).toBe('Выполнен вход в систему');
+    expect(formatActivityAction('register')).toBe('Регистрация в системе');
   });
 
   it('uses the correct participle when gender is known', () => {
@@ -33,13 +36,13 @@ describe('formatActivityAction', () => {
     })).toBe('Выдала право «Чек-листы» сотруднику Nazariy Tester');
 
     expect(formatActivityAction('permission_revoked:target=4:permission=manage_checklists'))
-      .toBe('Забрал/Забрала право «Чек-листы» у сотрудника #4');
+      .toBe('Право «Чек-листы» забрано у сотрудника #4');
   });
 
   it('parses archive/restore/reset-password/role-change actions', () => {
     expect(formatActivityAction('user_archived:target=7', { gender: 'male' })).toBe('Архивировал сотрудника #7');
     expect(formatActivityAction('user_restored:target=7', { gender: 'female' })).toBe('Восстановила сотрудника #7');
-    expect(formatActivityAction('password_reset:target=7')).toBe('Сбросил/Сбросила пароль сотруднику #7');
+    expect(formatActivityAction('password_reset:target=7')).toBe('Пароль сотрудника #7 сброшен');
     expect(formatActivityAction('admin_role_change:target=7:new_role=lead', { gender: 'male' }))
       .toBe('Изменил роль сотрудника #7 на «Тимлид»');
   });
@@ -48,7 +51,7 @@ describe('formatActivityAction', () => {
     expect(formatActivityAction('register_telegram', { gender: 'male' })).toBe('Зарегистрировался через Telegram');
     expect(formatActivityAction('login_telegram', { gender: 'female' })).toBe('Вошла через Telegram');
     expect(formatActivityAction('password_changed', { gender: 'male' })).toBe('Сменил пароль');
-    expect(formatActivityAction('password_reset_self_service')).toBe('Сбросил/Сбросила пароль через восстановление');
+    expect(formatActivityAction('password_reset_self_service')).toBe('Пароль сброшен через восстановление');
   });
 
   it('falls back to the raw string for a genuinely unknown action, instead of hiding it', () => {
@@ -65,7 +68,7 @@ describe('formatTeamEvent', () => {
     expect(formatTeamEvent({ ...base, event_type: 'member_joined', gender: 'female' }))
       .toBe('Nazariy присоединилась к команде');
     expect(formatTeamEvent({ ...base, event_type: 'member_joined', gender: null }))
-      .toBe('Nazariy присоединился/присоединилась к команде');
+      .toBe('Nazariy — новый участник команды');
   });
 
   it('embeds the guide/course title when present', () => {
@@ -91,5 +94,25 @@ describe('formatTeamEvent', () => {
       .toBe('Nazariy ушёл в отпуск');
     expect(formatTeamEvent({ ...base, event_type: 'leave_ended', gender: 'female' }))
       .toBe('Nazariy вернулась из отпуска');
+  });
+
+  it('leave_started neutral fallback agrees with the LEAVE noun\'s own gender, not the person\'s', () => {
+    // отпуск/больничный/отгул are grammatically masculine nouns -> "начался"
+    expect(formatTeamEvent({ ...base, event_type: 'leave_started', gender: null, leave_type: 'vacation' }))
+      .toBe('У Nazariy начался отпуск');
+    expect(formatTeamEvent({ ...base, event_type: 'leave_started', gender: null, leave_type: 'sick' }))
+      .toBe('У Nazariy начался больничный');
+    // отсутствие is neuter -> "началось"
+    expect(formatTeamEvent({ ...base, event_type: 'leave_started', gender: null, leave_type: 'other' }))
+      .toBe('У Nazariy началось отсутствие');
+  });
+
+  it('guide/course_published and leave_ended fall back to neutral noun phrasing when gender is unknown', () => {
+    expect(formatTeamEvent({ ...base, event_type: 'guide_published', gender: null, guide_title: 'DevTools 101' }))
+      .toBe('Новый гайд «DevTools 101» — Nazariy');
+    expect(formatTeamEvent({ ...base, event_type: 'course_published', gender: null }))
+      .toBe('Новый курс — Nazariy');
+    expect(formatTeamEvent({ ...base, event_type: 'leave_ended', gender: null }))
+      .toBe('Nazariy: возвращение из отпуска');
   });
 });

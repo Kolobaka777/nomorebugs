@@ -2,7 +2,7 @@ import { useEffect, useState, ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
-import FrogIcon from '../components/FrogIcon';
+import GreetingFrogIcon from '../components/GreetingFrogIcon';
 import Icon from '../components/Icon';
 import { BookIcon, ShopIcon, HomeIcon, ChevronRightIcon, ChevronRightDoubleIcon } from '../components/QuickLinkIcons';
 import graduationCapIcon from '../assets/icons/graduation-cap.svg';
@@ -136,13 +136,34 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
           watermarks at different opacities. Removed in favor of the
           shared one. */}
       <div className="relative z-10 max-w-7xl mx-auto px-8 pt-16 pb-16">
-        {/* ===== HERO: greeting + skills panel side by side ===== */}
-        <section className="flex flex-col lg:flex-row lg:items-start justify-between gap-8 mb-10">
-          <div className="flex items-center gap-4">
-            <FrogIcon size={40} />
-            <h1 className="font-montserrat font-semibold min-w-0" style={{ fontSize: 'clamp(1.25rem, 3vw, 2rem)', lineHeight: 1.25, letterSpacing: TRACK_WIDE }}>
-              <span style={{ color: TEXT_PRIMARY, display: 'block' }}>Привет,</span>
-              <span className="break-words" style={{ color: ACCENT, display: 'block' }}>{user.name.split(' ')[0]}!</span>
+        {/* ===== HERO: greeting + skills panel side by side =====
+            Kit spacing (reference frame 1440×1037, everything below
+            expressed as a clamp() so it holds exactly at 1440 and scales
+            fluidly outside it, same approach as the header rebuild):
+            - frog inset from the page container's own left edge: 138px
+              (the container already carries the site-wide 32px `px-8`, so
+              138 + 32 = the kit's 170px "from the frog to where the header
+              starts" — the header itself sits flush with this container).
+            - gap between the greeting text and the skills panel: 106px.
+            - gap from this section down to "ПОСЛЕДНИЕ РЕЗУЛЬТАТЫ": 123px.
+            No `justify-content: space-between` — the kit's numbers are all
+            relative offsets in a left-to-right flow, not edge-anchored, so
+            wherever the skills panel lands after the fixed gap is correct
+            (it isn't pinned to the container's right edge). */}
+        <section
+          className="flex flex-col lg:flex-row lg:items-start"
+          style={{ gap: 'clamp(24px, 7.3611vw, 106px)', marginBottom: 'clamp(48px, 8.5417vw, 123px)' }}
+        >
+          <div className="flex items-center gap-4" style={{ marginLeft: 'clamp(0px, 9.5833vw, 138px)' }}>
+            <GreetingFrogIcon size={60} />
+            <h1
+              className="font-montserrat font-semibold min-w-0"
+              style={{ fontSize: 'clamp(22px, 2.2222vw, 32px)', lineHeight: 1.25, letterSpacing: TRACK_WIDE, textAlign: 'center' }}
+            >
+              <span style={{ color: STAT_LABEL_COLOR, display: 'block' }}>Привет,</span>
+              <span className="break-words" style={{ color: ACCENT, display: 'block' }}>
+                {(user.displayName || user.name).split(' ')[0]}<span style={{ color: '#FFFFFF' }}>!</span>
+              </span>
             </h1>
           </div>
 
@@ -175,7 +196,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                     <div className="flex items-center gap-3 min-w-0">
                       <Icon name="graduation" size={20} color={ACCENT} className="shrink-0" />
                       <p className="font-geist text-sm min-w-0 break-words" style={{ color: TEXT_PRIMARY }}>
-                        «Вводный курс» — про сервисы, к кому обращаться и какие бывают задачи. Ещё не пройден — загляни, если не смотрел(а).
+                        «Вводный курс» — про сервисы, к кому обращаться и какие бывают задачи. Ещё не пройден — загляни, если будет минутка.
                       </p>
                     </div>
                     <button

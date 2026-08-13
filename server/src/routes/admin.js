@@ -280,7 +280,8 @@ router.get('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, r
     const rows = db.prepare(`
       SELECT gp.id, gp.permission, gp.granted_at, gp.expires_at,
              u.id as user_id, u.name as user_name, u.avatar_initials,
-             gb.name as granted_by_name, gb.role as granted_by_role
+             gb.name as granted_by_name, gb.role as granted_by_role,
+             (SELECT gender FROM user_profiles WHERE user_id = gb.id) as granted_by_gender
       FROM granted_permissions gp
       JOIN users u ON u.id = gp.user_id
       JOIN users gb ON gb.id = gp.granted_by

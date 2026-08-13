@@ -8,6 +8,7 @@ import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import { leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
+import { pickByGender } from '../utils/gender';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
@@ -382,7 +383,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 )}
                 {course.proposal_status === 'pending' && (
                   <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>
-                    Предложил(а): <span className="break-words" style={{ color: TEXT_PRIMARY }}>{course.author_name}</span>
+                    {pickByGender(course.author_gender, 'Предложил', 'Предложила', 'Предложение от')}: <span className="break-words" style={{ color: TEXT_PRIMARY }}>{course.author_name}</span>
                   </p>
                 )}
                 <button

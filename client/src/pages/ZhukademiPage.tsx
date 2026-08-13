@@ -12,6 +12,7 @@ import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
+import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon } from '../components/CatalogIcons';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE,
@@ -525,7 +526,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       pendingReview={isPending}
                       ctaLabel="ОТКРЫТЬ КУРС"
                       ctaColor={color}
-                      statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
+                      statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                       clickable
                       onClick={() => navigate(`/custom-course/${cc.id}`)}
                       editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
@@ -672,7 +673,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                           pendingReview={isPending}
                           ctaLabel="ОТКРЫТЬ КУРС"
                           ctaColor={color}
-                          statsLabel={isPending ? `Предложил(а): ${cc.author_name}` : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
+                          statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                           clickable
                           onClick={() => navigate(`/custom-course/${cc.id}`)}
                           editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}

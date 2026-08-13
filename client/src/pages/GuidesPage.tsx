@@ -7,6 +7,8 @@ import EmojiPicker from '../components/EmojiPicker';
 import { guidesApi, knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
 import { parseGuideContent } from '../utils/guideContent';
+import { pickByGender } from '../utils/gender';
+import { Gender } from '../types';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
 
 interface Props {
@@ -24,6 +26,7 @@ interface GuideListItem {
   proposal_status?: 'pending' | 'approved' | 'rejected' | null;
   created_by?: number;
   author_name?: string;
+  author_gender?: Gender;
 }
 
 interface Guide extends GuideListItem {
@@ -339,7 +342,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                 </div>
                 {canEdit && selected.proposal_status === 'pending' && selected.author_name && (
                   <p className="font-geist text-xs mb-4" style={{ color: TEXT_MUTED }}>
-                    Предложил(а): <span className="break-words" style={{ color: TEXT_PRIMARY }}>{selected.author_name}</span>
+                    {pickByGender(selected.author_gender, 'Предложил', 'Предложила', 'Предложение от')}: <span className="break-words" style={{ color: TEXT_PRIMARY }}>{selected.author_name}</span>
                   </p>
                 )}
                 {!canEdit && selected.created_by === user.id && selected.proposal_status === 'pending' && (

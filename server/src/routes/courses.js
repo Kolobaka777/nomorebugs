@@ -34,6 +34,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
     if (req.user.role === 'lead') {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
+          (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender,
           cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
           (SELECT COUNT(DISTINCT ctt.user_id) FROM course_time_tracking ctt WHERE ctt.course_id = cc.id) as completedCount,
@@ -49,6 +50,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
     } else {
       rows = db.prepare(`
         SELECT cc.*, u.name as author_name,
+          (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender,
           cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
           COALESCE((SELECT deadline_at FROM course_deadline_overrides WHERE course_id = cc.id AND user_id = ?), cc.deadline_at) as effectiveDeadline
@@ -70,7 +72,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
 router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
   try {
     const course = db.prepare(`
-      SELECT cc.*, u.name as author_name
+      SELECT cc.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
       FROM custom_courses cc JOIN users u ON u.id = cc.created_by
       WHERE cc.id = ? AND cc.deleted_at IS NULL
     `).get(req.params.id);

@@ -89,6 +89,72 @@ describe('gender can also be set at registration time, not just via profile edit
   });
 });
 
+// Regression coverage for the "Предложил(а)"/"Выдал(а)" hedge fix — every
+// place that displays a *proposal's* or *grant's* author now gets that
+// author's real gender plumbed through, instead of leaving the client to
+// hedge with a suffix hack.
+describe('author gender is plumbed through proposal-authoring endpoints', () => {
+  it('bug-examples: author_gender is returned once the author sets a gender', async () => {
+    await request(app).put('/api/tester/profile').set('Authorization', `Bearer ${testerToken}`).send({ gender: 'female' }).expect(200);
+    const create = await request(app)
+      .post('/api/bug-examples')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
+    const list = await request(app).get('/api/bug-examples').set('Authorization', `Bearer ${leadToken}`);
+    const row = list.body.find(r => r.id === create.body.id);
+    expect(row.author_gender).toBe('female');
+  });
+
+  it('glossary: author_gender is returned once the author sets a gender', async () => {
+    await request(app).put('/api/tester/profile').set('Authorization', `Bearer ${testerToken}`).send({ gender: 'male' }).expect(200);
+    const create = await request(app)
+      .post('/api/glossary')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ term: 'DOM', definition: 'Document Object Model' });
+    const list = await request(app).get('/api/glossary').set('Authorization', `Bearer ${leadToken}`);
+    const row = list.body.find(r => r.id === create.body.id);
+    expect(row.author_gender).toBe('male');
+  });
+
+  it('guides: author_gender is returned on both the list and detail routes', async () => {
+    await request(app).put('/api/tester/profile').set('Authorization', `Bearer ${testerToken}`).send({ gender: 'female' }).expect(200);
+    const create = await request(app)
+      .post('/api/guides')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ title: 'Gender Guide', category: 'Общее', content: '' });
+    const list = await request(app).get('/api/guides').set('Authorization', `Bearer ${leadToken}`);
+    expect(list.body.find(r => r.id === create.body.id).author_gender).toBe('female');
+    const detail = await request(app).get(`/api/guides/${create.body.id}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(detail.body.author_gender).toBe('female');
+  });
+
+  it('custom-courses: author_gender is returned on both the list and detail routes', async () => {
+    await request(app).put('/api/tester/profile').set('Authorization', `Bearer ${testerToken}`).send({ gender: 'male' }).expect(200);
+    const create = await request(app)
+      .post('/api/custom-courses')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({
+        title: 'Gender Course',
+        modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson', content: 'x' }] }],
+      });
+    const list = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`);
+    expect(list.body.find(r => r.id === create.body.id).author_gender).toBe('male');
+    const detail = await request(app).get(`/api/custom-courses/${create.body.id}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(detail.body.author_gender).toBe('male');
+  });
+
+  it('permission grants: granted_by_gender reflects the granting lead\'s own gender', async () => {
+    await request(app).put('/api/tester/profile').set('Authorization', `Bearer ${leadToken}`).send({ gender: 'female' }).expect(200);
+    await request(app)
+      .post('/api/lead/permissions')
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ user_id: fixtures.testerId, permission: 'manage_checklists' });
+    const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${leadToken}`);
+    const grant = list.body.find(g => g.user_id === fixtures.testerId && g.permission === 'manage_checklists');
+    expect(grant.granted_by_gender).toBe('female');
+  });
+});
+
 describe('birthday is collected once, at registration — not editable afterward (see presence.test.js for the lock itself)', () => {
   it('accepts a birthday (MM-DD) at signup and it shows up in /api/team/presence', async () => {
     const res = await request(app).post('/api/auth/register').send({

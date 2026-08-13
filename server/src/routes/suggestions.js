@@ -184,7 +184,16 @@ router.patch('/api/suggestions/:id/answer', authMiddleware, requireRole('lead'),
 
     const asker = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
     if (asker) {
-      notifyUser(asker, 'Ответ на твой вопрос', `Тимлид ответил на твой вопрос: "${answer.trim().slice(0, 200)}"`);
+      // Was hardcoded masculine ("ответил") regardless of the answering
+      // lead's actual gender — real branching now, "Тимлид ответил/
+      // ответила" per req.user (the lead who just answered), falling back
+      // to a neutral "Тимлид ответил(а)"-free phrasing when unset.
+      const leadGender = db.prepare('SELECT gender FROM user_profiles WHERE user_id = ?').get(req.user.id)?.gender;
+      const verb = leadGender === 'male' ? 'ответил' : leadGender === 'female' ? 'ответила' : 'дан ответ на твой вопрос';
+      const message = leadGender
+        ? `Тимлид ${verb} на твой вопрос: "${answer.trim().slice(0, 200)}"`
+        : `Тимлидом ${verb}: "${answer.trim().slice(0, 200)}"`;
+      notifyUser(asker, 'Ответ на твой вопрос', message);
     }
     res.json({ ok: true });
   } catch (err) {

@@ -49,12 +49,12 @@ router.get('/api/bug-examples', authMiddleware, (req, res) => {
       // LEFT JOIN, not JOIN — seeded rows (the original hardcoded content,
       // migrated in with created_by=NULL) would otherwise vanish entirely.
       ? db.prepare(`
-          SELECT e.*, u.name as author_name FROM bug_examples e
+          SELECT e.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM bug_examples e
           LEFT JOIN users u ON u.id = e.created_by
           WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC
         `).all()
       : db.prepare(`
-          SELECT e.*, u.name as author_name FROM bug_examples e
+          SELECT e.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM bug_examples e
           LEFT JOIN users u ON u.id = e.created_by
           WHERE e.deleted_at IS NULL AND (e.is_published = 1 OR e.created_by = ?) ORDER BY e.created_at DESC
         `).all(req.user.id);
@@ -158,12 +158,12 @@ router.get('/api/glossary', authMiddleware, (req, res) => {
     // would otherwise vanish entirely.
     const rows = canManage
       ? db.prepare(`
-          SELECT g.*, u.name as author_name FROM glossary_terms g
+          SELECT g.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM glossary_terms g
           LEFT JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL ORDER BY g.term COLLATE NOCASE ASC
         `).all()
       : db.prepare(`
-          SELECT g.*, u.name as author_name FROM glossary_terms g
+          SELECT g.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM glossary_terms g
           LEFT JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.term COLLATE NOCASE ASC
         `).all(req.user.id);
@@ -267,14 +267,16 @@ router.get('/api/guides', authMiddleware, (req, res) => {
       // Lead/admin/grantee: everything, including everyone's pending
       // proposals — this doubles as the review queue, no separate route.
       ? db.prepare(`
-          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
+          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name,
+            (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
           FROM guides g JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL ORDER BY g.category, g.title
         `).all()
       // Everyone else: published guides, plus their own proposals whatever
       // their status (so they can at least see what they submitted).
       : db.prepare(`
-          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name
+          SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, u.name as author_name,
+            (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
           FROM guides g JOIN users u ON u.id = g.created_by
           WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.category, g.title
         `).all(req.user.id);
@@ -288,7 +290,7 @@ router.get('/api/guides', authMiddleware, (req, res) => {
 router.get('/api/guides/:id', authMiddleware, (req, res) => {
   try {
     const guide = db.prepare(`
-      SELECT g.*, u.name as author_name FROM guides g
+      SELECT g.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM guides g
       JOIN users u ON u.id = g.created_by
       WHERE g.id = ? AND g.deleted_at IS NULL
     `).get(req.params.id);

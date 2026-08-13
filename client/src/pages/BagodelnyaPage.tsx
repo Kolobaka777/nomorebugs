@@ -4,6 +4,8 @@ import SnailLoader from '../components/SnailLoader';
 import Icon, { IconName } from '../components/Icon';
 import { knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
+import { pickByGender } from '../utils/gender';
+import { Gender } from '../types';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
 } from '../utils/theme';
@@ -37,6 +39,7 @@ interface BugExample {
   proposal_status?: 'pending' | 'approved' | 'rejected' | null;
   created_by?: number | null;
   author_name?: string | null;
+  author_gender?: Gender;
 }
 
 interface GlossaryTerm {
@@ -47,6 +50,7 @@ interface GlossaryTerm {
   proposal_status?: 'pending' | 'approved' | 'rejected' | null;
   created_by?: number | null;
   author_name?: string | null;
+  author_gender?: Gender;
 }
 
 const TAG_COLORS = ['#7F77DD', '#66FCF1', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
@@ -402,7 +406,9 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                               <span className="text-xs font-geist shrink-0" style={{ color: TEXT_MUTED }}>Ждёт лида</span>
                             )}
                             {isPending && canEdit && pair.author_name && (
-                              <span className="text-xs font-geist shrink-0" style={{ color: TEXT_MUTED }}>Предложил(а): {pair.author_name}</span>
+                              <span className="text-xs font-geist shrink-0" style={{ color: TEXT_MUTED }}>
+                                {pickByGender(pair.author_gender, `Предложил: ${pair.author_name}`, `Предложила: ${pair.author_name}`, `Предложение от ${pair.author_name}`)}
+                              </span>
                             )}
                             {canEdit && isPending && (
                               <div className="flex gap-1 shrink-0">
@@ -550,7 +556,11 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                       <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                         <PendingBadge />
                         {canEdit ? (
-                          item.author_name && <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>Предложил(а): {item.author_name}</span>
+                          item.author_name && (
+                            <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
+                              {pickByGender(item.author_gender, `Предложил: ${item.author_name}`, `Предложила: ${item.author_name}`, `Предложение от ${item.author_name}`)}
+                            </span>
+                          )
                         ) : isOwn ? (
                           <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>Ждёт лида</span>
                         ) : null}

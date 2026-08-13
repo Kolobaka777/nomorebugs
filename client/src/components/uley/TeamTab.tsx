@@ -2,11 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import Icon, { IconName } from '../Icon';
 import { TeamMember, PresenceEntry, getLevel } from '../../types';
 import { parseServerDate } from '../../utils/date';
+import { pickByGender } from '../../utils/gender';
 import { ALL_PERMISSIONS, LEAVE_LABELS, PERMISSION_LABELS } from './constants';
 import { ACCENT, BADGE_NOTIFY, CARD_BG, CARD_SHADOW, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../../utils/theme';
 
 interface ArchivedMember { id: number; name: string; avatar_initials: string; archived_at: string; gender?: 'male' | 'female' | null }
-interface Grant { id: number; user_id: number; permission: string; expires_at: string | null; granted_by_name?: string; granted_by_role?: string }
+interface Grant { id: number; user_id: number; permission: string; expires_at: string | null; granted_by_name?: string; granted_by_role?: string; granted_by_gender?: 'male' | 'female' | null }
 
 export default function TeamTab({
   team,
@@ -189,7 +190,7 @@ export default function TeamTab({
                   </div>
                 ) : (
                   <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                    Пока не {member.gender === 'female' ? 'отправляла' : member.gender === 'male' ? 'отправлял' : 'отправлял(а)'} чек-листы
+                    {pickByGender(member.gender, 'Пока не отправлял чек-листы', 'Пока не отправляла чек-листы', 'Чек-листы пока не отправлены')}
                   </p>
                 )}
               </div>
@@ -234,7 +235,12 @@ export default function TeamTab({
                         {grant?.expires_at && ` (до ${parseServerDate(grant.expires_at).toLocaleDateString('ru-RU')})`}
                         {grant && grant.granted_by_role && grant.granted_by_role !== 'lead' && grant.granted_by_role !== 'admin' && (
                           <span
-                            title={`Выдал(а) ${grant.granted_by_name ?? 'сотрудник'}, который(ая) больше не лид/админ — стоит перепроверить`}
+                            title={pickByGender(
+                              grant.granted_by_gender,
+                              `Выдал ${grant.granted_by_name ?? 'сотрудник'}, который больше не лид/админ — стоит перепроверить`,
+                              `Выдала ${grant.granted_by_name ?? 'сотрудник'}, которая больше не лид/админ — стоит перепроверить`,
+                              `Выдано сотрудником ${grant.granted_by_name ?? ''}, который больше не лид/админ — стоит перепроверить`
+                            )}
                             style={{ color: BADGE_NOTIFY }}
                           >
                             ⚠
@@ -306,7 +312,7 @@ export default function TeamTab({
                 <div key={a.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)' }}>
                   <span className="font-geist text-sm break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{a.name}</span>
                   <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                    {a.gender === 'female' ? 'архивирована' : a.gender === 'male' ? 'архивирован' : 'архивирован(а)'} {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}
+                    {pickByGender(a.gender, 'Архивирован', 'Архивирована', 'В архиве с')} {parseServerDate(a.archived_at).toLocaleDateString('ru-RU')}
                   </span>
                   <button
                     onClick={() => restoreMember(a.id)}

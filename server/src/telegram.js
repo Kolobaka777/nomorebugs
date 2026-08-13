@@ -160,7 +160,17 @@ function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, repl
 
   db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'login_telegram');
 
-  const publicUser = { id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials };
+  // Same shape as the email/password login response (auth.js) — without
+  // this, a Telegram-only login left `displayName`/`gender` missing on the
+  // client's `user` object until the account happened to visit /profile or
+  // /cabinet (whose own fetches patch those in afterward), so a nickname/
+  // gender set earlier silently didn't apply anywhere else in the app for
+  // as long as someone kept logging in via Telegram.
+  const profileRow = db.prepare('SELECT nickname, gender FROM user_profiles WHERE user_id = ?').get(user.id);
+  const publicUser = {
+    id: user.id, email: user.email, name: user.name, role: user.role, avatar_initials: user.avatar_initials,
+    displayName: profileRow?.nickname || null, gender: profileRow?.gender || null,
+  };
   db.prepare(`
     UPDATE telegram_login_tokens
     SET status = 'ready', user_id = ?, access_token = ?, refresh_token = ?, user_json = ?, needs_baseline_survey = ?
