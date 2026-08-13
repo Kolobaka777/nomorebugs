@@ -9,9 +9,26 @@ import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
 import logoUrl from '../assets/logo.svg';
 import {
-  ACCENT, TEXT_PRIMARY, TRACK_WIDE,
+  ACCENT, TRACK_WIDE, STAT_LABEL_COLOR,
   HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER,
 } from '../utils/theme';
+
+// Distance from the header's own top/bottom edge to a nav tab, per the kit
+// spec — with the header's own height, this fixes the tab's rendered
+// height (centered) rather than driving it off padding, so active/inactive
+// tabs share one box and switching tabs never shifts other tabs around.
+const HEADER_HEIGHT = 80;
+const TAB_INSET = 20;
+const TAB_HEIGHT = HEADER_HEIGHT - TAB_INSET * 2;
+
+// The header floats HEADER_SIDE_MARGIN away from the viewport edge at the
+// kit's reference width (1440) and stays capped there on wider screens (the
+// header's own max-width takes over beyond that) — but a flat 80px would
+// leave almost nothing to work with on a 320px phone, so it scales down
+// fluidly below the reference width instead of stepping at a breakpoint.
+// clamp(min, preferred, max): preferred is exactly 80px at 1440px viewport
+// width (80 / 1440 = 5.5556vw), floored at 16px for anything narrower.
+const HEADER_SIDE_MARGIN = 'clamp(16px, 5.5556vw, 80px)';
 
 interface NavigationProps {
   user: any;
@@ -23,6 +40,14 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Below `lg` the full 8-link row plus logo and the name/role/avatar block
+  // no longer fit in one 80px-tall row — it used to just flex-wrap, which
+  // made the tab list stack into a many-line column and blew the header
+  // way past its fixed 80px height at phone widths. Below `lg` the inline
+  // row is hidden entirely in favor of this dropdown, opened from a
+  // hamburger button next to the avatar (see the `lg:hidden` button below).
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavRef = useRef<HTMLDivElement>(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   // Own equipped avatar for the nav-bar button — avatar_id/frame/custom_avatar
   // live on the per-page profile record, not the top-level `user` passed in
@@ -87,38 +112,51 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
+      if (mobileNavRef.current && !mobileNavRef.current.contains(e.target as Node)) {
+        setMobileNavOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  const goTo = (path: string) => { navigate(path); setMobileNavOpen(false); };
+
   return (
-    <header
-      className="sticky top-0 z-50"
-      style={{
-        height: 80,
-        background: HEADER_BG,
-        boxShadow: HEADER_SHADOW,
-        backdropFilter: HEADER_BLUR,
-        WebkitBackdropFilter: HEADER_BLUR,
-      }}
-    >
-      {/* Full-bleed glass bar — the frosted fill spans the whole viewport
-          width edge to edge (per the full-canvas Figma screenshot: no side
-          margins, no visible rounding); only the row of content inside it
-          is capped at 1280px and centered, same as the page below. */}
-      <div className="max-w-[1280px] mx-auto h-full flex justify-between items-center gap-4" style={{ padding: '0 24px' }}>
-        {/* Logo */}
+    // Spacer/positioning layer only (no visual styling of its own) — holds
+    // the floating header its 8px-from-top / fluid-side-margin position
+    // without the header itself needing to know about viewport edges.
+    <div className="sticky top-0 z-50" style={{ padding: `8px ${HEADER_SIDE_MARGIN} 0` }}>
+      <header
+        className="mx-auto flex justify-between items-center"
+        style={{
+          maxWidth: 1280,
+          minHeight: HEADER_HEIGHT,
+          padding: '0 24px',
+          borderRadius: 12,
+          background: HEADER_BG,
+          boxShadow: HEADER_SHADOW,
+          backdropFilter: HEADER_BLUR,
+          WebkitBackdropFilter: HEADER_BLUR,
+        }}
+      >
+        {/* Logo — 95×23 box per the kit; object-fit:contain rather than a
+            flat width/height so the mark itself (native ~95×50) doesn't get
+            visually squashed to fit that box. */}
         <button
           onClick={() => navigate('/')}
           className="flex items-center shrink-0 cursor-pointer"
         >
-          <img src={logoUrl} alt="baganet" style={{ height: 46, width: 'auto' }} />
+          <img src={logoUrl} alt="baganet" style={{ width: 95, height: 23, objectFit: 'contain' }} />
         </button>
 
-        {/* Nav links — Geist 16px, active tab gets a bordered box (8px
-            radius) instead of a filled/pill background (matches Figma). */}
-        <nav className="flex gap-1 flex-wrap">
+        {/* Nav links — Geist 16px/400, #E0E0E0; active tab gets a bordered
+            box (8px radius, accent border, white label) instead of a
+            filled/pill background. Every tab shares the same box height
+            (TAB_HEIGHT, inset 20px off the header's own top/bottom) and
+            horizontal padding regardless of active state, so switching
+            tabs never shifts anything else in the row. */}
+        <nav className="hidden lg:flex gap-1 flex-wrap">
           {links.map(link => {
             const isActive = location.pathname === link.path;
             return (
@@ -126,12 +164,15 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 key={link.path}
                 data-tour={link.tourId}
                 onClick={() => navigate(link.path)}
-                className="font-geist text-base px-2 py-1.5 rounded-lg transition-all duration-150 cursor-pointer"
+                className="font-geist font-normal rounded-lg transition-all duration-150 cursor-pointer flex items-center"
                 style={{
+                  fontSize: 16,
+                  height: TAB_HEIGHT,
+                  padding: '0 8px',
                   // Border stays the accent color; the label itself goes
                   // white on the active tab (kit: bordered box, white text —
                   // was accent-on-accent, too low-contrast against the box).
-                  color: isActive ? '#FFFFFF' : TEXT_PRIMARY,
+                  color: isActive ? '#FFFFFF' : STAT_LABEL_COLOR,
                   border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
                 }}
               >
@@ -142,14 +183,73 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
         </nav>
 
         {/* Name + role + avatar, with dropdown */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="text-right hidden sm:block">
-            <p className="font-geist text-sm font-normal leading-tight break-words" style={{ color: TEXT_PRIMARY }}>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Hamburger — the mobile stand-in for the hidden <nav> above,
+              same breakpoint (lg). */}
+          <div className="relative lg:hidden" ref={mobileNavRef}>
+            <button
+              onClick={() => setMobileNavOpen(o => !o)}
+              aria-label="Меню разделов"
+              aria-haspopup="menu"
+              aria-expanded={mobileNavOpen}
+              className="flex items-center justify-center cursor-pointer rounded-lg"
+              style={{ width: TAB_HEIGHT, height: TAB_HEIGHT, border: `1px solid ${mobileNavOpen ? ACCENT : 'transparent'}` }}
+            >
+              {mobileNavOpen ? (
+                <Icon name="close" size={18} color={ACCENT} />
+              ) : (
+                <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
+                  <path d="M0 1H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                  <path d="M0 7H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                  <path d="M0 13H20" stroke={STAT_LABEL_COLOR} strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+
+            {mobileNavOpen && (
+              <div
+                className="absolute left-0 top-full mt-2 flex flex-col gap-1 rounded-lg"
+                style={{
+                  width: 'max-content',
+                  maxWidth: '80vw',
+                  padding: 8,
+                  background: '#1F2833',
+                  border: `1px solid ${ACCENT}55`,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 100,
+                }}
+              >
+                {links.map(link => {
+                  const isActive = location.pathname === link.path;
+                  return (
+                    <button
+                      key={link.path}
+                      data-tour={link.tourId}
+                      onClick={() => goTo(link.path)}
+                      className="font-geist font-normal rounded-lg transition-all duration-150 cursor-pointer text-left px-3 py-2"
+                      style={{
+                        fontSize: 16,
+                        color: isActive ? '#FFFFFF' : STAT_LABEL_COLOR,
+                        background: isActive ? 'rgba(102, 252, 241,0.1)' : 'transparent',
+                        border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
+                      }}
+                    >
+                      {link.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="text-left hidden sm:block">
+            <p className="font-geist text-sm font-normal leading-tight break-words" style={{ color: STAT_LABEL_COLOR }}>
               {user.displayName || user.name}
             </p>
             <span
-              className="font-montserrat font-medium inline-block mt-0.5"
+              className="font-montserrat font-medium inline-block"
               style={{
+                marginTop: 6,
                 fontSize: 10,
                 lineHeight: 1.6,
                 letterSpacing: TRACK_WIDE,
@@ -251,7 +351,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           )}
           </div>
         </div>
-      </div>
+      </header>
 
       {showPasswordChange && (
         <ChangePasswordModal
@@ -259,6 +359,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           onClose={() => setShowPasswordChange(false)}
         />
       )}
-    </header>
+    </div>
   );
 }
