@@ -13,6 +13,15 @@ const LOGIN_TOKEN_TTL_MS = 5 * 60 * 1000;
 let bot = null;
 let botUsername = null;
 
+// Where to send the user back after confirming in the bot — the deployed
+// site's own origin. Reuses CORS_ORIGIN (already the source of truth for
+// "what origin is our frontend") instead of introducing a second env var
+// that could drift out of sync with it; takes the first entry if several
+// are configured.
+function getSiteUrl() {
+  return (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',')[0].trim();
+}
+
 function initialsFromName(name) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = words.slice(0, 2).map(w => w[0]).join('');
@@ -81,6 +90,9 @@ export function pollTelegramToken(token) {
 // unit-testable without a real Telegram connection — tests call this
 // directly with a stub `reply` fn. `tgFrom` mirrors Telegram's
 // `message.from` shape: { id, username, first_name, last_name }.
+// `reply(text, opts?)` — opts.siteButton asks the live wiring to attach an
+// inline "back to the site" URL button (see initTelegramBot below); test
+// stubs that only read the text argument can ignore opts entirely.
 export function handleTelegramStart(payloadToken, tgFrom, reply) {
   const tgId = String(tgFrom.id);
   const tgUsername = tgFrom.username || null;
@@ -121,7 +133,7 @@ function handleLink(row, payloadToken, tgId, tgUsername, reply) {
   db.prepare('UPDATE telegram_login_tokens SET status = ?, user_id = ?, user_json = ? WHERE token = ?')
     .run('ready', row.link_user_id, JSON.stringify({ telegram_username: tgUsername }), payloadToken);
 
-  reply(`✅ Telegram привязан к аккаунту «${user.name}». Теперь вход и уведомления работают отсюда.`);
+  reply(`✅ Telegram привязан к аккаунту «${user.name}». Теперь вход и уведомления работают отсюда.\nМожешь вернуться на сайт — вкладка закроется сама.`, { siteButton: true });
 }
 
 function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, reply) {
@@ -178,7 +190,7 @@ function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, repl
   `).run(user.id, accessToken, refresh.token, JSON.stringify(publicUser), needsBaselineSurvey ? 1 : 0, payloadToken);
 
   const greeting = isNew ? `Добро пожаловать, ${user.name}! Аккаунт создан.` : `С возвращением, ${user.name}!`;
-  reply(`✅ ${greeting}\nВходим в baga-net — вернись во вкладку браузера.`);
+  reply(`✅ ${greeting}\nВходим в baga-net — эта вкладка закроется сама, а если нет, жми кнопку ниже.`, { siteButton: true });
 }
 
 // Fire-and-forget: a notification failure must never break the caller's
@@ -248,7 +260,20 @@ export function initTelegramBot() {
       bot.sendMessage(msg.chat.id, 'Привет! Чтобы войти или зарегистрироваться, нажми кнопку "Войти через Telegram" на сайте baga-net.');
       return;
     }
-    handleTelegramStart(payloadToken, msg.from, (text) => bot.sendMessage(msg.chat.id, text));
+    handleTelegramStart(payloadToken, msg.from, (text, opts) => {
+      // Telegram itself has no "close this chat"/"navigate the user's other
+      // tab" API — the client's own window.open()+close() (see
+      // TelegramLoginButton.tsx/TelegramLinkWidget.tsx) already closes the
+      // popup automatically when it's a real desktop/web browser tab. This
+      // button covers the case that can't: the native mobile app took the
+      // deep link, so there's no browser tab left for our JS to touch —
+      // one tap here is the best available way back to an already-logged-in
+      // site tab.
+      const options = opts?.siteButton
+        ? { reply_markup: { inline_keyboard: [[{ text: '🌐 Вернуться на сайт', url: getSiteUrl() }]] } }
+        : undefined;
+      bot.sendMessage(msg.chat.id, text, options);
+    });
   });
 
   bot.on('polling_error', (err) => console.error('Telegram polling error:', err.message));

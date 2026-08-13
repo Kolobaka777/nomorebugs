@@ -20,6 +20,9 @@ const POLL_INTERVAL_MS = 2000;
 export default function TelegramLinkWidget() {
   const [status, setStatus] = useState<Status>({ phase: 'loading' });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // See the matching ref in TelegramLoginButton.tsx — lets a successful poll
+  // close the Telegram tab it opened instead of leaving it dangling.
+  const telegramWindowRef = useRef<Window | null>(null);
 
   useEffect(() => {
     telegramApi.status()
@@ -38,6 +41,8 @@ export default function TelegramLinkWidget() {
           const { data: result } = await telegramApi.poll(data.token);
           if (result.status === 'linked') {
             if (pollRef.current) clearInterval(pollRef.current);
+            telegramWindowRef.current?.close();
+            window.focus();
             setStatus({ phase: 'linked', username: result.telegramUsername });
           } else if (result.status === 'expired' || result.status === 'error') {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -89,12 +94,19 @@ export default function TelegramLinkWidget() {
           <a
             href={status.deepLink}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noreferrer"
             style={{ color: '#229ED9' }}
+            onClick={e => {
+              // See TelegramLoginButton.tsx for why: window.open (not the
+              // plain anchor navigation) is what gives us a handle to close
+              // this tab automatically once linking succeeds.
+              e.preventDefault();
+              telegramWindowRef.current = window.open(status.deepLink, '_blank');
+            }}
           >
             <span className="inline-flex items-center gap-1">Открыть Telegram <Icon name="arrowRight" size={14} color="currentColor" /></span>
           </a>
-          <p className="pixel-pulse mt-1" style={{ color: 'rgba(197, 198, 199,0.45)' }}>ждём подтверждения...</p>
+          <p className="pixel-pulse mt-1" style={{ color: 'rgba(197, 198, 199,0.45)' }}>ждём подтверждения... вкладка закроется сама</p>
         </div>
       )}
 

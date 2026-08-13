@@ -5,6 +5,7 @@ import LevelBadge from '../components/LevelBadge';
 import SnailLoader from '../components/SnailLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
+import { primeAvatarCache } from '../components/Navigation';
 import { testerApi, checklistApi, rewardsApi, presenceApi } from '../api';
 import {
   Lecture, TestHistoryItem, SKillChart,
@@ -320,6 +321,17 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           onSave={patch => {
             setProfile(p => p ? { ...p, ...patch } : p);
             onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name, gender: patch.gender ?? null });
+            // Navigation no longer refetches the avatar on every mount (see
+            // its own comment) — push the new one straight into its cache
+            // so the header picks it up on the next navigation instead of
+            // keeping the stale one until some unrelated cache eviction.
+            if (patch.avatar_id !== undefined || patch.avatar_frame !== undefined || patch.custom_avatar !== undefined) {
+              primeAvatarCache(user.id, {
+                avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'bug1',
+                avatar_frame: patch.avatar_frame ?? profile?.avatar_frame ?? 'default',
+                custom_avatar: patch.custom_avatar !== undefined ? patch.custom_avatar : (profile?.custom_avatar ?? null),
+              });
+            }
           }}
           onClose={() => setShowEdit(false)}
         />

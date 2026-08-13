@@ -154,21 +154,24 @@ router.get('/api/lead/before-after', authMiddleware, requireRole('lead'), (req, 
     const skills = ['html_structure', 'css_reading', 'devtools', 'console_errors', 'bug_report_quality'];
     const skillLabels = ['HTML Structure', 'CSS Reading', 'DevTools', 'Console Errors', 'Bug Report Quality'];
 
-    const chartData = [];
+    // One row of 5 averages per table instead of 5 separate single-column
+    // queries each rescanning the whole table — same result, 2 queries
+    // total instead of 10. Column names come from the fixed `skills` list
+    // above, never from request input, so this is safe to interpolate.
+    const selectAvgs = skills.map(s => `AVG(${s}) as ${s}`).join(', ');
+    const before = db.prepare(`SELECT ${selectAvgs} FROM baseline_survey`).get();
+    const after  = db.prepare(`SELECT ${selectAvgs} FROM final_survey`).get();
 
-    for (let i = 0; i < skills.length; i++) {
-      const skill = skills[i];
-      const label = skillLabels[i];
-      const before = db.prepare(`SELECT AVG(${skill}) as avg FROM baseline_survey`).get();
-      const after  = db.prepare(`SELECT AVG(${skill}) as avg FROM final_survey`).get();
-
-      chartData.push({
-        skill: label,
-        before: Math.round((before?.avg || 0) * 10) / 10,
-        after:  Math.round((after?.avg || 0) * 10) / 10,
-        delta:  Math.round(((after?.avg || 0) - (before?.avg || 0)) * 10) / 10,
-      });
-    }
+    const chartData = skills.map((skill, i) => {
+      const b = before?.[skill] || 0;
+      const a = after?.[skill] || 0;
+      return {
+        skill: skillLabels[i],
+        before: Math.round(b * 10) / 10,
+        after:  Math.round(a * 10) / 10,
+        delta:  Math.round((a - b) * 10) / 10,
+      };
+    });
 
     res.json(chartData);
   } catch (err) {

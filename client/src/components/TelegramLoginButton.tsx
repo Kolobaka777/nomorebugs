@@ -18,6 +18,13 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
   const [phase, setPhase] = useState<Phase>('idle');
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Handle to the Telegram tab/popup we opened — kept so a successful poll
+  // can close it automatically instead of leaving the person stranded on it
+  // needing to alt-tab back manually. Only works when Telegram actually
+  // opened as a browser tab (desktop/web); if the OS handed the deep link
+  // off to the native app instead, there's no window to close — the bot's
+  // own confirmation message carries a "back to site" button for that case.
+  const telegramWindowRef = useRef<Window | null>(null);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -32,6 +39,8 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
           const { data: result } = await telegramApi.poll(data.token);
           if (result.status === 'ready') {
             if (pollRef.current) clearInterval(pollRef.current);
+            telegramWindowRef.current?.close();
+            window.focus();
             onLogin(result.token, result.user, result.needsBaselineSurvey);
           } else if (result.status === 'expired' || result.status === 'error') {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -65,13 +74,24 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
         <a
           href={deepLink || '#'}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noreferrer"
           className="btn-primary inline-block"
           style={{ padding: '8px 16px', fontSize: '12px' }}
+          onClick={e => {
+            if (!deepLink) return;
+            // Intercept the plain anchor navigation to open via window.open
+            // instead — that's the only way to get a handle back that lets
+            // the poll loop above close this tab automatically once
+            // Telegram confirms. rel="noreferrer" (deliberately without
+            // "noopener") keeps that handle alive; href stays real so
+            // middle-click/"open in new tab" still works normally.
+            e.preventDefault();
+            telegramWindowRef.current = window.open(deepLink, '_blank');
+          }}
         >
           <span className="inline-flex items-center gap-1">Открыть Telegram <Icon name="arrowRight" size={14} color="currentColor" /></span>
         </a>
-        <p className="pixel-pulse text-pixel/50 text-xs font-sans mt-3">🐌 ждём подтверждения...</p>
+        <p className="pixel-pulse text-pixel/50 text-xs font-sans mt-3">🐌 ждём подтверждения... вкладка закроется сама</p>
       </div>
     );
   }

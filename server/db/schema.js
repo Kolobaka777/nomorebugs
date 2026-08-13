@@ -11,6 +11,12 @@ if (process.env.NODE_ENV !== 'test') console.log('DB path:', dbPath);
 
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+// NORMAL is the documented-safe pairing with WAL (SQLite fsyncs at
+// checkpoints instead of every commit) — durable against an app crash,
+// only risking the last commit or two on an actual OS crash/power loss,
+// which this app already has on-volume backups against. Default FULL
+// fsyncs every single transaction, which just isn't necessary here.
+db.pragma('synchronous = NORMAL');
 // Explicit rather than relied-upon: this better-sqlite3 build already
 // defaults PRAGMA foreign_keys to ON (see the users-table rebuild comment
 // in initDb() below, and role-migration.test.js which asserts this), but

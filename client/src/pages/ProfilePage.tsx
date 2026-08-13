@@ -4,6 +4,7 @@ import Navigation from '../components/Navigation';
 import SnailLoader from '../components/SnailLoader';
 import Icon from '../components/Icon';
 import ProfileEditModal from '../components/ProfileEditModal';
+import { primeAvatarCache } from '../components/Navigation';
 import PixelAvatar from '../components/PixelAvatar';
 import { testerApi, leadApi, adminApi } from '../api';
 import { FullProfile } from '../types';
@@ -216,6 +217,17 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
             // several places (see HomePage's own-activity text) that don't
             // otherwise refetch the profile.
             onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name, gender: patch.gender ?? null });
+            // Navigation no longer refetches the avatar on every mount (see
+            // its own comment) — push the new one straight into its cache
+            // so the header picks it up on the next navigation instead of
+            // keeping the stale one until some unrelated cache eviction.
+            if (patch.avatar_id !== undefined || patch.avatar_frame !== undefined || patch.custom_avatar !== undefined) {
+              primeAvatarCache(user.id, {
+                avatar_id: patch.avatar_id ?? shown.avatar_id,
+                avatar_frame: patch.avatar_frame ?? shown.avatar_frame,
+                custom_avatar: patch.custom_avatar !== undefined ? patch.custom_avatar : shown.custom_avatar,
+              });
+            }
           }}
           onClose={() => setEditing(false)}
         />

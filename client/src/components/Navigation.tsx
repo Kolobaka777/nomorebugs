@@ -42,6 +42,43 @@ interface AvatarProfile { avatar_id: string; avatar_frame: string; custom_avatar
 // useState for why that matters. Cleared naturally on a full page reload.
 const avatarCache = new Map<number, AvatarProfile>();
 
+// A resolved cache entry alone isn't enough to stop duplicate requests: the
+// very first navigations of a session (before the first fetch has landed)
+// remount Navigation faster than one round trip to buildFullProfile() takes,
+// and each of those mounts would otherwise see an empty cache and kick off
+// its own fetch. Tracking the in-flight promise per user id lets every
+// mount that lands during that window share the one real request instead.
+const avatarFetchesInFlight = new Map<number, Promise<AvatarProfile>>();
+
+function fetchAvatarProfile(userId: number): Promise<AvatarProfile> {
+  const cached = avatarCache.get(userId);
+  if (cached) return Promise.resolve(cached);
+  const inFlight = avatarFetchesInFlight.get(userId);
+  if (inFlight) return inFlight;
+
+  const request = usersApi.getProfile(userId)
+    .then((r: any) => {
+      avatarCache.set(userId, r.data);
+      avatarFetchesInFlight.delete(userId);
+      return r.data as AvatarProfile;
+    })
+    .catch(err => {
+      avatarFetchesInFlight.delete(userId);
+      throw err;
+    });
+  avatarFetchesInFlight.set(userId, request);
+  return request;
+}
+
+// Lets ProfileEditModal's callers (MoyaNora.tsx, ProfilePage.tsx) push a
+// freshly-saved avatar straight into the cache the moment it changes,
+// instead of waiting on a future Navigation remount to notice — see the
+// skip-if-cached check in the effect below for why Navigation won't
+// refetch on its own otherwise.
+export function primeAvatarCache(userId: number, profile: AvatarProfile) {
+  avatarCache.set(userId, profile);
+}
+
 export default function Navigation({ user, onLogout }: NavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,13 +110,20 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   const [avatarProfile, setAvatarProfile] = useState<AvatarProfile | null>(() => avatarCache.get(user.id) ?? null);
 
   useEffect(() => {
+    // fetchAvatarProfile short-circuits on its own if a copy is already
+    // cached, and shares one in-flight request across any other Navigation
+    // mounts racing for the same user id (see its own comment) — so this
+    // effect never needs to duplicate that bookkeeping itself. The endpoint
+    // behind it (self-view GET /api/users/:id/profile) runs a full
+    // buildFullProfile() server-side (stats/streak/badges/etc., ~15
+    // queries) just to hand back 3 avatar fields, and custom_avatar can be
+    // several hundred KB of base64 — refetching that on every single
+    // navigation (Navigation remounts per-route, see above) was pure waste
+    // once a copy was already in hand. primeAvatarCache keeps this from
+    // going stale after an actual edit (see its own comment).
     let cancelled = false;
-    usersApi.getProfile(user.id)
-      .then((r: any) => {
-        if (cancelled) return;
-        avatarCache.set(user.id, r.data);
-        setAvatarProfile(r.data);
-      })
+    fetchAvatarProfile(user.id)
+      .then(data => { if (!cancelled) setAvatarProfile(data); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user.id]);
