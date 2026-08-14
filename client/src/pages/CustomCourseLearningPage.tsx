@@ -139,6 +139,12 @@ function CustomQuizView({
   color: string;
 }) {
   const questions = lesson.questions || [];
+  // Which question is on screen right now, and which of them have already
+  // been "checked" (answer locked in + correctness revealed) — both reset
+  // for free whenever the parent remounts this component via `key={lesson.id}`,
+  // so switching quiz lessons never leaks state from the previous one.
+  const [qIdx, setQIdx] = useState(0);
+  const [checkedIdxs, setCheckedIdxs] = useState<Set<number>>(new Set());
 
   if (questions.length === 0) {
     return (
@@ -152,12 +158,15 @@ function CustomQuizView({
     );
   }
 
-  const allAnswered = questions.every((_: any, qi: number) => quizState.answers[qi] !== undefined);
   const { submitted, score } = quizState;
 
-  return (
-    <div>
-      {submitted && (
+  // ── After the whole quiz is submitted: full recap, every question at
+  // once with its result — this is a review of a finished attempt, not the
+  // "stay focused, one thing at a time" flow, so nothing distracting about
+  // showing it all together here.
+  if (submitted) {
+    return (
+      <div>
         <div
           className="rounded-lg p-5 mb-8 flex items-center gap-4"
           style={{
@@ -175,69 +184,156 @@ function CustomQuizView({
             </p>
           </div>
         </div>
-      )}
 
-      <div className="space-y-8">
-        {questions.map((q: any, qi: number) => {
-          const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
-          const chosen = quizState.answers[qi];
+        <div className="space-y-8">
+          {questions.map((q: any, qi: number) => {
+            const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
+            const chosen = quizState.answers[qi];
 
-          return (
-            <div key={q.id ?? qi}>
-              <p className="font-sans font-semibold text-sm mb-4 break-words" style={{ color: '#C5C6C7' }}>
-                <span style={{ color }} className="mr-2">{qi + 1}.</span>
-                {q.question_text}
-              </p>
-              <div className="space-y-2">
-                {opts.map((opt: string, oi: number) => {
-                  const isChosen = chosen === oi;
-                  const isCorrectOpt = submitted && oi === q.correct_idx;
-                  const isWrongChosen = submitted && isChosen && oi !== q.correct_idx;
+            return (
+              <div key={q.id ?? qi}>
+                <p className="font-sans font-semibold text-sm mb-4 break-words" style={{ color: '#C5C6C7' }}>
+                  <span style={{ color }} className="mr-2">{qi + 1}.</span>
+                  {q.question_text}
+                </p>
+                <div className="space-y-2">
+                  {opts.map((opt: string, oi: number) => {
+                    const isChosen = chosen === oi;
+                    const isCorrectOpt = oi === q.correct_idx;
+                    const isWrongChosen = isChosen && oi !== q.correct_idx;
 
-                  let bg = 'rgba(197, 198, 199,0.04)';
-                  let border = 'rgba(197, 198, 199,0.1)';
-                  let textColor = 'rgba(197, 198, 199,0.65)';
+                    let bg = 'rgba(197, 198, 199,0.04)';
+                    let border = 'rgba(197, 198, 199,0.1)';
+                    let textColor = 'rgba(197, 198, 199,0.65)';
 
-                  if (!submitted && isChosen) { bg = `${color}18`; border = `${color}60`; textColor = '#C5C6C7'; }
-                  if (submitted && isCorrectOpt) { bg = 'rgba(102, 252, 241,0.12)'; border = 'rgba(102, 252, 241,0.5)'; textColor = '#C5C6C7'; }
-                  if (submitted && isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(197, 198, 199,0.6)'; }
+                    if (isCorrectOpt) { bg = 'rgba(102, 252, 241,0.12)'; border = 'rgba(102, 252, 241,0.5)'; textColor = '#C5C6C7'; }
+                    if (isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(197, 198, 199,0.6)'; }
 
-                  return (
-                    <button
-                      key={oi}
-                      onClick={() => !submitted && onAnswer(qi, oi)}
-                      disabled={submitted}
-                      className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3 transition-all"
-                      style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: submitted ? 'default' : 'pointer' }}
-                    >
-                      <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: submitted && isCorrectOpt ? '#66FCF1' : submitted && isWrongChosen ? '#e05252' : textColor }}>
-                        {submitted && isCorrectOpt ? '✓' : submitted && isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
-                      </span>
-                      <span className="break-words min-w-0">{opt}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {submitted && q.explanation && (
-                <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
-                  💬 {q.explanation}
+                    return (
+                      <div
+                        key={oi}
+                        className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3"
+                        style={{ background: bg, border: `1px solid ${border}`, color: textColor }}
+                      >
+                        <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? '#e05252' : textColor }}>
+                          {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
+                        </span>
+                        <span className="break-words min-w-0">{opt}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                {q.explanation && (
+                  <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
+                    💬 {q.explanation}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-      <div className="mt-10 flex justify-end">
-        {!submitted ? (
-          <button onClick={onSubmit} disabled={!allAnswered} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all" style={{ background: allAnswered ? color : 'rgba(197, 198, 199,0.1)', color: allAnswered ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: allAnswered ? 'pointer' : 'not-allowed' }}>
-            Проверить ответы <Icon name="arrowRight" size={22} color="currentColor" />
-          </button>
-        ) : (
+        <div className="mt-10 flex justify-end">
           <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110" style={{ background: color, color: '#0B0C10', boxShadow: `0 4px 0 0 ${color}50` }}>
             {isLastLesson ? '🏁 Завершить курс' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Still taking the quiz: one question fills the page, nothing else
+  // competing for attention — pick an option, lock it in, see the result,
+  // move on. Mirrors QuizPage's (the seeded-lecture quiz) same pattern.
+  const q = questions[qIdx];
+  const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
+  const chosen = quizState.answers[qIdx];
+  const checked = checkedIdxs.has(qIdx);
+  const isLastQuestion = qIdx === questions.length - 1;
+  const isCorrect = checked && chosen === q.correct_idx;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-montserrat font-bold" style={{ fontSize: 18, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          Тест: {lesson.title}
+        </p>
+        <span className="font-geist text-sm shrink-0" style={{ color: TEXT_MUTED }}>{qIdx + 1}/{questions.length}</span>
+      </div>
+      <div className="h-1 rounded-full overflow-hidden mb-8" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
+        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, background: color }} />
+      </div>
+
+      <div className="p-6 rounded-lg fade-in" style={{ background: CARD_BG, border: `1px solid ${color}`, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
+        <p className="font-sans font-semibold text-base mb-6 break-words flex gap-3" style={{ color: TEXT_PRIMARY }}>
+          <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold text-xs" style={{ background: color, color: PAGE_BG }}>{qIdx + 1}</span>
+          <span className="break-words min-w-0">{q.question_text}</span>
+        </p>
+
+        <div className="space-y-3">
+          {opts.map((opt: string, oi: number) => {
+            const isChosen = chosen === oi;
+            const isCorrectOpt = checked && oi === q.correct_idx;
+            const isWrongChosen = checked && isChosen && oi !== q.correct_idx;
+
+            let bg = 'rgba(197, 198, 199,0.04)';
+            let border = 'rgba(197, 198, 199,0.1)';
+            let textColor = 'rgba(197, 198, 199,0.65)';
+
+            if (!checked && isChosen) { bg = `${color}18`; border = `${color}60`; textColor = '#C5C6C7'; }
+            if (isCorrectOpt) { bg = 'rgba(102, 252, 241,0.12)'; border = 'rgba(102, 252, 241,0.5)'; textColor = '#C5C6C7'; }
+            if (isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(197, 198, 199,0.6)'; }
+
+            return (
+              <button
+                key={oi}
+                onClick={() => !checked && onAnswer(qIdx, oi)}
+                disabled={checked}
+                className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3 transition-all"
+                style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: checked ? 'default' : 'pointer' }}
+              >
+                <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? '#e05252' : textColor }}>
+                  {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
+                </span>
+                <span className="break-words min-w-0">{opt}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {checked && q.explanation && (
+          <div
+            className="mt-6 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words"
+            style={{
+              background: isCorrect ? 'rgba(102, 252, 241,0.08)' : 'rgba(224,82,82,0.08)',
+              border: `1px solid ${isCorrect ? 'rgba(102, 252, 241,0.3)' : 'rgba(224,82,82,0.3)'}`,
+              color: 'rgba(197, 198, 199,0.75)',
+            }}
+          >
+            💬 {q.explanation}
+          </div>
         )}
+
+        <div className="mt-8 flex justify-end">
+          {!checked ? (
+            <button
+              onClick={() => setCheckedIdxs(prev => new Set(prev).add(qIdx))}
+              disabled={chosen === undefined}
+              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all"
+              style={{ background: chosen !== undefined ? color : 'rgba(197, 198, 199,0.1)', color: chosen !== undefined ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: chosen !== undefined ? 'pointer' : 'not-allowed' }}
+            >
+              Ответить
+            </button>
+          ) : (
+            <button
+              onClick={() => (isLastQuestion ? onSubmit() : setQIdx(i => i + 1))}
+              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110"
+              style={{ background: color, color: '#0B0C10' }}
+            >
+              {isLastQuestion ? 'Завершить тест' : <>Следующий вопрос <Icon name="arrowRight" size={22} color="currentColor" /></>}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -832,6 +928,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                 </>
               ) : (
                 <CustomQuizView
+                  key={currentLesson.id}
                   lesson={currentLesson}
                   quizState={quizStates[currentIdx] || { answers: {}, submitted: false, score: 0 }}
                   onAnswer={(qi, oi) => setQuizStates(prev => ({ ...prev, [currentIdx]: { ...(prev[currentIdx] || { answers: {}, submitted: false, score: 0 }), answers: { ...(prev[currentIdx]?.answers || {}), [qi]: oi } } }))}

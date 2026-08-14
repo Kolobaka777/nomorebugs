@@ -13,7 +13,7 @@ import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
-import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon } from '../components/CatalogIcons';
+import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE,
 } from '../utils/theme';
@@ -48,7 +48,7 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
 // sections read as one design language, not two.
 function CourseCard({
   modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
-  statsLabel, onClick, clickable, editHref, onEdit,
+  statsLabel, onClick, clickable, editHref, onEdit, onDelete, teamCount,
 }: {
   modulesLabel: string;
   tag: string;
@@ -69,9 +69,46 @@ function CourseCard({
   clickable?: boolean;
   editHref?: string;
   onEdit?: () => void;
+  onDelete?: () => void;
+  teamCount?: number;
 }) {
-  const navigate = useNavigate();
   return (
+    <div className="relative h-full group">
+      {/* Lead-only toolbar, floating above the card's top edge — revealed on
+          hover/focus instead of a permanent fixture, so a whole grid of
+          editable cards doesn't read as cluttered by default. */}
+      {onEdit && (
+        <div
+          className="absolute -top-7 left-0 right-0 flex items-center justify-between px-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+          onClick={e => e.stopPropagation()}
+        >
+          {teamCount !== undefined ? (
+            <span className="flex items-center gap-1 font-geist text-xs" style={{ color: TEXT_MUTED }}>
+              <PeopleIcon size={13} color="currentColor" /> {teamCount}
+            </span>
+          ) : <span />}
+          <span className="flex items-center gap-1.5">
+            <button
+              onClick={onEdit}
+              aria-label="Редактировать курс"
+              className="flex items-center justify-center rounded cursor-pointer"
+              style={{ width: 22, height: 22, background: CARD_BG, border: `1px solid ${SECONDARY}` }}
+            >
+              <PencilLineIcon size={12} color={SECONDARY} />
+            </button>
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                aria-label="Удалить курс"
+                className="flex items-center justify-center rounded cursor-pointer"
+                style={{ width: 22, height: 22, background: CARD_BG, border: '1px solid rgba(224,82,82,0.5)' }}
+              >
+                <TrashLineIcon size={12} color="#e05252" />
+              </button>
+            )}
+          </span>
+        </div>
+      )}
     <div
       onClick={onClick}
       {...(clickable && onClick ? clickableProps(onClick) : {})}
@@ -90,16 +127,6 @@ function CourseCard({
         >
           NEW
         </span>
-      )}
-      {editHref !== undefined && onEdit && (
-        <button
-          onClick={e => { e.stopPropagation(); onEdit(); }}
-          aria-label="Редактировать курс"
-          className="absolute -top-2.5 left-3 flex items-center justify-center rounded cursor-pointer"
-          style={{ width: 20, height: 20, background: CARD_BG, border: `1px solid ${SECONDARY}` }}
-        >
-          <PencilLineIcon size={12} color={SECONDARY} />
-        </button>
       )}
 
       {/* flex-col + h-full so every card in the grid fills its row (Grid's
@@ -152,6 +179,7 @@ function CourseCard({
           </span>
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -275,6 +303,16 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       .catch((err: any) => showApiError(err, 'Не удалось перенести курс в раздел'));
   };
 
+  // Quick delete straight from the catalog card's hover toolbar — same
+  // endpoint/confirm-dialog convention as CustomCourseDetailPage's "Удалить
+  // курс" button, just reachable without opening the course first.
+  const deleteCourse = (courseId: number, title: string) => {
+    if (!window.confirm(`Удалить курс «${title}»? Это действие нельзя отменить.`)) return;
+    authFetch(`${API_BASE}/custom-courses/${courseId}`, { method: 'DELETE' })
+      .then(async r => { if (!r.ok) throw new Error(); loadLectures(); })
+      .catch((err: any) => showApiError(err, 'Не удалось удалить курс'));
+  };
+
   // Onboarding courses (is_onboarding) get their own permanent "Для
   // новичков" section — always visible regardless of the topic tag filter,
   // and excluded from the regular "Дополнительные курсы" grid/tag
@@ -378,49 +416,40 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-7xl mx-auto px-8 pt-16 pb-16 fade-in">
-        {/* ===== HEADER ===== */}
-        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <h1 className="font-montserrat font-bold flex items-center gap-3" style={{ fontSize: 28, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
-              <BookOpenIcon size={26} color={ACCENT} />
-              КУРСЫ
-            </h1>
-            <p className="font-geist mt-1" style={{ fontSize: 14, color: TEXT_MUTED }}>
-              Каталог курсов
-            </p>
-          </div>
+        {/* ===== HEADER — title left, action + search grouped together right ===== */}
+        <div className="flex items-center justify-between mb-1 flex-wrap gap-4">
+          <h1 className="font-montserrat font-bold flex items-center gap-3" style={{ fontSize: 28, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <BookOpenIcon size={26} color={ACCENT} />
+            КУРСЫ
+          </h1>
 
-          {user.role === 'lead' ? (
-            <button
-              onClick={() => navigate('/lead/course-builder')}
-              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
-              style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
-            >
-              <PlusIcon size={16} color={PAGE_BG} /> Создать курс
-            </button>
-          ) : (
-            // Any other role can propose one instead of creating it
-            // outright — the button looks the same as the lead's, just
-            // worded as a suggestion; the server enforces the actual gate
-            // (see POST /api/custom-courses) regardless of who clicks it.
-            <button
-              onClick={() => navigate('/propose-course')}
-              className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
-              style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14 }}
-            >
-              <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс
-            </button>
-          )}
-        </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {user.role === 'lead' ? (
+              <button
+                onClick={() => navigate('/lead/course-builder')}
+                className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
+                style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
+              >
+                <PlusIcon size={16} color={PAGE_BG} /> Создать курс
+              </button>
+            ) : (
+              // Any other role can propose one instead of creating it
+              // outright — the button looks the same as the lead's, just
+              // worded as a suggestion; the server enforces the actual gate
+              // (see POST /api/custom-courses) regardless of who clicks it.
+              <button
+                onClick={() => navigate('/propose-course')}
+                className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
+                style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14 }}
+              >
+                <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс
+              </button>
+            )}
 
-        {/* ===== SEARCH + FILTERS ===== */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <FrogIcon size={44} />
             {/* Single rounded-full pill with the search glyph inside it
                 (right-aligned, muted teal) instead of a two-part input +
                 solid-fill button — matches the mockup. */}
-            <div className="relative" style={{ minWidth: 260 }}>
+            <div className="relative" style={{ minWidth: 220 }}>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -437,12 +466,25 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               </span>
             </div>
           </div>
+        </div>
+        <p className="font-geist mb-6" style={{ fontSize: 14, color: TEXT_MUTED }}>
+          Каталог курсов
+        </p>
+
+        {/* ===== FILTERS ===== */}
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <FrogIcon size={44} />
 
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => { setTagFilter(null); setDraftOnly(false); }}
               className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
-              style={{ fontSize: 12, background: tagFilter === null && !draftOnly ? ACCENT : 'rgba(197, 198, 199,0.06)', color: tagFilter === null && !draftOnly ? PAGE_BG : 'rgba(197, 198, 199,0.5)' }}
+              style={{
+                fontSize: 12,
+                background: tagFilter === null && !draftOnly ? `${ACCENT}18` : 'transparent',
+                color: tagFilter === null && !draftOnly ? ACCENT : 'rgba(197, 198, 199,0.5)',
+                border: `1px solid ${tagFilter === null && !draftOnly ? ACCENT : 'transparent'}`,
+              }}
             >
               Все темы
             </button>
@@ -456,10 +498,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                   className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-all"
                   style={{
                     fontSize: 12,
-                    background: active ? color : `${color}20`,
-                    color: active ? PAGE_BG : color,
-                    border: active ? `1px solid ${color}` : '1px solid transparent',
-                    boxShadow: active ? `0 0 0 2px ${color}40` : 'none',
+                    background: active ? `${color}18` : 'transparent',
+                    color,
+                    border: `1px solid ${active ? color : 'transparent'}`,
                   }}
                 >
                   {tag}
@@ -470,7 +511,12 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               <button
                 onClick={() => { setDraftOnly(d => !d); setTagFilter(null); }}
                 className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
-                style={{ fontSize: 12, background: draftOnly ? 'rgba(197, 198, 199,0.5)' : 'rgba(197, 198, 199,0.06)', color: draftOnly ? PAGE_BG : 'rgba(197, 198, 199,0.5)' }}
+                style={{
+                  fontSize: 12,
+                  background: draftOnly ? 'rgba(197, 198, 199,0.12)' : 'transparent',
+                  color: 'rgba(197, 198, 199,0.6)',
+                  border: `1px solid ${draftOnly ? 'rgba(197, 198, 199,0.5)' : 'transparent'}`,
+                }}
               >
                 Draft
               </button>
@@ -529,8 +575,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                       clickable
                       onClick={() => navigate(`/custom-course/${cc.id}`)}
-                      editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
                       onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
+                      onDelete={isLead ? () => deleteCourse(cc.id, cc.title) : undefined}
+                      teamCount={isLead ? cc.totalTesters : undefined}
                     />
                   </div>
                 );
@@ -676,8 +723,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                           statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                           clickable
                           onClick={() => navigate(`/custom-course/${cc.id}`)}
-                          editHref={isLead ? `/lead/course-builder/${cc.id}` : undefined}
                           onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
+                          onDelete={isLead ? () => deleteCourse(cc.id, cc.title) : undefined}
+                          teamCount={isLead ? cc.totalTesters : undefined}
                         />
                         </div>
                         {(() => {
