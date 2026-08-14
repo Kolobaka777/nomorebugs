@@ -7,16 +7,22 @@
  * recognizable instead of a blank tile — they're no longer offered in any
  * picker UI.
  * Also exports the AvatarFrame wrapper and avatar/frame metadata.
+ *
+ * Shipped as .webp, not the original .png — these are photographic
+ * cross-stitch photos (not flat pixel art), so lossless PNG was a poor fit:
+ * re-encoding at quality 88 cut ~350KB combined down to ~60KB with no
+ * visible difference at the 40-132px sizes they're actually rendered at
+ * (see PixelAvatar's `size` prop usages). Perf-optimization pass, 2026-08-14.
  */
-import frog1 from '../assets/images/frog1.png';
-import frog2 from '../assets/images/frog2.png';
-import frog3 from '../assets/images/frog3.png';
-import frog4 from '../assets/images/frog4.png';
-import frog5 from '../assets/images/frog5.png';
-import frog6 from '../assets/images/frog6.png';
-import frog7 from '../assets/images/frog7.png';
-import frog8 from '../assets/images/frog8.png';
-import frog9 from '../assets/images/frog9.png';
+import frog1 from '../assets/images/frog1.webp';
+import frog2 from '../assets/images/frog2.webp';
+import frog3 from '../assets/images/frog3.webp';
+import frog4 from '../assets/images/frog4.webp';
+import frog5 from '../assets/images/frog5.webp';
+import frog6 from '../assets/images/frog6.webp';
+import frog7 from '../assets/images/frog7.webp';
+import frog8 from '../assets/images/frog8.webp';
+import frog9 from '../assets/images/frog9.webp';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {

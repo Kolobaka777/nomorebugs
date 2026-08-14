@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
-import GuideEditor from '../components/GuideEditor';
 import EmojiPicker from '../components/EmojiPicker';
 import { guidesApi, knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
@@ -10,6 +9,21 @@ import { parseGuideContent } from '../utils/guideContent';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
+
+// Tiptap (the block editor) is the single heaviest dependency in the app —
+// its own chunk is ~150KB gzipped, more than every other route combined.
+// Loading it lazily here means opening the Guides page (browsing titles,
+// switching categories) doesn't pay that cost until a guide is actually
+// opened or edited.
+const GuideEditor = lazy(() => import('../components/GuideEditor'));
+
+function GuideEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-10">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
+    </div>
+  );
+}
 
 interface Props {
   user: any;
@@ -93,7 +107,9 @@ function GuideForm({
         <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
       </div>
       <CategoryPicker value={category} onChange={setCategory} options={categories} />
-      <GuideEditor content={parseGuideContent(content)} editable onChangeJSON={setContent} />
+      <Suspense fallback={<GuideEditorFallback />}>
+        <GuideEditor content={parseGuideContent(content)} editable onChangeJSON={setContent} />
+      </Suspense>
       {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={() => onSave({ title, category, content, icon })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
@@ -350,7 +366,9 @@ export default function GuidesPage({ user, onLogout }: Props) {
                     <Icon name="clock" size={14} color="#EF9F27" /> Ждёт рассмотрения лидом — как только одобрят, гайд станет виден всей команде.
                   </p>
                 )}
-                <GuideEditor content={parseGuideContent(selected.content)} editable={false} />
+                <Suspense fallback={<GuideEditorFallback />}>
+                  <GuideEditor content={parseGuideContent(selected.content)} editable={false} />
+                </Suspense>
               </div>
             ) : !listError ? (
               <div

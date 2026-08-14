@@ -14,7 +14,12 @@
     <title>baga-net</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
+    <!-- Press Start 2P and Inter were the original pixel-game/body fonts; both
+         were replaced by Montserrat/Geist in the UI Kit redesign (see
+         tailwind.config.js fontFamily comments) but stayed in this request,
+         so every page load fetched two full font families nobody renders
+         with anymore. Trimmed to just the two families actually in use. -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
