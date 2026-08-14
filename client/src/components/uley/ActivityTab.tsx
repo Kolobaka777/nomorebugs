@@ -21,7 +21,7 @@ export default function ActivityTab({
     <div>
       <div className="flex items-center gap-3 mb-6">
         <h2 className="font-montserrat font-semibold flex items-center gap-2" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
-          <Icon name="bug" size={16} color="currentColor" />Жучиная нора
+          <Icon name="frog" size={16} color="currentColor" />Лягушачье болото
         </h2>
       </div>
       <div className="space-y-2">

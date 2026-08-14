@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import { testerApi, leadApi } from '../api';
@@ -415,7 +415,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }

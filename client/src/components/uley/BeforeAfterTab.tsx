@@ -1,4 +1,4 @@
-import SnailLoader from '../SnailLoader';
+import FrogLoader from '../FrogLoader';
 import { SKillChart, TesterSkillBreakdown } from '../../types';
 import { ACCENT, BADGE_NOTIFY, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
 
@@ -112,7 +112,7 @@ export default function BeforeAfterTab({
             </div>
           )
         ) : (
-          <SnailLoader />
+          <FrogLoader />
         )}
       </div>
     </div>

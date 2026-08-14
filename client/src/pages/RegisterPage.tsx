@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
-import BugSprite from '../components/BugSprite';
+import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
@@ -66,10 +66,10 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
       />
 
       <div className="fixed top-8 left-8 opacity-20">
-        <BugSprite size={48} color="teal" />
+        <FrogIcon size={40} color="#66FCF1" />
       </div>
       <div className="fixed bottom-8 right-8 opacity-20">
-        <BugSprite size={64} color="amber" />
+        <FrogIcon size={56} color="#EF9F27" />
       </div>
 
       <div className="w-full max-w-md relative z-10 fade-in">
@@ -81,7 +81,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
             baga-net
           </h1>
           <p className="text-pixel/60 text-sm font-sans italic">
-            новый жук в норе
+            новая лягушка в болоте
           </p>
         </div>
 
@@ -225,7 +225,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
               style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading ? (
-                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
+                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="frog" size={13} color="currentColor" /> скачем...</span>
               ) : (
                 'ЗАРЕГИСТРИРОВАТЬСЯ'
               )}

@@ -3,14 +3,14 @@
 // readable Russian sentence. Server-side action strings are a compact,
 // grep-able audit-log format (see server/src/app.js) — never meant to be
 // shown to a user as-is, but several feeds (ProfilePage's "Моя активность",
-// UleyPage's "Жучиная нора", AdminPage's activity log) did exactly that, or
+// UleyPage's "Лягушачье болото", AdminPage's activity log) did exactly that, or
 // hedged the verb ending with a "(-а)" hack, before this existed.
 
 import { Gender, TeamNewsItem } from '../types';
 import { pickByGender } from './gender';
 
 const PERMISSION_LABELS: Record<string, string> = {
-  manage_knowledge_base: 'Багодельня',
+  manage_knowledge_base: 'Квакодельня',
   manage_courses: 'Курсы',
   manage_checklists: 'Чек-листы',
   manage_guides: 'Гайды',

@@ -283,7 +283,7 @@ export default function ProfileEditModal({
                 <input
                   value={statusQuote}
                   onChange={e => setStatusQuote(e.target.value.slice(0, 60))}
-                  placeholder="ловлю жуков с 2024..."
+                  placeholder="ловлю мух с 2024..."
                   style={inputStyle}
                 />
                 <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{statusQuote.length}/60</p>
@@ -312,6 +312,17 @@ export default function ProfileEditModal({
                   style={{ ...inputStyle, resize: 'none' }}
                 />
                 <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{infoBox.length}/200</p>
+              </div>
+
+              <div>
+                <label style={labelStyle}>ЛЯГУШАЧЬЯ ШУТКА (макс 80)</label>
+                <input
+                  value={snailJoke}
+                  onChange={e => setSnailJoke(e.target.value.slice(0, 80))}
+                  placeholder="квакнул бы, да лень..."
+                  style={inputStyle}
+                />
+                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{snailJoke.length}/80</p>
               </div>
 
               <div>

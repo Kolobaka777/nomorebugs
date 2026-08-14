@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
-import BugSprite from '../components/BugSprite';
+import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 
@@ -45,15 +45,15 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
         }}
       />
 
-      {/* Decorative bugs */}
+      {/* Decorative frogs */}
       <div className="fixed top-8 left-8 opacity-20">
-        <BugSprite size={48} color="teal" />
+        <FrogIcon size={40} color="#66FCF1" />
       </div>
       <div className="fixed bottom-8 right-8 opacity-20">
-        <BugSprite size={64} color="amber" />
+        <FrogIcon size={56} color="#EF9F27" />
       </div>
       <div className="fixed top-1/3 right-12 opacity-10">
-        <BugSprite size={32} color="teal" />
+        <FrogIcon size={28} color="#66FCF1" />
       </div>
 
       <div className="w-full max-w-md relative z-10 fade-in">
@@ -66,7 +66,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
             baga-net
           </h1>
           <p className="text-pixel/60 text-sm font-sans italic">
-            "come in as a bug. leave as a feature."
+            "come in as a tadpole. leave as a feature."
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
             className="font-pixel text-pixel mb-6 text-center"
             style={{ fontSize: '0.65rem', lineHeight: 1.8 }}
           >
-            ВХОД В НОРУ
+            ВХОД В БОЛОТО
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -156,7 +156,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
               style={{ padding: '12px', fontSize: '14px' }}
             >
               {loading ? (
-                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
+                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="frog" size={13} color="currentColor" /> скачем...</span>
               ) : (
                 'ВОЙТИ'
               )}

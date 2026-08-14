@@ -186,7 +186,7 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
             </SurveyPillButton>
             <SurveyPillButton onClick={handleNext} disabled={loading} style={{ flex: 1 }}>
               {loading
-                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> сохраняем...</span>
+                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="frog" size={13} color="currentColor" /> сохраняем...</span>
                 : isLast ? 'Начать обучение' : 'Далее'}
             </SurveyPillButton>
           </div>

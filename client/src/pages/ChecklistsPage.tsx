@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import { checklistApi, knowledgeApi } from '../api';
 import Icon, { IconName } from '../components/Icon';
 import { localDayStartUTC, localDayEndUTC } from '../utils/date';
@@ -290,7 +290,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
         {/* ===== CHECKLISTS TAB ===== */}
         {tab === 'checklists' && (
           <>
-            {loading && <SnailLoader />}
+            {loading && <FrogLoader />}
             {!loading && templatesError && (
               <div className="p-8 rounded-lg text-center" style={{ background: CARD_BG, border: '2px dashed rgba(224,82,82,0.3)' }}>
                 <p className="font-geist text-sm mb-3" style={{ color: '#e05252' }}>{templatesError}</p>
@@ -539,7 +539,7 @@ export default function ChecklistsPage({ user, onLogout }: Props) {
               )}
             </div>
 
-            {statsLoading && <SnailLoader />}
+            {statsLoading && <FrogLoader />}
 
             {stats && (
               <>

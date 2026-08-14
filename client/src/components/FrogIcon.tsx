@@ -1,8 +1,7 @@
 // The redesign's mascot — a leaping frog (silhouette lifted straight from
 // the Figma logo export, client/src/assets/logo.svg) used standalone
-// wherever the old pixel-art beetle (BugSprite) appeared on redesigned
-// pages. Kept separate from BugSprite rather than replacing it there —
-// pre-redesign pages still use the beetle and aren't being touched.
+// wherever the old pixel-art beetle (formerly BugSprite.tsx, now removed —
+// every page has moved to the frog theme) used to appear.
 interface FrogIconProps {
   size?: number;
   color?: string;

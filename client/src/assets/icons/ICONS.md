@@ -77,7 +77,7 @@ merge multi-frame icons into one and drop the pieces.
 | `lock.svg` | padlock | `Lock.svg` |
 | `glasses.svg` | glasses | `Glasses.svg` |
 | `info-circle.svg` | i inside a ring | `Info.svg` |
-| `home.svg` | house | `Home.svg` — same icon already used for "Моя нора" in `QuickLinkIcons.tsx` |
+| `home.svg` | house | `Home.svg` — same icon already used for "Моё болото" in `QuickLinkIcons.tsx` |
 | `user.svg` | single person | `User_alt.svg` |
 | `people-group.svg` | 3 overlapping people | `Group.svg` |
 

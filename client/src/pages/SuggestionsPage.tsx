@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { suggestionsApi } from '../api';
 import { Suggestion, SuggestionType, SuggestionStatus, SuggestionFolder } from '../types';
@@ -498,7 +498,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
 
         {/* List */}
         {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
-        {!loadError && !list && <SnailLoader />}
+        {!loadError && !list && <FrogLoader />}
         {list && list.length === 0 && (
           <p className="text-sm font-geist text-center py-10" style={{ color: TEXT_MUTED }}>Пока ничего нет — стань первым.</p>
         )}

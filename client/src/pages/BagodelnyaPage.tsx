@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon, { IconName } from '../components/Icon';
 import { knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
@@ -296,7 +296,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           <div>
             <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
               <Icon name="books" size={22} color={ACCENT} />
-              Багодельня
+              Квакодельня
             </h1>
             <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>База знаний тестировщика</p>
           </div>
@@ -321,7 +321,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           ))}
         </div>
 
-        {loading && <SnailLoader />}
+        {loading && <FrogLoader />}
 
         {!loading && loadError && (
           <div className="rounded-lg text-center py-8 mb-6" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>

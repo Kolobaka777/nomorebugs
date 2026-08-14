@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import SnailLoader from '../SnailLoader';
+import FrogLoader from '../FrogLoader';
 import Icon from '../Icon';
 import { parseServerDate } from '../../utils/date';
 import { ACCENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
@@ -71,7 +71,7 @@ export default function RatingsTab({
           })}
           {ratings.length === 0 && <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Пока нет данных.</p>}
         </div>
-      ) : <SnailLoader />}
+      ) : <FrogLoader />}
     </div>
   );
 }

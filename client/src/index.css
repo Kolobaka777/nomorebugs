@@ -634,13 +634,18 @@
   }
 }
 
-/* ===== SNAIL LOADER ===== */
-@keyframes snail-loader-walk {
-  0%, 100% { transform: translateY(0) scaleX(1); }
-  25%       { transform: translateY(-3px) scaleX(1.04); }
-  75%       { transform: translateY(-1px) scaleX(0.98); }
+/* ===== FROG LOADER ===== */
+@keyframes frog-loader-hop-loop {
+  0%   { transform: translateY(0) scaleY(1); }
+  20%  { transform: translateY(2px) scaleY(0.85); }
+  45%  { transform: translateY(-14px) scaleY(1.05); }
+  70%  { transform: translateY(2px) scaleY(0.9); }
+  100% { transform: translateY(0) scaleY(1); }
 }
-@keyframes snail-dot-hop {
+.frog-loader-hop {
+  animation: frog-loader-hop-loop 0.9s ease-in-out infinite;
+}
+@keyframes loader-dot-hop {
   0%, 100% { transform: translateY(0); opacity: 0.7; }
   50%       { transform: translateY(-5px); opacity: 1; }
 }

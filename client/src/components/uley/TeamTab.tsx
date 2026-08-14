@@ -172,7 +172,7 @@ export default function TeamTab({
               )}
 
               {/* Task-type breakdown — same data the tester sees about
-                  themselves in "Моя нора", surfaced here so a lead can
+                  themselves in "Моё болото", surfaced here so a lead can
                   tell at a glance who's handling which kind of work. */}
               <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>
                 <p className="font-geist text-xs uppercase mb-2" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Задачи</p>

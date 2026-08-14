@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
 import { primeAvatarCache } from '../components/Navigation';
@@ -58,7 +58,7 @@ function getGrowthSummary(skills: SKillChart[], completed: number) {
     return { text: `${pos} из ${skills.length} навыков уже подросли. Ты движешься!`, color: ACCENT };
   if (avg < 2)
     return { text: `Средний рост +${avg.toFixed(1)} пункта — это реально заметно`, color: ACCENT };
-  return { text: `+${avg.toFixed(1)} пункта в среднем — ты точно не улитка`, color: '#EF9F27' };
+  return { text: `+${avg.toFixed(1)} пункта в среднем — ты явно не в спячке`, color: '#EF9F27' };
 }
 
 // ── Shared flat card shell — same border/radius/shadow language as
@@ -232,7 +232,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   if (loading) return (
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
-      <SnailLoader />
+      <FrogLoader />
     </div>
   );
 

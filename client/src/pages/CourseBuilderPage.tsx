@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
@@ -192,7 +192,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }

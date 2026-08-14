@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
@@ -380,7 +380,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }
@@ -598,10 +598,10 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                     </div>
                   ))}
                 </div>
-              ) : <SnailLoader />}
+              ) : <FrogLoader />}
             </>
           ) : (
-            <SnailLoader />
+            <FrogLoader />
           )
         )}
 
@@ -633,7 +633,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   <button onClick={addTaskType} className="btn-primary text-xs px-4 py-2 shrink-0">Добавить</button>
                 </div>
               </>
-            ) : <SnailLoader />}
+            ) : <FrogLoader />}
           </div>
         )}
 
@@ -672,7 +672,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   </div>
                 ))}
               </div>
-            ) : <SnailLoader />}
+            ) : <FrogLoader />}
           </div>
         )}
 
@@ -699,7 +699,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   ))}
                 </div>
               )
-            ) : <SnailLoader />}
+            ) : <FrogLoader />}
           </div>
         )}
       </div>

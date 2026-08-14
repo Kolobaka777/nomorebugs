@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { teamApi, presenceApi } from '../api';
 import { TeamNewsItem, PresenceEntry } from '../types';
@@ -63,7 +63,7 @@ export default function NewsPage({ user, onLogout }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* LEFT: the news feed itself, unchanged — a plain scrolling list */}
           <div className="lg:col-span-2 lg:order-1 order-2">
-            {loading && <SnailLoader />}
+            {loading && <FrogLoader />}
             {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
             {!loading && !loadError && news.length === 0 && (
               <p className="font-geist text-sm text-center py-10" style={{ color: TEXT_MUTED }}>Пока новостей нет.</p>

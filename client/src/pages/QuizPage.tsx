@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { testerApi } from '../api';
 import { Question, QuestionExplanation, Lecture } from '../types';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import Navigation from '../components/Navigation';
 import { BookOpenIcon, CheckCircleIcon } from '../components/CatalogIcons';
@@ -234,7 +234,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }
@@ -276,7 +276,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                 onClick={() => navigate('/cabinet')}
                 className="btn-primary"
               >
-                Моя нора
+                Моё болото
               </button>
               {!passed && (
                 <button
@@ -478,7 +478,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               className="btn-primary w-full mt-6 disabled:opacity-50"
             >
               {submitting
-                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="snail" size={13} color="currentColor" /> ползём...</span>
+                ? <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="frog" size={13} color="currentColor" /> скачем...</span>
                 : submitError
                 ? 'Попробовать снова'
                 : currentQuestionIdx === questions.length - 1

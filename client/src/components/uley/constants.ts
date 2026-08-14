@@ -13,7 +13,7 @@ export const WEEKDAY_LABELS: [string, string][] = [['1', 'Пн'], ['2', 'Вт'],
 export const LEAVE_LABELS: Record<LeaveType, string> = { vacation: 'Отпуск', sick: 'Больничный', day_off: 'Отгул', other: 'Другое' };
 
 export const PERMISSION_LABELS: Record<string, string> = {
-  manage_knowledge_base: 'Багодельня',
+  manage_knowledge_base: 'Квакодельня',
   manage_courses: 'Курсы',
   manage_checklists: 'Чек-листы',
   manage_guides: 'Гайды',

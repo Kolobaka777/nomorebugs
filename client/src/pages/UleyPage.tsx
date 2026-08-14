@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import { leadApi, permissionsApi, adminApi, presenceApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, PresenceEntry } from '../types';
 import Icon, { IconName } from '../components/Icon';
@@ -244,7 +244,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }
@@ -277,7 +277,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     { id: 'before-after', label: 'До/После', icon: 'barchart' },
     { id: 'lectures', label: 'Лекции', icon: 'chartup' },
     { id: 'ratings', label: 'Рейтинг', icon: 'trophy' },
-    { id: 'activity', label: 'Жучиная нора', icon: 'bug' },
+    { id: 'activity', label: 'Лягушачье болото', icon: 'frog' },
   ];
 
   return (

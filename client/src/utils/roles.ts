@@ -8,8 +8,8 @@ export const ROLE_LABELS: Record<string, string> = {
   tester: 'Тестировщик',
 };
 
-export const ROLE_META: Record<string, { label: string; icon: 'crown' | 'bug'; color: string }> = {
+export const ROLE_META: Record<string, { label: string; icon: 'crown' | 'frog'; color: string }> = {
   admin: { label: ROLE_LABELS.admin, icon: 'crown', color: '#e05252' },
   lead: { label: ROLE_LABELS.lead, icon: 'crown', color: '#EF9F27' },
-  tester: { label: ROLE_LABELS.tester, icon: 'bug', color: '#66FCF1' },
+  tester: { label: ROLE_LABELS.tester, icon: 'frog', color: '#66FCF1' },
 };

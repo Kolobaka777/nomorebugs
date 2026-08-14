@@ -47,7 +47,7 @@ export default function InstallPrompt() {
       style={{ background: '#1F2833', border: '2px solid #66FCF1', maxWidth: '92vw' }}
       role="status"
     >
-      <Icon name="bug" size={22} color="#66FCF1" />
+      <Icon name="frog" size={22} color="#66FCF1" />
       <span className="text-pixel text-xs">Можно установить baga-net как приложение</span>
       <button
         onClick={install}

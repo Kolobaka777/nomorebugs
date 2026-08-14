@@ -147,7 +147,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/zhukademia', label: 'Курсы', tourId: 'nav-courses' },
     // Чеклисты — temporarily pulled from the nav, still being reworked.
     // { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
-    { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
+    { path: '/bagodelnya', label: 'Квакодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },
@@ -160,7 +160,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     { path: '/dashboard', label: 'Команда', tourId: 'nav-team' },
     // Чеклисты — temporarily pulled from the nav, still being reworked.
     // { path: '/checklists', label: 'Чеклисты', tourId: 'nav-checklists' },
-    { path: '/bagodelnya', label: 'Багодельня', tourId: 'nav-shop' },
+    { path: '/bagodelnya', label: 'Квакодельня', tourId: 'nav-shop' },
     { path: '/guides', label: 'Гайды', tourId: 'nav-guides' },
     { path: '/suggestions', label: 'Идеи', tourId: 'nav-suggestions' },
     { path: '/help', label: 'Помощь', tourId: 'nav-help' },

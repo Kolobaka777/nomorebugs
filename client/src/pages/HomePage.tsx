@@ -1,7 +1,7 @@
 import { useEffect, useState, ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import GreetingFrogIcon from '../components/GreetingFrogIcon';
 import Icon from '../components/Icon';
 import { BookIcon, ShopIcon, HomeIcon, ChevronRightIcon, ChevronRightDoubleIcon } from '../components/QuickLinkIcons';
@@ -181,7 +181,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
             {isTester ? (
               <div>
                 <TwoTone first="ПОСЛЕДНИЕ" second="РЕЗУЛЬТАТЫ" />
-                {loading && <SnailLoader />}
+                {loading && <FrogLoader />}
                 {/* Onboarding nudge — deliberately tenure-neutral copy (not
                     "welcome, newbie!"), so it reads fine for a long-tenured
                     tester who just never got around to it. Shown to anyone
@@ -273,7 +273,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
                     birthdays/leave lives at /news. */}
                 <div>
                   <TwoTone first="НОВОСТИ" second="КОМАНДЫ" />
-                  {loading && <SnailLoader />}
+                  {loading && <FrogLoader />}
                   {!loading && teamNews.length === 0 && (
                     <p className="font-geist text-sm text-center py-6" style={{ color: TEXT_MUTED }}>Пока пусто</p>
                   )}
@@ -307,10 +307,10 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
             <div className="mt-3">
               {[
                 { label: isTester ? 'Продолжить курс' : 'Каталог курсов', Icon: BookIcon, to: '/zhukademia' },
-                { label: 'Багодельня', Icon: ShopIcon, to: '/bagodelnya' },
+                { label: 'Квакодельня', Icon: ShopIcon, to: '/bagodelnya' },
                 // Чеклисты — temporarily off the quick-links list too, see Navigation.tsx/App.tsx.
                 // { label: 'Чеклисты', Icon: ChecklistIcon, to: '/checklists' },
-                { label: isTester ? 'Моя нора' : 'Команда', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },
+                { label: isTester ? 'Моё болото' : 'Команда', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },
               ].map((link, i, arr) => (
                 <LinkRow key={link.to} {...link} onClick={() => navigate(link.to)} showDivider={i < arr.length - 1} />
               ))}
@@ -326,7 +326,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               { icon: graduationCapIcon, label: 'Курсов', value: stats.courses },
               { icon: chartLineIcon, label: 'Балл', value: stats.avgScore },
               { icon: peopleGroupIcon, label: 'Тестеров', value: stats.testers },
-              { icon: null, label: 'Багов', value: stats.bugsCaught },
+              { icon: null, label: 'Мух', value: stats.bugsCaught },
               { icon: checkIcon, label: 'Чеклистов', value: stats.checklistsCompleted },
             ].map(item => (
               <div
@@ -336,10 +336,10 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               >
                 <p className="font-geist font-normal flex items-center justify-center gap-1.5" style={{ color: ACCENT, fontSize: 20, letterSpacing: 4 }}>
                   {item.value}
-                  {/* bug.svg in the icon kit is mislabeled (it's actually a
-                      flask shape, not a ladybug) — Icon's hand-drawn 'bug'
-                      renderer is the real one, used here instead. */}
-                  {item.icon ? <img src={item.icon} width={24} height={24} alt="" /> : <Icon name="bug" size={24} color={ACCENT} />}
+                  {/* "Мух" (flies caught) has no icon-kit asset — frogs catch
+                      flies with their tongue, matching the app's "QA testers
+                      catch bugs" gag one step further down the food chain. */}
+                  {item.icon ? <img src={item.icon} width={24} height={24} alt="" /> : <Icon name="frog" size={24} color={ACCENT} />}
                 </p>
                 <p className="font-geist font-normal text-center" style={{ color: STAT_LABEL_COLOR, fontSize: 16, letterSpacing: 3.2 }}>{item.label}</p>
               </div>

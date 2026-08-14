@@ -1,4 +1,4 @@
-import SnailLoader from '../SnailLoader';
+import FrogLoader from '../FrogLoader';
 import { clickableProps } from '../../utils/a11y';
 import { parseServerDate } from '../../utils/date';
 import { PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_BG, CARD_SHADOW } from '../../utils/theme';
@@ -15,7 +15,7 @@ export default function SubmissionsList({
 }) {
   return (
     <div className="space-y-2">
-      {loading && <SnailLoader />}
+      {loading && <FrogLoader />}
       {!loading && submissions.length === 0 && (
         <p className="font-geist text-sm text-center py-8" style={{ color: TEXT_MUTED }}>Нет проверок</p>
       )}

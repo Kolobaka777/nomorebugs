@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import PixelAvatar, { type FrameId } from '../components/PixelAvatar';
 import Icon, { IconName } from '../components/Icon';
 import LevelBadge from '../components/LevelBadge';
@@ -64,7 +64,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }
@@ -200,7 +200,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
 
               {'snail_joke' in profile && profile.snail_joke && (
                 <p className="font-geist text-xs leading-relaxed mt-2 italic break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
-                  🐌 {profile.snail_joke}
+                  🐸 {profile.snail_joke}
                 </p>
               )}
 

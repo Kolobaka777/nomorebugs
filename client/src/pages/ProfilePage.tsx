@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import ProfileEditModal from '../components/ProfileEditModal';
 import { primeAvatarCache } from '../components/Navigation';
@@ -24,7 +24,7 @@ interface Props {
 
 // The dedicated profile page lead/admin didn't have before — they only got
 // a quick-edit modal from the nav dropdown. Testers keep using their much
-// richer /cabinet (Моя нора) instead; this isn't meant to duplicate that.
+// richer /cabinet (Моё болото) instead; this isn't meant to duplicate that.
 export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<FullProfile | null>(null);
@@ -110,7 +110,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }

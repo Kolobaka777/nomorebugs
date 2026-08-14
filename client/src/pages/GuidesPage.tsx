@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
-import SnailLoader from '../components/SnailLoader';
+import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import GuideEditor from '../components/GuideEditor';
 import EmojiPicker from '../components/EmojiPicker';
@@ -211,7 +211,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
     return (
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
-        <SnailLoader />
+        <FrogLoader />
       </div>
     );
   }
