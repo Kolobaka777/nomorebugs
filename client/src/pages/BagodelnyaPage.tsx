@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon, { IconName } from '../components/Icon';
@@ -6,9 +6,21 @@ import { knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
+import { parseRichContent, richContentToPlainText } from '../utils/richContent';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
 } from '../utils/theme';
+
+// Same lazy-split reasoning as GuidesPage.tsx.
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+
+function RichTextEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
+    </div>
+  );
+}
 
 // "Как писать правильно" gets its own green (matching the app's other
 // "good/new" green — see ZhukademiPage's NEW_BADGE_COLOR) instead of the
@@ -80,14 +92,18 @@ function BugExampleForm({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!problem.trim() || !badText.trim() || !goodText.trim()) {
+    // badText/goodText are now JSON-serialized Tiptap docs, never an empty
+    // string even when nothing was typed (an empty doc still serializes to
+    // real JSON) — richContentToPlainText strips it back to just the
+    // authored text for a meaningful "did they actually write anything" check.
+    if (!problem.trim() || !richContentToPlainText(badText) || !richContentToPlainText(goodText)) {
       setError('Заполните проблему и оба примера');
       return;
     }
     setError('');
     setSaving(true);
     try {
-      await onSave({ tag: tag.trim(), tag_color: tagColor, problem: problem.trim(), bad_text: badText.trim(), good_text: goodText.trim() });
+      await onSave({ tag: tag.trim(), tag_color: tagColor, problem: problem.trim(), bad_text: badText, good_text: goodText });
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Ошибка сохранения');
     } finally {
@@ -130,13 +146,17 @@ function BugExampleForm({
         <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: '#e05252' }}>
           <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
         </label>
-        <textarea className="pixel-input w-full resize-y" rows={3} value={badText} onChange={e => setBadText(e.target.value)} placeholder="Плохой пример баг-репорта" />
+        <Suspense fallback={<RichTextEditorFallback />}>
+          <RichTextEditor content={parseRichContent(badText)} editable onChangeJSON={setBadText} placeholder="Плохой пример баг-репорта" />
+        </Suspense>
       </div>
       <div>
         <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: GOOD_GREEN }}>
           <Icon name="check" size={13} color="currentColor" /> Как писать правильно
         </label>
-        <textarea className="pixel-input w-full resize-y" rows={5} value={goodText} onChange={e => setGoodText(e.target.value)} placeholder="Хороший пример баг-репорта" />
+        <Suspense fallback={<RichTextEditorFallback />}>
+          <RichTextEditor content={parseRichContent(goodText)} editable onChangeJSON={setGoodText} placeholder="Хороший пример баг-репорта" />
+        </Suspense>
       </div>
       {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
@@ -163,11 +183,11 @@ function GlossaryForm({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!term.trim() || !definition.trim()) { setError('Заполните термин и определение'); return; }
+    if (!term.trim() || !richContentToPlainText(definition)) { setError('Заполните термин и определение'); return; }
     setError('');
     setSaving(true);
     try {
-      await onSave({ term: term.trim(), definition: definition.trim() });
+      await onSave({ term: term.trim(), definition });
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Ошибка сохранения');
     } finally {
@@ -188,7 +208,9 @@ function GlossaryForm({
       </div>
       <div>
         <label className="block text-xs font-geist mb-1.5" style={{ color: TEXT_MUTED }}>Определение</label>
-        <textarea className="pixel-input w-full resize-y" rows={3} value={definition} onChange={e => setDefinition(e.target.value)} />
+        <Suspense fallback={<RichTextEditorFallback />}>
+          <RichTextEditor content={parseRichContent(definition)} editable onChangeJSON={setDefinition} placeholder="Что означает этот термин?" />
+        </Suspense>
       </div>
       {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
@@ -443,13 +465,17 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                               <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: '#e05252', letterSpacing: TRACK_WIDE }}>
                                 <Icon name="close" size={13} color="currentColor" /> ПЛОХО
                               </span>
-                              <p className="text-xs font-geist leading-relaxed whitespace-pre-line break-words" style={{ color: TEXT_MUTED }}>{pair.bad_text}</p>
+                              <Suspense fallback={<RichTextEditorFallback />}>
+                                <RichTextEditor content={parseRichContent(pair.bad_text)} editable={false} />
+                              </Suspense>
                             </div>
                             <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${GOOD_GREEN}`, boxShadow: CARD_SHADOW }}>
                               <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: GOOD_GREEN, letterSpacing: TRACK_WIDE }}>
                                 <Icon name="check" size={13} color="currentColor" /> ПРАВИЛЬНО
                               </span>
-                              <p className="text-xs font-geist leading-relaxed whitespace-pre-line break-words" style={{ color: 'rgba(197, 198, 199, 0.7)' }}>{pair.good_text}</p>
+                              <Suspense fallback={<RichTextEditorFallback />}>
+                                <RichTextEditor content={parseRichContent(pair.good_text)} editable={false} />
+                              </Suspense>
                             </div>
                           </div>
                         </>
@@ -551,7 +577,11 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                     >
                       {item.term}
                     </div>
-                    <p className="text-xs font-geist leading-relaxed flex-1 min-w-0 break-words" style={{ color: TEXT_MUTED }}>{item.definition}</p>
+                    <div className="flex-1 min-w-0">
+                      <Suspense fallback={<RichTextEditorFallback />}>
+                        <RichTextEditor content={parseRichContent(item.definition)} editable={false} />
+                      </Suspense>
+                    </div>
                     {isPending && (
                       <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                         <PendingBadge />

@@ -5,7 +5,7 @@ import Icon from '../components/Icon';
 import EmojiPicker from '../components/EmojiPicker';
 import { guidesApi, knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
-import { parseGuideContent } from '../utils/guideContent';
+import { parseRichContent } from '../utils/richContent';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
@@ -15,9 +15,9 @@ import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, 
 // Loading it lazily here means opening the Guides page (browsing titles,
 // switching categories) doesn't pay that cost until a guide is actually
 // opened or edited.
-const GuideEditor = lazy(() => import('../components/GuideEditor'));
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
 
-function GuideEditorFallback() {
+function RichTextEditorFallback() {
   return (
     <div className="flex items-center justify-center py-10">
       <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
@@ -107,8 +107,8 @@ function GuideForm({
         <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
       </div>
       <CategoryPicker value={category} onChange={setCategory} options={categories} />
-      <Suspense fallback={<GuideEditorFallback />}>
-        <GuideEditor content={parseGuideContent(content)} editable onChangeJSON={setContent} />
+      <Suspense fallback={<RichTextEditorFallback />}>
+        <RichTextEditor content={parseRichContent(content)} editable onChangeJSON={setContent} />
       </Suspense>
       {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
       <div className="flex gap-2">
@@ -366,8 +366,8 @@ export default function GuidesPage({ user, onLogout }: Props) {
                     <Icon name="clock" size={14} color="#EF9F27" /> Ждёт рассмотрения лидом — как только одобрят, гайд станет виден всей команде.
                   </p>
                 )}
-                <Suspense fallback={<GuideEditorFallback />}>
-                  <GuideEditor content={parseGuideContent(selected.content)} editable={false} />
+                <Suspense fallback={<RichTextEditorFallback />}>
+                  <RichTextEditor content={parseRichContent(selected.content)} editable={false} />
                 </Suspense>
               </div>
             ) : !listError ? (

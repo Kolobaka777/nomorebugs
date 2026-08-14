@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -9,9 +9,22 @@ import { knowledgeApi } from '../api';
 import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
+import { parseRichContent } from '../utils/richContent';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
 } from '../utils/theme';
+
+// Same lazy-split reasoning as GuidesPage.tsx — Tiptap is the app's single
+// heaviest dependency, no reason to pay for it before this form is open.
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+
+function RichTextEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
+    </div>
+  );
+}
 
 interface Props {
   user: any;
@@ -283,27 +296,27 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               {/* Description */}
               <div className="mb-4">
                 <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Описание</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Что студент узнает из этого курса?"
-                  rows={4}
-                  className="pixel-input text-xs resize-none"
-                  style={{ lineHeight: 1.7 }}
-                />
+                <Suspense fallback={<RichTextEditorFallback />}>
+                  <RichTextEditor
+                    content={parseRichContent(form.description)}
+                    editable
+                    onChangeJSON={json => setForm(f => ({ ...f, description: json }))}
+                    placeholder="Что студент узнает из этого курса?"
+                  />
+                </Suspense>
               </div>
 
               {/* Requirements */}
               <div>
                 <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Требования / аудитория</label>
-                <textarea
-                  value={form.requirements}
-                  onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
-                  placeholder="Подходит для новичков, не нужен опыт..."
-                  rows={3}
-                  className="pixel-input text-xs resize-none"
-                  style={{ lineHeight: 1.7 }}
-                />
+                <Suspense fallback={<RichTextEditorFallback />}>
+                  <RichTextEditor
+                    content={parseRichContent(form.requirements)}
+                    editable
+                    onChangeJSON={json => setForm(f => ({ ...f, requirements: json }))}
+                    placeholder="Подходит для новичков, не нужен опыт..."
+                  />
+                </Suspense>
               </div>
 
               {/* Deadline */}

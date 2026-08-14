@@ -829,3 +829,131 @@
   display: inline-block;
   animation: coin-spin 1.4s ease-in-out infinite;
 }
+
+/* ===== RICH TEXT EDITOR ===== */
+/* Global on purpose, not an inline <style> inside RichTextEditor.tsx — this
+   component now mounts several times on one page (e.g. CourseBuilderPage
+   renders 3: description, requirements, lesson content). An inline
+   per-instance <style> block used the same class selectors in every
+   instance, so with 3+ mounted at once the *last* one rendered in the DOM
+   silently won the cascade for all of them — every editor showed the same
+   placeholder text regardless of which `placeholder` prop it was given.
+   One global stylesheet + attr(data-placeholder) for the actual text
+   (see below) fixes that structurally instead of patching around it. */
+.rich-text-content .tiptap { color: #C5C6C7; font-family: inherit; font-size: 14px; line-height: 1.7; outline: none; }
+.rich-text-content .tiptap p { margin: 0.5em 0; }
+.rich-text-content .tiptap h1 { font-size: 20px; font-weight: 700; margin: 0.9em 0 0.4em; }
+.rich-text-content .tiptap h2 { font-size: 16px; font-weight: 600; margin: 0.8em 0 0.4em; }
+.rich-text-content .tiptap blockquote { border-left: 3px solid #66FCF1; padding-left: 12px; margin: 0.6em 0; color: #8A8B8E; }
+/* Tailwind's preflight zeroes out list-style app-wide, so without this
+   override every bullet/numbered list here renders with no marker at all —
+   invisible structure, exactly the "not clear what's formatted" complaint
+   this whole pass is fixing. */
+.rich-text-content .tiptap ul, .rich-text-content .tiptap ol { margin: 0.5em 0; padding-left: 1.4em; }
+.rich-text-content .tiptap ul { list-style: disc; }
+.rich-text-content .tiptap ol { list-style: decimal; }
+.rich-text-content .tiptap li { margin: 0.2em 0; }
+.rich-text-content .tiptap li p { margin: 0; }
+.rich-text-content .tiptap img { max-width: 100%; border-radius: 8px; margin: 0.6em 0; }
+/* Placeholder text comes from the DOM attribute the extension sets
+   (data-placeholder, per instance), not baked into this rule — see the
+   comment above for why that distinction matters here specifically. */
+.rich-text-content .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder); float: left; color: rgba(197, 198, 199, 0.4); pointer-events: none; height: 0;
+}
+
+/* Inline `code` — distinct from fenced blocks below: a small always-on
+   highlight so a single code-ish word reads as code even outside a block. */
+.rich-text-content .tiptap code { background: rgba(197, 198, 199, 0.12); color: #EF9F27; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+.rich-text-content .tiptap pre code { background: none; color: inherit; padding: 0; }
+
+/* Fenced code blocks — visibly a distinct surface (near-black, bordered,
+   monospace) rather than "text that happens to be indented", plus real
+   per-token syntax colors matching VS Code's Dark+ theme (via
+   lowlight/highlight.js's .hljs-* classes) instead of Notion's flat
+   single-color code, which is what made "is this code?" unclear to begin
+   with. */
+.rich-text-content .tiptap pre {
+  background: #0B0C10;
+  color: rgba(255,255,255,0.85);
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 252, 241, 0.18);
+  overflow-x: auto;
+  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0.7em 0;
+}
+.rich-text-content .tiptap pre .hljs-comment,
+.rich-text-content .tiptap pre .hljs-quote { color: #6A9955; font-style: italic; }
+.rich-text-content .tiptap pre .hljs-keyword,
+.rich-text-content .tiptap pre .hljs-selector-tag,
+.rich-text-content .tiptap pre .hljs-literal,
+.rich-text-content .tiptap pre .hljs-subst { color: #C586C0; }
+.rich-text-content .tiptap pre .hljs-string,
+.rich-text-content .tiptap pre .hljs-doctag,
+.rich-text-content .tiptap pre .hljs-regexp { color: #CE9178; }
+.rich-text-content .tiptap pre .hljs-number,
+.rich-text-content .tiptap pre .hljs-literal { color: #B5CEA8; }
+.rich-text-content .tiptap pre .hljs-title,
+.rich-text-content .tiptap pre .hljs-title.function_,
+.rich-text-content .tiptap pre .hljs-section,
+.rich-text-content .tiptap pre .hljs-selector-id { color: #DCDCAA; }
+.rich-text-content .tiptap pre .hljs-type,
+.rich-text-content .tiptap pre .hljs-class .hljs-title,
+.rich-text-content .tiptap pre .hljs-built_in { color: #4EC9B0; }
+.rich-text-content .tiptap pre .hljs-variable,
+.rich-text-content .tiptap pre .hljs-template-variable,
+.rich-text-content .tiptap pre .hljs-attr,
+.rich-text-content .tiptap pre .hljs-attribute,
+.rich-text-content .tiptap pre .hljs-params { color: #9CDCFE; }
+.rich-text-content .tiptap pre .hljs-tag,
+.rich-text-content .tiptap pre .hljs-name { color: #569CD6; }
+.rich-text-content .tiptap pre .hljs-symbol,
+.rich-text-content .tiptap pre .hljs-bullet,
+.rich-text-content .tiptap pre .hljs-link,
+.rich-text-content .tiptap pre .hljs-meta { color: #D7BA7D; }
+.rich-text-content .tiptap pre .hljs-deletion { background: rgba(224,82,82,0.18); }
+.rich-text-content .tiptap pre .hljs-addition { background: rgba(102, 252, 241,0.12); }
+.rich-text-content .tiptap pre .hljs-emphasis { font-style: italic; }
+.rich-text-content .tiptap pre .hljs-strong { font-weight: 700; }
+
+/* Toggle list. Actual rendered structure (verified against the live DOM,
+   not assumed from the docs):
+     div[data-type="details"] > button (empty, toggles) + div
+       > summary (the always-visible label)
+       > div[data-type="detailsContent"] (hidden[hidden] when collapsed —
+         that attribute, not a class, drives show/hide)
+   The toggle button ships with no visible glyph at all, so the ▸/▾
+   triangle below is entirely our own CSS, driven off whether the sibling
+   detailsContent carries [hidden]. */
+.rich-text-content .tiptap div[data-type="details"] { margin: 0.5em 0; }
+.rich-text-content .tiptap div[data-type="details"] > button {
+  width: 18px; height: 20px; flex-shrink: 0; border: none; background: none; cursor: pointer;
+  padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  position: relative; top: 3px; float: left;
+}
+.rich-text-content .tiptap div[data-type="details"] > button::before {
+  content: '▸'; font-size: 11px; color: #66FCF1;
+}
+.rich-text-content .tiptap div[data-type="details"]:has(div[data-type="detailsContent"]:not([hidden])) > button::before {
+  content: '▾';
+}
+.rich-text-content .tiptap div[data-type="details"] summary { font-weight: 600; cursor: pointer; list-style: none; }
+.rich-text-content .tiptap div[data-type="details"] summary::-webkit-details-marker { display: none; }
+.rich-text-content .tiptap div[data-type="detailsContent"] { margin: 0.3em 0 0.3em 24px; padding-left: 8px; border-left: 2px solid rgba(197, 198, 199, 0.12); }
+.rich-text-content .tiptap div[data-type="detailsContent"] > *:first-child { margin-top: 0; }
+
+/* Drag handle — a floating grip icon (portaled next to whichever block the
+   cursor is over) rather than an inline column, so it doesn't shift block
+   layout; the empty gutter reserved via the editor's own left padding is
+   just enough room for it to sit in without overlapping text. */
+.rich-text-drag-handle {
+  width: 18px; height: 24px; display: flex; align-items: center; justify-content: center;
+  color: rgba(197, 198, 199, 0.35); cursor: grab; border-radius: 4px; font-size: 14px; letter-spacing: -2px;
+  transition: color 0.15s, background 0.15s;
+}
+.rich-text-drag-handle:hover { color: #66FCF1; background: rgba(197, 198, 199, 0.08); }
+.rich-text-drag-handle:active { cursor: grabbing;
+}

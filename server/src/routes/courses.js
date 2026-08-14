@@ -372,6 +372,31 @@ function validateCourseStructureFromRequest(modules) {
   return null;
 }
 
+// description/requirements/lesson.content all became rich-text fields
+// (JSON-serialized Tiptap docs, same shape as guides.content in
+// knowledge.js) once the editor rolled out here — previously plain text
+// with no length cap at all. A JSON doc with a couple of embedded base64
+// images can get large, so this caps it at the same generous size guides
+// use, rather than leaving it fully unbounded. Runs unconditionally (draft
+// saves included, unlike validateCourseStructureFromRequest below) since
+// there's no reason to let oversized content persist even mid-draft.
+const MAX_RICH_FIELD = 200000;
+
+function validateRichFieldLengths(description, requirements, modules) {
+  if (description && description.length > MAX_RICH_FIELD) return 'Описание курса слишком длинное';
+  if (requirements && requirements.length > MAX_RICH_FIELD) return 'Требования слишком длинные';
+  if (Array.isArray(modules)) {
+    for (const mod of modules) {
+      for (const lesson of (mod.lessons || [])) {
+        if (lesson.content && lesson.content.length > MAX_RICH_FIELD) {
+          return `Урок «${lesson.title || 'без названия'}» слишком большой`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // Same check as above, against what's already persisted — used when
 // publishing without also resending the full module tree (PATCH .../publish
 // never receives one; PUT doesn't always either).
@@ -401,6 +426,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
   try {
     const { title, description, tag, color, requirements, modules, deadline_at, section_id } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
+    const lengthError = validateRichFieldLengths(description, requirements, modules);
+    if (lengthError) return res.status(400).json({ error: lengthError });
 
     const canPublishDirectly = hasManageCourses(req.user);
     const isPublished = canPublishDirectly ? !!req.body.is_published : false;
@@ -460,6 +487,8 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
     const { title, description, tag, color, requirements, modules, is_published, is_onboarding, section_id, deadline_at, expected_updated_at } = req.body;
+    const lengthError = validateRichFieldLengths(description, requirements, modules);
+    if (lengthError) return res.status(400).json({ error: lengthError });
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
     const newOnboardingFlag = is_onboarding !== undefined ? (is_onboarding ? 1 : 0) : course.is_onboarding;
     const newSectionId = section_id !== undefined ? (section_id || null) : course.section_id;

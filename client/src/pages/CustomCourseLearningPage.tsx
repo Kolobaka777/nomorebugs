@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -11,9 +11,21 @@ import { CourseNote } from '../types';
 import { useEscapeKey } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
+import { parseRichContent } from '../utils/richContent';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
+
+// Same lazy-split reasoning as GuidesPage.tsx.
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+
+function LessonContentFallback() {
+  return (
+    <div className="flex items-center justify-center py-10">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю...</div>
+    </div>
+  );
+}
 
 // Semantic pass/fail colors for the course-result screen — deliberately
 // independent of the course's own accent `color` (a course themed amber can
@@ -30,6 +42,13 @@ interface Props {
 
 // ─── Lesson content renderer ──────────────────────────────────────────────────
 
+// Used to be a hand-rolled parser for a markdown-like subset ("# heading",
+// "- list", fenced ``` code, "> "/"! " callouts) with no editor to match —
+// LessonEditor.tsx's textarea just had a placeholder explaining the
+// convention. Now the same RichTextEditor every other rich-text surface
+// uses; parseRichContent upgrades any lesson written under the old
+// convention into real headings/lists/code the first time it's opened
+// here (see utils/richContent.ts) instead of showing raw "# " characters.
 function LessonContent({ content }: { content: string }) {
   if (!content?.trim()) {
     return (
@@ -39,74 +58,10 @@ function LessonContent({ content }: { content: string }) {
       </div>
     );
   }
-  // Split by blank lines into paragraphs
-  const paragraphs = content.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
   return (
-    <div>
-      {paragraphs.map((para, i) => {
-        if (para.startsWith('## ')) {
-          return (
-            <h3 key={i} className="font-sans font-bold text-base mt-7 mb-3 break-words" style={{ color: '#C5C6C7' }}>
-              {para.slice(3)}
-            </h3>
-          );
-        }
-        if (para.startsWith('# ')) {
-          return (
-            <h2 key={i} className="font-sans font-bold text-lg mt-8 mb-3 break-words" style={{ color: '#C5C6C7' }}>
-              {para.slice(2)}
-            </h2>
-          );
-        }
-        if (para.startsWith('```') && para.endsWith('```')) {
-          const lines = para.split('\n');
-          const code = lines.slice(1, -1).join('\n');
-          return (
-            <pre
-              key={i}
-              className="rounded p-4 mb-4 overflow-x-auto text-xs leading-relaxed font-mono"
-              style={{ background: PAGE_BG, color: ACCENT, border: '1px solid rgba(102, 252, 241,0.2)' }}
-            >
-              <code>{code}</code>
-            </pre>
-          );
-        }
-        if (para.startsWith('> ')) {
-          return (
-            <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(102, 252, 241,0.08)', border: '1px solid rgba(102, 252, 241,0.25)' }}>
-              <Icon name="lightbulb" size={22} color="#66FCF1" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
-            </div>
-          );
-        }
-        if (para.startsWith('! ')) {
-          return (
-            <div key={i} className="rounded p-4 mb-4 flex gap-3" style={{ background: 'rgba(239,159,39,0.08)', border: '1px solid rgba(239,159,39,0.3)' }}>
-              <Icon name="warning" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
-              <p className="font-sans text-sm leading-relaxed break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{para.slice(2)}</p>
-            </div>
-          );
-        }
-        if (para.includes('\n') && para.split('\n').every(line => line.startsWith('- '))) {
-          const items = para.split('\n').map(l => l.slice(2));
-          return (
-            <ul key={i} className="mb-4 space-y-2 ml-1">
-              {items.map((item, j) => (
-                <li key={j} className="flex gap-2 font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.7)' }}>
-                  <span className="flex-shrink-0 mt-0.5" style={{ color: '#66FCF1' }}>▸</span>
-                  <span className="leading-relaxed break-words min-w-0">{item}</span>
-                </li>
-              ))}
-            </ul>
-          );
-        }
-        return (
-          <p key={i} className="font-sans text-sm leading-relaxed mb-4 break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
-            {para}
-          </p>
-        );
-      })}
-    </div>
+    <Suspense fallback={<LessonContentFallback />}>
+      <RichTextEditor content={parseRichContent(content)} editable={false} />
+    </Suspense>
   );
 }
 

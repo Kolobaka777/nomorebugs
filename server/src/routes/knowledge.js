@@ -22,14 +22,15 @@ function hasManageKB(user) {
 // body cap — plenty of room to paste something huge into a bug example or
 // guide and bloat the DB. Internal small-team tool, so this is a sanity
 // bound, not abuse-hardening.
-const MAX_SHORT_FIELD = 5000; // problem/bad_text/good_text, term/definition
+const MAX_SHORT_FIELD = 5000; // problem/term — still plain short text, unlike the fields below
 const MAX_TITLE = 200;
-// guides.content is a JSON-serialized Tiptap document, not raw text — a
-// short article with a couple of images (stored as base64 data URIs right
-// in the doc, same trade-off as user_profiles.custom_avatar) weighs far
-// more than the same words as plain markdown, hence the much higher cap
-// than MAX_SHORT_FIELD/the old 50000 text limit.
-const MAX_GUIDE_CONTENT = 200000;
+// bad_text/good_text/definition/guides.content are all JSON-serialized
+// Tiptap documents now, not raw text — a short write-up with a couple of
+// images (stored as base64 data URIs right in the doc, same trade-off as
+// user_profiles.custom_avatar) weighs far more than the same words as
+// plain markdown, hence the much higher cap than MAX_SHORT_FIELD/the old
+// 5000/50000 text limits these fields used to have.
+const MAX_RICH_FIELD = 200000;
 const MAX_ICON_LENGTH = 16; // one emoji (incl. multi-codepoint ones like flags) plus headroom
 const MAX_TAG_FIELD = 50; // tag/tag_color on bug_examples
 
@@ -68,11 +69,17 @@ router.get('/api/bug-examples', authMiddleware, (req, res) => {
 router.post('/api/bug-examples', authMiddleware, (req, res) => {
   try {
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
-    if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
+    // bad_text/good_text are JSON-serialized Tiptap docs now, not raw text
+    // — an empty doc still serializes to a non-empty string, so their
+    // presence isn't checked here the same way problem is (the client
+    // already blocks submitting one with nothing actually typed in it via
+    // richContentToPlainText; matches guides.content, which has no
+    // server-side emptiness check either).
+    if (!problem?.trim() || !bad_text || !good_text) {
       return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
     }
-    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
-      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
+    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.length > MAX_RICH_FIELD || good_text.length > MAX_RICH_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст` });
     }
     if ((tag || '').trim().length > MAX_TAG_FIELD || (tag_color || '').trim().length > MAX_TAG_FIELD) {
       return res.status(400).json({ error: `Слишком длинный тег (макс ${MAX_TAG_FIELD} символов)` });
@@ -81,7 +88,7 @@ router.post('/api/bug-examples', authMiddleware, (req, res) => {
     const result = db.prepare(
       'INSERT INTO bug_examples (tag, tag_color, problem, bad_text, good_text, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
-      (tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.user.id,
+      (tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text, good_text, req.user.id,
       canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending'
     );
     res.json({ ok: true, id: result.lastInsertRowid });
@@ -96,18 +103,18 @@ router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
     const existing = db.prepare('SELECT id FROM bug_examples WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
-    if (!problem?.trim() || !bad_text?.trim() || !good_text?.trim()) {
+    if (!problem?.trim() || !bad_text || !good_text) {
       return res.status(400).json({ error: 'Заполните проблему, плохой и хороший пример' });
     }
-    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.trim().length > MAX_SHORT_FIELD || good_text.trim().length > MAX_SHORT_FIELD) {
-      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_SHORT_FIELD} символов на поле)` });
+    if (problem.trim().length > MAX_SHORT_FIELD || bad_text.length > MAX_RICH_FIELD || good_text.length > MAX_RICH_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст` });
     }
     if ((tag || '').trim().length > MAX_TAG_FIELD || (tag_color || '').trim().length > MAX_TAG_FIELD) {
       return res.status(400).json({ error: `Слишком длинный тег (макс ${MAX_TAG_FIELD} символов)` });
     }
     db.prepare(
       'UPDATE bug_examples SET tag = ?, tag_color = ?, problem = ?, bad_text = ?, good_text = ? WHERE id = ?'
-    ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text.trim(), good_text.trim(), req.params.id);
+    ).run((tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text, good_text, req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -177,16 +184,18 @@ router.get('/api/glossary', authMiddleware, (req, res) => {
 router.post('/api/glossary', authMiddleware, (req, res) => {
   try {
     const { term, definition } = req.body;
-    if (!term?.trim() || !definition?.trim()) {
+    // Same emptiness-check nuance as bad_text/good_text above — definition
+    // is now a JSON Tiptap doc, never falsy even when nothing was typed.
+    if (!term?.trim() || !definition) {
       return res.status(400).json({ error: 'Заполните термин и определение' });
     }
-    if (term.trim().length > MAX_TITLE || definition.trim().length > MAX_SHORT_FIELD) {
-      return res.status(400).json({ error: `Слишком длинный текст (термин макс ${MAX_TITLE}, определение макс ${MAX_SHORT_FIELD})` });
+    if (term.trim().length > MAX_TITLE || definition.length > MAX_RICH_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст` });
     }
     const canPublishDirectly = hasManageKB(req.user);
     const result = db.prepare(
       'INSERT INTO glossary_terms (term, definition, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?)'
-    ).run(term.trim(), definition.trim(), req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending');
+    ).run(term.trim(), definition, req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending');
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -199,13 +208,13 @@ router.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowle
     const existing = db.prepare('SELECT id FROM glossary_terms WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { term, definition } = req.body;
-    if (!term?.trim() || !definition?.trim()) {
+    if (!term?.trim() || !definition) {
       return res.status(400).json({ error: 'Заполните термин и определение' });
     }
-    if (term.trim().length > MAX_TITLE || definition.trim().length > MAX_SHORT_FIELD) {
-      return res.status(400).json({ error: `Слишком длинный текст (термин макс ${MAX_TITLE}, определение макс ${MAX_SHORT_FIELD})` });
+    if (term.trim().length > MAX_TITLE || definition.length > MAX_RICH_FIELD) {
+      return res.status(400).json({ error: `Слишком длинный текст` });
     }
-    db.prepare('UPDATE glossary_terms SET term = ?, definition = ? WHERE id = ?').run(term.trim(), definition.trim(), req.params.id);
+    db.prepare('UPDATE glossary_terms SET term = ?, definition = ? WHERE id = ?').run(term.trim(), definition, req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -322,8 +331,8 @@ router.post('/api/guides', authMiddleware, (req, res) => {
   try {
     const { title, category, content, icon } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
-    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
-      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
+    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_RICH_FIELD)) {
+      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_RICH_FIELD})` });
     }
     const canPublishDirectly = hasManageGuides(req.user);
     const result = db.prepare(
@@ -350,8 +359,8 @@ router.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides')
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { title, category, content, icon } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
-    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_GUIDE_CONTENT)) {
-      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_GUIDE_CONTENT})` });
+    if (title.trim().length > MAX_TITLE || (content && content.length > MAX_RICH_FIELD)) {
+      return res.status(400).json({ error: `Слишком длинный текст (заголовок макс ${MAX_TITLE}, содержимое макс ${MAX_RICH_FIELD})` });
     }
     db.prepare('UPDATE guides SET title = ?, category = ?, content = ?, icon = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(title.trim(), (category || 'Общее').trim(), content || '', icon ? String(icon).slice(0, MAX_ICON_LENGTH) : null, req.params.id);

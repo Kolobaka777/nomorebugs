@@ -118,14 +118,20 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
   }
 });
 
-const MAX_LEAD_NOTE_LENGTH = 2000;
+// Raised from 2000 (plain text) to the same generous cap guides/courses use
+// once this became a rich-text field (JSON-serialized Tiptap doc, not raw
+// text) — and changed from silently `.slice()`-truncating to rejecting
+// outright, since truncating mid-JSON-string would corrupt the document
+// instead of just shortening it.
+const MAX_LEAD_NOTE_LENGTH = 200000;
 
 // Private working notes a lead keeps about a tester — never exposed to the
 // tester (only /api/lead/team, a lead/admin-only route, ever returns it).
 router.patch('/api/lead/team/:id/note', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     const targetId = parseInt(req.params.id, 10);
-    const note = String(req.body.note ?? '').slice(0, MAX_LEAD_NOTE_LENGTH);
+    const note = String(req.body.note ?? '');
+    if (note.length > MAX_LEAD_NOTE_LENGTH) return res.status(400).json({ error: 'Заметка слишком длинная' });
     const target = db.prepare('SELECT role FROM users WHERE id = ?').get(targetId);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
     if (target.role !== 'tester') return res.status(400).json({ error: 'Заметки доступны только для тестировщиков' });

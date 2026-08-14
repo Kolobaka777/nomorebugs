@@ -4,12 +4,33 @@ import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
-import { CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT } from '../utils/theme';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
+// All three live in the one package in Tiptap v3 (the old 3-package split
+// — extension-details-summary/-content as separate installs — never got a
+// v3 release; @tiptap/extension-details now bundles them itself).
+import { Details, DetailsSummary, DetailsContent } from '@tiptap/extension-details';
+import DragHandle from '@tiptap/extension-drag-handle-react';
+import { CARD_BG, TEXT_MUTED, ACCENT } from '../utils/theme';
+
+// The shared block-rich-text editor used everywhere the app lets someone
+// write more than a one-line field — guides, course description/
+// requirements/lesson content, bug-example write-ups, glossary
+// definitions, a lead's note about a tester. (Everywhere, that is, except
+// the idea/complaint board — SuggestionsPage stays plain text on purpose,
+// per the "не тут" instruction that scoped this whole rollout.)
+// Originally guide-only (GuideEditor.tsx); generalized here once other
+// surfaces needed the same editor.
 
 // Same trade-off as user_profiles.custom_avatar (server/src/routes/profile.js)
 // — images live as base64 data URIs directly inside the document rather
 // than a separate file-upload endpoint, since none exists in this app.
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+// `common` covers the languages a QA tester actually pastes — JS/TS, JSON,
+// HTML/XML, CSS, Python, bash/shell, SQL, Java, etc. — without pulling in
+// highlight.js's full ~190-language grammar set into the bundle.
+const lowlight = createLowlight(common);
 
 function ToolbarButton({ active, onClick, children, label }: { active?: boolean; onClick: () => void; children: React.ReactNode; label: string }) {
   return (
@@ -37,24 +58,38 @@ function ToolbarButton({ active, onClick, children, label }: { active?: boolean;
 }
 
 interface Props {
-  content: any; // parsed Tiptap doc — see parseGuideContent
+  content: any; // parsed Tiptap doc — see utils/richContent.ts
   editable: boolean;
   onChangeJSON?: (json: string) => void;
+  placeholder?: string;
 }
 
-export default function GuideEditor({ content, editable, onChangeJSON }: Props) {
+export default function RichTextEditor({ content, editable, onChangeJSON, placeholder = 'Начни писать...' }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
-    extensions: [StarterKit, Image, Placeholder.configure({ placeholder: 'Начни писать...' })],
+    extensions: [
+      StarterKit.configure({ codeBlock: false }), // replaced by CodeBlockLowlight below
+      CodeBlockLowlight.configure({ lowlight }),
+      Image,
+      Placeholder.configure({ placeholder }),
+      // Toggle list ("▸ Список-тоггл" in the toolbar) — Notion calls this a
+      // "toggle list"; Tiptap models it as a <details>/<summary> triple.
+      // persist: true so a collapsed/expanded state survives a save+reload
+      // instead of always reopening (the extension's default).
+      Details.configure({ persist: true }),
+      DetailsSummary,
+      DetailsContent,
+    ],
     content,
     editable,
     onUpdate: ({ editor }) => onChangeJSON?.(JSON.stringify(editor.getJSON())),
   });
 
   // Read-only viewer instances get fresh content each time a different
-  // guide is opened — useEditor only applies `content` on first mount, so
-  // switching guides without this would keep showing the previous one.
+  // record is opened — useEditor only applies `content` on first mount, so
+  // switching guides/courses/etc. without this would keep showing the
+  // previous one.
   useEffect(() => {
     if (!editor) return;
     const current = JSON.stringify(editor.getJSON());
@@ -92,6 +127,7 @@ export default function GuideEditor({ content, editable, onChangeJSON }: Props) 
           <ToolbarButton label="Блок кода" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>{'</>'}</ToolbarButton>
           <ToolbarButton label="Нумерованный список" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>1.</ToolbarButton>
           <ToolbarButton label="Маркированный список" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}>•</ToolbarButton>
+          <ToolbarButton label="Список-тоггл" active={editor.isActive('details')} onClick={() => editor.chain().focus().setDetails().run()}>▸</ToolbarButton>
           <ToolbarButton label="Вставить картинку" onClick={() => fileInputRef.current?.click()}>🖼</ToolbarButton>
           <input
             ref={fileInputRef}
@@ -117,27 +153,26 @@ export default function GuideEditor({ content, editable, onChangeJSON }: Props) 
       )}
 
       <div
-        className={editable ? 'guide-editor-content pixel-input' : 'guide-editor-content'}
-        style={editable ? { minHeight: 240, padding: '10px 12px' } : undefined}
+        className={editable ? 'rich-text-content pixel-input' : 'rich-text-content'}
+        style={editable ? { minHeight: 240, padding: editable ? '10px 12px 10px 34px' : '10px 12px' } : undefined}
       >
+        {/* Drag-to-reorder handle — edit mode only, floats next to whatever
+            block the cursor is over. Read-only instances render the same
+            document without it since there's nothing to reorder there. */}
+        {editable && (
+          <DragHandle editor={editor}>
+            <div className="rich-text-drag-handle" aria-label="Перетащить блок" title="Перетащить блок">⠿</div>
+          </DragHandle>
+        )}
         <EditorContent editor={editor} />
       </div>
-
-      <style>{`
-        .guide-editor-content .tiptap { color: ${TEXT_PRIMARY}; font-family: inherit; font-size: 14px; line-height: 1.7; outline: none; }
-        .guide-editor-content .tiptap p { margin: 0.5em 0; }
-        .guide-editor-content .tiptap h1 { font-size: 20px; font-weight: 700; margin: 0.9em 0 0.4em; }
-        .guide-editor-content .tiptap h2 { font-size: 16px; font-weight: 600; margin: 0.8em 0 0.4em; }
-        .guide-editor-content .tiptap blockquote { border-left: 3px solid ${ACCENT}; padding-left: 12px; margin: 0.6em 0; color: ${TEXT_MUTED}; }
-        .guide-editor-content .tiptap pre { background: ${PAGE_BG}; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 13px; margin: 0.6em 0; }
-        .guide-editor-content .tiptap code { background: rgba(197, 198, 199, 0.12); color: #EF9F27; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
-        .guide-editor-content .tiptap pre code { background: none; color: inherit; padding: 0; }
-        .guide-editor-content .tiptap ul, .guide-editor-content .tiptap ol { margin: 0.5em 0; padding-left: 1.4em; }
-        .guide-editor-content .tiptap img { max-width: 100%; border-radius: 8px; margin: 0.6em 0; }
-        .guide-editor-content .tiptap p.is-editor-empty:first-child::before {
-          content: 'Начни писать...'; float: left; color: rgba(197, 198, 199, 0.4); pointer-events: none; height: 0;
-        }
-      `}</style>
+      {/* All styling for .rich-text-content/.rich-text-drag-handle lives in
+          index.css (global, not inline here) — see the comment at the top
+          of that section for why: this component mounts several times per
+          page in some places (CourseBuilderPage renders 3 at once), and an
+          inline per-instance <style> tag using the same selectors meant
+          whichever instance rendered last in the DOM won the cascade for
+          all of them, e.g. every editor showing the same placeholder text. */}
     </div>
   );
 }

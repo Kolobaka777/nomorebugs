@@ -1,10 +1,24 @@
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon, { IconName } from '../Icon';
+import Modal from '../Modal';
 import { TeamMember, PresenceEntry, getLevel } from '../../types';
 import { parseServerDate } from '../../utils/date';
 import { pickByGender } from '../../utils/gender';
+import { parseRichContent, richContentToPlainText } from '../../utils/richContent';
 import { ALL_PERMISSIONS, LEAVE_LABELS, PERMISSION_LABELS } from './constants';
 import { ACCENT, BADGE_NOTIFY, CARD_BG, CARD_SHADOW, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../../utils/theme';
+
+// Same lazy-split reasoning as GuidesPage.tsx.
+const RichTextEditor = lazy(() => import('../RichTextEditor'));
+
+function RichTextEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
+    </div>
+  );
+}
 
 interface ArchivedMember { id: number; name: string; avatar_initials: string; archived_at: string; gender?: 'male' | 'female' | null }
 interface Grant { id: number; user_id: number; permission: string; expires_at: string | null; granted_by_name?: string; granted_by_role?: string; granted_by_gender?: 'male' | 'female' | null }
@@ -59,6 +73,11 @@ export default function TeamTab({
   restoreMember: (memberId: number) => void;
 }) {
   const navigate = useNavigate();
+  // Which member's note modal is open, if any — the note itself now needs
+  // the full RichTextEditor toolbar, too heavy to mount once per row in a
+  // team list that can run to dozens of testers, so it opens in a modal
+  // instead of inline (unlike the old always-visible per-row textarea).
+  const [editingNoteFor, setEditingNoteFor] = useState<TeamMember | null>(null);
 
   return (
     <>
@@ -196,26 +215,23 @@ export default function TeamTab({
               </div>
 
               {/* Private lead notes — free-text characteristics, never
-                  shown to the tester themselves (see /api/lead/team). */}
+                  shown to the tester themselves (see /api/lead/team). Full
+                  editor lives in a modal (below); the row itself only
+                  shows a plain-text preview — see editingNoteFor above. */}
               <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>
-                <p className="font-geist text-xs uppercase mb-2" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Заметки (видно только лиду/админу)</p>
-                <textarea
-                  className="pixel-input w-full font-geist text-xs"
-                  style={{ minHeight: 56 }}
-                  value={noteValue(member)}
-                  onChange={e => setNoteDrafts(d => ({ ...d, [member.id]: e.target.value }))}
-                  placeholder="Например: сильна в вёрстке, можно доверять сложные вайты; иногда путает статусы задач..."
-                  maxLength={2000}
-                />
-                {noteValue(member) !== (member.lead_note ?? '') && (
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="font-geist text-xs uppercase" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Заметки (видно только лиду/админу)</p>
                   <button
-                    onClick={() => saveNote(member.id)}
-                    disabled={savingNoteId === member.id}
-                    className="btn-secondary text-xs px-3 py-1 mt-1.5 flex items-center gap-1.5"
+                    onClick={() => setEditingNoteFor(member)}
+                    className="text-xs font-geist cursor-pointer flex items-center gap-1 shrink-0"
+                    style={{ color: ACCENT }}
                   >
-                    {savingNoteId === member.id ? '...' : <><Icon name="floppy" size={13} color="currentColor" /> Сохранить заметку</>}
+                    <Icon name="pencil" size={12} color="currentColor" /> {member.lead_note ? 'Редактировать' : 'Добавить'}
                   </button>
-                )}
+                </div>
+                <p className="font-geist text-xs break-words" style={{ color: member.lead_note ? 'rgba(197, 198, 199,0.7)' : 'rgba(197, 198, 199,0.4)' }}>
+                  {member.lead_note ? richContentToPlainText(member.lead_note).slice(0, 140) || '(пусто)' : 'Заметок пока нет'}
+                </p>
               </div>
 
               {/* Scoped permissions — точечный доступ к разделам без
@@ -326,6 +342,29 @@ export default function TeamTab({
             </div>
           )}
         </div>
+      )}
+
+      {editingNoteFor && (
+        <Modal title={`Заметка: ${editingNoteFor.name}`} onClose={() => setEditingNoteFor(null)} maxWidth={640}>
+          <Suspense fallback={<RichTextEditorFallback />}>
+            <RichTextEditor
+              content={parseRichContent(noteValue(editingNoteFor))}
+              editable
+              onChangeJSON={json => setNoteDrafts(d => ({ ...d, [editingNoteFor.id]: json }))}
+              placeholder="Например: сильна в вёрстке, можно доверять сложные вайты; иногда путает статусы задач..."
+            />
+          </Suspense>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => { saveNote(editingNoteFor.id); setEditingNoteFor(null); }}
+              disabled={savingNoteId === editingNoteFor.id}
+              className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
+            >
+              {savingNoteId === editingNoteFor.id ? '...' : 'Сохранить'}
+            </button>
+            <button onClick={() => setEditingNoteFor(null)} className="btn-secondary text-xs px-4 py-2">Отмена</button>
+          </div>
+        </Modal>
       )}
     </>
   );

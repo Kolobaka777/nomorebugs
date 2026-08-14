@@ -1,8 +1,21 @@
+import { lazy, Suspense } from 'react';
 import Icon from '../Icon';
 import QuestionEditor from './QuestionEditor';
 import { emptyQuestion } from './types';
 import type { BLesson, BQuestion, PrerequisiteType } from './types';
+import { parseRichContent } from '../../utils/richContent';
 import { CARD_BG, TEXT_MUTED } from '../../utils/theme';
+
+// Same lazy-split reasoning as GuidesPage.tsx/CourseBuilderPage.tsx.
+const RichTextEditor = lazy(() => import('../RichTextEditor'));
+
+function RichTextEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю редактор...</div>
+    </div>
+  );
+}
 
 export default function LessonEditor({
   lesson,
@@ -123,14 +136,14 @@ export default function LessonEditor({
 
       {/* Content (lesson) */}
       {lesson.type === 'lesson' && (
-        <textarea
-          value={lesson.content}
-          onChange={e => onChange({ ...lesson, content: e.target.value })}
-          placeholder={`Содержимое урока...\n\nАбзацы разделяются пустой строкой. Поддерживается разметка:\n# Заголовок     ## Подзаголовок\n> Совет (подсветится как подсказка)\n! Предупреждение (подсветится как варнинг)\n- Пункт списка\n- Ещё пункт\n\`\`\`\nблок кода\n\`\`\``}
-          rows={6}
-          className="pixel-input text-xs resize-y"
-          style={{ lineHeight: 1.7, color: 'rgba(197, 198, 199, 0.75)' }}
-        />
+        <Suspense fallback={<RichTextEditorFallback />}>
+          <RichTextEditor
+            content={parseRichContent(lesson.content)}
+            editable
+            onChangeJSON={json => onChange({ ...lesson, content: json })}
+            placeholder="Содержимое урока..."
+          />
+        </Suspense>
       )}
 
       {/* Questions (quiz) */}

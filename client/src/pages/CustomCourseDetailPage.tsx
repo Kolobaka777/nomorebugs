@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -9,7 +9,21 @@ import { authFetch } from '../auth';
 import { leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { pickByGender } from '../utils/gender';
+import { parseRichContent } from '../utils/richContent';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+
+// Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
+// need the full Tiptap chunk to render, so it stays out of this page's own
+// (already lazy-routed) bundle until a course with content is actually open.
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+
+function RichTextEditorFallback() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю...</div>
+    </div>
+  );
+}
 
 interface Props {
   user: any;
@@ -244,7 +258,9 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="lg:col-span-2 space-y-6">
             {course.description && (
               <Panel title="О курсе">
-                <p className="font-geist text-sm leading-relaxed break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{course.description}</p>
+                <Suspense fallback={<RichTextEditorFallback />}>
+                  <RichTextEditor content={parseRichContent(course.description)} editable={false} />
+                </Suspense>
               </Panel>
             )}
 
@@ -334,7 +350,9 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="space-y-4">
             {course.requirements && (
               <Panel title="Требования" pad="p-5">
-                <p className="font-geist text-xs leading-relaxed break-words" style={{ color: TEXT_MUTED }}>{course.requirements}</p>
+                <Suspense fallback={<RichTextEditorFallback />}>
+                  <RichTextEditor content={parseRichContent(course.requirements)} editable={false} />
+                </Suspense>
               </Panel>
             )}
 

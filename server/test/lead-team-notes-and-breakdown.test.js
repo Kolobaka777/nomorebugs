@@ -52,15 +52,28 @@ describe('PATCH /api/lead/team/:id/note — private lead notes', () => {
     expect(res.status).toBe(400);
   });
 
-  it('caps an oversized note at 2000 characters instead of erroring', async () => {
-    const huge = 'x'.repeat(3000);
+  it('rejects an oversized note instead of silently truncating it', async () => {
+    // Truncating mid-string used to be safe when this was plain text; now
+    // it's a JSON-serialized Tiptap doc, and a truncated JSON string is a
+    // corrupted document, not just a shorter one — so oversized notes are
+    // rejected outright instead.
+    const huge = 'x'.repeat(200001);
     const res = await request(app)
       .patch(`/api/lead/team/${testerId}/note`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ note: huge });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a note up to the cap', async () => {
+    const atCap = 'x'.repeat(200000);
+    const res = await request(app)
+      .patch(`/api/lead/team/${testerId}/note`)
+      .set('Authorization', `Bearer ${leadToken}`)
+      .send({ note: atCap });
     expect(res.status).toBe(200);
     const team = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${leadToken}`);
-    expect(team.body.find(m => m.id === testerId).lead_note).toHaveLength(2000);
+    expect(team.body.find(m => m.id === testerId).lead_note).toHaveLength(200000);
   });
 
   it('an empty note clears it', async () => {
