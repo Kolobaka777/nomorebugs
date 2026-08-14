@@ -25,6 +25,10 @@ interface Props {
   profile: FullProfile;
   unlockedFrames: string[];
   unlockedBgs: string[];
+  // Which of the 9 frog avatars are already free-equip/purchased/earned —
+  // same "locked-but-purchasable/locked-behind-a-badge/free" split as
+  // frames/backgrounds (see MoyaNora's unlockedAvatars computation).
+  unlockedAvatars: string[];
   // Which achievements are actually earned — gates what can be picked for
   // the "Достижение напоказ" showcase (can't show off one you don't have).
   badgeIds: string[];
@@ -40,6 +44,7 @@ export default function ProfileEditModal({
   profile,
   unlockedFrames,
   unlockedBgs,
+  unlockedAvatars,
   badgeIds,
   onSave,
   onClose,
@@ -56,7 +61,7 @@ export default function ProfileEditModal({
   const [infoBox, setInfoBox]               = useState(profile.info_box || '');
   const [snailJoke, setSnailJoke]           = useState(profile.snail_joke || '');
   const [isPublic, setIsPublic]             = useState(profile.is_public);
-  const [avatarId, setAvatarId]             = useState<AvatarId>((profile.avatar_id as AvatarId) || 'bug1');
+  const [avatarId, setAvatarId]             = useState<AvatarId>((profile.avatar_id as AvatarId) || "frog1");
   const [frame, setFrame]                   = useState<FrameId>((profile.avatar_frame as FrameId) || 'default');
   const [bg, setBg]                         = useState<BgId>((profile.profile_bg as BgId) || 'default');
   const [accentColor, setAccentColor]       = useState(profile.profile_accent_color || ACCENT);
@@ -79,6 +84,7 @@ export default function ProfileEditModal({
   // ── Account tab: password/email/phone each own their own small form,
   //    each independently gated on the current password (server-enforced
   //    too — this is just so the button can't be clicked with it empty). ──
+  const [pwOpen, setPwOpen]                 = useState(true);
   const [currentPw, setCurrentPw]           = useState('');
   const [newPw, setNewPw]                   = useState('');
   const [confirmPw, setConfirmPw]           = useState('');
@@ -358,48 +364,24 @@ export default function ProfileEditModal({
           {/* ── LOOKS TAB ── */}
           {tab === 'looks' && (
             <>
-              {/* Avatar grid */}
-              <div>
-                <label style={labelStyle}>АВАТАР</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {AVATAR_LIST.map(av => (
-                    <button
-                      key={av.id}
-                      onClick={() => { setAvatarId(av.id); setCustomAvatar(null); }}
-                      className="flex flex-col items-center gap-1 p-2 rounded cursor-pointer transition-all"
-                      style={{
-                        background: avatarId === av.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                        boxShadow: avatarId === av.id
-                          ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
-                          : 'none',
-                      }}
-                    >
-                      <PixelAvatar id={av.id} size={40} />
-                      <span className="text-pixel/60 font-sans" style={{ fontSize: '0.6rem' }}>{av.name}</span>
-                    </button>
-                  ))}
-
-                  {/* Upload custom */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex flex-col items-center justify-center gap-1 p-2 rounded cursor-pointer transition-all"
-                    style={{
-                      background: avatarId === 'custom' ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                      boxShadow: avatarId === 'custom'
-                        ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
-                        : 'none',
-                      minHeight: 64,
-                    }}
-                  >
-                    {customAvatar
-                      ? <PixelAvatar id="custom" size={40} customSrc={customAvatar} />
-                      : <Icon name="camera" size={24} color="rgba(197, 198, 199,0.3)" />
-                    }
-                    <span className="text-pixel/60 font-sans" style={{ fontSize: '0.6rem' }}>
-                      {customAvatar ? 'Своя' : 'Загрузить'}
-                    </span>
-                  </button>
-                </div>
+              {/* Current-avatar preview + upload — mirrors the reference's
+                  top row: a big preview of what's equipped right now, with
+                  "Загрузить свой" as its own button next to it rather than
+                  a tile inside the avatar grid below. */}
+              <div className="flex items-center gap-3">
+                <PixelAvatar
+                  id={avatarId}
+                  frame={frame}
+                  size={84}
+                  customSrc={avatarId === 'custom' ? customAvatar : null}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 rounded-lg cursor-pointer flex items-center justify-center gap-2 py-3 font-geist text-xs font-semibold transition-colors"
+                  style={{ background: 'rgba(102, 252, 241,0.12)', color: '#66FCF1' }}
+                >
+                  Загрузить свой <Icon name="camera" size={14} color="currentColor" />
+                </button>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
               </div>
 
@@ -423,40 +405,88 @@ export default function ProfileEditModal({
                 </div>
               </div>
 
-              {/* Achievement showcase */}
+              {/* Achievement showcase — shows every real achievement, not
+                  just earned ones, so you can see what's still locked
+                  (greyed "?" tile); only earned ones are actually toggleable. */}
               <div>
                 <label style={labelStyle}>ДОСТИЖЕНИЕ НАПОКАЗ (до 3)</label>
-                {badgeIds.length === 0 ? (
-                  <p className="text-pixel/55 text-sm font-sans">Пока нет ачивок — они появятся здесь по мере получения</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {ACHIEVEMENTS_CATALOG.filter(a => badgeIds.includes(a.id)).map(a => {
-                      const meta = BADGE_META[a.id];
-                      const selected = showcase.includes(a.id);
-                      return (
-                        <button
-                          key={a.id}
-                          onClick={() => toggleShowcase(a.id)}
-                          title={meta?.name}
-                          className="rounded-lg flex items-center justify-center cursor-pointer transition-all"
-                          style={{
-                            width: 40, height: 40,
-                            background: selected ? `${meta?.color || ACCENT}25` : 'rgba(197, 198, 199,0.04)',
-                            border: `1.5px solid ${selected ? (meta?.color || ACCENT) : 'transparent'}`,
-                          }}
-                        >
-                          <Icon name={meta?.icon || 'trophy'} size={20} color={meta?.color || ACCENT} />
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {ACHIEVEMENTS_CATALOG.map(a => {
+                    const meta = BADGE_META[a.id];
+                    const earned = badgeIds.includes(a.id);
+                    const selected = showcase.includes(a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => earned && toggleShowcase(a.id)}
+                        disabled={!earned}
+                        title={earned ? meta?.name : `${meta?.name} — не получено`}
+                        className="rounded-lg flex items-center justify-center transition-all"
+                        style={{
+                          width: 40, height: 40, cursor: earned ? 'pointer' : 'default',
+                          background: selected ? `${meta?.color || ACCENT}25` : 'rgba(197, 198, 199,0.04)',
+                          border: `1.5px solid ${selected ? (meta?.color || ACCENT) : 'transparent'}`,
+                          opacity: earned ? 1 : 0.4,
+                        }}
+                      >
+                        {earned
+                          ? <Icon name={meta?.icon || 'trophy'} size={20} color={meta?.color || ACCENT} />
+                          : <span className="font-montserrat font-bold" style={{ fontSize: 14, color: 'rgba(197, 198, 199,0.5)' }}>?</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Frame gallery — locked-but-purchasable items get a "Купить"
-                  button right there instead of just being greyed out. */}
+              {/* Avatar gallery — most of the 9 frogs are free, one is a
+                  priced shop tile (price+name overlay), one unlocks with
+                  any earned badge (plain padlock overlay, no price). */}
               <div>
-                <label style={labelStyle}>РАМКА АВАТАРА</label>
+                <label style={labelStyle}>ДОСТУПНЫЕ АВАТАРЫ</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {AVATAR_LIST.map(av => {
+                    const locked = !unlockedAvatars.includes(av.id);
+                    const shopItem = shopItemFor('avatar', av.id);
+                    return (
+                      <button
+                        key={av.id}
+                        onClick={() => { if (!locked) { setAvatarId(av.id); setCustomAvatar(null); } else if (shopItem) buyItem(shopItem.id); }}
+                        disabled={locked && !shopItem}
+                        className="relative flex flex-col items-center gap-1 p-1 rounded-lg cursor-pointer overflow-hidden transition-all"
+                        style={{
+                          background: avatarId === av.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                          boxShadow: avatarId === av.id
+                            ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
+                            : 'none',
+                        }}
+                      >
+                        <PixelAvatar id={av.id} size={44} />
+                        {!locked && <span className="text-pixel/60 font-sans text-center break-words" style={{ fontSize: '0.55rem' }}>{av.name}</span>}
+                        {locked && shopItem && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-0.5" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
+                            <span className="font-sans text-center break-words" style={{ fontSize: '0.5rem', color: '#fff' }}>{av.name}</span>
+                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1 py-0.5" style={{ fontSize: '0.55rem', color: coins >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
+                              {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={8} color="currentColor" /></>}
+                            </span>
+                          </div>
+                        )}
+                        {locked && !shopItem && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
+                            <Icon name="lock" size={16} color="rgba(197, 198, 199,0.7)" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Frame gallery — empty swatches (just the border style, no
+                  avatar inside), matching the reference; locked-but-
+                  purchasable items get a "Купить" button right there
+                  instead of just being greyed out. */}
+              <div>
+                <label style={labelStyle}>ДОСТУПНЫЕ РАМКИ</label>
                 <div className="grid grid-cols-3 gap-2">
                   {FRAME_LIST.map(f => {
                     const locked = !effectiveUnlockedFrames.includes(f.id);
@@ -472,7 +502,7 @@ export default function ProfileEditModal({
                           background: frame === f.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
                         }}
                       >
-                        <PixelAvatar id="bug1" size={32} frame={f.id} />
+                        <PixelAvatar id="frog1" size={40} frame={f.id} empty />
                         <span className="text-pixel/60 font-sans text-center" style={{ fontSize: '0.55rem' }}>{f.name}</span>
                         {locked && shopItem ? (
                           <span
@@ -545,27 +575,32 @@ export default function ProfileEditModal({
             <>
               <div>
                 <button
-                  onClick={() => {}}
-                  className="w-full flex items-center justify-between cursor-default"
-                  style={{ ...labelStyle, marginBottom: 10 }}
+                  onClick={() => setPwOpen(o => !o)}
+                  className="w-full flex items-center justify-between cursor-pointer"
+                  style={{ ...labelStyle, marginBottom: pwOpen ? 10 : 0 }}
                 >
                   <span>СМЕНИТЬ ПАРОЛЬ</span>
+                  <Icon name={pwOpen ? 'chevronUp' : 'chevronDown'} size={12} color="currentColor" />
                 </button>
-                <div className="space-y-2">
-                  <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Введите старый пароль" style={inputStyle} />
-                  <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Введите новый пароль" style={inputStyle} />
-                  <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повторите новый пароль" style={inputStyle} />
-                </div>
-                {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: '#e05252' }}>{pwError}</p>}
-                {pwSuccess && <p className="text-xs font-sans mt-1" style={{ color: '#4ADE80' }}>Пароль изменён</p>}
-                <button
-                  onClick={changePassword}
-                  disabled={pwSaving || !currentPw || !newPw || !confirmPw}
-                  className="mt-2 px-4 py-2 rounded font-sans text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
-                  style={{ background: 'rgba(102, 252, 241,0.15)', color: '#66FCF1', opacity: pwSaving || !currentPw || !newPw || !confirmPw ? 0.5 : 1 }}
-                >
-                  {pwSaving ? '...' : 'Сохранить пароль'}
-                </button>
+                {pwOpen && (
+                  <>
+                    <div className="space-y-2">
+                      <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Введите старый пароль" style={inputStyle} />
+                      <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Введите новый пароль" style={inputStyle} />
+                      <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повторите новый пароль" style={inputStyle} />
+                    </div>
+                    {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: '#e05252' }}>{pwError}</p>}
+                    {pwSuccess && <p className="text-xs font-sans mt-1" style={{ color: '#4ADE80' }}>Пароль изменён</p>}
+                    <button
+                      onClick={changePassword}
+                      disabled={pwSaving || !currentPw || !newPw || !confirmPw}
+                      className="mt-2 px-4 py-2 rounded font-sans text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
+                      style={{ background: 'rgba(102, 252, 241,0.15)', color: '#66FCF1', opacity: pwSaving || !currentPw || !newPw || !confirmPw ? 0.5 : 1 }}
+                    >
+                      {pwSaving ? '...' : 'Сохранить пароль'}
+                    </button>
+                  </>
+                )}
               </div>
 
               <div style={{ borderTop: '1px solid rgba(102, 252, 241,0.1)', paddingTop: 16 }}>

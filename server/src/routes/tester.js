@@ -453,6 +453,10 @@ const SHOP_CATALOG = {
   'frame_glitch':  { cost: 300, label: 'Глитч-рамка' },
   'bg_hive':       { cost: 150, label: 'Фон «Улей»' },
   'bg_amber':      { cost: 250, label: 'Фон «Янтарь»' },
+  // First premium avatar (see PixelAvatar.tsx's frog set) — the rest of the
+  // 9 default frog avatars stay free/always-equippable, matching the
+  // reference design's shop screen which prices exactly one avatar tile.
+  'avatar_frog1':  { cost: 120, label: 'Лягуха Кваки' },
 };
 
 router.post('/api/tester/shop/buy', authMiddleware, (req, res) => {

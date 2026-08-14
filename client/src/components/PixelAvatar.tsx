@@ -1,7 +1,22 @@
 /**
- * 8 pixel-art bug avatars (64×64, each "pixel" = 4 SVG units in 0-64 space).
+ * Avatar registry — real cross-stitch frog images (client/src/assets/
+ * images/frogN.png, supplied by the user for the profile redesign)
+ * replace the old procedural bug-SVG set as of 2026-08-14. The original 8
+ * bug sprites are kept below as LEGACY_BUG_AVATARS purely so any account
+ * still holding an old avatar_id ('bug1'..'bug8') keeps rendering something
+ * recognizable instead of a blank tile — they're no longer offered in any
+ * picker UI.
  * Also exports the AvatarFrame wrapper and avatar/frame metadata.
  */
+import frog1 from '../assets/images/frog1.png';
+import frog2 from '../assets/images/frog2.png';
+import frog3 from '../assets/images/frog3.png';
+import frog4 from '../assets/images/frog4.png';
+import frog5 from '../assets/images/frog5.png';
+import frog6 from '../assets/images/frog6.png';
+import frog7 from '../assets/images/frog7.png';
+import frog8 from '../assets/images/frog8.png';
+import frog9 from '../assets/images/frog9.png';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
@@ -239,8 +254,23 @@ const MYSTERY: R[] = [
   [8,8,4,40,C.dblk],[52,8,4,40,C.dblk],
 ];
 
-// ── Avatar registry ───────────────────────────────────────────────────────────
+// ── Avatar registry — frog set (real images) ───────────────────────────────────
 export const AVATAR_LIST = [
+  { id: 'frog1', name: 'Кваки',        img: frog1 },
+  { id: 'frog2', name: 'Синька',       img: frog2 },
+  { id: 'frog3', name: 'Апельсинка',   img: frog3 },
+  { id: 'frog4', name: 'Уголёк',       img: frog4 },
+  { id: 'frog5', name: 'Бублик',       img: frog5 },
+  { id: 'frog6', name: 'Валентинка',   img: frog6 },
+  { id: 'frog7', name: 'Красноглазка', img: frog7 },
+  { id: 'frog8', name: 'Пушок',        img: frog8 },
+  { id: 'frog9', name: 'Детектив',     img: frog9 },
+] as const;
+
+// Old procedural bug sprites — no longer selectable, kept only so an
+// existing avatar_id from before the frog reskin still renders (see file
+// header comment). Not exported from AVATAR_LIST on purpose.
+const LEGACY_BUG_AVATARS = [
   { id: 'bug1', name: 'Божья коровка', rects: LADYBUG },
   { id: 'bug2', name: 'Зелёный жук',   rects: BEETLE },
   { id: 'bug3', name: 'Паук',          rects: SPIDER },
@@ -251,7 +281,7 @@ export const AVATAR_LIST = [
   { id: 'bug8', name: '???',           rects: MYSTERY },
 ] as const;
 
-export type AvatarId = (typeof AVATAR_LIST)[number]['id'] | 'custom';
+export type AvatarId = (typeof AVATAR_LIST)[number]['id'] | (typeof LEGACY_BUG_AVATARS)[number]['id'] | 'custom';
 
 // ── Frame registry ────────────────────────────────────────────────────────────
 export type FrameId = 'default' | 'gold' | 'rainbow' | 'glitch' | 'crown' | 'code' | 'crimescene';
@@ -308,6 +338,11 @@ interface PixelAvatarProps {
   size?: number;
   customSrc?: string | null; // base64 or URL for custom upload
   animate?: boolean;
+  // Renders just the frame on a plain empty square, no avatar image at all —
+  // used by the shop/editor's frame gallery, which (per the reference
+  // design) previews the border style on its own rather than wrapped around
+  // a specific avatar.
+  empty?: boolean;
 }
 
 export default function PixelAvatar({
@@ -316,8 +351,10 @@ export default function PixelAvatar({
   size = 64,
   customSrc,
   animate = false,
+  empty = false,
 }: PixelAvatarProps) {
-  const avatar = AVATAR_LIST.find(a => a.id === id);
+  const avatar = !empty ? AVATAR_LIST.find(a => a.id === id) : undefined;
+  const legacyBug = !empty && !avatar ? LEGACY_BUG_AVATARS.find(a => a.id === id) : undefined;
 
   return (
     <div className="relative inline-block" style={{ width: size, height: size, flexShrink: 0 }}>
@@ -357,11 +394,19 @@ export default function PixelAvatar({
       )}
 
       {/* Avatar content */}
-      {customSrc ? (
+      {empty ? (
+        <div style={{ width: size, height: size, background: 'rgba(197, 198, 199,0.04)' }} />
+      ) : customSrc ? (
         <img
           src={customSrc}
           alt="avatar"
           style={{ width: size, height: size, objectFit: 'cover', imageRendering: 'pixelated' }}
+        />
+      ) : avatar ? (
+        <img
+          src={avatar.img}
+          alt={avatar.name}
+          style={{ width: size, height: size, objectFit: 'cover', imageRendering: 'pixelated', display: 'block' }}
         />
       ) : (
         <svg
@@ -372,7 +417,7 @@ export default function PixelAvatar({
         >
           {/* Dark bg */}
           <rect x="0" y="0" width="64" height="64" fill="#0B0C10" />
-          {avatar && <Sprite rects={avatar.rects} />}
+          {legacyBug && <Sprite rects={legacyBug.rects} />}
           {/* Firefly glow overlay */}
           {id === 'bug5' && animate && (
             <rect x="16" y="40" width="32" height="16" fill="rgba(245,224,96,0.3)"

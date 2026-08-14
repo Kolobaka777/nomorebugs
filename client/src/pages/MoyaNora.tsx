@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
-import LevelBadge from '../components/LevelBadge';
 import SnailLoader from '../components/SnailLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
@@ -11,7 +10,7 @@ import {
   Lecture, TestHistoryItem, SKillChart,
   FullProfile, getLevel, PresenceEntry, CourseFavorite, CourseNoteGroup,
 } from '../types';
-import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
+import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId, type AvatarId } from '../components/PixelAvatar';
 import Icon, { IconName } from '../components/Icon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
@@ -20,12 +19,12 @@ import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { shopItemFor } from '../utils/shop';
 import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE, BADGE_BG, BADGE_BORDER,
+  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, BADGE_BG, BADGE_BORDER,
 } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
-type Tab = 'favorites' | 'notes' | 'collection' | 'shop';
+type Tab = 'favorites' | 'notes' | 'shop' | 'collection' | 'presence';
 
 // ── Rarity ───────────────────────────────────────────────────────────────────
 const RARITY_COLORS = { common: ACCENT, rare: '#7F77DD', epic: '#EF9F27' };
@@ -79,44 +78,38 @@ function Panel({ children, className = '', pad = 'p-5', style, onClick }: {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="font-montserrat font-semibold mb-3" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{children}</p>;
+function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <p className="font-montserrat font-semibold" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{children}</p>
+      {right}
+    </div>
+  );
 }
 
-// A plain divider-separated quick-link row, matching HomePage's LinkRow —
-// same white-text/teal-hover pattern, reused here for Избранное/Заметки/
-// Магазин instead of duplicating the styling.
-function QuickLinkRow({ icon, label, onClick, showDivider, disabled, disabledLabel }: {
-  icon: IconName; label: string; onClick: () => void; showDivider: boolean;
-  // Coming-soon variant: no click, lock glyph instead of the usual icon, a
-  // small "БУДЕТ ПОЗЖЕ" badge instead of the chevron.
-  disabled?: boolean; disabledLabel?: string;
+// Sidebar navigation row — replaces the old horizontal tab-chip bar with a
+// vertical "you are here" list (per the reference design): active row is a
+// filled accent pill with the chevron pointing back into the row, inactive
+// rows are plain text with a muted chevron pointing forward and a small
+// tinted icon chip naming the section.
+function NavRow({ icon, label, color, active, onClick }: {
+  icon: IconName; label: string; color: string; active: boolean; onClick: () => void;
 }) {
   return (
-    <>
-      <button
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
-        className="group w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg transition-colors"
-        style={{ color: disabled ? TEXT_MUTED : '#FFFFFF', cursor: disabled ? 'default' : 'pointer' }}
-        onMouseEnter={e => { if (!disabled) { e.currentTarget.style.color = PAGE_BG; e.currentTarget.style.background = ACCENT; } }}
-        onMouseLeave={e => { if (!disabled) { e.currentTarget.style.color = '#FFFFFF'; e.currentTarget.style.background = 'transparent'; } }}
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+      style={{ background: active ? color : 'transparent', color: active ? PAGE_BG : 'rgba(197, 198, 199,0.75)' }}
+    >
+      <Icon name={active ? 'chevronLeft' : 'chevronRight'} size={16} color={active ? PAGE_BG : 'rgba(197, 198, 199,0.35)'} />
+      <span className="font-geist text-xs font-semibold flex-1 text-left" style={{ letterSpacing: TRACK_WIDE }}>{label.toUpperCase()}</span>
+      <span
+        className="rounded-full flex items-center justify-center shrink-0"
+        style={{ width: 26, height: 26, background: active ? 'rgba(0, 0, 0, 0.18)' : `${color}20` }}
       >
-        <Icon name={disabled ? 'lock' : icon} size={22} color="currentColor" />
-        <span className="font-geist text-sm flex-1" style={{ letterSpacing: TRACK_WIDE }}>{label.toUpperCase()}</span>
-        {disabled ? (
-          <span
-            className="font-geist font-semibold shrink-0 rounded"
-            style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: TEXT_MUTED, background: 'rgba(197, 198, 199,0.08)', padding: '3px 7px' }}
-          >
-            {disabledLabel || 'БУДЕТ ПОЗЖЕ'}
-          </span>
-        ) : (
-          <Icon name="chevronRight" size={22} color="currentColor" />
-        )}
-      </button>
-      {showDivider && <div style={{ width: 200, maxWidth: '100%', height: 1, background: SECONDARY, marginLeft: 12 }} />}
-    </>
+        <Icon name={icon} size={14} color={active ? PAGE_BG : color} />
+      </span>
+    </button>
   );
 }
 
@@ -261,6 +254,11 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   const badgeIds       = profile?.badges.map(b => b.badge_id) || [];
   const purchased      = profile?.purchased_items || [];
+  // Personal accent — the "Цветовая схема" picker in the edit modal, applied
+  // here to everything that reads as "your" color (level box, edit button,
+  // active nav row, Магазин's "own" icon) instead of always the site's
+  // fixed teal — otherwise that picker would have no visible effect at all.
+  const accent = profile?.profile_accent_color || ACCENT;
 
   const unlockedFrames = ['default', 'code',
     ...(badgeIds.length > 0 || purchased.includes('frame_gold')    ? ['gold']       : []),
@@ -273,6 +271,21 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     ...(badgeIds.length > 0 || purchased.includes('bg_hive')  ? ['hive']  : []),
     ...(badgeIds.length >= 5 || purchased.includes('bg_amber') ? ['amber'] : []),
   ];
+  // Avatars: most of the 9 frogs are free-equip; 'frog1' is the shop's one
+  // priced tile (see server SHOP_CATALOG), 'frog9' unlocks the first time
+  // any badge is earned — mirrors the reference design's mixed price-lock/
+  // achievement-lock/free avatar grid instead of leaving everything free.
+  const unlockedAvatars = ['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8',
+    ...(purchased.includes('avatar_frog1') ? ['frog1'] : []),
+    ...(badgeIds.length > 0 ? ['frog9'] : []),
+  ];
+
+  // The single achievement chosen to show off (edit modal's "Достижение
+  // напоказ", up to 3 picked — only the first is featured here, matching
+  // the reference's single highlighted card).
+  const showcaseId = profile?.showcase_badges?.[0];
+  const showcaseMeta = showcaseId ? BADGE_META[showcaseId] : undefined;
+  const showcaseDescription = showcaseId ? ACHIEVEMENTS_CATALOG.find(a => a.id === showcaseId)?.description : undefined;
 
   const handleCraft = async (skill_area: string) => {
     setCrafting(skill_area);
@@ -315,7 +328,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       setProfile(p => p ? { ...p, ...patch } : p);
       if (patch.avatar_id !== undefined || patch.avatar_frame !== undefined) {
         primeAvatarCache(user.id, {
-          avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'bug1',
+          avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'frog1',
           avatar_frame: patch.avatar_frame ?? profile?.avatar_frame ?? 'default',
           custom_avatar: profile?.custom_avatar ?? null,
         });
@@ -325,13 +338,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     }
   };
 
-  const buyAndEquip = async (itemId: string, kind: 'frame' | 'bg', refId: string) => {
+  const buyAndEquip = async (itemId: string, kind: 'frame' | 'bg' | 'avatar', refId: string) => {
     setShopError('');
     setShopBuyingId(itemId);
     try {
       const res = await testerApi.buyShopItem(itemId);
       setProfile(p => p ? { ...p, bug_coins: res.data.newCoins, purchased_items: [...p.purchased_items, itemId] } : p);
-      await equipItem(kind === 'frame' ? { avatar_frame: refId } : { profile_bg: refId });
+      await equipItem(kind === 'frame' ? { avatar_frame: refId } : kind === 'bg' ? { profile_bg: refId } : { avatar_id: refId });
     } catch (e: any) {
       setShopError(e?.response?.data?.error || 'Не удалось купить');
     } finally {
@@ -339,11 +352,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     }
   };
 
-  const TABS: { id: Tab; label: string; icon: IconName }[] = [
-    { id: 'favorites',  label: 'Избранное',   icon: 'star'      },
-    { id: 'notes',      label: 'Заметки',     icon: 'memo'      },
-    { id: 'shop',       label: 'Магазин',     icon: 'card'      },
-    { id: 'collection', label: 'Коллекция',   icon: 'floppy'    },
+  const NAV_ITEMS: { id: Tab; label: string; icon: IconName; color: string }[] = [
+    { id: 'favorites',  label: 'Избранное',      icon: 'star',  color: '#EF9F27' },
+    { id: 'notes',      label: 'Заметки',        icon: 'memo',  color: '#e05252' },
+    { id: 'shop',       label: 'Магазин',        icon: 'card',  color: accent },
+    { id: 'collection', label: 'Коллекция',      icon: 'floppy', color: '#7F77DD' },
+    { id: 'presence',   label: 'Рабочее время',  icon: 'clock', color: TEXT_MUTED },
   ];
 
   const defaultProfile = {
@@ -351,7 +365,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     avatar_initials: user.avatar_initials,
     created_at: new Date().toISOString(),
     nickname: user.name, status_quote: '', specialization: '',
-    info_box: '', snail_joke: '', avatar_id: 'bug1',
+    info_box: '', snail_joke: '', avatar_id: 'frog1',
     avatar_frame: 'default', profile_bg: 'default', profile_accent_color: ACCENT,
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
@@ -361,13 +375,18 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     coursesProposed: 0, coursesApproved: 0, guidesProposed: 0, guidesApproved: 0,
   } as FullProfile;
 
-  const totalTasks = taskCounts.reduce((s, t) => s + t.count, 0);
   const badgeCount = profile?.badges?.length ?? 0;
   // The chosen profile background theme (unlocked via badges/shop) still
   // applies here, just to the flat card's fill instead of the old RPG
   // window — otherwise picking one in the profile editor would have no
   // visible effect anymore.
   const bgStyle = BG_LIST.find(b => b.id === (profile?.profile_bg as BgId))?.style || {};
+
+  const statItems = [
+    { label: 'КУРСОВ ПРОЙДЕНО',        value: completed },
+    { label: 'ТОЧНОСТЬ ПРОХОЖДЕНИЯ',   value: `${metrics?.averageScore || 0}%` },
+    ...(premiumPoints ? [{ label: 'ПРЕМИАЛЬНЫЕ БАЛЛЫ', value: premiumPoints.premium_points }] : []),
+  ];
 
   return (
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
@@ -378,6 +397,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           profile={profile ?? defaultProfile}
           unlockedFrames={unlockedFrames}
           unlockedBgs={unlockedBgs}
+          unlockedAvatars={unlockedAvatars}
           badgeIds={badgeIds}
           onPurchase={(item_id, newCoins) => {
             setProfile(p => p ? { ...p, bug_coins: newCoins, purchased_items: [...p.purchased_items, item_id] } : p);
@@ -391,7 +411,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             // keeping the stale one until some unrelated cache eviction.
             if (patch.avatar_id !== undefined || patch.avatar_frame !== undefined || patch.custom_avatar !== undefined) {
               primeAvatarCache(user.id, {
-                avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'bug1',
+                avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'frog1',
                 avatar_frame: patch.avatar_frame ?? profile?.avatar_frame ?? 'default',
                 custom_avatar: patch.custom_avatar !== undefined ? patch.custom_avatar : (profile?.custom_avatar ?? null),
               });
@@ -404,29 +424,22 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       <div className="max-w-6xl mx-auto px-8 pt-16 pb-16 fade-in">
 
         {/* ══════════════════════════════════════════════════════════
-            PROFILE HERO — flat card, same language as HomePage/course
-            pages: rounded-lg, CARD_BG, soft shadow. Replaces the old
-            HoMM-style beveled character window.
+            PROFILE HERO — identity card (big square avatar + name/quote
+            + stat boxes) on the left, level/showcase card + edit button
+            on the right. Matches the reference 1:1 layout.
         ══════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* LEFT: identity card */}
           <Panel className="lg:col-span-2" pad="p-6" style={bgStyle}>
             <div className="flex flex-col sm:flex-row gap-6">
-              <div className="shrink-0 flex flex-col items-center gap-3">
+              <div className="shrink-0">
                 <PixelAvatar
-                  id={(profile?.avatar_id || 'bug1') as any}
+                  id={(profile?.avatar_id || 'frog1') as AvatarId}
                   frame={(profile?.avatar_frame || 'default') as FrameId}
-                  size={88}
+                  size={132}
                   customSrc={profile?.custom_avatar}
                   animate
                 />
-                <button
-                  onClick={() => setShowEdit(true)}
-                  className="rounded-lg font-geist font-semibold cursor-pointer flex items-center gap-1.5 px-3 py-1.5"
-                  style={{ fontSize: 12, background: `${ACCENT}18`, color: ACCENT }}
-                >
-                  <Icon name="pencil" size={12} color="currentColor" /> Изменить
-                </button>
               </div>
 
               <div className="flex-1 min-w-0">
@@ -451,9 +464,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   <p className="font-geist text-xs mb-2 break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
                 )}
                 {profile?.status_quote && (
-                  <p className="font-geist text-sm italic mb-3 break-words" style={{ color: 'rgba(197, 198, 199,0.7)', borderLeft: `2px solid ${ACCENT}40`, paddingLeft: 10 }}>
+                  <p className="font-geist text-sm italic mb-2 break-words" style={{ color: 'rgba(197, 198, 199,0.7)', borderLeft: `2px solid ${accent}40`, paddingLeft: 10 }}>
                     "{profile.status_quote}"
                   </p>
+                )}
+                {profile?.info_box && (
+                  <p className="font-geist text-xs mb-3 break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{profile.info_box}</p>
                 )}
 
                 <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 font-geist text-xs" style={{ color: TEXT_MUTED }}>
@@ -461,82 +477,59 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                     <span>В гильдии с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   )}
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {[
-                    { label: 'Пройдено',  value: completed,                        color: ACCENT },
-                    { label: 'Точность',  value: `${metrics?.averageScore || 0}%`,  color: '#EF9F27' },
-                    ...(premiumPoints ? [{ label: 'Премиальные баллы', value: premiumPoints.premium_points, color: '#7F77DD' }] : []),
-                  ].map((m, i) => (
-                    <div key={i} className="rounded-lg p-3 text-center" style={{ background: 'rgba(197, 198, 199,0.04)' }}>
-                      <p className="font-geist" style={{ fontSize: 11, color: TEXT_MUTED }}>{m.label}</p>
-                      <p className="font-montserrat font-bold mt-0.5" style={{ color: m.color, fontSize: 17 }}>{m.value}</p>
-                    </div>
-                  ))}
-                </div>
+              {/* Stat boxes — stacked, right-aligned, matching the
+                  reference's two bordered boxes beside the identity block. */}
+              <div className="flex sm:flex-col gap-2 shrink-0" style={{ minWidth: 0 }}>
+                {statItems.map((m, i) => (
+                  <div key={i} className="rounded-lg px-4 py-2.5 text-right" style={{ background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(197, 198, 199,0.15)', minWidth: 150 }}>
+                    <p className="font-montserrat font-bold" style={{ fontSize: 19, color: TEXT_PRIMARY }}>{m.value}</p>
+                    <p className="font-geist" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{m.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </Panel>
 
-          {/* RIGHT: level + achievements + next-course CTA */}
-          <div className="space-y-4">
+          {/* RIGHT: level + achievement showcase + edit button */}
+          <div className="space-y-3">
             <Panel pad="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <LevelBadge lecturesCompleted={completed} size="sm" />
-                <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: ACCENT }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: ACCENT }} /> ONLINE
+              <div className="flex items-center justify-between mb-3">
+                <div className="rounded-lg flex items-center gap-2 px-3 py-1.5" style={{ border: `2px solid ${accent}` }}>
+                  <Icon name={level.icon as IconName} size={18} color={accent} />
+                  <div>
+                    <p className="font-montserrat font-bold" style={{ fontSize: 12, color: accent, lineHeight: 1.15, letterSpacing: TRACK_WIDE }}>{level.name.toUpperCase()}</p>
+                    <p className="font-geist" style={{ fontSize: 9, color: TEXT_MUTED }}>{completed}/10 курсов</p>
+                  </div>
+                </div>
+                <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: accent }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} /> ONLINE
                 </span>
               </div>
 
-              <button onClick={() => setAchievementsExpanded(v => !v)} className="w-full flex items-center justify-between cursor-pointer mb-3">
-                <span className="font-montserrat font-semibold" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Достижения {badgeCount}</span>
-                <Icon name={achievementsExpanded ? 'chevronUp' : 'chevronDown'} size={16} color={TEXT_MUTED} />
-              </button>
-              {!achievementsExpanded ? (
-                badgeCount > 0 ? (
-                  <div className="flex flex-wrap gap-2 mb-1">
-                    {profile!.badges.slice(0, 8).map(b => {
-                      const meta = BADGE_META[b.badge_id];
-                      return (
-                        <div
-                          key={b.id}
-                          title={meta?.name || b.badge_id}
-                          className="rounded-lg flex items-center justify-center"
-                          style={{ width: 34, height: 34, background: `${meta?.color || ACCENT}18`, border: `1px solid ${meta?.color || ACCENT}40` }}
-                        >
-                          <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || ACCENT} />
-                        </div>
-                      );
-                    })}
+              {showcaseMeta && (
+                <div className="rounded-lg p-3 flex items-center gap-3" style={{ background: `${accent}12`, border: `1px solid ${accent}30` }}>
+                  <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 36, height: 36, background: `${showcaseMeta.color}20` }}>
+                    <Icon name={showcaseMeta.icon} size={20} color={showcaseMeta.color} />
                   </div>
-                ) : (
-                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Пока нет ачивок — пройди первую лекцию</p>
-                )
-              ) : (
-                // Full catalog — every real achievement, earned or not, with
-                // what actually earns it (see ACHIEVEMENTS_CATALOG's
-                // descriptions, mirroring routeHelpers.js's ACHIEVEMENT_IDS
-                // triggers). Locked ones show greyed-out with the same
-                // description, so it doubles as "how do I get this".
-                <div className="space-y-2">
-                  {ACHIEVEMENTS_CATALOG.map(a => {
-                    const meta = BADGE_META[a.id];
-                    const earned = badgeIds.includes(a.id);
-                    return (
-                      <div key={a.id} className="flex items-center gap-3 rounded-lg p-2" style={{ background: earned ? `${meta?.color || ACCENT}10` : 'rgba(197, 198, 199,0.03)', opacity: earned ? 1 : 0.55 }}>
-                        <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: `${meta?.color || ACCENT}18`, border: `1px solid ${meta?.color || ACCENT}40` }}>
-                          <Icon name={meta?.icon || 'trophy'} size={18} color={meta?.color || ACCENT} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-geist font-semibold text-xs break-words" style={{ color: earned ? TEXT_PRIMARY : TEXT_MUTED }}>{meta?.name}</p>
-                          <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{a.description}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className="min-w-0">
+                    <p className="font-geist font-semibold text-xs break-words" style={{ color: TEXT_PRIMARY }}>{showcaseMeta.name}</p>
+                    {showcaseDescription && (
+                      <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{showcaseDescription}</p>
+                    )}
+                  </div>
                 </div>
               )}
             </Panel>
+
+            <button
+              onClick={() => setShowEdit(true)}
+              className="w-full rounded-lg font-geist font-semibold cursor-pointer flex items-center justify-center gap-2 py-3 transition-all hover:brightness-110"
+              style={{ background: accent, color: PAGE_BG, fontSize: 14 }}
+            >
+              Редактировать профиль <Icon name="pencil" size={16} color={PAGE_BG} />
+            </button>
 
             {/* Proposals — only shown once the tester has actually
                 submitted one, so it doesn't clutter the cabinet for
@@ -551,7 +544,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         <Icon name="lightbulb" size={14} color={TEXT_MUTED} /> Курсов предложено
                       </span>
                       <span className="font-montserrat font-bold text-sm" style={{ color: TEXT_PRIMARY }}>
-                        {profile.coursesProposed} <span style={{ color: ACCENT, fontSize: 11 }}>({profile.coursesApproved} одобрено)</span>
+                        {profile.coursesProposed} <span style={{ color: accent, fontSize: 11 }}>({profile.coursesApproved} одобрено)</span>
                       </span>
                     </div>
                   )}
@@ -561,7 +554,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         <Icon name="books" size={14} color={TEXT_MUTED} /> Гайдов предложено
                       </span>
                       <span className="font-montserrat font-bold text-sm" style={{ color: TEXT_PRIMARY }}>
-                        {profile.guidesProposed} <span style={{ color: ACCENT, fontSize: 11 }}>({profile.guidesApproved} одобрено)</span>
+                        {profile.guidesProposed} <span style={{ color: accent, fontSize: 11 }}>({profile.guidesApproved} одобрено)</span>
                       </span>
                     </div>
                   )}
@@ -582,83 +575,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* LEFT column: presence + tabs */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* ══════════════════════════════════════════════════════
-                МОЁ РАБОЧЕЕ ВРЕМЯ — powers "работают сейчас" on the team
-                dashboard and the team news feed's vacation start/end items.
-            ══════════════════════════════════════════════════════ */}
-            <Panel pad="p-5">
-              <SectionLabel>Моё рабочее время</SectionLabel>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <div>
-                  <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Начало</label>
-                  <select value={presenceForm.work_start} onChange={e => setPresenceForm(f => ({ ...f, work_start: e.target.value }))} className="pixel-input">
-                    <option value="">—</option>
-                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Конец</label>
-                  <select value={presenceForm.work_end} onChange={e => setPresenceForm(f => ({ ...f, work_end: e.target.value }))} className="pixel-input">
-                    <option value="">—</option>
-                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Own full-width row — timezone labels ("Владивосток (UTC+10)")
-                  were getting clipped sharing a quarter-width column with the
-                  three short fields above. */}
-              <div className="mb-3">
-                <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Часовой пояс</label>
-                <select value={presenceForm.timezone} onChange={e => setPresenceForm(f => ({ ...f, timezone: e.target.value }))} className="pixel-input w-full">
-                  {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-1 mb-3">
-                {WEEKDAY_LABELS.map(([d, label]) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => togglePresenceDay(d)}
-                    className="flex-1 py-1.5 rounded-lg text-xs font-geist cursor-pointer"
-                    style={{ background: presenceForm.days.has(d) ? `${ACCENT}20` : 'rgba(197, 198, 199,0.04)', color: presenceForm.days.has(d) ? ACCENT : TEXT_MUTED }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={savePresence} disabled={savingPresence} className="btn-secondary text-xs px-4 py-2 disabled:opacity-50">
-                {savingPresence ? '...' : 'Сохранить'}
-              </button>
-              {myPresence?.currentLeave && (
-                <p className="text-xs font-geist mt-3" style={{ color: '#EF9F27' }}>
-                  Сейчас отмечено: {LEAVE_LABELS[myPresence.currentLeave.type]}
-                  {myPresence.currentLeave.end_date ? ` до ${myPresence.currentLeave.end_date}` : ' (без даты окончания)'} — изменить может тимлид.
-                </p>
-              )}
-            </Panel>
-
-            {/* ══════════════════════════════════════════════════════
-                TAB BAR
-            ══════════════════════════════════════════════════════ */}
-            <div className="flex flex-wrap gap-1.5">
-              {TABS.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className="rounded-lg font-geist font-semibold cursor-pointer px-3.5 py-2 flex items-center gap-1.5 transition-colors"
-                  style={{
-                    fontSize: 13,
-                    background: tab === t.id ? ACCENT : 'rgba(197, 198, 199,0.06)',
-                    color: tab === t.id ? PAGE_BG : 'rgba(197, 198, 199,0.6)',
-                  }}
-                >
-                  <Icon name={t.icon} size={22} color="currentColor" />
-                  {t.label}
-                </button>
-              ))}
-            </div>
+          {/* LEFT column: active tab content only — which tab is chosen from
+              the sidebar nav list on the right, not a horizontal tab bar. */}
+          <div className="lg:col-span-2">
 
             {/* ══════════════════════════════════════════════════════
                 FAVORITES
@@ -674,12 +593,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   {favorites.map(f => (
                     <Panel key={`${f.course_type}-${f.course_id}`} className="flex items-center gap-4">
                       <div className="flex-1 min-w-0">
-                        <span className="font-geist font-semibold rounded px-2 py-0.5 inline-block mb-1" style={{ fontSize: 11, background: `${f.color || ACCENT}20`, color: f.color || ACCENT }}>{f.tag}</span>
+                        <span className="font-geist font-semibold rounded px-2 py-0.5 inline-block mb-1" style={{ fontSize: 11, background: `${f.color || accent}20`, color: f.color || accent }}>{f.tag}</span>
                         <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>{f.title}</p>
                         <p className="font-geist text-xs mt-0.5 break-words" style={{ color: TEXT_MUTED }}>
                           {f.course_type === 'custom'
                             ? `${f.totalLessons} урок${f.totalLessons === 1 ? '' : 'ов'} · ${f.totalModules} модул${f.totalModules === 1 ? 'ь' : 'я'} · ${f.totalTests} тест${f.totalTests === 1 ? '' : 'а'}`
-                            : f.score != null ? <span style={{ color: ACCENT }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}
+                            : f.score != null ? <span style={{ color: accent }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}
                         </p>
                       </div>
                       <button
@@ -718,18 +637,18 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>
                           {g.title} <span style={{ color: TEXT_MUTED, fontWeight: 400 }}>({g.notes.length})</span>
                         </p>
-                        <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${g.color || ACCENT}20`, color: g.color || ACCENT }}>{g.tag}</span>
+                        <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${g.color || accent}20`, color: g.color || accent }}>{g.tag}</span>
                       </div>
                       <div className="space-y-2">
                         {g.notes.map((n, i) => (
                           <div key={n.id} className="group rounded-lg p-3" style={{ background: 'rgba(197, 198, 199,0.04)' }}>
                             <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="font-geist font-semibold shrink-0" style={{ fontSize: 12, color: ACCENT }}>{i + 1}</span>
+                              <span className="font-geist font-semibold shrink-0" style={{ fontSize: 12, color: accent }}>{i + 1}</span>
                               <span className="font-geist text-xs flex-1 min-w-0 break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
                                 {n.module_title ? `${n.module_title} › ` : ''}{n.lesson_title}
                               </span>
                               <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-2 shrink-0">
-                                <button onClick={() => navigate(`/custom-course/${g.course_id}/learn`)} className="font-geist text-xs cursor-pointer flex items-center gap-1" style={{ color: ACCENT }}>
+                                <button onClick={() => navigate(`/custom-course/${g.course_id}/learn`)} className="font-geist text-xs cursor-pointer flex items-center gap-1" style={{ color: accent }}>
                                   Перейти к заметке <Icon name="chevronRight" size={14} color="currentColor" />
                                 </button>
                                 <button onClick={() => deleteNote(n.id)} aria-label="Удалить заметку" className="cursor-pointer flex items-center" style={{ color: '#e05252' }}>
@@ -748,8 +667,10 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             )}
 
             {/* ══════════════════════════════════════════════════════
-                SHOP — avatars (all free-equip today, more coming),
-                frames/backgrounds (real bug_coins purchases).
+                SHOP — avatars (mostly free-equip, one priced + one
+                achievement-locked), frames/backgrounds (real bug_coins
+                purchases). Frame/bg tiles preview just the border/fill
+                style itself (empty swatch), matching the reference.
             ══════════════════════════════════════════════════════ */}
             {tab === 'shop' && (
               <div className="space-y-6">
@@ -761,29 +682,48 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </div>
 
                 <div>
-                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>АВАТАРЫ</p>
+                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                    АВАТАРЫ <Icon name="chevronUp" size={12} color={TEXT_MUTED} />
+                  </p>
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                     {AVATAR_LIST.map(av => {
-                      const equipped = (profile?.avatar_id || 'bug1') === av.id;
+                      const equipped = (profile?.avatar_id || 'frog1') === av.id;
+                      const locked = !unlockedAvatars.includes(av.id);
+                      const shopItem = shopItemFor('avatar', av.id);
                       return (
                         <button
                           key={av.id}
-                          onClick={() => !equipped && equipItem({ avatar_id: av.id })}
-                          className="relative flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
-                          style={{ background: equipped ? `${ACCENT}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? ACCENT : 'transparent'}` }}
+                          onClick={() => { if (!locked) equipItem({ avatar_id: av.id }); else if (shopItem) buyAndEquip(shopItem.id, 'avatar', av.id); }}
+                          disabled={locked && !shopItem}
+                          className="relative flex flex-col items-center gap-1 p-1.5 rounded-lg cursor-pointer overflow-hidden transition-all"
+                          style={{ background: equipped ? `${accent}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? accent : 'transparent'}` }}
                         >
-                          {equipped && <Icon name="check" size={12} color={ACCENT} className="absolute top-1 right-1" />}
-                          <PixelAvatar id={av.id} size={44} />
-                          <span className="font-geist text-center break-words" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{av.name}</span>
+                          {equipped && <Icon name="check" size={12} color={accent} className="absolute top-1 right-1 z-10" />}
+                          <PixelAvatar id={av.id} size={56} />
+                          {!locked && <span className="font-geist text-center break-words" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{av.name}</span>}
+                          {locked && shopItem && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-1" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
+                              <span className="font-geist font-semibold text-center break-words" style={{ fontSize: 9, color: '#fff' }}>{av.name}</span>
+                              <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
+                                {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
+                              </span>
+                            </div>
+                          )}
+                          {locked && !shopItem && (
+                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
+                              <Icon name="lock" size={18} color="rgba(197, 198, 199,0.7)" />
+                            </div>
+                          )}
                         </button>
                       );
                     })}
                   </div>
-                  <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Новые аватарки скоро появятся здесь</p>
                 </div>
 
                 <div>
-                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>РАМКИ</p>
+                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                    РАМКИ <Icon name="chevronDown" size={12} color={TEXT_MUTED} />
+                  </p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {FRAME_LIST.map(f => {
                       const equipped = (profile?.avatar_frame || 'default') === f.id;
@@ -795,9 +735,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                           onClick={() => { if (!locked) equipItem({ avatar_frame: f.id }); else if (shopItem) buyAndEquip(shopItem.id, 'frame', f.id); }}
                           disabled={locked && !shopItem}
                           className="flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
-                          style={{ background: equipped ? `${ACCENT}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? ACCENT : 'transparent'}`, opacity: locked && !shopItem ? 0.4 : 1 }}
+                          style={{ background: equipped ? `${accent}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? accent : 'transparent'}`, opacity: locked && !shopItem ? 0.4 : 1 }}
                         >
-                          <PixelAvatar id="bug1" size={36} frame={f.id} />
+                          <PixelAvatar id="frog1" size={44} frame={f.id} empty />
                           <span className="font-geist text-center" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{f.name}</span>
                           {locked && shopItem && (
                             <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.4)', background: 'rgba(239,159,39,0.1)' }}>
@@ -812,7 +752,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </div>
 
                 <div>
-                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>ФОН</p>
+                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                    ФОН <Icon name="chevronDown" size={12} color={TEXT_MUTED} />
+                  </p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {BG_LIST.map(bItem => {
                       const equipped = (profile?.profile_bg || 'default') === bItem.id;
@@ -824,7 +766,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                           onClick={() => { if (!locked) equipItem({ profile_bg: bItem.id }); else if (shopItem) buyAndEquip(shopItem.id, 'bg', bItem.id); }}
                           disabled={locked && !shopItem}
                           className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
-                          style={{ ...bItem.style, border: equipped ? `2px solid ${ACCENT}` : '2px solid transparent', opacity: locked && !shopItem ? 0.45 : 1, minHeight: 60 }}
+                          style={{ ...bItem.style, border: equipped ? `2px solid ${accent}` : '2px solid transparent', opacity: locked && !shopItem ? 0.45 : 1, minHeight: 60 }}
                         >
                           <span className="font-geist text-center" style={{ fontSize: 10, color: '#C5C6C7' }}>{bItem.name}</span>
                           {locked && shopItem && (
@@ -877,7 +819,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       const meta = BADGE_META[b.badge_id];
                       return (
                         <div key={b.id} className="rounded-lg p-3 flex items-center gap-2" style={{ background: 'rgba(197, 198, 199,0.04)' }}>
-                          <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || ACCENT} />
+                          <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || accent} />
                           <span className="font-geist text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>{meta?.name || b.badge_id}</span>
                         </div>
                       );
@@ -900,41 +842,148 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </div>
               </div>
             )}
+
+            {/* ══════════════════════════════════════════════════════
+                МОЁ РАБОЧЕЕ ВРЕМЯ — powers "работают сейчас" on the team
+                dashboard and the team news feed's vacation start/end items.
+                Moved in here as its own sidebar-nav tab (was a
+                permanently-visible panel above the tab bar) so the left
+                column always shows exactly one active section, matching
+                the reference layout.
+            ══════════════════════════════════════════════════════ */}
+            {tab === 'presence' && (
+              <Panel pad="p-5">
+                <SectionLabel>Моё рабочее время</SectionLabel>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Начало</label>
+                    <select value={presenceForm.work_start} onChange={e => setPresenceForm(f => ({ ...f, work_start: e.target.value }))} className="pixel-input">
+                      <option value="">—</option>
+                      {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Конец</label>
+                    <select value={presenceForm.work_end} onChange={e => setPresenceForm(f => ({ ...f, work_end: e.target.value }))} className="pixel-input">
+                      <option value="">—</option>
+                      {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {/* Own full-width row — timezone labels ("Владивосток (UTC+10)")
+                    were getting clipped sharing a quarter-width column with the
+                    three short fields above. */}
+                <div className="mb-3">
+                  <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Часовой пояс</label>
+                  <select value={presenceForm.timezone} onChange={e => setPresenceForm(f => ({ ...f, timezone: e.target.value }))} className="pixel-input w-full">
+                    {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {WEEKDAY_LABELS.map(([d, label]) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => togglePresenceDay(d)}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-geist cursor-pointer"
+                      style={{ background: presenceForm.days.has(d) ? `${accent}20` : 'rgba(197, 198, 199,0.04)', color: presenceForm.days.has(d) ? accent : TEXT_MUTED }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={savePresence} disabled={savingPresence} className="btn-secondary text-xs px-4 py-2 disabled:opacity-50">
+                  {savingPresence ? '...' : 'Сохранить'}
+                </button>
+                {myPresence?.currentLeave && (
+                  <p className="text-xs font-geist mt-3" style={{ color: '#EF9F27' }}>
+                    Сейчас отмечено: {LEAVE_LABELS[myPresence.currentLeave.type]}
+                    {myPresence.currentLeave.end_date ? ` до ${myPresence.currentLeave.end_date}` : ' (без даты окончания)'} — изменить может тимлид.
+                  </p>
+                )}
+              </Panel>
+            )}
           </div>
 
-          {/* RIGHT column: quick links + stats */}
+          {/* RIGHT column: achievements panel + sidebar nav (replaces the
+              old separate quick-links row + horizontal tab bar). */}
           <div className="space-y-4">
+            <Panel pad="p-5">
+              <SectionLabel right={<span className="font-montserrat font-bold" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{badgeCount}</span>}>Достижения</SectionLabel>
+              {!achievementsExpanded ? (
+                badgeCount > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {profile!.badges.slice(0, 5).map(b => {
+                      const meta = BADGE_META[b.badge_id];
+                      return (
+                        <div
+                          key={b.id}
+                          title={meta?.name || b.badge_id}
+                          className="rounded-lg flex items-center justify-center"
+                          style={{ width: 34, height: 34, background: `${meta?.color || accent}18`, border: `1px solid ${meta?.color || accent}40` }}
+                        >
+                          <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || accent} />
+                        </div>
+                      );
+                    })}
+                    <button
+                      onClick={() => setAchievementsExpanded(true)}
+                      aria-label="Показать все достижения"
+                      className="rounded-lg flex items-center justify-center cursor-pointer"
+                      style={{ width: 34, height: 34, background: 'rgba(197, 198, 199,0.06)', color: TEXT_MUTED, fontSize: 18, letterSpacing: 1 }}
+                    >
+                      •••
+                    </button>
+                  </div>
+                ) : (
+                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Пока нет ачивок — пройди первую лекцию</p>
+                )
+              ) : (
+                // Full catalog — every real achievement, earned or not, with
+                // what actually earns it (see ACHIEVEMENTS_CATALOG's
+                // descriptions, mirroring routeHelpers.js's ACHIEVEMENT_IDS
+                // triggers). Locked ones show greyed-out with the same
+                // description, so it doubles as "how do I get this".
+                <div className="space-y-2">
+                  {ACHIEVEMENTS_CATALOG.map(a => {
+                    const meta = BADGE_META[a.id];
+                    const earned = badgeIds.includes(a.id);
+                    return (
+                      <div key={a.id} className="flex items-center gap-3 rounded-lg p-2" style={{ background: earned ? `${meta?.color || accent}10` : 'rgba(197, 198, 199,0.03)', opacity: earned ? 1 : 0.55 }}>
+                        <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: `${meta?.color || accent}18`, border: `1px solid ${meta?.color || accent}40` }}>
+                          <Icon name={meta?.icon || 'trophy'} size={18} color={meta?.color || accent} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-geist font-semibold text-xs break-words" style={{ color: earned ? TEXT_PRIMARY : TEXT_MUTED }}>{meta?.name}</p>
+                          <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{a.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() => setAchievementsExpanded(false)}
+                    className="w-full text-center cursor-pointer font-geist text-xs pt-1"
+                    style={{ color: accent }}
+                  >
+                    Свернуть
+                  </button>
+                </div>
+              )}
+            </Panel>
+
             <Panel pad="p-2">
-              <QuickLinkRow icon="star" label="Избранное" onClick={() => setTab('favorites')} showDivider />
-              <QuickLinkRow icon="memo" label="Заметки" onClick={() => setTab('notes')} showDivider />
-              <QuickLinkRow icon="card" label="Магазин" onClick={() => setTab('shop')} showDivider={false} />
+              {NAV_ITEMS.map(n => (
+                <NavRow key={n.id} icon={n.icon} label={n.label} color={n.color} active={tab === n.id} onClick={() => setTab(n.id)} />
+              ))}
             </Panel>
 
             {/* "Статистика" (per-task-type counts — Прелендинг/Оффер/Вайт/etc.)
                 temporarily pulled, same as Чеклисты elsewhere (Navigation.tsx,
                 App.tsx) — these task types belong to the checklist feature,
-                which is off for now. Commented out, not deleted; taskCounts/
-                totalTasks above are left wired up so this drops back in
-                as-is once checklists come back. */}
-            {/* <Panel pad="p-5">
-              <SectionLabel>Статистика</SectionLabel>
-              {taskCounts.length > 0 ? (
-                <div className="space-y-3">
-                  {taskCounts.map(t => (
-                    <div key={t.task_type} className="flex items-center justify-between">
-                      <span className="font-geist font-semibold" style={{ fontSize: 12, color: t.color, letterSpacing: TRACK_WIDE }}>{t.name.toUpperCase()}</span>
-                      <span className="font-montserrat font-bold" style={{ fontSize: 13, color: t.count > 0 ? t.color : TEXT_MUTED }}>{t.count}</span>
-                    </div>
-                  ))}
-                  <div className="pt-2 flex items-center justify-between" style={{ borderTop: '1px solid rgba(197, 198, 199,0.08)' }}>
-                    <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>ВСЕГО</span>
-                    <span className="font-montserrat font-bold text-sm" style={{ color: TEXT_PRIMARY }}>{totalTasks}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Нет данных</p>
-              )}
-            </Panel> */}
+                which is off for now. taskCounts above is left wired up so
+                this drops back in as-is once checklists come back; see git
+                history for the removed markup rather than keeping a large
+                dead JSX block here. */}
           </div>
         </div>
       </div>

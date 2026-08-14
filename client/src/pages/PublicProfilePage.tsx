@@ -96,7 +96,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
         >
           <div className="flex items-center gap-4 mb-4">
             <PixelAvatar
-              id={(('avatar_id' in profile && profile.avatar_id) || 'bug1') as any}
+              id={(('avatar_id' in profile && profile.avatar_id) || 'frog1') as any}
               frame={(('avatar_frame' in profile && profile.avatar_frame) || 'default') as FrameId}
               size={72}
               customSrc={'custom_avatar' in profile ? profile.custom_avatar : null}

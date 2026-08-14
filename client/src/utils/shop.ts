@@ -8,19 +8,20 @@ export interface ShopItem {
   id: string;
   cost: number;
   label: string;
-  kind: 'frame' | 'bg';
-  refId: string; // FrameId / BgId this item unlocks, see PixelAvatar.tsx
+  kind: 'frame' | 'bg' | 'avatar';
+  refId: string; // FrameId / BgId / AvatarId this item unlocks, see PixelAvatar.tsx
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
-  { id: 'frame_gold',    cost: 200, label: 'Золотая рамка', kind: 'frame', refId: 'gold' },
-  { id: 'frame_rainbow', cost: 350, label: 'Рамка-радуга',  kind: 'frame', refId: 'rainbow' },
-  { id: 'frame_glitch',  cost: 300, label: 'Глитч-рамка',   kind: 'frame', refId: 'glitch' },
-  { id: 'bg_hive',       cost: 150, label: 'Фон «Улей»',    kind: 'bg',    refId: 'hive' },
-  { id: 'bg_amber',      cost: 250, label: 'Фон «Янтарь»',  kind: 'bg',    refId: 'amber' },
+  { id: 'frame_gold',    cost: 200, label: 'Золотая рамка', kind: 'frame',  refId: 'gold' },
+  { id: 'frame_rainbow', cost: 350, label: 'Рамка-радуга',  kind: 'frame',  refId: 'rainbow' },
+  { id: 'frame_glitch',  cost: 300, label: 'Глитч-рамка',   kind: 'frame',  refId: 'glitch' },
+  { id: 'bg_hive',       cost: 150, label: 'Фон «Улей»',    kind: 'bg',     refId: 'hive' },
+  { id: 'bg_amber',      cost: 250, label: 'Фон «Янтарь»',  kind: 'bg',     refId: 'amber' },
+  { id: 'avatar_frog1',  cost: 120, label: 'Лягуха Кваки',  kind: 'avatar', refId: 'frog1' },
 ];
 
-export function shopItemFor(kind: 'frame' | 'bg', refId: string): ShopItem | undefined {
+export function shopItemFor(kind: 'frame' | 'bg' | 'avatar', refId: string): ShopItem | undefined {
   return SHOP_ITEMS.find(i => i.kind === kind && i.refId === refId);
 }
 

@@ -94,7 +94,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
     avatar_initials: user.avatar_initials,
     created_at: new Date().toISOString(),
     nickname: user.name, status_quote: '', specialization: '',
-    info_box: '', snail_joke: '', avatar_id: 'bug1',
+    info_box: '', snail_joke: '', avatar_id: 'frog1',
     avatar_frame: 'default', profile_bg: 'default', profile_accent_color: ACCENT,
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
@@ -207,6 +207,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
           profile={shown}
           unlockedFrames={['default', 'code']}
           unlockedBgs={['default', 'forest', 'console']}
+          unlockedAvatars={['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8']}
           badgeIds={shown.badges?.map(b => b.badge_id) || []}
           onSave={patch => {
             setProfile(p => ({ ...(p ?? defaultProfile), ...patch }));
