@@ -282,10 +282,25 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   // The single achievement chosen to show off (edit modal's "Достижение
   // напоказ", up to 3 picked — only the first is featured here, matching
-  // the reference's single highlighted card).
-  const showcaseId = profile?.showcase_badges?.[0];
+  // the reference's single highlighted card). Falls back to the next
+  // not-yet-earned achievement as a goal teaser when nothing's picked (or
+  // the pick was for a badge since lost relevance) — the reference always
+  // has something in this slot, never an empty gap, and "closest real goal"
+  // is honest data rather than a fabricated placeholder.
+  const pickedShowcaseId = profile?.showcase_badges?.find(id => badgeIds.includes(id));
+  const nextGoal = !pickedShowcaseId ? ACHIEVEMENTS_CATALOG.find(a => !badgeIds.includes(a.id)) : undefined;
+  const showcaseId = pickedShowcaseId ?? nextGoal?.id;
   const showcaseMeta = showcaseId ? BADGE_META[showcaseId] : undefined;
   const showcaseDescription = showcaseId ? ACHIEVEMENTS_CATALOG.find(a => a.id === showcaseId)?.description : undefined;
+  const showcaseIsGoal = !pickedShowcaseId && !!nextGoal;
+
+  // A compact numeric rank (1-5) derived from the real tier system
+  // (getLevel's Яйцо→Матёрый жук ladder) — the reference's LEVEL box is a
+  // big bold number + "LEVEL" caption, not a tier name, so this maps the
+  // existing honest progression data onto that visual instead of inventing
+  // an unrelated score.
+  const LEVEL_NAMES = ['Яйцо', 'Личинка', 'Куколка', 'Жук', 'Матёрый жук', 'Королева улья'];
+  const levelRank = Math.max(1, LEVEL_NAMES.indexOf(level.name) + 1);
 
   const handleCraft = async (skill_area: string) => {
     setCrafting(skill_area);
@@ -496,12 +511,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           <div className="space-y-3">
             <Panel pad="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="rounded-lg flex items-center gap-2 px-3 py-1.5" style={{ border: `2px solid ${accent}` }}>
-                  <Icon name={level.icon as IconName} size={18} color={accent} />
-                  <div>
-                    <p className="font-montserrat font-bold" style={{ fontSize: 12, color: accent, lineHeight: 1.15, letterSpacing: TRACK_WIDE }}>{level.name.toUpperCase()}</p>
-                    <p className="font-geist" style={{ fontSize: 9, color: TEXT_MUTED }}>{completed}/10 курсов</p>
-                  </div>
+                <div className="rounded-lg flex items-baseline gap-1.5 px-3 py-1.5" title={level.name} style={{ border: `2px solid ${accent}` }}>
+                  <span className="font-montserrat font-bold" style={{ fontSize: 22, color: accent, lineHeight: 1 }}>{levelRank}</span>
+                  <span className="font-geist font-semibold" style={{ fontSize: 11, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>LEVEL</span>
                 </div>
                 <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: accent }}>
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} /> ONLINE
@@ -509,16 +521,22 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
               </div>
 
               {showcaseMeta && (
-                <div className="rounded-lg p-3 flex items-center gap-3" style={{ background: `${accent}12`, border: `1px solid ${accent}30` }}>
+                <div className="rounded-lg p-3 flex items-center gap-3 relative" style={{ background: `${accent}12`, border: `1px solid ${accent}30`, opacity: showcaseIsGoal ? 0.75 : 1 }}>
                   <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 36, height: 36, background: `${showcaseMeta.color}20` }}>
                     <Icon name={showcaseMeta.icon} size={20} color={showcaseMeta.color} />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-geist font-semibold text-xs break-words" style={{ color: TEXT_PRIMARY }}>{showcaseMeta.name}</p>
                     {showcaseDescription && (
                       <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{showcaseDescription}</p>
                     )}
                   </div>
+                  <span
+                    className="font-geist font-semibold rounded shrink-0 self-start"
+                    style={{ fontSize: 9, letterSpacing: TRACK_WIDE, padding: '2px 6px', color: showcaseIsGoal ? TEXT_MUTED : accent, background: showcaseIsGoal ? 'rgba(197, 198, 199,0.1)' : `${accent}20` }}
+                  >
+                    {showcaseIsGoal ? 'ЦЕЛЬ' : 'НАПОКАЗ'}
+                  </span>
                 </div>
               )}
             </Panel>
