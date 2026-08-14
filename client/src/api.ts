@@ -55,6 +55,12 @@ export const authApi = {
   changePassword: (current_password: string, new_password: string) =>
     api.put('/me/password', { current_password, new_password }),
 
+  changeEmail: (current_password: string, new_email: string) =>
+    api.put('/me/email', { current_password, new_email }),
+
+  changePhone: (current_password: string, new_phone: string) =>
+    api.put('/me/phone', { current_password, new_phone }),
+
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token: string, new_password: string) => api.post('/auth/reset-password', { token, new_password }),
 };
@@ -125,6 +131,17 @@ export const testerApi = {
   submitFinalSurvey: (data: any) => api.post('/tester/final-survey', data),
 
   buyShopItem: (item_id: string) => api.post('/tester/shop/buy', { item_id }),
+
+  getFavorites: () => api.get('/tester/favorites'),
+  addFavorite: (course_type: 'lecture' | 'custom', course_id: number) =>
+    api.post('/tester/favorites', { course_type, course_id }),
+  removeFavorite: (course_type: 'lecture' | 'custom', course_id: number) =>
+    api.delete(`/tester/favorites/${course_type}/${course_id}`),
+
+  getNotes: () => api.get('/tester/notes'),
+  addNote: (data: { course_id: number; lesson_id?: number | null; lesson_title: string; text: string }) =>
+    api.post('/tester/notes', data),
+  deleteNote: (id: number) => api.delete(`/tester/notes/${id}`),
 };
 
 export const leadApi = {

@@ -474,6 +474,59 @@ router.put('/api/me/password', authMiddleware, passwordChangeLimiter, (req, res)
   }
 });
 
+// Self-service email/phone change — same shape as the password route
+// above (current-password gate, same rate limiter): these are account
+// security fields, not ordinary profile cosmetics, so they don't belong on
+// the no-auth-check PUT /api/tester/profile route. Neither sends a
+// verification email/SMS (no such infrastructure exists in this app) — the
+// current-password requirement is the only safeguard, same trust model the
+// app already uses for password resets triggered by a lead.
+router.put('/api/me/email', authMiddleware, passwordChangeLimiter, (req, res) => {
+  try {
+    const { current_password, new_email } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !bcryptjs.compareSync(current_password || '', user.password)) {
+      return res.status(401).json({ error: 'Текущий пароль неверен' });
+    }
+    const email = String(new_email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Некорректный email' });
+
+    try {
+      db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, user.id);
+    } catch (err) {
+      if (isUniqueConstraintError(err)) return res.status(400).json({ error: 'Эта почта уже занята' });
+      throw err;
+    }
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'email_changed');
+    res.json({ ok: true, email });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+const PHONE_RE = /^[+\d][\d\s\-()]{5,19}$/;
+
+router.put('/api/me/phone', authMiddleware, passwordChangeLimiter, (req, res) => {
+  try {
+    const { current_password, new_phone } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !bcryptjs.compareSync(current_password || '', user.password)) {
+      return res.status(401).json({ error: 'Текущий пароль неверен' });
+    }
+    const phone = String(new_phone || '').trim();
+    // Empty is allowed — clearing the phone back out.
+    if (phone && !PHONE_RE.test(phone)) return res.status(400).json({ error: 'Некорректный номер телефона' });
+
+    db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone || null, user.id);
+    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'phone_changed');
+    res.json({ ok: true, phone: phone || null });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Lead/admin — resets someone else's password to a random temporary one,
 // delivered via whichever notification channel they have (Telegram first,
 // email fallback — see notifyUser), and forces a change on next login. A

@@ -90,12 +90,12 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
   }, []);
 
   const defaultProfile: FullProfile = {
-    id: user.id, email: user.email, name: user.name,
+    id: user.id, email: user.email, name: user.name, phone: null,
     avatar_initials: user.avatar_initials,
     created_at: new Date().toISOString(),
     nickname: user.name, status_quote: '', specialization: '',
     info_box: '', snail_joke: '', avatar_id: 'bug1',
-    avatar_frame: 'default', profile_bg: 'default',
+    avatar_frame: 'default', profile_bg: 'default', profile_accent_color: ACCENT,
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
@@ -205,9 +205,9 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
       {editing && (
         <ProfileEditModal
           profile={shown}
-          passedLectures={[]}
           unlockedFrames={['default', 'code']}
           unlockedBgs={['default', 'forest', 'console']}
+          badgeIds={shown.badges?.map(b => b.badge_id) || []}
           onSave={patch => {
             setProfile(p => ({ ...(p ?? defaultProfile), ...patch }));
             // Keeps the nav dropdown's name in sync — it reads the shared

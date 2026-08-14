@@ -48,7 +48,7 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
 // sections read as one design language, not two.
 function CourseCard({
   modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
-  statsLabel, onClick, clickable, editHref, onEdit, onDelete, teamCount,
+  statsLabel, onClick, clickable, editHref, onEdit, onDelete, teamCount, isFavorited, onToggleFavorite,
 }: {
   modulesLabel: string;
   tag: string;
@@ -71,6 +71,8 @@ function CourseCard({
   onEdit?: () => void;
   onDelete?: () => void;
   teamCount?: number;
+  isFavorited?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   return (
     <div className="relative h-full group">
@@ -161,6 +163,16 @@ function CourseCard({
         </div>
 
         <h3 className="font-montserrat font-semibold flex items-start gap-2 mb-4" style={{ fontSize: 15, lineHeight: 1.4, color: TEXT_PRIMARY }}>
+          {onToggleFavorite && (
+            <button
+              onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
+              aria-label={isFavorited ? 'Убрать из избранного' : 'Добавить в избранное'}
+              className="shrink-0 cursor-pointer flex items-center mt-0.5"
+              style={{ color: isFavorited ? '#EF9F27' : 'rgba(197, 198, 199,0.3)' }}
+            >
+              <Icon name="star" size={15} color="currentColor" />
+            </button>
+          )}
           <span className="flex-1 break-words min-w-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
           {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-0.5" />}
         </h3>
@@ -200,6 +212,34 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const [loadError, setLoadError] = useState('');
   // Real per-lecture pass counts, lead/admin only — see loadLectures below.
   const [lectureStatsById, setLectureStatsById] = useState<Record<number, { passedCount: number; totalTesters: number }>>({});
+  // `${course_type}:${course_id}` keys — a Set is enough here, the catalog
+  // card only needs to know "is this one starred", not the full favorite
+  // detail (that's what the profile's own Избранное tab renders).
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    testerApi.getFavorites().then(r => setFavoriteKeys(new Set(r.data.map((f: any) => `${f.course_type}:${f.course_id}`))))
+      .catch(() => {}); // Non-critical — the star just won't show as filled yet, no toast needed.
+  }, []);
+
+  const toggleFavorite = (courseType: 'lecture' | 'custom', courseId: number) => {
+    const key = `${courseType}:${courseId}`;
+    const wasFavorited = favoriteKeys.has(key);
+    setFavoriteKeys(prev => {
+      const next = new Set(prev);
+      wasFavorited ? next.delete(key) : next.add(key);
+      return next;
+    });
+    const call = wasFavorited ? testerApi.removeFavorite(courseType, courseId) : testerApi.addFavorite(courseType, courseId);
+    call.catch((err: any) => {
+      showApiError(err, wasFavorited ? 'Не удалось убрать из избранного' : 'Не удалось добавить в избранное');
+      setFavoriteKeys(prev => {
+        const next = new Set(prev);
+        wasFavorited ? next.add(key) : next.delete(key);
+        return next;
+      });
+    });
+  };
 
   const loadLectures = () => {
     setLoading(true);
@@ -578,6 +618,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
                       onDelete={isLead ? () => deleteCourse(cc.id, cc.title) : undefined}
                       teamCount={isLead ? cc.totalTesters : undefined}
+                      isFavorited={favoriteKeys.has(`custom:${cc.id}`)}
+                      onToggleFavorite={() => toggleFavorite('custom', cc.id)}
                     />
                   </div>
                 );
@@ -614,6 +656,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                   statsLabel={stats ? `${stats.passedCount}/${stats.totalTesters} прошли` : ''}
                   clickable={canOpen}
                   onClick={() => canOpen && navigate(`/lecture/${lecture.id}/quiz`)}
+                  isFavorited={favoriteKeys.has(`lecture:${lecture.id}`)}
+                  onToggleFavorite={() => toggleFavorite('lecture', lecture.id)}
                 />
               );
             })}
@@ -726,6 +770,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                           onEdit={isLead ? () => navigate(`/lead/course-builder/${cc.id}`) : undefined}
                           onDelete={isLead ? () => deleteCourse(cc.id, cc.title) : undefined}
                           teamCount={isLead ? cc.totalTesters : undefined}
+                          isFavorited={favoriteKeys.has(`custom:${cc.id}`)}
+                          onToggleFavorite={() => toggleFavorite('custom', cc.id)}
                         />
                         </div>
                         {(() => {

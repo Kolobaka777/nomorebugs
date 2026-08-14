@@ -984,6 +984,69 @@ export function initDb() {
   if (!suggestionsCols.includes('answered_at')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_at DATETIME DEFAULT NULL');
   if (!suggestionsCols.includes('answered_by')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_by INTEGER DEFAULT NULL REFERENCES users(id)');
 
+  // Self-service contact-info change (Аккаунт tab of the profile editor) —
+  // no phone column existed anywhere before. Nullable, no format
+  // enforcement at the DB layer (validated lightly in routes/auth.js).
+  const usersColsForPhone = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!usersColsForPhone.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL');
+
+  // Personal profile accent color — a small self-expression touch alongside
+  // avatar/frame/background, used to tint the cabinet hero card border and
+  // a few accent details on the owner's own profile (and on their public
+  // profile, so teammates see the same color). Free to change any time, no
+  // shop/unlock gate — unlike frames/backgrounds this isn't a scarce
+  // cosmetic, just a personal preference.
+  if (!profileCols.includes('profile_accent_color')) {
+    db.exec("ALTER TABLE user_profiles ADD COLUMN profile_accent_color TEXT DEFAULT '#66FCF1'");
+  }
+
+  // Favorites — a real multi-item bookmark list for both seeded lectures
+  // and lead-authored custom courses, replacing the old single
+  // favorite_lecture_id slot (kept as-is for backward compatibility with
+  // PublicProfilePage's "любимая лекция" showcase, which is a separate,
+  // narrower feature). course_type discriminates which table course_id
+  // points into — no single FK can span both, so integrity there is
+  // app-level (routes/profile.js checks the row exists before inserting).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_favorite_courses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      course_type TEXT NOT NULL CHECK(course_type IN ('lecture', 'custom')),
+      course_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, course_type, course_id)
+    );
+  `);
+
+  // Course notes, moved server-side from the old localStorage-only drawer
+  // (client/src/pages/CustomCourseLearningPage.tsx) so the profile's
+  // "Заметки" tab can show one aggregated, cross-course list with working
+  // jump-to-lesson links — impossible from localStorage alone since it was
+  // never keyed by lesson id, only by (userId, courseId) with a bare
+  // lessonTitle string. lesson_id is nullable with ON DELETE SET NULL
+  // rather than a hard requirement: the course builder actually deletes
+  // custom_lessons rows outright when a lesson is removed from the editor
+  // (see routes/courses.js's module/lesson sync), so a note must be able to
+  // survive its lesson disappearing — lesson_title is kept redundantly so
+  // the note still reads sensibly even once lesson_id has gone NULL.
+  // course_id has no ON DELETE action because courses are soft-deleted
+  // (custom_courses.deleted_at), never actually removed by the app itself.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS custom_lesson_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      course_id INTEGER NOT NULL,
+      lesson_id INTEGER,
+      lesson_title TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (course_id) REFERENCES custom_courses(id),
+      FOREIGN KEY (lesson_id) REFERENCES custom_lessons(id) ON DELETE SET NULL
+    );
+  `);
+
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,
   // but every one of these queries was a full table scan waiting to
@@ -1036,6 +1099,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_course_deadline_overrides_course_id ON course_deadline_overrides(course_id);
     CREATE INDEX IF NOT EXISTS idx_suggestions_created_at ON suggestions(created_at);
     CREATE INDEX IF NOT EXISTS idx_suggestion_likes_suggestion_id ON suggestion_likes(suggestion_id);
+    CREATE INDEX IF NOT EXISTS idx_user_favorite_courses_user_id ON user_favorite_courses(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_lesson_notes_user_id ON custom_lesson_notes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_lesson_notes_course_id ON custom_lesson_notes(course_id);
     -- Covers the (role, archived_at) filter combination repeated across
     -- 8+ route call sites (e.g. "active testers", "active leads" listings)
     -- so those lookups don't fall back to a full table scan of users.

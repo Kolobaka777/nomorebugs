@@ -9,22 +9,23 @@ import { primeAvatarCache } from '../components/Navigation';
 import { testerApi, checklistApi, rewardsApi, presenceApi } from '../api';
 import {
   Lecture, TestHistoryItem, SKillChart,
-  FullProfile, getLevel, PresenceEntry,
+  FullProfile, getLevel, PresenceEntry, CourseFavorite, CourseNoteGroup,
 } from '../types';
-import { BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
+import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId } from '../components/PixelAvatar';
 import Icon, { IconName } from '../components/Icon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
-import { BADGE_META } from '../utils/badges';
+import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
+import { shopItemFor } from '../utils/shop';
 import {
   PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE, BADGE_BG, BADGE_BORDER,
 } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
-type Tab = 'favorites' | 'notes' | 'collection';
+type Tab = 'favorites' | 'notes' | 'collection' | 'shop';
 
 // ── Rarity ───────────────────────────────────────────────────────────────────
 const RARITY_COLORS = { common: ACCENT, rare: '#7F77DD', epic: '#EF9F27' };
@@ -139,6 +140,11 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [myPresence, setMyPresence] = useState<PresenceEntry | null>(null);
   const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow' });
   const [savingPresence, setSavingPresence] = useState(false);
+  const [favorites, setFavorites]       = useState<CourseFavorite[]>([]);
+  const [noteGroups, setNoteGroups]     = useState<CourseNoteGroup[]>([]);
+  const [achievementsExpanded, setAchievementsExpanded] = useState(false);
+  const [shopBuyingId, setShopBuyingId] = useState<string | null>(null);
+  const [shopError, setShopError]       = useState('');
 
   const togglePresenceDay = (d: string) => setPresenceForm(f => {
     const days = new Set(f.days);
@@ -185,6 +191,8 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       // enough; the rest of the page still fully works without them.
       checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
       rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
+      testerApi.getFavorites().then(r => setFavorites(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить избранное'));
+      testerApi.getNotes().then(r => setNoteGroups(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить заметки'));
       presenceApi.getTeam().then(r => {
         const mine = r.data.find((p: PresenceEntry) => p.id === user.id) || null;
         setMyPresence(mine);
@@ -249,7 +257,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   const completed      = metrics?.lecturesCompleted || 0;
   const level          = getLevel(completed);
-  const passedLectures = lectures.filter(l => l.status === 'passed');
   const nextLecture     = lectures.find(l => l.status === 'active');
 
   const badgeIds       = profile?.badges.map(b => b.badge_id) || [];
@@ -279,19 +286,73 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     } finally { setCrafting(null); }
   };
 
+  const removeFavorite = async (f: CourseFavorite) => {
+    setFavorites(prev => prev.filter(x => !(x.course_type === f.course_type && x.course_id === f.course_id)));
+    try {
+      await testerApi.removeFavorite(f.course_type, f.course_id);
+    } catch (e: any) {
+      showApiError(e, 'Не удалось убрать из избранного');
+      testerApi.getFavorites().then(r => setFavorites(r.data)).catch(() => {});
+    }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    setNoteGroups(prev => prev.map(g => ({ ...g, notes: g.notes.filter(n => n.id !== noteId) })).filter(g => g.notes.length > 0));
+    try {
+      await testerApi.deleteNote(noteId);
+    } catch (e: any) {
+      showApiError(e, 'Не удалось удалить заметку');
+      testerApi.getNotes().then(r => setNoteGroups(r.data)).catch(() => {});
+    }
+  };
+
+  // Equip is instant (no separate "save" step) — clicking an already-owned
+  // avatar/frame/background in the shop just wears it, same one-click
+  // mental model as the rest of the shop's "click to get/use" cards.
+  const equipItem = async (patch: Record<string, string>) => {
+    try {
+      await testerApi.updateProfile(patch);
+      setProfile(p => p ? { ...p, ...patch } : p);
+      if (patch.avatar_id !== undefined || patch.avatar_frame !== undefined) {
+        primeAvatarCache(user.id, {
+          avatar_id: patch.avatar_id ?? profile?.avatar_id ?? 'bug1',
+          avatar_frame: patch.avatar_frame ?? profile?.avatar_frame ?? 'default',
+          custom_avatar: profile?.custom_avatar ?? null,
+        });
+      }
+    } catch (e: any) {
+      showApiError(e, 'Не удалось применить');
+    }
+  };
+
+  const buyAndEquip = async (itemId: string, kind: 'frame' | 'bg', refId: string) => {
+    setShopError('');
+    setShopBuyingId(itemId);
+    try {
+      const res = await testerApi.buyShopItem(itemId);
+      setProfile(p => p ? { ...p, bug_coins: res.data.newCoins, purchased_items: [...p.purchased_items, itemId] } : p);
+      await equipItem(kind === 'frame' ? { avatar_frame: refId } : { profile_bg: refId });
+    } catch (e: any) {
+      setShopError(e?.response?.data?.error || 'Не удалось купить');
+    } finally {
+      setShopBuyingId(null);
+    }
+  };
+
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
     { id: 'favorites',  label: 'Избранное',   icon: 'star'      },
     { id: 'notes',      label: 'Заметки',     icon: 'memo'      },
+    { id: 'shop',       label: 'Магазин',     icon: 'card'      },
     { id: 'collection', label: 'Коллекция',   icon: 'floppy'    },
   ];
 
   const defaultProfile = {
-    id: user.id, email: user.email, name: user.name,
+    id: user.id, email: user.email, name: user.name, phone: null,
     avatar_initials: user.avatar_initials,
     created_at: new Date().toISOString(),
     nickname: user.name, status_quote: '', specialization: '',
     info_box: '', snail_joke: '', avatar_id: 'bug1',
-    avatar_frame: 'default', profile_bg: 'default',
+    avatar_frame: 'default', profile_bg: 'default', profile_accent_color: ACCENT,
     showcase_badges: [], favorite_lecture_id: null, is_public: true,
     custom_avatar: null, gender: null, bug_coins: 0, purchased_items: [],
     stats: { int: 0, per: 0, spd: 0, def: 0, bug_pwr: 0 },
@@ -315,9 +376,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       {showEdit && (
         <ProfileEditModal
           profile={profile ?? defaultProfile}
-          passedLectures={passedLectures}
           unlockedFrames={unlockedFrames}
           unlockedBgs={unlockedBgs}
+          badgeIds={badgeIds}
+          onPurchase={(item_id, newCoins) => {
+            setProfile(p => p ? { ...p, bug_coins: newCoins, purchased_items: [...p.purchased_items, item_id] } : p);
+          }}
           onSave={patch => {
             setProfile(p => p ? { ...p, ...patch } : p);
             onUserUpdate?.({ displayName: patch.nickname?.trim() || user.name, gender: patch.gender ?? null });
@@ -424,25 +488,53 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </span>
               </div>
 
-              <SectionLabel>Достижения {badgeCount}</SectionLabel>
-              {badgeCount > 0 ? (
-                <div className="flex flex-wrap gap-2 mb-1">
-                  {profile!.badges.slice(0, 8).map(b => {
-                    const meta = BADGE_META[b.badge_id];
+              <button onClick={() => setAchievementsExpanded(v => !v)} className="w-full flex items-center justify-between cursor-pointer mb-3">
+                <span className="font-montserrat font-semibold" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Достижения {badgeCount}</span>
+                <Icon name={achievementsExpanded ? 'chevronUp' : 'chevronDown'} size={16} color={TEXT_MUTED} />
+              </button>
+              {!achievementsExpanded ? (
+                badgeCount > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-1">
+                    {profile!.badges.slice(0, 8).map(b => {
+                      const meta = BADGE_META[b.badge_id];
+                      return (
+                        <div
+                          key={b.id}
+                          title={meta?.name || b.badge_id}
+                          className="rounded-lg flex items-center justify-center"
+                          style={{ width: 34, height: 34, background: `${meta?.color || ACCENT}18`, border: `1px solid ${meta?.color || ACCENT}40` }}
+                        >
+                          <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || ACCENT} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Пока нет ачивок — пройди первую лекцию</p>
+                )
+              ) : (
+                // Full catalog — every real achievement, earned or not, with
+                // what actually earns it (see ACHIEVEMENTS_CATALOG's
+                // descriptions, mirroring routeHelpers.js's ACHIEVEMENT_IDS
+                // triggers). Locked ones show greyed-out with the same
+                // description, so it doubles as "how do I get this".
+                <div className="space-y-2">
+                  {ACHIEVEMENTS_CATALOG.map(a => {
+                    const meta = BADGE_META[a.id];
+                    const earned = badgeIds.includes(a.id);
                     return (
-                      <div
-                        key={b.id}
-                        title={meta?.name || b.badge_id}
-                        className="rounded-lg flex items-center justify-center"
-                        style={{ width: 34, height: 34, background: `${meta?.color || ACCENT}18`, border: `1px solid ${meta?.color || ACCENT}40` }}
-                      >
-                        <Icon name={meta?.icon || 'bug'} size={22} color={meta?.color || ACCENT} />
+                      <div key={a.id} className="flex items-center gap-3 rounded-lg p-2" style={{ background: earned ? `${meta?.color || ACCENT}10` : 'rgba(197, 198, 199,0.03)', opacity: earned ? 1 : 0.55 }}>
+                        <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: `${meta?.color || ACCENT}18`, border: `1px solid ${meta?.color || ACCENT}40` }}>
+                          <Icon name={meta?.icon || 'trophy'} size={18} color={meta?.color || ACCENT} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-geist font-semibold text-xs break-words" style={{ color: earned ? TEXT_PRIMARY : TEXT_MUTED }}>{meta?.name}</p>
+                          <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{a.description}</p>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>Пока нет ачивок — пройди первую лекцию</p>
               )}
             </Panel>
 
@@ -572,36 +664,183 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 FAVORITES
             ══════════════════════════════════════════════════════ */}
             {tab === 'favorites' && (
-              profile?.favLecture ? (
-                <Panel className="flex items-center gap-4">
-                  <Icon name="star" size={26} color="#EF9F27" style={{ flexShrink: 0 }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-geist font-semibold" style={{ fontSize: 12, color: '#EF9F27', letterSpacing: TRACK_WIDE }}>ЛЮБИМАЯ ЛЕКЦИЯ</p>
-                    <p className="font-montserrat font-semibold text-sm mt-0.5 break-words" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</p>
-                    <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED }}>
-                      {profile.favLecture.skill_area}
-                      {profile.favLecture.score != null && <> · <span style={{ color: ACCENT }}>{Math.round(profile.favLecture.score)}%</span></>}
-                    </p>
-                  </div>
-                  <button onClick={() => navigate(`/lecture/${profile.favLecture!.id}/quiz`)} className="btn-amber text-xs px-3 py-2 cursor-pointer shrink-0">Перечитать <Icon name="chevronRight" size={16} color="currentColor" /></button>
-                </Panel>
-              ) : (
+              favorites.length === 0 ? (
                 <Panel className="text-center py-10">
                   <Icon name="star" size={28} color="rgba(197, 198, 199,0.15)" />
-                  <p className="font-geist text-xs mt-3" style={{ color: TEXT_MUTED }}>Выбери любимую лекцию в редакторе профиля</p>
+                  <p className="font-geist text-xs mt-3" style={{ color: TEXT_MUTED }}>Пока нет избранных курсов — добавляй их звёздочкой в каталоге</p>
                 </Panel>
+              ) : (
+                <div className="space-y-3">
+                  {favorites.map(f => (
+                    <Panel key={`${f.course_type}-${f.course_id}`} className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-geist font-semibold rounded px-2 py-0.5 inline-block mb-1" style={{ fontSize: 11, background: `${f.color || ACCENT}20`, color: f.color || ACCENT }}>{f.tag}</span>
+                        <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>{f.title}</p>
+                        <p className="font-geist text-xs mt-0.5 break-words" style={{ color: TEXT_MUTED }}>
+                          {f.course_type === 'custom'
+                            ? `${f.totalLessons} урок${f.totalLessons === 1 ? '' : 'ов'} · ${f.totalModules} модул${f.totalModules === 1 ? 'ь' : 'я'} · ${f.totalTests} тест${f.totalTests === 1 ? '' : 'а'}`
+                            : f.score != null ? <span style={{ color: ACCENT }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate(f.course_type === 'custom' ? `/custom-course/${f.course_id}` : `/lecture/${f.course_id}/quiz`)}
+                        className="btn-secondary text-xs px-3 py-2 cursor-pointer shrink-0"
+                      >
+                        Перейти <Icon name="chevronRight" size={16} color="currentColor" />
+                      </button>
+                      <button onClick={() => removeFavorite(f)} aria-label="Убрать из избранного" className="shrink-0 cursor-pointer flex items-center" style={{ color: '#e05252' }}>
+                        <Icon name="close" size={16} color="currentColor" />
+                      </button>
+                    </Panel>
+                  ))}
+                </div>
               )
             )}
 
             {/* ══════════════════════════════════════════════════════
-                NOTES
+                NOTES — aggregated across every custom course, grouped
+                one panel per course, replacing the old localStorage-only
+                per-course drawer (still the entry point for adding a note —
+                see CustomCourseLearningPage's NotesDrawer, now server-backed).
             ══════════════════════════════════════════════════════ */}
             {tab === 'notes' && (
-              <Panel className="text-center py-16">
-                <Icon name="memo" size={32} color="rgba(197, 198, 199,0.15)" />
-                <p className="font-montserrat font-semibold mt-4" style={{ color: TEXT_MUTED, fontSize: 14, letterSpacing: TRACK_WIDE }}>ЗАМЕТКИ</p>
-                <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Здесь будут твои заметки с курсов</p>
-              </Panel>
+              noteGroups.length === 0 ? (
+                <Panel className="text-center py-16">
+                  <Icon name="memo" size={32} color="rgba(197, 198, 199,0.15)" />
+                  <p className="font-montserrat font-semibold mt-4" style={{ color: TEXT_MUTED, fontSize: 14, letterSpacing: TRACK_WIDE }}>ЗАМЕТКИ</p>
+                  <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Здесь будут твои заметки с курсов</p>
+                </Panel>
+              ) : (
+                <div className="space-y-4">
+                  {noteGroups.map(g => (
+                    <Panel key={g.course_id}>
+                      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                        <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>
+                          {g.title} <span style={{ color: TEXT_MUTED, fontWeight: 400 }}>({g.notes.length})</span>
+                        </p>
+                        <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${g.color || ACCENT}20`, color: g.color || ACCENT }}>{g.tag}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {g.notes.map((n, i) => (
+                          <div key={n.id} className="group rounded-lg p-3" style={{ background: 'rgba(197, 198, 199,0.04)' }}>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="font-geist font-semibold shrink-0" style={{ fontSize: 12, color: ACCENT }}>{i + 1}</span>
+                              <span className="font-geist text-xs flex-1 min-w-0 break-words" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
+                                {n.module_title ? `${n.module_title} › ` : ''}{n.lesson_title}
+                              </span>
+                              <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-2 shrink-0">
+                                <button onClick={() => navigate(`/custom-course/${g.course_id}/learn`)} className="font-geist text-xs cursor-pointer flex items-center gap-1" style={{ color: ACCENT }}>
+                                  Перейти к заметке <Icon name="chevronRight" size={14} color="currentColor" />
+                                </button>
+                                <button onClick={() => deleteNote(n.id)} aria-label="Удалить заметку" className="cursor-pointer flex items-center" style={{ color: '#e05252' }}>
+                                  <Icon name="close" size={14} color="currentColor" />
+                                </button>
+                              </span>
+                            </div>
+                            <p className="font-geist text-xs leading-relaxed break-words" style={{ color: 'rgba(197, 198, 199,0.65)' }}>{n.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </Panel>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* ══════════════════════════════════════════════════════
+                SHOP — avatars (all free-equip today, more coming),
+                frames/backgrounds (real bug_coins purchases).
+            ══════════════════════════════════════════════════════ */}
+            {tab === 'shop' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <SectionLabel>Магазин</SectionLabel>
+                  <span className="font-geist font-bold flex items-center gap-1.5" style={{ fontSize: 15, color: '#EF9F27' }}>
+                    {profile?.bug_coins ?? 0} <Icon name="lightning" size={16} color="currentColor" />
+                  </span>
+                </div>
+
+                <div>
+                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>АВАТАРЫ</p>
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                    {AVATAR_LIST.map(av => {
+                      const equipped = (profile?.avatar_id || 'bug1') === av.id;
+                      return (
+                        <button
+                          key={av.id}
+                          onClick={() => !equipped && equipItem({ avatar_id: av.id })}
+                          className="relative flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
+                          style={{ background: equipped ? `${ACCENT}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? ACCENT : 'transparent'}` }}
+                        >
+                          {equipped && <Icon name="check" size={12} color={ACCENT} className="absolute top-1 right-1" />}
+                          <PixelAvatar id={av.id} size={44} />
+                          <span className="font-geist text-center break-words" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{av.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Новые аватарки скоро появятся здесь</p>
+                </div>
+
+                <div>
+                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>РАМКИ</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {FRAME_LIST.map(f => {
+                      const equipped = (profile?.avatar_frame || 'default') === f.id;
+                      const locked = !unlockedFrames.includes(f.id);
+                      const shopItem = shopItemFor('frame', f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => { if (!locked) equipItem({ avatar_frame: f.id }); else if (shopItem) buyAndEquip(shopItem.id, 'frame', f.id); }}
+                          disabled={locked && !shopItem}
+                          className="flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
+                          style={{ background: equipped ? `${ACCENT}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? ACCENT : 'transparent'}`, opacity: locked && !shopItem ? 0.4 : 1 }}
+                        >
+                          <PixelAvatar id="bug1" size={36} frame={f.id} />
+                          <span className="font-geist text-center" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{f.name}</span>
+                          {locked && shopItem && (
+                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.4)', background: 'rgba(239,159,39,0.1)' }}>
+                              {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
+                            </span>
+                          )}
+                          {locked && !shopItem && <span className="font-geist text-center" style={{ fontSize: 9, color: 'rgba(197, 198, 199,0.4)' }}>{f.unlock}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="font-montserrat font-semibold mb-2" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>ФОН</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {BG_LIST.map(bItem => {
+                      const equipped = (profile?.profile_bg || 'default') === bItem.id;
+                      const locked = !unlockedBgs.includes(bItem.id);
+                      const shopItem = shopItemFor('bg', bItem.id);
+                      return (
+                        <button
+                          key={bItem.id}
+                          onClick={() => { if (!locked) equipItem({ profile_bg: bItem.id }); else if (shopItem) buyAndEquip(shopItem.id, 'bg', bItem.id); }}
+                          disabled={locked && !shopItem}
+                          className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
+                          style={{ ...bItem.style, border: equipped ? `2px solid ${ACCENT}` : '2px solid transparent', opacity: locked && !shopItem ? 0.45 : 1, minHeight: 60 }}
+                        >
+                          <span className="font-geist text-center" style={{ fontSize: 10, color: '#C5C6C7' }}>{bItem.name}</span>
+                          {locked && shopItem && (
+                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)', background: 'rgba(0,0,0,0.4)' }}>
+                              {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
+                            </span>
+                          )}
+                          {locked && !shopItem && <span className="font-geist text-center" style={{ fontSize: 9, color: 'rgba(197, 198, 199,0.55)' }}>{bItem.unlock}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {shopError && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{shopError}</p>}
+              </div>
             )}
 
             {/* ══════════════════════════════════════════════════════
@@ -668,7 +907,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             <Panel pad="p-2">
               <QuickLinkRow icon="star" label="Избранное" onClick={() => setTab('favorites')} showDivider />
               <QuickLinkRow icon="memo" label="Заметки" onClick={() => setTab('notes')} showDivider />
-              <QuickLinkRow icon="card" label="Магазин" onClick={() => {}} showDivider={false} disabled />
+              <QuickLinkRow icon="card" label="Магазин" onClick={() => setTab('shop')} showDivider={false} />
             </Panel>
 
             {/* "Статистика" (per-task-type counts — Прелендинг/Оффер/Вайт/etc.)

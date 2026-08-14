@@ -6,7 +6,11 @@ import Icon from '../components/Icon';
 import { LockIcon, CheckCircleIcon, PagesIcon, BookOpenIcon } from '../components/CatalogIcons';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
+import { testerApi } from '../api';
+import { CourseNote } from '../types';
 import { useEscapeKey } from '../utils/a11y';
+import { parseServerDate } from '../utils/date';
+import { showApiError } from '../utils/toast';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
@@ -22,13 +26,6 @@ const RESULT_FAIL_COLOR = '#e05252';
 interface Props {
   user: any;
   onLogout: () => void;
-}
-
-interface Note {
-  id: string;
-  lessonTitle: string;
-  text: string;
-  createdAt: string;
 }
 
 // ─── Lesson content renderer ──────────────────────────────────────────────────
@@ -326,7 +323,16 @@ function CustomQuizView({
             </button>
           ) : (
             <button
-              onClick={() => (isLastQuestion ? onSubmit() : setQIdx(i => i + 1))}
+              onClick={() => {
+                if (!isLastQuestion) { setQIdx(i => i + 1); return; }
+                onSubmit();
+                // This quiz is also the course's very last lesson — submitting
+                // it already produces the course's final score, so there's
+                // nothing left to review here. Advance straight through to
+                // the pass/fail screen instead of stopping on an intermediate
+                // recap the user would just have to click past anyway.
+                if (isLastLesson) onNext();
+              }}
               className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110"
               style={{ background: color, color: '#0B0C10' }}
             >
@@ -341,28 +347,41 @@ function CustomQuizView({
 
 // ─── Notes drawer ─────────────────────────────────────────────────────────────
 
-function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userId, courseId }: {
-  show: boolean; onClose: () => void; notes: Note[]; setNotes: (n: Note[]) => void;
-  currentLessonTitle: string; userId: number; courseId: string;
+// Server-backed (see the custom_lesson_notes migration in db/schema.js) —
+// used to be localStorage-only, keyed by (userId, courseId) with no lesson
+// id at all. Moving it server-side is what makes the profile's aggregated
+// "Заметки" tab possible (MoyaNora.tsx), including its "jump to lesson"
+// links, which need a real lesson_id to work.
+function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, currentLessonId, courseId }: {
+  show: boolean; onClose: () => void; notes: CourseNote[]; setNotes: (n: CourseNote[]) => void;
+  currentLessonTitle: string; currentLessonId: number; courseId: string;
 }) {
   const [text, setText] = useState('');
-  const key = `custom_course_notes_${userId}_${courseId}`;
+  const [saving, setSaving] = useState(false);
 
   useEscapeKey(() => { if (show) onClose(); });
 
-  const save = () => {
+  const save = async () => {
     if (!text.trim()) return;
-    const note: Note = { id: Date.now().toString(), lessonTitle: currentLessonTitle, text: text.trim(), createdAt: new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) };
-    const updated = [...notes, note];
-    setNotes(updated);
-    localStorage.setItem(key, JSON.stringify(updated));
-    setText('');
+    setSaving(true);
+    try {
+      const res = await testerApi.addNote({ course_id: parseInt(courseId, 10), lesson_id: currentLessonId, lesson_title: currentLessonTitle, text: text.trim() });
+      setNotes([...notes, { id: res.data.id, lesson_id: currentLessonId, lesson_title: currentLessonTitle, module_title: null, text: text.trim(), created_at: new Date().toISOString() }]);
+      setText('');
+    } catch (e: any) {
+      showApiError(e, 'Не удалось сохранить заметку');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const del = (nid: string) => {
-    const updated = notes.filter(n => n.id !== nid);
-    setNotes(updated);
-    localStorage.setItem(key, JSON.stringify(updated));
+  const del = async (nid: number) => {
+    setNotes(notes.filter(n => n.id !== nid));
+    try {
+      await testerApi.deleteNote(nid);
+    } catch (e: any) {
+      showApiError(e, 'Не удалось удалить заметку');
+    }
   };
 
   return (
@@ -376,8 +395,8 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
         <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
           <p className="text-pixel/60 font-sans text-xs mb-2 truncate">Урок: {currentLessonTitle}</p>
           <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) save(); }} placeholder="Заметка... (Ctrl+Enter)" rows={4} className="w-full rounded-lg px-3 py-2 font-geist text-xs resize-none outline-none" style={{ background: PAGE_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.1)' }} />
-          <button onClick={save} disabled={!text.trim()} className="mt-2 w-full py-2 rounded font-sans text-xs font-semibold" style={{ background: text.trim() ? '#66FCF1' : 'rgba(197, 198, 199,0.06)', color: text.trim() ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: text.trim() ? 'pointer' : 'not-allowed' }}>
-            Сохранить
+          <button onClick={save} disabled={!text.trim() || saving} className="mt-2 w-full py-2 rounded font-sans text-xs font-semibold" style={{ background: text.trim() ? '#66FCF1' : 'rgba(197, 198, 199,0.06)', color: text.trim() ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: text.trim() ? 'pointer' : 'not-allowed' }}>
+            {saving ? '...' : 'Сохранить'}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -388,8 +407,8 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
               {[...notes].reverse().map(n => (
                 <div key={n.id} className="rounded-lg p-3 group relative" style={{ background: 'rgba(197, 198, 199,0.04)', border: '1px solid rgba(197, 198, 199,0.07)' }}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-sans text-xs font-semibold truncate pr-4" style={{ color: '#66FCF1', maxWidth: '180px' }}>{n.lessonTitle}</span>
-                    <span className="text-pixel/55 font-sans text-xs flex-shrink-0">{n.createdAt}</span>
+                    <span className="font-sans text-xs font-semibold truncate pr-4" style={{ color: '#66FCF1', maxWidth: '180px' }}>{n.lesson_title}</span>
+                    <span className="text-pixel/55 font-sans text-xs flex-shrink-0">{parseServerDate(n.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <p className="font-sans text-xs leading-relaxed break-words" style={{ color: 'rgba(197, 198, 199,0.65)' }}>{n.text}</p>
                   <button onClick={() => del(n.id)} aria-label="Удалить заметку" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-pixel/55 hover:text-red-400 flex items-center"><Icon name="close" size={16} color="currentColor" /></button>
@@ -400,7 +419,7 @@ function NotesDrawer({ show, onClose, notes, setNotes, currentLessonTitle, userI
         </div>
         {notes.length > 0 && (
           <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(197, 198, 199,0.06)' }}>
-            <button onClick={() => navigator.clipboard.writeText(notes.map(n => `[${n.lessonTitle}]\n${n.text}`).join('\n\n---\n\n'))} className="w-full py-2 rounded font-sans text-xs" style={{ background: 'rgba(197, 198, 199,0.06)', color: 'rgba(197, 198, 199,0.6)' }}>
+            <button onClick={() => navigator.clipboard.writeText(notes.map(n => `[${n.lesson_title}]\n${n.text}`).join('\n\n---\n\n'))} className="w-full py-2 rounded font-sans text-xs" style={{ background: 'rgba(197, 198, 199,0.06)', color: 'rgba(197, 198, 199,0.6)' }}>
               <span className="flex items-center justify-center gap-1.5"><Icon name="clipboard" size={12} color="currentColor" />Скопировать все</span>
             </button>
           </div>
@@ -584,12 +603,20 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     setCompletedLessons(new Set(lessons.filter((l: any) => l.completed).map((l: any) => l.id)));
   }, [course]);
 
+  // Notes are aggregated across every course server-side (see
+  // testerApi.getNotes / MoyaNora's "Заметки" tab) — this pulls out just
+  // this course's group rather than adding a redundant per-course endpoint.
+  useEffect(() => {
+    if (!id) return;
+    testerApi.getNotes()
+      .then(r => setNotes(r.data.find((g: any) => g.course_id === parseInt(id, 10))?.notes || []))
+      .catch(() => {});
+  }, [id]);
+
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
-  const [notes, setNotes] = useState<Note[]>(() => {
-    try { const s = localStorage.getItem(`custom_course_notes_${user.id}_${id}`); return s ? JSON.parse(s) : []; } catch { return []; }
-  });
+  const [notes, setNotes] = useState<CourseNote[]>([]);
   const [quizStates, setQuizStates] = useState<Record<number, any>>({});
   // Keyed the same way as quizStates (global lesson index, not lesson id) —
   // feeds the course-result screen's aggregate percentage once the course
@@ -768,7 +795,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
-        {/* Sidebar — full-width collapsible block on mobile, static column from lg up */}
+        {/* Sidebar — full-width collapsible block on mobile, static column from
+            lg up. Hidden once the course is finished: a pass/fail (or plain
+            completion) screen is the endpoint, not a place to keep navigating
+            from, so the lesson tree would just be dead weight next to it. */}
+        {!showCompleted && (
         <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: CARD_BG, borderRight: '1px solid rgba(197, 198, 199,0.06)', borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
           <button
             onClick={() => setMobileNavOpen(o => !o)}
@@ -853,6 +884,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
             <button onClick={() => navigate(`/custom-course/${id}`)} className="w-full py-2 rounded-lg font-geist text-xs cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.55)' }}><Icon name="chevronLeft" size={22} color="currentColor" /> К описанию</button>
           </div>
         </aside>
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">
@@ -959,7 +991,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
         )}
       </div>
 
-      <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} userId={user.id} courseId={id || ''} />
+      <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} currentLessonId={currentLesson?.id} courseId={id || ''} />
 
       {!showNotes && (
         <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>

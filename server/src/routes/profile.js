@@ -22,7 +22,7 @@ const BADGE_UNLOCKS = {
 // (GET /api/users/:id/profile, below) — same RPG-stats/cards/badges
 // computation regardless of whose profile is being built.
 function buildFullProfile(userId) {
-  const user = db.prepare('SELECT id, email, name, avatar_initials, created_at FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, email, name, phone, avatar_initials, created_at FROM users WHERE id = ?').get(userId);
   if (!user) return null;
   const profile = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) || {};
 
@@ -109,6 +109,7 @@ function buildFullProfile(userId) {
     avatar_id:          profile.avatar_id    || 'bug1',
     avatar_frame:       profile.avatar_frame || 'default',
     profile_bg:         profile.profile_bg   || 'default',
+    profile_accent_color: profile.profile_accent_color || '#66FCF1',
     showcase_badges:    JSON.parse(profile.showcase_badges || '[]'),
     gender:             profile.gender || null,
     favorite_lecture_id: profile.favorite_lecture_id || null,
@@ -183,6 +184,7 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
       nickname, status_quote, specialization, info_box, snail_joke,
       avatar_id, avatar_frame, profile_bg, showcase_badges,
       favorite_lecture_id, is_public, custom_avatar, gender,
+      profile_accent_color,
     } = req.body;
 
     if (nickname && nickname.length > 40)   return res.status(400).json({ error: 'Ник слишком длинный (макс 40)' });
@@ -190,6 +192,12 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
     if (info_box && info_box.length > 200)  return res.status(400).json({ error: 'Инфобокс слишком длинный (макс 200)' });
     if (gender !== undefined && gender !== null && gender !== 'male' && gender !== 'female') {
       return res.status(400).json({ error: 'Некорректное значение пола' });
+    }
+    // Free personal accent color, no shop gate — just a plain hex sanity
+    // check so a malformed value can't silently break every inline style
+    // that interpolates it (course-page-style `${color}18` alpha suffixes).
+    if (profile_accent_color !== undefined && profile_accent_color !== null && !/^#[0-9a-fA-F]{6}$/.test(profile_accent_color)) {
+      return res.status(400).json({ error: 'Некорректный цвет' });
     }
     // The client already enforces a 2MB cap before upload, but that's
     // trivially bypassable via a direct API call — base64 inflates the
@@ -206,8 +214,8 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
     db.prepare(`
       INSERT INTO user_profiles
         (user_id, nickname, status_quote, specialization, info_box, snail_joke,
-         avatar_id, avatar_frame, profile_bg, showcase_badges, favorite_lecture_id, is_public, custom_avatar, gender)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         avatar_id, avatar_frame, profile_bg, showcase_badges, favorite_lecture_id, is_public, custom_avatar, gender, profile_accent_color)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(user_id) DO UPDATE SET
         nickname            = excluded.nickname,
         status_quote        = excluded.status_quote,
@@ -221,7 +229,8 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
         favorite_lecture_id = excluded.favorite_lecture_id,
         is_public           = excluded.is_public,
         custom_avatar       = excluded.custom_avatar,
-        gender              = excluded.gender
+        gender              = excluded.gender,
+        profile_accent_color = excluded.profile_accent_color
     `).run(
       userId,
       nickname || null, status_quote || null, specialization || null,
@@ -229,10 +238,163 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
       avatar_id || 'bug1', avatar_frame || 'default', profile_bg || 'default',
       JSON.stringify(showcase_badges || []),
       favorite_lecture_id || null, is_public ? 1 : 0,
-      custom_avatar || null, gender || null,
+      custom_avatar || null, gender || null, profile_accent_color || '#66FCF1',
     );
 
     res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Favorites ──────────────────────────────────────────────────────────────
+// A real multi-item bookmark list spanning both seeded lectures and
+// lead-authored custom courses (see the user_favorite_courses migration in
+// db/schema.js for why course_id has no single FK). Enriched with just
+// enough detail to render the profile's "Избранное" list without a second
+// round-trip per item — module/lesson/test counts for custom courses,
+// title/tag/best-score for lectures.
+router.get('/api/tester/favorites', authMiddleware, (req, res) => {
+  try {
+    const userId = req.user.id;
+    const rows = db.prepare('SELECT * FROM user_favorite_courses WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+
+    const result = rows.map(fav => {
+      if (fav.course_type === 'custom') {
+        const course = db.prepare('SELECT id, title, tag, color, is_published FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(fav.course_id);
+        if (!course) return null;
+        const totalModules = db.prepare('SELECT COUNT(*) as c FROM custom_modules WHERE course_id = ?').get(course.id)?.c || 0;
+        const totalLessons = db.prepare(`
+          SELECT COUNT(*) as c FROM custom_lessons cl
+          JOIN custom_modules cm ON cm.id = cl.module_id WHERE cm.course_id = ?
+        `).get(course.id)?.c || 0;
+        const totalTests = db.prepare(`
+          SELECT COUNT(*) as c FROM custom_lessons cl
+          JOIN custom_modules cm ON cm.id = cl.module_id WHERE cm.course_id = ? AND cl.type = 'quiz'
+        `).get(course.id)?.c || 0;
+        return {
+          course_type: 'custom', course_id: course.id, title: course.title,
+          tag: course.tag, color: course.color, totalModules, totalLessons, totalTests,
+          favorited_at: fav.created_at,
+        };
+      }
+      const lecture = db.prepare('SELECT id, title, skill_area FROM lectures WHERE id = ?').get(fav.course_id);
+      if (!lecture) return null;
+      const result = db.prepare('SELECT score FROM test_results WHERE user_id = ? AND lecture_id = ?').get(userId, lecture.id);
+      return {
+        course_type: 'lecture', course_id: lecture.id, title: lecture.title,
+        tag: lecture.skill_area, score: result?.score ?? null, favorited_at: fav.created_at,
+      };
+    }).filter(Boolean);
+
+    res.json(result);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/api/tester/favorites', authMiddleware, (req, res) => {
+  try {
+    const { course_type, course_id } = req.body;
+    if (course_type !== 'lecture' && course_type !== 'custom') return res.status(400).json({ error: 'Некорректный тип курса' });
+    const id = parseInt(course_id, 10);
+    if (!id) return res.status(400).json({ error: 'Некорректный курс' });
+
+    const exists = course_type === 'custom'
+      ? db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(id)
+      : db.prepare('SELECT id FROM lectures WHERE id = ?').get(id);
+    if (!exists) return res.status(404).json({ error: 'Курс не найден' });
+
+    db.prepare('INSERT OR IGNORE INTO user_favorite_courses (user_id, course_type, course_id) VALUES (?, ?, ?)')
+      .run(req.user.id, course_type, id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/api/tester/favorites/:course_type/:course_id', authMiddleware, (req, res) => {
+  try {
+    const { course_type, course_id } = req.params;
+    db.prepare('DELETE FROM user_favorite_courses WHERE user_id = ? AND course_type = ? AND course_id = ?')
+      .run(req.user.id, course_type, course_id);
+    res.json({ ok: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Notes ──────────────────────────────────────────────────────────────────
+// Server-backed replacement for the old localStorage-only per-course notes
+// drawer — see the custom_lesson_notes migration comment in db/schema.js.
+// Grouped by course here (rather than left flat) so the client can render
+// the "one card per course, numbered notes inside" layout directly without
+// re-deriving the grouping itself. Joins back to custom_lessons/
+// custom_modules for a "jump to lesson" module title — falls back to just
+// lesson_title when lesson_id has gone NULL (its lesson was deleted).
+router.get('/api/tester/notes', authMiddleware, (req, res) => {
+  try {
+    const userId = req.user.id;
+    const notes = db.prepare(`
+      SELECT n.id, n.course_id, n.lesson_id, n.lesson_title, n.text, n.created_at,
+        cc.title as course_title, cc.tag as course_tag, cc.color as course_color,
+        cm.title as module_title
+      FROM custom_lesson_notes n
+      JOIN custom_courses cc ON cc.id = n.course_id
+      LEFT JOIN custom_lessons cl ON cl.id = n.lesson_id
+      LEFT JOIN custom_modules cm ON cm.id = cl.module_id
+      WHERE n.user_id = ? AND cc.deleted_at IS NULL
+      ORDER BY n.created_at DESC
+    `).all(userId);
+
+    const byCourse = new Map();
+    for (const n of notes) {
+      if (!byCourse.has(n.course_id)) {
+        byCourse.set(n.course_id, { course_id: n.course_id, title: n.course_title, tag: n.course_tag, color: n.course_color, notes: [] });
+      }
+      byCourse.get(n.course_id).notes.push({
+        id: n.id, lesson_id: n.lesson_id, lesson_title: n.lesson_title,
+        module_title: n.module_title, text: n.text, created_at: n.created_at,
+      });
+    }
+    res.json(Array.from(byCourse.values()));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/api/tester/notes', authMiddleware, (req, res) => {
+  try {
+    const { course_id, lesson_id, lesson_title, text } = req.body;
+    const courseId = parseInt(course_id, 10);
+    if (!courseId) return res.status(400).json({ error: 'Некорректный курс' });
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'Пустая заметка' });
+    if (String(text).length > 2000) return res.status(400).json({ error: 'Заметка слишком длинная (макс 2000)' });
+    const course = db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(courseId);
+    if (!course) return res.status(404).json({ error: 'Курс не найден' });
+
+    const info = db.prepare(
+      'INSERT INTO custom_lesson_notes (user_id, course_id, lesson_id, lesson_title, text) VALUES (?, ?, ?, ?, ?)'
+    ).run(req.user.id, courseId, lesson_id || null, String(lesson_title || '').slice(0, 200), String(text).trim());
+
+    res.json({ id: info.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/api/tester/notes/:id', authMiddleware, (req, res) => {
+  try {
+    const note = db.prepare('SELECT id FROM custom_lesson_notes WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!note) return res.status(404).json({ error: 'Не найдено' });
+    db.prepare('DELETE FROM custom_lesson_notes WHERE id = ?').run(note.id);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

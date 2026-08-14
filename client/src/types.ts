@@ -123,6 +123,7 @@ export interface FullProfile {
   id: number;
   email: string;
   name: string;
+  phone: string | null;
   avatar_initials: string;
   created_at: string;
   // customizable
@@ -134,6 +135,7 @@ export interface FullProfile {
   avatar_id: string;
   avatar_frame: string;
   profile_bg: string;
+  profile_accent_color: string;
   showcase_badges: string[];
   favorite_lecture_id: number | null;
   is_public: boolean;
@@ -299,6 +301,37 @@ export interface PublicProfileHidden {
 export type PublicProfile =
   | (FullProfile & { workStart: string | null; workEnd: string | null; workDays: string; timezone: string })
   | PublicProfileHidden;
+
+// ===== FAVORITES & NOTES (profile cabinet) =====
+export interface CourseFavorite {
+  course_type: 'lecture' | 'custom';
+  course_id: number;
+  title: string;
+  tag: string;
+  color?: string;
+  totalModules?: number;
+  totalLessons?: number;
+  totalTests?: number;
+  score?: number | null;
+  favorited_at: string;
+}
+
+export interface CourseNote {
+  id: number;
+  lesson_id: number | null;
+  lesson_title: string;
+  module_title: string | null;
+  text: string;
+  created_at: string;
+}
+
+export interface CourseNoteGroup {
+  course_id: number;
+  title: string;
+  tag: string;
+  color: string;
+  notes: CourseNote[];
+}
 
 export interface SuggestionFolder {
   id: number;

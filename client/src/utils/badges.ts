@@ -24,3 +24,19 @@ export const BADGE_META: Record<string, { name: string; icon: IconName; color: s
   achievement_polunochny_zhuk:{ name: 'Полуночный жук',   icon: 'bug',        color: '#4B4E9E' },
   achievement_kollektsioner:  { name: 'Коллекционер',     icon: 'card',       color: '#d946ef' },
 };
+
+// The 7 real, auto-awarded achievement ids in display order, with a
+// user-facing description of what earns each one — mirrors
+// routeHelpers.js's ACHIEVEMENT_IDS comments (the actual server-side
+// trigger for each). Used to render the full achievements list/showcase
+// picker (MoyaNora's achievements panel, ProfileEditModal's "Внешний вид"
+// tab) — BADGE_META alone only has name/icon/color, not a description.
+export const ACHIEVEMENTS_CATALOG: { id: string; description: string }[] = [
+  { id: 'achievement_otlichnik',       description: 'Последние 5 пройденных тестов — все на 90% и выше' },
+  { id: 'achievement_avtor',           description: 'Первое одобренное предложение — курс, гайд, баг-пример или термин' },
+  { id: 'achievement_bibliotekar',     description: '5 одобренных терминов в глоссарии' },
+  { id: 'achievement_nastavnik',       description: '3 одобренных гайда' },
+  { id: 'achievement_golos_komandy',   description: '10+ лайков на досках предложений или 5 отвеченных вопросов' },
+  { id: 'achievement_polunochny_zhuk', description: 'Заходил на сайт после полуночи 5 раз' },
+  { id: 'achievement_kollektsioner',   description: 'Скрафчены все 5 значков умений' },
+];

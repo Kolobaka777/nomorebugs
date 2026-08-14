@@ -14,7 +14,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="nav" /> }));
 
 vi.mock('../api', () => ({
-  testerApi: { getLectures: vi.fn() },
+  testerApi: { getLectures: vi.fn(), getFavorites: vi.fn(), addFavorite: vi.fn(), removeFavorite: vi.fn() },
   leadApi: { getLectureStats: vi.fn() },
 }));
 
@@ -54,6 +54,7 @@ function mockCustomCourses(rows: any[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(testerApi.getLectures).mockResolvedValue({ data: [] } as any);
+  vi.mocked(testerApi.getFavorites).mockResolvedValue({ data: [] } as any);
   vi.mocked(leadApi.getLectureStats).mockResolvedValue({ data: [] } as any);
 });
 
