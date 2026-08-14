@@ -39,7 +39,11 @@ export type IconName =
   // archive/restore actions were still falling back to raw emoji) —
   // 'trash' is real kit path data (trash.svg); 'key'/'archive'/'undo' are
   // hand-drawn to match (24x24, 2px stroke), no kit source exists for them.
-  | 'trash' | 'key' | 'archive' | 'undo' | 'clock';
+  | 'trash' | 'key' | 'archive' | 'undo' | 'clock'
+  // ── Frog level ladder (see types.ts's getLevel) — replaces the old
+  // seedling/bug/gear-as-bug-tiers icon set now that the site's theme is
+  // frogs, not bugs.
+  | 'frogEgg' | 'tadpole' | 'frog';
 
 interface IconProps {
   name: IconName;
@@ -190,6 +194,28 @@ const RENDERERS: Record<IconName, (color: string, color2: string) => React.React
     <path d="M14 17L21 17" stroke={c} strokeWidth="2" strokeLinecap="round" />
     <path d="M5 8L4 5.5" stroke={c} strokeWidth="2" strokeLinecap="round" />
     <path d="M7.5 8L7 5.5" stroke={c} strokeWidth="2" strokeLinecap="round" />
+  </>,
+  // ── Frog level ladder (Икринка→Головастик→Лягушонок→Лягушка→Царь-лягушка,
+  // see types.ts's getLevel) — replaces the old bug-themed seedling/bug/
+  // gear/crown icon set for that ladder specifically, now that the site's
+  // avatars/copy have moved to frogs (see PixelAvatar.tsx). Hand-drawn to
+  // match the kit's 24x24/2px-stroke language, no kit source for any of these.
+  frogEgg: (c) => <>
+    <circle cx="8" cy="9.5" r="3" stroke={c} strokeWidth="2" />
+    <circle cx="15.5" cy="8.5" r="2.5" stroke={c} strokeWidth="2" />
+    <circle cx="11.5" cy="15" r="3.4" stroke={c} strokeWidth="2" />
+  </>,
+  tadpole: (c) => <>
+    <circle cx="9.5" cy="9.5" r="5" stroke={c} strokeWidth="2" />
+    <path d="M13.8 12.8C16.3 14.8 19 17 20.5 20.2" stroke={c} strokeWidth="2" strokeLinecap="round" />
+    <circle cx="7.8" cy="8" r="0.9" fill={c} />
+  </>,
+  frog: (c) => <>
+    <circle cx="8.3" cy="7" r="2.2" stroke={c} strokeWidth="2" />
+    <circle cx="15.7" cy="7" r="2.2" stroke={c} strokeWidth="2" />
+    <circle cx="8.3" cy="7" r="0.6" fill={c} />
+    <circle cx="15.7" cy="7" r="0.6" fill={c} />
+    <path d="M4 14.2C4 10.7 7.5 9.2 12 9.2C16.5 9.2 20 10.7 20 14.2C20 18.1 16.5 20 12 20C7.5 20 4 18.1 4 14.2Z" stroke={c} strokeWidth="2" strokeLinejoin="round" />
   </>,
   warning: (c) => <>
     <path d="M10.4384 4.44715L2.99049 17.9999C2.62933 18.6666 3.11288 19.5 3.87206 19.5H20.1279C20.8871 19.5 21.3707 18.6666 21.0095 17.9999L13.5616 4.44715C13.1852 3.75237 12.1791 3.75237 11.8027 4.44715H10.4384Z" stroke={c} strokeWidth="2" strokeLinejoin="round" />

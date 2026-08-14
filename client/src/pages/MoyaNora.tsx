@@ -295,11 +295,11 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const showcaseIsGoal = !pickedShowcaseId && !!nextGoal;
 
   // A compact numeric rank (1-5) derived from the real tier system
-  // (getLevel's Яйцо→Матёрый жук ladder) — the reference's LEVEL box is a
+  // (getLevel's Икринка→Царь-лягушка ladder) — the reference's LEVEL box is a
   // big bold number + "LEVEL" caption, not a tier name, so this maps the
   // existing honest progression data onto that visual instead of inventing
   // an unrelated score.
-  const LEVEL_NAMES = ['Яйцо', 'Личинка', 'Куколка', 'Жук', 'Матёрый жук', 'Королева улья'];
+  const LEVEL_NAMES = ['Икринка', 'Головастик', 'Лягушонок', 'Лягушка', 'Царь-лягушка', 'Царевна-лягушка'];
   const levelRank = Math.max(1, LEVEL_NAMES.indexOf(level.name) + 1);
 
   const handleCraft = async (skill_area: string) => {

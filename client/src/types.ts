@@ -200,13 +200,19 @@ export interface Level {
   maxCompleted: number;
 }
 
+// Frog life-cycle ladder (Икринка → Головастик → Лягушонок → Лягушка →
+// Царь-лягушка), replacing the old bug ladder now that the site's avatars/
+// theme moved to frogs (see PixelAvatar.tsx). isLead gets its own top tier —
+// "Царевна-лягушка" nods to the Russian fairy tale rather than reusing the
+// regular ladder's top name, same way "Королева улья" was its own thing
+// before.
 export function getLevel(completed: number, isLead = false): Level {
-  if (isLead) return { icon: 'crown', name: 'Королева улья', color: 'text-amber', minCompleted: 0, maxCompleted: 10 };
-  if (completed === 0) return { icon: 'seedling', name: 'Яйцо', color: 'text-pixel/60', minCompleted: 0, maxCompleted: 1 };
-  if (completed <= 2) return { icon: 'bug', name: 'Личинка', color: 'text-pixel', minCompleted: 1, maxCompleted: 3 };
-  if (completed <= 5) return { icon: 'gear', name: 'Куколка', color: 'text-purple', minCompleted: 3, maxCompleted: 6 };
-  if (completed <= 9) return { icon: 'bug', name: 'Жук', color: 'text-primary', minCompleted: 6, maxCompleted: 10 };
-  return { icon: 'crown', name: 'Матёрый жук', color: 'text-amber', minCompleted: 10, maxCompleted: 10 };
+  if (isLead) return { icon: 'crown', name: 'Царевна-лягушка', color: 'text-amber', minCompleted: 0, maxCompleted: 10 };
+  if (completed === 0) return { icon: 'frogEgg', name: 'Икринка', color: 'text-pixel/60', minCompleted: 0, maxCompleted: 1 };
+  if (completed <= 2) return { icon: 'tadpole', name: 'Головастик', color: 'text-pixel', minCompleted: 1, maxCompleted: 3 };
+  if (completed <= 5) return { icon: 'frog', name: 'Лягушонок', color: 'text-purple', minCompleted: 3, maxCompleted: 6 };
+  if (completed <= 9) return { icon: 'frog', name: 'Лягушка', color: 'text-primary', minCompleted: 6, maxCompleted: 10 };
+  return { icon: 'crown', name: 'Царь-лягушка', color: 'text-amber', minCompleted: 10, maxCompleted: 10 };
 }
 
 export function getLevelXpPercent(completed: number): number {
@@ -349,14 +355,14 @@ export interface CourseDeadlineOverride {
 }
 
 export const DIFFICULTY_LABELS: Record<number, string> = {
-  1: 'Личинка',
-  2: 'Личинка',
-  3: 'Жук',
-  4: 'Жук',
-  5: 'Матёрый',
-  6: 'Матёрый',
-  7: 'Матёрый',
-  8: 'Матёрый',
-  9: 'Матёрый',
-  10: 'Матёрый',
+  1: 'Головастик',
+  2: 'Головастик',
+  3: 'Лягушка',
+  4: 'Лягушка',
+  5: 'Матёрая',
+  6: 'Матёрая',
+  7: 'Матёрая',
+  8: 'Матёрая',
+  9: 'Матёрая',
+  10: 'Матёрая',
 };

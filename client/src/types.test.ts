@@ -3,20 +3,20 @@ import { getLevel, getLevelXpPercent } from './types';
 
 describe('getLevel', () => {
   it('a lead always gets the lead-specific level regardless of completed count', () => {
-    expect(getLevel(0, true).name).toBe('Королева улья');
-    expect(getLevel(10, true).name).toBe('Королева улья');
+    expect(getLevel(0, true).name).toBe('Царевна-лягушка');
+    expect(getLevel(10, true).name).toBe('Царевна-лягушка');
   });
 
   it.each([
-    [0, 'Яйцо'],
-    [1, 'Личинка'],
-    [2, 'Личинка'],
-    [3, 'Куколка'],
-    [5, 'Куколка'],
-    [6, 'Жук'],
-    [9, 'Жук'],
-    [10, 'Матёрый жук'],
-    [15, 'Матёрый жук'], // above the max — should still resolve to the top tier, not throw or fall through
+    [0, 'Икринка'],
+    [1, 'Головастик'],
+    [2, 'Головастик'],
+    [3, 'Лягушонок'],
+    [5, 'Лягушонок'],
+    [6, 'Лягушка'],
+    [9, 'Лягушка'],
+    [10, 'Царь-лягушка'],
+    [15, 'Царь-лягушка'], // above the max — should still resolve to the top tier, not throw or fall through
   ])('completed=%i maps to level %s', (completed, expectedName) => {
     expect(getLevel(completed).name).toBe(expectedName);
   });
@@ -42,8 +42,8 @@ describe('getLevelXpPercent', () => {
   });
 
   it('resets to a fresh 0-100% bar at the start of each tier, rather than accumulating globally', () => {
-    // completed=2 finishes tier 1 (Личинка) at 100%, then completed=3 starts
-    // tier 2 (Куколка) back near 0% — this is intentional (each level's XP
+    // completed=2 finishes tier 1 (Головастик) at 100%, then completed=3 starts
+    // tier 2 (Лягушонок) back near 0% — this is intentional (each level's XP
     // bar shows progress within that level), not a bug, but it's easy to
     // accidentally "fix" into a monotonic global percentage later, so it's
     // worth pinning down explicitly.
