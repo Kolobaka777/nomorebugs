@@ -307,7 +307,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
             <div className="mt-3">
               {[
                 { label: isTester ? 'Продолжить курс' : 'Каталог курсов', Icon: BookIcon, to: '/zhukademia' },
-                { label: 'Квакодельня', Icon: ShopIcon, to: '/bagodelnya' },
+                { label: 'Багодельня', Icon: ShopIcon, to: '/bagodelnya' },
                 // Чеклисты — temporarily off the quick-links list too, see Navigation.tsx/App.tsx.
                 // { label: 'Чеклисты', Icon: ChecklistIcon, to: '/checklists' },
                 { label: isTester ? 'Моё болото' : 'Команда', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },

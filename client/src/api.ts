@@ -272,7 +272,7 @@ export const checklistApi = {
   },
 };
 
-// Knowledge base (Квакодельня): bug examples + glossary. Anyone can also
+// Knowledge base (Багодельня): bug examples + glossary. Anyone can also
 // *propose* one — the server forces it unpublished + pending review
 // regardless of what's sent (see POST /api/bug-examples, POST /api/glossary).
 export const knowledgeApi = {

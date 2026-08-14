@@ -20,7 +20,7 @@ interface Step {
 const TESTER_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница — сводка активности и полезные ссылки.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Все лекции и курсы. Начни отсюда, чтобы прокачать навыки QA.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Квакодельня', body: 'Магазин — трать баг-коины на украшения профиля.' },
+  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин — трать баг-коины на украшения профиля.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Если что-то непонятно — здесь ответы на частые вопросы. Доступно в любой момент.' },
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
 ];
@@ -29,7 +29,7 @@ const LEAD_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
   { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Квакодельня', body: 'Магазин косметики для профилей команды.' },
+  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
 ];
@@ -38,7 +38,7 @@ const ADMIN_STEPS: Step[] = [
   { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
   { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
   { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Квакодельня', body: 'Магазин косметики для профилей команды.' },
+  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
   { selector: '[data-tour="nav-admin"]', title: 'Админка', body: 'Управление пользователями и ролями — доступно только администраторам.' },
   { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
   { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },

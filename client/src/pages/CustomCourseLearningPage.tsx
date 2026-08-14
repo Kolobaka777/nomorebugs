@@ -161,26 +161,19 @@ function CustomQuizView({
   // once with its result — this is a review of a finished attempt, not the
   // "stay focused, one thing at a time" flow, so nothing distracting about
   // showing it all together here.
+  //
+  // No pass/fail verdict banner here on purpose — this recap fires after
+  // *every* quiz lesson in a multi-lesson course, not just the final one,
+  // so a "Отлично!"/"Попробуй ещё раз" judgment here was a premature,
+  // duplicate echo of CourseResultScreen (below), the actual frog-
+  // illustrated pass/fail screen shown once at the end of the whole
+  // course. Just the neutral score stays, as review context.
   if (submitted) {
     return (
       <div>
-        <div
-          className="rounded-lg p-5 mb-8 flex items-center gap-4"
-          style={{
-            background: score >= 60 ? 'rgba(102, 252, 241,0.1)' : 'rgba(224,82,82,0.1)',
-            border: `1px solid ${score >= 60 ? 'rgba(102, 252, 241,0.3)' : 'rgba(224,82,82,0.3)'}`,
-          }}
-        >
-          <span className="text-3xl">{score >= 60 ? '🎉' : '😅'}</span>
-          <div>
-            <p className="font-sans font-bold text-base mb-1" style={{ color: score >= 60 ? '#66FCF1' : '#e05252' }}>
-              {score >= 80 ? 'Отлично!' : score >= 60 ? 'Пройдено!' : 'Попробуй ещё раз'}
-            </p>
-            <p className="font-sans text-sm" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
-              {Math.round((score / 100) * questions.length)} из {questions.length} ({score}%)
-            </p>
-          </div>
-        </div>
+        <p className="font-sans text-sm mb-8" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
+          Результат: {Math.round((score / 100) * questions.length)} из {questions.length} ({score}%)
+        </p>
 
         <div className="space-y-8">
           {questions.map((q: any, qi: number) => {

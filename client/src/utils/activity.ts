@@ -10,7 +10,7 @@ import { Gender, TeamNewsItem } from '../types';
 import { pickByGender } from './gender';
 
 const PERMISSION_LABELS: Record<string, string> = {
-  manage_knowledge_base: 'Квакодельня',
+  manage_knowledge_base: 'Багодельня',
   manage_courses: 'Курсы',
   manage_checklists: 'Чек-листы',
   manage_guides: 'Гайды',

@@ -32,8 +32,8 @@ function deadlineInfo(deadline: string | null): { label: string; color: string }
 }
 
 // Card shell shared by every panel on this page ("О курсе", "Программа
-// курса", "Требования", "Содержание", "Прогресс команды") — one place to
-// keep the border/radius/shadow/heading style consistent.
+// курса", "Требования", "Прогресс команды") — one place to keep the
+// border/radius/shadow/heading style consistent.
 function Panel({ title, children, pad = 'p-6' }: { title: string; children: React.ReactNode; pad?: string }) {
   return (
     <section
@@ -335,19 +335,6 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             {course.requirements && (
               <Panel title="Требования" pad="p-5">
                 <p className="font-geist text-xs leading-relaxed break-words" style={{ color: TEXT_MUTED }}>{course.requirements}</p>
-              </Panel>
-            )}
-
-            {course.modules?.length > 0 && (
-              <Panel title="Содержание" pad="p-5">
-                <div className="space-y-3">
-                  {course.modules.map((mod: any, i: number) => (
-                    <div key={mod.id}>
-                      <p className="font-geist font-semibold text-xs break-words" style={{ color }}>МОДУЛЬ {i + 1}: {mod.title}</p>
-                      <p className="font-geist text-xs mt-0.5" style={{ color: TEXT_MUTED }}>{(mod.lessons || []).length} элемент{(mod.lessons || []).length === 1 ? '' : 'ов'}</p>
-                    </div>
-                  ))}
-                </div>
               </Panel>
             )}
 

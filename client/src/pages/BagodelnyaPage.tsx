@@ -296,7 +296,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           <div>
             <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
               <Icon name="books" size={22} color={ACCENT} />
-              Квакодельня
+              Багодельня
             </h1>
             <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>База знаний тестировщика</p>
           </div>
