@@ -44,17 +44,29 @@ export const CARD_SHADOW_TALL = '0 8px 12px 0 rgba(0, 0, 0, 0.25)';
 // url(<path-to-image>) lightgray 0% 0% / 12.75px 12.75px repeat, #1F2833")
 // — Figma shows that exact placeholder (always the same 12.75px value) when
 // a fill references a local image that was never exported, so that number
-// isn't meaningful; the tile size below is picked to visually match the
-// user's reference screenshot instead. The user supplied the real source
-// asset (client/src/assets/bug-texture.png, from her design files'
-// buggground.png — 4 pixel-art bugs in a 2x2 sheet) directly — an earlier
-// pass hand-drew an approximation instead and got corrected; this uses her
-// actual file. It's pre-processed offline (white keyed to transparent, ink
-// alpha scaled — bumped from an initial 16% to 45% after the user flagged
-// the first pass as nearly invisible/too faint at a 90px tile) rather than
-// at runtime, so the card only needs a plain low-cost background-image —
-// see PROGRESS notes if it ever needs reprocessing from a fresh export.
-export const CARD_BG_PATTERN = `url("${bugTextureUrl}") 0 0/120px 120px repeat, ${CARD_BG}`;
+// isn't meaningful; the tile size is picked to visually match the user's
+// reference screenshot instead. The user supplied the real source asset
+// (client/src/assets/bug-texture.png, from her design files' buggground.png
+// — 4 pixel-art bugs in a 2x2 sheet) directly — an earlier pass hand-drew an
+// approximation instead and got corrected; this uses her actual file.
+//
+// It's pre-processed offline rather than at runtime, so the card only needs
+// a plain low-cost background-image. Two corrections so far:
+//   1) an initial pass left the ink nearly invisible/too faint at a 90px
+//      tile — bumped alpha 16% → 45%;
+//   2) that 45% pass then turned out to have the source's alpha/RGB encoding
+//      backwards: the whole 592x592 sheet carried one uniform low alpha
+//      (~10%) and the bug *silhouettes* were the lighter RGB values against
+//      a black fill — composited over the dark card that reads as light
+//      bugs on a dark card, the opposite of the mockup's dark-on-dark look,
+//      and at a 120px tile they read as oversized. Reprocessed to flip
+//      that: background pixels → fully transparent, ink pixels → solid
+//      black scaled to a max ~16% alpha (so composited over #1F2833 it
+//      lands only a few percent darker — a subtle emboss, not a stamp),
+//      and shrunk the tile 120px → 64px to match the mockup's denser,
+//      smaller repeat. See PROGRESS notes if it ever needs reprocessing
+//      from a fresh export.
+export const CARD_BG_PATTERN = `url("${bugTextureUrl}") 0 0/64px 64px repeat, ${CARD_BG}`;
 
 // One-off label color from the "СТАТИСТИКА ПЛОЩАДКИ" stat-card spec — close
 // to but distinct from TEXT_PRIMARY/TEXT_MUTED, so it's its own token rather
