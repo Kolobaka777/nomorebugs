@@ -62,7 +62,6 @@ export interface TeamMember {
   // crashed at runtime on `.length` of an undefined value. Optional forces
   // every consumer to actually handle the missing case.
   lead_note?: string;
-  taskCounts?: { name: string; task_type: string; color: string; count: number }[];
 }
 
 export interface SKillChart {
@@ -190,7 +189,6 @@ export interface GlobalStats {
   testers: number;
   bugsCaught: number;
   avgScore: number;
-  checklistsCompleted: number;
 }
 
 export interface LectureStat {

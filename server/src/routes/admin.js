@@ -172,7 +172,6 @@ router.get('/api/admin/overview', authMiddleware, requireRole('admin'), (req, re
       "SELECT COUNT(DISTINCT user_id) as c FROM activity_log WHERE created_at >= datetime('now', '-30 days')"
     ).get().c;
 
-    const totalSubmissions = db.prepare('SELECT COUNT(*) as c FROM checklist_submissions').get().c;
     const totalCourses = db.prepare('SELECT COUNT(*) as c FROM custom_courses WHERE deleted_at IS NULL').get().c;
     const totalGuides = db.prepare('SELECT COUNT(*) as c FROM guides WHERE deleted_at IS NULL').get().c;
     const totalBugExamples = db.prepare('SELECT COUNT(*) as c FROM bug_examples WHERE deleted_at IS NULL').get().c;
@@ -185,7 +184,6 @@ router.get('/api/admin/overview', authMiddleware, requireRole('admin'), (req, re
       viaEmail: totalUsers - viaTelegram,
       active7d,
       active30d,
-      totalSubmissions,
       totalCourses,
       totalGuides,
       totalBugExamples,
@@ -430,8 +428,7 @@ router.get('/api/lead/internal-ratings', authMiddleware, requireRole('lead'), (r
         u.id, u.name, u.avatar_initials,
         (SELECT COALESCE(SUM(points), 0) FROM internal_score_events WHERE user_id = u.id) as hiddenScore,
         (SELECT COALESCE(premium_points, 0) FROM user_profiles WHERE user_id = u.id) as premiumPoints,
-        (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_quiz_excellence') as excellentQuizzes,
-        (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_checklist_clean') as cleanChecklists
+        (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_quiz_excellence') as excellentQuizzes
       FROM users u
       WHERE u.role = 'tester' AND u.archived_at IS NULL
       ORDER BY hiddenScore DESC
@@ -483,8 +480,8 @@ router.get('/api/lead/bonus-awards', authMiddleware, requireRole('lead'), (req, 
 
 // Admin: a ranked "who's earning it" report over the last 30 days — real
 // payroll/bonus decisions stay a human (admin) call, this just surfaces the
-// input data (pass rate, activity, checklist volume) instead of making
-// someone dig through raw tables to find it.
+// input data (pass rate, activity) instead of making someone dig through
+// raw tables to find it.
 router.get('/api/admin/bonus-candidates', authMiddleware, requireRole('admin'), (req, res) => {
   try {
     const rows = db.prepare(`
@@ -492,11 +489,10 @@ router.get('/api/admin/bonus-candidates', authMiddleware, requireRole('admin'), 
         u.id, u.name,
         (SELECT COUNT(*) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as quizzesLast30d,
         (SELECT AVG(score) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as avgScoreLast30d,
-        (SELECT COUNT(*) FROM checklist_submissions cs WHERE cs.user_id = u.id AND cs.submitted_at >= datetime('now', '-30 days')) as submissionsLast30d,
         (SELECT COALESCE(SUM(ba.amount), 0) FROM bonus_awards ba WHERE ba.user_id = u.id) as totalBonusReceived
       FROM users u
       WHERE u.role = 'tester'
-      ORDER BY (submissionsLast30d + quizzesLast30d) DESC
+      ORDER BY quizzesLast30d DESC
     `).all();
     res.json(rows.map(r => ({ ...r, avgScoreLast30d: r.avgScoreLast30d ? Math.round(r.avgScoreLast30d) : null })));
   } catch (err) {

@@ -49,23 +49,6 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
       ORDER BY u.name
     `).all();
 
-    // Per-member checklist task-type breakdown ("Прелендинг — 5, Оффер — 10
-    // ..."), same data the tester sees about themselves in "Моя нора" — one
-    // batched query for the whole team instead of one query per card.
-    const taskCountRows = db.prepare(`
-      SELECT cs.user_id, ct.name, ct.task_type, ct.color, COUNT(*) as count
-      FROM checklist_submissions cs
-      JOIN checklist_templates ct ON ct.id = cs.template_id
-      WHERE cs.user_id IN (${teamData.map(() => '?').join(',') || 'NULL'})
-      GROUP BY cs.user_id, ct.id
-      ORDER BY ct.order_num
-    `).all(...teamData.map(m => m.id));
-    const taskCountsByUser = {};
-    for (const row of taskCountRows) {
-      (taskCountsByUser[row.user_id] = taskCountsByUser[row.user_id] || [])
-        .push({ name: row.name, task_type: row.task_type, color: row.color, count: row.count });
-    }
-
     const now = Date.now();
 
     // Aggregated review signals (see submit-test's meta comment) — done in
@@ -107,7 +90,6 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
         needsCheckIn: daysInactive >= 7,
         fastAnswers: signalsByUser[member.id]?.fastAnswers || 0,
         tabSwitches: signalsByUser[member.id]?.tabSwitches || 0,
-        taskCounts: taskCountsByUser[member.id] || [],
       };
     });
 

@@ -1,11 +1,22 @@
 // Course/guide proposals: a tester can submit a full course or guide that
 // only goes live once a lead approves it. See routes/courses.js and
 // routes/knowledge.js for the implementation this exercises.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
+
+// Mocked so the 2026-08-15 "notify the author on approve/reject" wiring
+// (routes/courses.js, routes/knowledge.js) is actually verifiable —
+// notifyUser is otherwise a silent no-op in tests (no bot token/SMTP
+// configured), so without this mock a missing/broken call would pass
+// unnoticed.
+const notifyUserMock = vi.fn();
+vi.mock('../src/telegram.js', () => ({
+  notifyUser: (...args) => notifyUserMock(...args),
+  notifyUserConfirmed: async () => 'none',
+}));
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
@@ -83,10 +94,17 @@ describe('course proposals', () => {
     // Now visible to everyone, like any other published course.
     const otherList = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(otherList.body.find(c => c.id === proposalId)).toBeTruthy();
+
+    // The author gets notified — used to be silent (2026-08-15 audit).
+    const approveCall = notifyUserMock.mock.calls.find(c => c[1] === 'Курс одобрен!');
+    expect(approveCall).toBeDefined();
+    expect(approveCall[0].id).toBe(fixtures.testerId);
+    expect(approveCall[2]).toContain('Proposed Course');
   });
 
   let declinedId;
-  it('a lead declining a proposal soft-deletes it and stamps proposal_status=rejected', async () => {
+  it('a lead declining a proposal soft-deletes it, stamps proposal_status=rejected, and notifies the author', async () => {
+    notifyUserMock.mockClear();
     const created = await request(app).post('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`).send(validCourseBody({ title: 'To be declined' }));
     declinedId = created.body.id;
 
@@ -100,6 +118,11 @@ describe('course proposals', () => {
     // Gone from every list, including the author's own.
     const ownList = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`);
     expect(ownList.body.find(c => c.id === declinedId)).toBeUndefined();
+
+    const declineCall = notifyUserMock.mock.calls.find(c => c[1] === 'Курс отклонён');
+    expect(declineCall).toBeDefined();
+    expect(declineCall[0].id).toBe(fixtures.testerId);
+    expect(declineCall[2]).toContain('To be declined');
   });
 
   it('a tester still cannot directly edit, delete, or publish a course — proposing is a one-shot submission', async () => {
@@ -161,9 +184,16 @@ describe('guide proposals', () => {
 
     const nowVisible = await request(app).get(`/api/guides/${guideId}`).set('Authorization', `Bearer ${otherTesterToken}`);
     expect(nowVisible.status).toBe(200);
+
+    // The author gets notified — used to be silent (2026-08-15 audit).
+    const approveCall = notifyUserMock.mock.calls.find(c => c[1] === 'Гайд одобрен!');
+    expect(approveCall).toBeDefined();
+    expect(approveCall[0].id).toBe(fixtures.testerId);
+    expect(approveCall[2]).toContain('Proposed Guide');
   });
 
-  it('declining a guide proposal soft-deletes it and stamps proposal_status=rejected', async () => {
+  it('declining a guide proposal soft-deletes it, stamps proposal_status=rejected, and notifies the author', async () => {
+    notifyUserMock.mockClear();
     const created = await request(app)
       .post('/api/guides')
       .set('Authorization', `Bearer ${testerToken}`)
@@ -176,6 +206,11 @@ describe('guide proposals', () => {
     const row = db.prepare('SELECT deleted_at, proposal_status FROM guides WHERE id = ?').get(id);
     expect(row.deleted_at).not.toBeNull();
     expect(row.proposal_status).toBe('rejected');
+
+    const declineCall = notifyUserMock.mock.calls.find(c => c[1] === 'Гайд отклонён');
+    expect(declineCall).toBeDefined();
+    expect(declineCall[0].id).toBe(fixtures.testerId);
+    expect(declineCall[2]).toContain('To decline');
   });
 
   it('rejects approving something that is not a pending proposal', async () => {

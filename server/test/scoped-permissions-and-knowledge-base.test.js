@@ -174,7 +174,7 @@ describe('scoped permissions — authorization boundary', () => {
     const grant = await request(app)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
-      .send({ user_id: testerId, permission: 'manage_checklists' });
+      .send({ user_id: testerId, permission: 'manage_guides' });
     expect(grant.status).toBe(200);
 
     const demote = await request(app)
@@ -186,16 +186,22 @@ describe('scoped permissions — authorization boundary', () => {
     // The grant is still active — checked against the holder's role, not the (now-demoted) granter's.
     const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${adminToken}`);
     expect(list.status).toBe(200);
-    const row = list.body.find((r) => r.user_id === testerId && r.permission === 'manage_checklists');
+    const row = list.body.find((r) => r.user_id === testerId && r.permission === 'manage_guides');
     expect(row).toBeTruthy();
     expect(row.granted_by_role).toBe('tester');
 
     const stillWorks = await request(app)
-      .patch('/api/checklists/templates/999999/mvt')
+      .put('/api/guides/999999')
       .set('Authorization', `Bearer ${testerToken}`)
-      .send({ items: [] });
-    // 404 (unknown template), not 403 — proves the grant is still honored server-side.
+      .send({ title: 'x', category: 'x', content: 'x' });
+    // 404 (unknown guide), not 403 — proves the grant is still honored server-side.
     expect(stillWorks.status).toBe(404);
+
+    // Restore for any later tests in this file — since authMiddleware now
+    // re-checks role from the DB on every request (2026-08-15 audit fix),
+    // leaving leadId demoted here would silently strip leadToken's lead
+    // access for the rest of the suite, not just this test.
+    db.prepare("UPDATE users SET role = 'lead' WHERE id = ?").run(leadId);
   });
 });
 

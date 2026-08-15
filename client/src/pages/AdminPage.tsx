@@ -60,7 +60,6 @@ interface Overview {
   viaEmail: number;
   active7d: number;
   active30d: number;
-  totalSubmissions: number;
   totalCourses: number;
   totalGuides: number;
   totalBugExamples: number;
@@ -573,7 +572,6 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   ['Активны за 7 дней', overview.active7d],
                   ['Активны за 30 дней', overview.active30d],
                   ['Ждут смены пароля', overview.pendingPasswordResets],
-                  ['Отправлено чек-листов', overview.totalSubmissions],
                   ['Курсов создано', overview.totalCourses],
                   ['Гайдов создано', overview.totalGuides],
                   ['Примеров багов', overview.totalBugExamples],
@@ -593,7 +591,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                     <div key={c.id} className="p-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.12)', boxShadow: CARD_SHADOW }}>
                       <span className="text-sm font-geist font-semibold break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{c.name}</span>
                       <span className="text-xs font-geist" style={{ color: TEXT_MUTED }}>
-                        {c.quizzesLast30d} тестов · {c.avgScoreLast30d ?? '—'}% ср. балл · {c.submissionsLast30d} чек-листов · получено премий: {c.totalBonusReceived}
+                        {c.quizzesLast30d} тестов · {c.avgScoreLast30d ?? '—'}% ср. балл · получено премий: {c.totalBonusReceived}
                       </span>
                     </div>
                   ))}

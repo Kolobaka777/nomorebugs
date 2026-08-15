@@ -6,6 +6,7 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
 import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { todayInTimezone } from '../presence.js';
 
 const router = express.Router();
 
@@ -43,17 +44,25 @@ function buildFullProfile(userId) {
     bug_pwr: Math.min(20, totalTests * 2),
   };
 
-  // Streak
-  const days = db.prepare(
-    'SELECT DATE(created_at) as day FROM activity_log WHERE user_id = ? GROUP BY day ORDER BY day DESC'
+  // Streak — grouped by the user's own local calendar day, not UTC. SQLite's
+  // DATE() only understands fixed +HH:MM offsets, not IANA zone names, so
+  // the day-bucketing has to happen in JS (same as presence.js's
+  // todayInTimezone) rather than in the query. Row count here is a handful
+  // of distinct days at most for any real user, never every activity_log
+  // row ever — cheap regardless.
+  const tz = profile.timezone || 'Europe/Moscow';
+  const rawTimestamps = db.prepare(
+    'SELECT created_at FROM activity_log WHERE user_id = ? ORDER BY created_at DESC'
   ).all(userId);
+  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz });
+  const days = [...new Set(rawTimestamps.map(r => dayFmt.format(parseDbDate(r.created_at))))];
   let streak = 0;
-  let expected = new Date().toISOString().split('T')[0];
-  for (const { day } of days) {
+  let expected = todayInTimezone(tz);
+  for (const day of days) {
     if (day === expected) {
       streak++;
-      const d = new Date(expected); d.setDate(d.getDate() - 1);
-      expected = d.toISOString().split('T')[0];
+      const d = new Date(`${expected}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1);
+      expected = dayFmt.format(d);
     } else break;
   }
 

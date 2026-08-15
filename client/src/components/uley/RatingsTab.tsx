@@ -22,7 +22,6 @@ export default function RatingsTab({
       </p>
       <div className="font-geist text-xs mb-4 space-y-1" style={{ color: TEXT_MUTED }}>
         <p>⭐ <b>+5 баллов</b> — лекция сдана на ≥90%, без единого подозрительно быстрого ответа и без переключений вкладки во время теста.</p>
-        <p>⭐ <b>+3 балла</b> — чек-лист из 5+ пунктов пройден без единого «fail» (максимум 5 раз в день за один и тот же тип задачи, чтобы нельзя было фармить повторной отправкой).</p>
         <p>Списать баллы, срезав угол, не получится — начисление идёт только по серверной проверке, не по тому, что прислал браузер.</p>
       </div>
       {ratingsError ? (
@@ -46,7 +45,7 @@ export default function RatingsTab({
                     <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} color={TEXT_MUTED} />
                   </div>
                   <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                    {r.excellentQuizzes} отличных тестов · {r.cleanChecklists} чистых чеклистов · видимых баллов: {r.premiumPoints}
+                    {r.excellentQuizzes} отличных тестов · видимых баллов: {r.premiumPoints}
                   </span>
                   <span className="font-montserrat font-semibold text-sm shrink-0" style={{ color: ACCENT }}>★ {r.hiddenScore}</span>
                 </button>

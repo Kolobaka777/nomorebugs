@@ -148,9 +148,9 @@ describe('author gender is plumbed through proposal-authoring endpoints', () => 
     await request(app)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
-      .send({ user_id: fixtures.testerId, permission: 'manage_checklists' });
+      .send({ user_id: fixtures.testerId, permission: 'manage_guides' });
     const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${leadToken}`);
-    const grant = list.body.find(g => g.user_id === fixtures.testerId && g.permission === 'manage_checklists');
+    const grant = list.body.find(g => g.user_id === fixtures.testerId && g.permission === 'manage_guides');
     expect(grant.granted_by_gender).toBe('female');
   });
 });

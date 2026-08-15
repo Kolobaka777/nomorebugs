@@ -66,7 +66,7 @@ export function authMiddleware(req, res, next) {
   // archived this account would otherwise keep working for up to its full
   // 15-minute TTL — checked here, not just at login, so archiving actually
   // cuts access off immediately rather than "eventually".
-  const userRow = db.prepare('SELECT archived_at, must_change_password FROM users WHERE id = ?').get(decoded.id);
+  const userRow = db.prepare('SELECT role, archived_at, must_change_password FROM users WHERE id = ?').get(decoded.id);
   if (!userRow || userRow.archived_at) {
     return res.status(403).json({ error: 'Аккаунт деактивирован или не найден' });
   }
@@ -80,12 +80,20 @@ export function authMiddleware(req, res, next) {
     return res.status(403).json({ error: 'Сначала нужно сменить временный пароль', code: 'MUST_CHANGE_PASSWORD' });
   }
 
-  req.user = decoded;
+  // Same reasoning as archived_at above, found in the 2026-08-15 audit:
+  // decoded.role is a snapshot from whenever this access token was issued,
+  // up to 15 minutes stale. A lead demoted mid-session (e.g. for cause)
+  // would otherwise keep every requireRole('lead') gate open — award
+  // bonuses, reset a tester's password, read team notes — until their old
+  // token happened to expire. granted_permissions is already re-checked
+  // from the DB on every request (routeHelpers.js); role gets the same
+  // treatment here rather than trusting the JWT's copy of it.
+  req.user = { ...decoded, role: userRow.role };
   // Tags every Sentry event captured for the rest of this request with who
   // hit it — without this, logError()/the Express error handler report
   // errors with no way to tell which user (or role) was actually affected.
   if (isSentryEnabled()) {
-    Sentry.getCurrentScope().setUser({ id: String(decoded.id), username: decoded.role });
+    Sentry.getCurrentScope().setUser({ id: String(decoded.id), username: userRow.role });
   }
   next();
 }

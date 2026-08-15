@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import ExcelJS from 'exceljs';
 import bcryptjs from 'bcryptjs';
 
 process.env.DB_PATH = ':memory:';
@@ -32,51 +31,14 @@ describe('trust proxy — express-rate-limit must not choke on a forwarded-for h
   });
 });
 
-describe('POST /api/checklists/templates/import requires the lead role', () => {
-  async function xlsxBuffer() {
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Sheet1');
-    ws.addRow(['Категория', '']);
-    ws.addRow(['', 'Пункт проверки']);
-    return Buffer.from(await wb.xlsx.writeBuffer());
-  }
-
-  it('rejects a tester with 403 before ever touching the uploaded file', async () => {
-    const res = await request(app)
-      .post('/api/checklists/templates/import')
-      .set('Authorization', `Bearer ${testerToken}`)
-      .field('name', 'Should Not Exist')
-      .field('color', '#1D9E75')
-      .attach('file', await xlsxBuffer(), { filename: 'x.xlsx' });
-    expect(res.status).toBe(403);
-    expect(db.prepare('SELECT id FROM checklist_templates WHERE name = ?').get('Should Not Exist')).toBeUndefined();
-  });
-
-  it('still allows a lead through (no regression)', async () => {
-    const res = await request(app)
-      .post('/api/checklists/templates/import')
-      .set('Authorization', `Bearer ${leadToken}`)
-      .field('name', 'Lead Import Still Works')
-      .field('color', '#1D9E75')
-      .attach('file', await xlsxBuffer(), { filename: 'x.xlsx' });
-    expect(res.status).toBe(200);
-  });
-});
-
 describe('admin bypasses manual ownership checks (matching requireRole\'s documented admin-bypass contract)', () => {
-  let submissionId, courseId;
+  let courseId;
 
   beforeAll(() => {
-    // A checklist submission and a custom course both owned by the lead,
-    // not the admin — these manual checks previously excluded admin
-    // entirely since they didn't go through requireRole(). Self-contained
-    // fixtures rather than relying on another describe block's side effects.
-    const tplId = db.prepare(
-      "INSERT INTO checklist_templates (name, task_type) VALUES ('Audit Fixture Template', 'prelending')"
-    ).run().lastInsertRowid;
-    submissionId = db.prepare(
-      'INSERT INTO checklist_submissions (user_id, template_id, task_name) VALUES (?, ?, ?)'
-    ).run(leadId, tplId, 'Audit Fixture Task').lastInsertRowid;
+    // A custom course owned by the lead, not the admin — these manual
+    // checks previously excluded admin entirely since they didn't go
+    // through requireRole(). Self-contained fixture rather than relying on
+    // another describe block's side effects.
     courseId = db.prepare(
       'INSERT INTO custom_courses (title, created_by, is_published) VALUES (?, ?, 0)'
     ).run('Admin Bypass Fixture Course', leadId).lastInsertRowid;
@@ -88,20 +50,6 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
     db.prepare(
       'INSERT INTO custom_lessons (module_id, title, type, order_num) VALUES (?, ?, ?, 0)'
     ).run(modId, 'L1', 'lesson');
-  });
-
-  it('admin can view a checklist submission they did not author', async () => {
-    const res = await request(app)
-      .get(`/api/checklists/submissions/${submissionId}`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(res.status).toBe(200);
-  });
-
-  it('a plain tester still cannot view someone else\'s submission (no over-permission introduced)', async () => {
-    const res = await request(app)
-      .get(`/api/checklists/submissions/${submissionId}`)
-      .set('Authorization', `Bearer ${testerToken}`);
-    expect(res.status).toBe(403);
   });
 
   it('admin can view an unpublished course they did not author', async () => {

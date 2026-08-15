@@ -190,30 +190,6 @@ export default function TeamTab({
                 </p>
               )}
 
-              {/* Task-type breakdown — same data the tester sees about
-                  themselves in "Моё болото", surfaced here so a lead can
-                  tell at a glance who's handling which kind of work. */}
-              <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>
-                <p className="font-geist text-xs uppercase mb-2" style={{ color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>Задачи</p>
-                {(member.taskCounts ?? []).length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(member.taskCounts ?? []).map(tc => (
-                      <span
-                        key={tc.name}
-                        className="font-geist text-xs px-2 py-1 rounded break-words min-w-0"
-                        style={{ background: `${tc.color}20`, color: tc.color }}
-                      >
-                        {tc.name}: {tc.count}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                    {pickByGender(member.gender, 'Пока не отправлял чек-листы', 'Пока не отправляла чек-листы', 'Чек-листы пока не отправлены')}
-                  </p>
-                )}
-              </div>
-
               {/* Private lead notes — free-text characteristics, never
                   shown to the tester themselves (see /api/lead/team). Full
                   editor lives in a modal (below); the row itself only

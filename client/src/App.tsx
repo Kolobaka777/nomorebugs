@@ -29,10 +29,9 @@ const BagodelnyaPage = lazy(() => import('./pages/BagodelnyaPage'));
 const CustomCourseDetailPage = lazy(() => import('./pages/CustomCourseDetailPage'));
 const CustomCourseLearningPage = lazy(() => import('./pages/CustomCourseLearningPage'));
 const CourseBuilderPage = lazy(() => import('./pages/CourseBuilderPage'));
-// Чеклисты — route pulled while the feature is reworked; nav entry is
-// commented out too (Navigation.tsx). Import/route kept, not deleted.
-// const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
-// const ChecklistFormPage = lazy(() => import('./pages/ChecklistFormPage'));
+// Чеклисты — фича полностью извлечена из этого проекта 15.08.2026 (не
+// нужна в этом сервисе, переносится в отдельный новый сервис). Исходники
+// сохранены в c:\Users\user\Desktop\Projects\_archive\checklists-feature-2026-08-15\.
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
@@ -200,8 +199,6 @@ function App() {
                 :id variant: proposals are one-shot submissions, not
                 editable by their author after the fact (see courses.js). */}
             <Route path="/propose-course"          element={<CourseBuilderPage {...sharedProps} />} />
-            {/* <Route path="/checklists"              element={<ChecklistsPage {...sharedProps} />} /> */}
-            {/* <Route path="/checklists/:typeId"      element={<ChecklistFormPage {...sharedProps} />} /> */}
             <Route path="/guides"                  element={<GuidesPage {...sharedProps} />} />
             <Route path="/suggestions"             element={<SuggestionsPage {...sharedProps} />} />
             <Route path="/profile/:id"             element={<PublicProfilePage {...sharedProps} />} />

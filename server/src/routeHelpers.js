@@ -35,7 +35,7 @@ export function parseDbDate(raw) {
 // permissions; a grant is one named capability, optionally time-limited,
 // revocable at any time, and never itself grants the ability to grant more
 // (only 'lead'/'admin' can call the grant/revoke endpoints in routes/admin.js).
-export const KNOWN_PERMISSIONS = ['manage_knowledge_base', 'manage_courses', 'manage_checklists', 'manage_guides'];
+export const KNOWN_PERMISSIONS = ['manage_knowledge_base', 'manage_courses', 'manage_guides'];
 
 export function hasPermission(userId, permission) {
   // expires_at is stored exactly as the client sends it — normally a JS
@@ -130,6 +130,12 @@ export function hardDeleteCourse(courseId) {
     // orphaned rows behind (no FK violation to surface the bug, just silent
     // orphans accumulating with no course to belong to).
     db.prepare('DELETE FROM course_time_tracking WHERE course_id = ?').run(courseId);
+    // Same bug class as course_deadline_overrides above, found in the
+    // 2026-08-15 audit — custom_lesson_notes.course_id is also a NOT NULL FK
+    // with no ON DELETE clause, so any course a tester ever left a lesson
+    // note on hit the same foreign-key-constraint failure here, permanently
+    // stuck in trash, unpurgeable without manual DB surgery.
+    db.prepare('DELETE FROM custom_lesson_notes WHERE course_id = ?').run(courseId);
     db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
   })();
 }

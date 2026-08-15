@@ -141,4 +141,32 @@ describe('PATCH /api/admin/users/:id/role', () => {
       .send({ role: 'lead' });
     expect(res.status).toBe(403);
   });
+
+  // 2026-08-15 audit: authMiddleware re-checks archived_at/must_change_password
+  // from the DB on every request, but used to trust the JWT's own (up to
+  // 15-minutes-stale) role claim — a demoted lead kept lead-level access
+  // until their old access token happened to expire.
+  it('a demoted lead\'s already-issued access token loses lead-only access immediately, not after the token\'s own 15-minute expiry', async () => {
+    const demoteMe = await request(app).post('/api/auth/register').send({
+      email: 'demoteme@test.local', password: 'a-real-password', name: 'Demote Me',
+    });
+    const demoteId = demoteMe.body.user.id;
+    db.prepare("UPDATE users SET role = 'lead' WHERE id = ?").run(demoteId);
+    // Issued while still a lead.
+    const stillLeadToken = await loginAs(request, app, 'demoteme@test.local', 'a-real-password');
+
+    const before = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${stillLeadToken}`);
+    expect(before.status).toBe(200);
+
+    const demote = await request(app)
+      .patch(`/api/admin/users/${demoteId}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'tester' });
+    expect(demote.status).toBe(200);
+
+    // Same (still-unexpired) token, lead-only route — now rejected without
+    // needing to re-login or wait for the token to expire.
+    const after = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${stillLeadToken}`);
+    expect(after.status).toBe(403);
+  });
 });

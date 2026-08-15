@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import bcryptjs from 'bcryptjs';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
@@ -77,55 +76,6 @@ describe('user archiving (deactivation) — soft, not delete', () => {
 
     // restore for any later tests in this file
     await request(app).post(`/api/admin/users/${testerId}/restore`).set('Authorization', `Bearer ${leadToken}`);
-  });
-});
-
-describe('manual checklist template creation', () => {
-  it('a tester without manage_checklists is rejected', async () => {
-    const res = await request(app)
-      .post('/api/checklists/templates')
-      .set('Authorization', `Bearer ${testerToken}`)
-      .send({ name: 'Should fail', color: '#1D9E75', items: [{ category: 'Общее', text: 'x' }] });
-    expect(res.status).toBe(403);
-  });
-
-  it('rejects a template with no items', async () => {
-    const res = await request(app)
-      .post('/api/checklists/templates')
-      .set('Authorization', `Bearer ${leadToken}`)
-      .send({ name: 'Empty template', color: '#1D9E75', items: [] });
-    expect(res.status).toBe(400);
-  });
-
-  it('a lead can create a template manually and immediately submit against it', async () => {
-    const created = await request(app)
-      .post('/api/checklists/templates')
-      .set('Authorization', `Bearer ${leadToken}`)
-      .send({
-        name: 'Manual Template Test',
-        color: '#7F77DD',
-        items: [{ category: 'Функционал', text: 'Форма отправляется' }, { category: '', text: 'Кнопка кликабельна' }],
-      });
-    expect(created.status).toBe(200);
-    expect(created.body.item_count).toBe(2);
-
-    const items = db.prepare('SELECT * FROM checklist_items WHERE template_id = ?').all(created.body.id);
-    expect(items).toHaveLength(2);
-    expect(items[1].category).toBe('Общее'); // blank category defaults sensibly
-
-    const submit = await request(app)
-      .post('/api/checklists/submit')
-      .set('Authorization', `Bearer ${testerToken}`)
-      .send({ template_id: created.body.id, task_name: 'Test task', results: items.map(i => ({ item_id: i.id, status: 'ok' })) });
-    expect(submit.status).toBe(200);
-  });
-
-  it('rejects a duplicate template name (same constraint as import)', async () => {
-    const res = await request(app)
-      .post('/api/checklists/templates')
-      .set('Authorization', `Bearer ${leadToken}`)
-      .send({ name: 'Manual Template Test', color: '#1D9E75', items: [{ category: 'Общее', text: 'x' }] });
-    expect(res.status).toBe(409);
   });
 });
 

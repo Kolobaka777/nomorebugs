@@ -6,6 +6,15 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
 import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { notifyUser } from '../telegram.js';
+
+// Truncates a rejected/approved proposal's own text for use inside a
+// notification body — problem/term text can run up to MAX_SHORT_FIELD
+// (5000 chars), way too long to put in a push notification.
+function truncateForNotify(text, max = 60) {
+  const s = String(text || '').trim();
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
 
 const router = express.Router();
 
@@ -100,7 +109,7 @@ router.post('/api/bug-examples', authMiddleware, (req, res) => {
 
 router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    const existing = db.prepare('SELECT id FROM bug_examples WHERE id = ?').get(req.params.id);
+    const existing = db.prepare('SELECT id FROM bug_examples WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { tag, tag_color, problem, bad_text, good_text } = req.body;
     if (!problem?.trim() || !bad_text || !good_text) {
@@ -127,9 +136,13 @@ router.put('/api/bug-examples/:id', authMiddleware, requirePermission('manage_kn
 // toward the author's proposal history (same pattern as guides).
 router.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    const example = db.prepare('SELECT proposal_status FROM bug_examples WHERE id = ?').get(req.params.id);
+    const example = db.prepare('SELECT proposal_status, created_by, problem FROM bug_examples WHERE id = ?').get(req.params.id);
     const rejected = example?.proposal_status === 'pending';
     db.prepare(`UPDATE bug_examples SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(req.params.id);
+    if (rejected && example.created_by && example.created_by !== req.user.id) {
+      const author = db.prepare('SELECT * FROM users WHERE id = ?').get(example.created_by);
+      if (author) notifyUser(author, 'Пример отклонён', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» отклонён.`);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -144,7 +157,13 @@ router.patch('/api/bug-examples/:id/approve', authMiddleware, requirePermission(
     if (!example) return res.status(404).json({ error: 'Не найдено' });
     if (example.proposal_status !== 'pending') return res.status(400).json({ error: 'Это не заявка на рассмотрении' });
     db.prepare("UPDATE bug_examples SET is_published = 1, proposal_status = 'approved' WHERE id = ?").run(example.id);
-    if (example.created_by) awardAchievement(example.created_by, ACHIEVEMENT_IDS.AVTOR);
+    if (example.created_by) {
+      awardAchievement(example.created_by, ACHIEVEMENT_IDS.AVTOR);
+      if (example.created_by !== req.user.id) {
+        const author = db.prepare('SELECT * FROM users WHERE id = ?').get(example.created_by);
+        if (author) notifyUser(author, 'Пример одобрен!', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» одобрен и опубликован.`);
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -205,7 +224,7 @@ router.post('/api/glossary', authMiddleware, (req, res) => {
 
 router.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    const existing = db.prepare('SELECT id FROM glossary_terms WHERE id = ?').get(req.params.id);
+    const existing = db.prepare('SELECT id FROM glossary_terms WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { term, definition } = req.body;
     if (!term?.trim() || !definition) {
@@ -226,9 +245,13 @@ router.put('/api/glossary/:id', authMiddleware, requirePermission('manage_knowle
 // pattern as bug-examples/guides.
 router.delete('/api/glossary/:id', authMiddleware, requirePermission('manage_knowledge_base'), (req, res) => {
   try {
-    const term = db.prepare('SELECT proposal_status FROM glossary_terms WHERE id = ?').get(req.params.id);
+    const term = db.prepare('SELECT proposal_status, created_by, term FROM glossary_terms WHERE id = ?').get(req.params.id);
     const rejected = term?.proposal_status === 'pending';
     db.prepare(`UPDATE glossary_terms SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(req.params.id);
+    if (rejected && term.created_by && term.created_by !== req.user.id) {
+      const author = db.prepare('SELECT * FROM users WHERE id = ?').get(term.created_by);
+      if (author) notifyUser(author, 'Термин отклонён', `Твой предложенный термин «${truncateForNotify(term.term)}» отклонён.`);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -250,6 +273,10 @@ router.patch('/api/glossary/:id/approve', authMiddleware, requirePermission('man
         "SELECT COUNT(*) as c FROM glossary_terms WHERE created_by = ? AND proposal_status = 'approved'"
       ).get(term.created_by).c;
       if (approvedCount >= 5) awardAchievement(term.created_by, ACHIEVEMENT_IDS.BIBLIOTEKAR);
+      if (term.created_by !== req.user.id) {
+        const author = db.prepare('SELECT * FROM users WHERE id = ?').get(term.created_by);
+        if (author) notifyUser(author, 'Термин одобрен!', `Твой предложенный термин «${truncateForNotify(term.term)}» одобрен и опубликован.`);
+      }
     }
     res.json({ ok: true });
   } catch (err) {
@@ -355,7 +382,7 @@ router.post('/api/guides', authMiddleware, (req, res) => {
 
 router.put('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (req, res) => {
   try {
-    const existing = db.prepare('SELECT id FROM guides WHERE id = ?').get(req.params.id);
+    const existing = db.prepare('SELECT id FROM guides WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Не найдено' });
     const { title, category, content, icon } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите заголовок' });
@@ -394,9 +421,13 @@ router.patch('/api/guides/categories/rename', authMiddleware, requirePermission(
 // author's proposal history.
 router.delete('/api/guides/:id', authMiddleware, requirePermission('manage_guides'), (req, res) => {
   try {
-    const guide = db.prepare('SELECT proposal_status FROM guides WHERE id = ?').get(req.params.id);
+    const guide = db.prepare('SELECT proposal_status, created_by, title FROM guides WHERE id = ?').get(req.params.id);
     const rejected = guide?.proposal_status === 'pending';
     db.prepare(`UPDATE guides SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(req.params.id);
+    if (rejected && guide.created_by && guide.created_by !== req.user.id) {
+      const author = db.prepare('SELECT * FROM users WHERE id = ?').get(guide.created_by);
+      if (author) notifyUser(author, 'Гайд отклонён', `Твой предложенный гайд «${truncateForNotify(guide.title)}» отклонён.`);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -423,6 +454,10 @@ router.patch('/api/guides/:id/approve', authMiddleware, requirePermission('manag
       "SELECT COUNT(*) as c FROM guides WHERE created_by = ? AND proposal_status = 'approved'"
     ).get(guide.created_by).c;
     if (approvedCount >= 3) awardAchievement(guide.created_by, ACHIEVEMENT_IDS.NASTAVNIK);
+    if (guide.created_by !== req.user.id) {
+      const author = db.prepare('SELECT * FROM users WHERE id = ?').get(guide.created_by);
+      if (author) notifyUser(author, 'Гайд одобрен!', `Твой предложенный гайд «${truncateForNotify(guide.title)}» одобрен и опубликован.`);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);

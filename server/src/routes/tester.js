@@ -199,7 +199,6 @@ router.get('/api/stats', (req, res) => {
     const testers = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'tester'").get();
     const bugsCaught = db.prepare('SELECT COUNT(*) as count FROM test_results WHERE score >= 60').get();
     const avgScore = db.prepare('SELECT AVG(score) as avg FROM test_results').get();
-    const checklistsCompleted = db.prepare('SELECT COUNT(*) as count FROM checklist_submissions').get();
 
     const data = {
       courses: courses?.count || 0,
@@ -208,7 +207,6 @@ router.get('/api/stats', (req, res) => {
       // Homepage's "Балл" stat card — global average test score, rescaled
       // from the 0-100 DB range to the /5 the design shows (e.g. "4.7").
       avgScore: Math.round(((avgScore?.avg || 0) / 100) * 5 * 10) / 10,
-      checklistsCompleted: checklistsCompleted?.count || 0,
     };
 
     statsCache = { data, expiresAt: Date.now() + STATS_CACHE_MS };

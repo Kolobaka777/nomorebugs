@@ -87,44 +87,6 @@ describe('PATCH /api/lead/team/:id/note — private lead notes', () => {
   });
 });
 
-describe('GET /api/lead/team — per-member task-type breakdown', () => {
-  it('reflects real checklist submissions, grouped by template', async () => {
-    const tpl = db.prepare(
-      "INSERT INTO checklist_templates (name, task_type, color) VALUES ('Preland Check', 'prelending', '#1D9E75')"
-    ).run().lastInsertRowid;
-    const item = db.prepare(
-      'INSERT INTO checklist_items (template_id, text, order_num) VALUES (?, ?, 0)'
-    ).run(tpl, 'Some item').lastInsertRowid;
-
-    await request(app)
-      .post('/api/checklists/submit')
-      .set('Authorization', `Bearer ${testerToken}`)
-      .send({ template_id: tpl, task_name: 'Task A', results: [{ item_id: item, status: 'ok' }] });
-    await request(app)
-      .post('/api/checklists/submit')
-      .set('Authorization', `Bearer ${testerToken}`)
-      .send({ template_id: tpl, task_name: 'Task B', results: [{ item_id: item, status: 'ok' }] });
-
-    const team = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${leadToken}`);
-    const member = team.body.find(m => m.id === testerId);
-    const row = member.taskCounts.find(t => t.name === 'Preland Check');
-    expect(row).toBeDefined();
-    expect(row.count).toBe(2);
-  });
-
-  it('a tester with zero submissions gets an empty array, not an error', async () => {
-    const insUser = db.prepare(
-      'INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)'
-    );
-    const bcryptjs = (await import('bcryptjs')).default;
-    insUser.run('fresh@test.local', bcryptjs.hashSync('freshpass123', 4), 'Fresh Tester', 'tester', 'FT');
-
-    const team = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${leadToken}`);
-    const fresh = team.body.find(m => m.name === 'Fresh Tester');
-    expect(fresh.taskCounts).toEqual([]);
-  });
-});
-
 describe('GET /api/lead/before-after-by-tester', () => {
   it('pairs a tester\'s baseline self-rating with their measured quiz performance in the same skill_area', async () => {
     const lecId = db.prepare(

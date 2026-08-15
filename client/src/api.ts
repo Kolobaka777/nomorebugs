@@ -224,59 +224,8 @@ export const statsApi = {
   getGlobal: () => api.get('/stats'),
 };
 
-// Checklist API
-export const checklistApi = {
-  getTemplates: () => api.get('/checklists/templates'),
-
-  submit: (data: { template_id: number; task_name: string; results: { item_id: number; status: string }[] }) =>
-    api.post('/checklists/submit', data),
-
-  submitV2: (data: {
-    template_id: number;
-    task_name: string;
-    content_author?: string;
-    verska_author?: string;
-    task_type?: string;
-    check_date?: string;
-    results: { item_id: number; status: string; note?: string }[];
-  }) => api.post('/checklists/submit', data),
-
-  getSubmissions: (params?: {
-    template_id?: string | number;
-    tester?: string;
-    content_author?: string;
-    verska_author?: string;
-    task_type?: string;
-    date_from?: string;
-    date_to?: string;
-    sort?: string;
-    offset?: number;
-  }) => api.get('/checklists/submissions', { params }),
-
-  getSubmissionDetail: (id: number) => api.get(`/checklists/submissions/${id}`),
-
-  getStats: (params?: { template_id?: string | number; task_type?: string; date_from?: string; date_to?: string }) =>
-    api.get('/checklists/stats', { params }),
-
-  getTaskCounts: () => api.get('/tester/task-counts'),
-
-  getAuthors: () => api.get('/checklists/authors'),
-  getTaskTypes: () => api.get('/checklists/task-types'),
-
-  updateMvtItems: (templateId: number, items: { id: number; in_mvt: number }[], expectedMvtUpdatedAt: string | null) =>
-    api.patch(`/checklists/templates/${templateId}/mvt`, { items, expected_mvt_updated_at: expectedMvtUpdatedAt }),
-
-  createTemplate: (data: { name: string; color: string; items: { category: string; text: string }[] }) =>
-    api.post('/checklists/templates', data),
-
-  importTemplate: (file: File, name: string, color: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('name', name);
-    fd.append('color', color);
-    return api.post('/checklists/templates/import', fd);
-  },
-};
+// Чеклисты — фича извлечена из проекта 15.08.2026 (не нужна в этом
+// сервисе). Исходники: c:\Users\user\Desktop\Projects\_archive\checklists-feature-2026-08-15\.
 
 // Knowledge base (Багодельня): bug examples + glossary. Anyone can also
 // *propose* one — the server forces it unpublished + pending review

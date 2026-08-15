@@ -5,7 +5,7 @@ import FrogLoader from '../components/FrogLoader';
 import PixelAvatar from '../components/PixelAvatar';
 import ProfileEditModal from '../components/ProfileEditModal';
 import { primeAvatarCache } from '../components/Navigation';
-import { testerApi, checklistApi, rewardsApi, presenceApi } from '../api';
+import { testerApi, rewardsApi, presenceApi } from '../api';
 import {
   Lecture, TestHistoryItem, SKillChart,
   FullProfile, getLevel, PresenceEntry, CourseFavorite, CourseNoteGroup,
@@ -125,7 +125,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [profile, setProfile]           = useState<FullProfile | null>(null);
   const [loading, setLoading]           = useState(true);
   const [showEdit, setShowEdit]         = useState(false);
-  const [taskCounts, setTaskCounts]     = useState<{ name: string; task_type: string; color: string; count: number }[]>([]);
   const [crafting, setCrafting]         = useState<string | null>(null);
   const [craftSuccess, setCraftSuccess] = useState<string | null>(null);
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
@@ -179,10 +178,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         testerApi.getProfileFull(),
       ]);
 
-      // Task counts / premium points are secondary widgets on this page —
-      // a toast on failure (rather than blocking the whole cabinet) is
-      // enough; the rest of the page still fully works without them.
-      checklistApi.getTaskCounts().then(r => setTaskCounts(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статистику по задачам'));
+      // Premium points is a secondary widget on this page — a toast on
+      // failure (rather than blocking the whole cabinet) is enough; the
+      // rest of the page still fully works without it.
       rewardsApi.getMyPremiumPoints().then(r => setPremiumPoints(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить премиальные баллы'));
       testerApi.getFavorites().then(r => setFavorites(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить избранное'));
       testerApi.getNotes().then(r => setNoteGroups(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить заметки'));
@@ -993,13 +991,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
               ))}
             </Panel>
 
-            {/* "Статистика" (per-task-type counts — Прелендинг/Оффер/Вайт/etc.)
-                temporarily pulled, same as Чеклисты elsewhere (Navigation.tsx,
-                App.tsx) — these task types belong to the checklist feature,
-                which is off for now. taskCounts above is left wired up so
-                this drops back in as-is once checklists come back; see git
-                history for the removed markup rather than keeping a large
-                dead JSX block here. */}
           </div>
         </div>
       </div>

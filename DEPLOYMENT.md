@@ -156,10 +156,20 @@ No setup needed — it starts itself on boot and stops cleanly on shutdown.
 **What this does and doesn't cover:** since backups live on the same
 Railway volume as the live DB, this protects against logical corruption —
 a bad migration, an application bug that deletes the wrong rows — and
-gives an easy rollback point. It does **not** protect against losing the
-volume itself (disk failure, accidental volume deletion). If that risk
-matters, ship `backups/*.db` off-volume on a schedule (e.g. to S3) —
-not wired up here.
+gives an easy rollback point. It does **not**, on its own, protect against
+losing the volume itself (disk failure, accidental volume deletion) — see
+the off-site shipping below for that half.
+
+### Off-site backup shipping
+
+Set `BACKUP_S3_BUCKET`/`BACKUP_S3_ACCESS_KEY_ID`/`BACKUP_S3_SECRET_ACCESS_KEY`
+(see `server/.env.example` for the full list and a Cloudflare R2 / Backblaze
+B2 / AWS S3 comparison) and every local backup also gets uploaded to that
+bucket right after it's written — the fix for "the whole volume, live DB
+and all local backups together, is lost or corrupted at once." Unset (the
+default) means no behavior change, backups stay local-only. Set a bucket
+lifecycle rule (in R2/B2/S3's own dashboard) to auto-expire objects after
+~30 days rather than managing remote pruning here.
 
 Manual backup before any risky change (e.g. right before a schema
 migration you're unsure about), same as before:
@@ -203,6 +213,7 @@ a guarantee.
 
 - Object storage for avatars (base64-in-DB is an accepted trade-off for
   now, per earlier product decision)
-- Off-volume backup shipping (on-volume automated backups are in place —
-  see above — but a lost volume takes them down too)
 - Custom domain / DNS, if wanted beyond the Railway-provided subdomains
+
+Off-volume backup shipping is now wired up (see above) — just needs
+`BACKUP_S3_*` env vars set in the actual Railway environment to turn on.

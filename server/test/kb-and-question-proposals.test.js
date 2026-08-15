@@ -3,11 +3,19 @@
 // proposal flow in proposals.test.js; (2) 'question' suggestions with a
 // lead-answered reply on the ideas board. See routes/knowledge.js and
 // routes/suggestions.js.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
+
+// See proposals.test.js for why this is mocked rather than left as the
+// real (silent-in-tests) implementation.
+const notifyUserMock = vi.fn();
+vi.mock('../src/telegram.js', () => ({
+  notifyUser: (...args) => notifyUserMock(...args),
+  notifyUserConfirmed: async () => 'none',
+}));
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
@@ -60,9 +68,15 @@ describe('bug-example proposals', () => {
 
     const otherList = await request(app).get('/api/bug-examples').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(otherList.body.find(e => e.id === proposalId)).toBeTruthy();
+
+    // The author gets notified — used to be silent (2026-08-15 audit).
+    const approveCall = notifyUserMock.mock.calls.find(c => c[1] === 'Пример одобрен!');
+    expect(approveCall).toBeDefined();
+    expect(approveCall[0].id).toBe(fixtures.testerId);
   });
 
-  it('a lead declining a proposal soft-deletes it and stamps proposal_status=rejected', async () => {
+  it('a lead declining a proposal soft-deletes it, stamps proposal_status=rejected, and notifies the author', async () => {
+    notifyUserMock.mockClear();
     const created = await request(app)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
@@ -75,6 +89,10 @@ describe('bug-example proposals', () => {
     const row = db.prepare('SELECT deleted_at, proposal_status FROM bug_examples WHERE id = ?').get(id);
     expect(row.deleted_at).not.toBeNull();
     expect(row.proposal_status).toBe('rejected');
+
+    const declineCall = notifyUserMock.mock.calls.find(c => c[1] === 'Пример отклонён');
+    expect(declineCall).toBeDefined();
+    expect(declineCall[0].id).toBe(fixtures.testerId);
   });
 
   it('a tester cannot approve their own or anyone else\'s proposal', async () => {
@@ -121,11 +139,17 @@ describe('glossary-term proposals', () => {
     const otherList = await request(app).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(otherList.body.find(g => g.id === proposalId)).toBeUndefined();
 
+    notifyUserMock.mockClear();
     const approve = await request(app).patch(`/api/glossary/${proposalId}/approve`).set('Authorization', `Bearer ${leadToken}`);
     expect(approve.status).toBe(200);
 
     const nowVisible = await request(app).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(nowVisible.body.find(g => g.id === proposalId)).toBeTruthy();
+
+    // The author gets notified — used to be silent (2026-08-15 audit).
+    const approveCall = notifyUserMock.mock.calls.find(c => c[1] === 'Термин одобрен!');
+    expect(approveCall).toBeDefined();
+    expect(approveCall[0].id).toBe(fixtures.testerId);
   });
 
   it('seeded glossary terms (created_by NULL) still appear in every list', async () => {

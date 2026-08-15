@@ -5,6 +5,7 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
 
@@ -482,7 +483,7 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
 // Update course (lead, own only)
 router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
-    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
+    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
@@ -571,12 +572,21 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
 // intact in case it gets restored.
 router.delete('/api/custom-courses/:id', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
-    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
+    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
     const rejected = course.proposal_status === 'pending';
     db.prepare(`UPDATE custom_courses SET deleted_at = CURRENT_TIMESTAMP${rejected ? ", proposal_status = 'rejected'" : ''} WHERE id = ?`).run(course.id);
+    // Proposals used to get approved/rejected in total silence — the author
+    // had no way to find out short of re-checking their own course list.
+    // Skipped when the actor is deleting their own (non-proposal) course,
+    // not just when `rejected` is false, so a lead never gets a "your
+    // proposal was declined" ping for their own ordinary course.
+    if (rejected && course.created_by !== req.user.id) {
+      const author = db.prepare('SELECT * FROM users WHERE id = ?').get(course.created_by);
+      if (author) notifyUser(author, 'Курс отклонён', `Твой предложенный курс «${course.title}» отклонён.`);
+    }
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -591,7 +601,7 @@ router.delete('/api/custom-courses/:id', authMiddleware, requirePermission('mana
 // course reads as an ordinary published one everywhere else from then on.
 router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermission('manage_courses'), (req, res) => {
   try {
-    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(req.params.id);
+    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
     const newStatus = course.is_published ? 0 : 1;
@@ -610,7 +620,13 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
     // (course/guide/bug example/glossary term). awardAchievement is
     // idempotent, so it's safe to just call it on every approval rather
     // than separately tracking "is this their first".
-    if (approvingProposal) awardAchievement(course.created_by, ACHIEVEMENT_IDS.AVTOR);
+    if (approvingProposal) {
+      awardAchievement(course.created_by, ACHIEVEMENT_IDS.AVTOR);
+      if (course.created_by !== req.user.id) {
+        const author = db.prepare('SELECT * FROM users WHERE id = ?').get(course.created_by);
+        if (author) notifyUser(author, 'Курс одобрен!', `Твой предложенный курс «${course.title}» одобрен и опубликован.`);
+      }
+    }
 
     res.json({ is_published: newStatus });
   } catch (err) {

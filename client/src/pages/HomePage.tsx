@@ -8,7 +8,6 @@ import { BookIcon, ShopIcon, HomeIcon, ChevronRightIcon, ChevronRightDoubleIcon 
 import graduationCapIcon from '../assets/icons/graduation-cap.svg';
 import chartLineIcon from '../assets/icons/chart-line.svg';
 import peopleGroupIcon from '../assets/icons/people-group.svg';
-import checkIcon from '../assets/icons/check.svg';
 import starIcon from '../assets/icons/star.svg';
 import { statsApi, testerApi, leadApi, teamApi } from '../api';
 import { GlobalStats, TeamMember, TeamNewsItem } from '../types';
@@ -48,7 +47,7 @@ const HOME_NEWS_TYPES = new Set(['lecture_video_added', 'guide_published', 'cour
 export default function HomePage({ user, onLogout }: HomePageProps) {
   const navigate = useNavigate();
   const isTester = user.role === 'tester';
-  const [stats, setStats] = useState<GlobalStats>({ courses: 10, testers: 4, bugsCaught: 0, avgScore: 0, checklistsCompleted: 0 });
+  const [stats, setStats] = useState<GlobalStats>({ courses: 10, testers: 4, bugsCaught: 0, avgScore: 0 });
   const [loading, setLoading] = useState(true);
 
   // Tester-facing
@@ -308,8 +307,6 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               {[
                 { label: isTester ? 'Продолжить курс' : 'Каталог курсов', Icon: BookIcon, to: '/zhukademia' },
                 { label: 'Багодельня', Icon: ShopIcon, to: '/bagodelnya' },
-                // Чеклисты — temporarily off the quick-links list too, see Navigation.tsx/App.tsx.
-                // { label: 'Чеклисты', Icon: ChecklistIcon, to: '/checklists' },
                 { label: isTester ? 'Моё болото' : 'Команда', Icon: HomeIcon, to: isTester ? '/cabinet' : '/dashboard' },
               ].map((link, i, arr) => (
                 <LinkRow key={link.to} {...link} onClick={() => navigate(link.to)} showDivider={i < arr.length - 1} />
@@ -321,13 +318,12 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
         {/* ===== BOTTOM: platform-wide stats ===== */}
         <div className="mt-10">
           <TwoTone first="СТАТИСТИКА" second="ПЛОЩАДКИ" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
             {[
               { icon: graduationCapIcon, label: 'Курсов', value: stats.courses },
               { icon: chartLineIcon, label: 'Балл', value: stats.avgScore },
               { icon: peopleGroupIcon, label: 'Тестеров', value: stats.testers },
               { icon: null, label: 'Мух', value: stats.bugsCaught },
-              { icon: checkIcon, label: 'Чеклистов', value: stats.checklistsCompleted },
             ].map(item => (
               <div
                 key={item.label}

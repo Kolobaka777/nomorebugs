@@ -15,7 +15,6 @@ export const LEAVE_LABELS: Record<LeaveType, string> = { vacation: 'Отпуск
 export const PERMISSION_LABELS: Record<string, string> = {
   manage_knowledge_base: 'Багодельня',
   manage_courses: 'Курсы',
-  manage_checklists: 'Чек-листы',
   manage_guides: 'Гайды',
 };
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
