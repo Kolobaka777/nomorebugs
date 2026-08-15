@@ -1,10 +1,13 @@
-import FrogIcon from './FrogIcon';
+import PixelFrogSprite from './PixelFrogSprite';
 import { ACCENT } from '../utils/theme';
 
-// Replaces the old FrogLoader (crawling pixel-snail + "уже ползу..."
-// jokes) now that the site's mascot is a frog, not a snail/bug — reuses
-// the same real FrogIcon silhouette as FrogCompanion.tsx instead of a new
-// pixel sprite, so every frog drawn in the app is the same shape.
+// Replaced the old FrogLoader (crawling pixel-snail + "уже ползу..."
+// jokes, then a later pass using FrogIcon's smooth vector silhouette) with
+// PixelFrogSprite — an actual chunky pixel-art frog in the site's own
+// palette, matching the "cute and a little unhinged" reference mood the
+// owner asked for. Blinks on its own timer (PixelFrogSprite's default
+// auto-blink), hops via the existing frog-loader-hop keyframe, and puffs
+// its throat like it's mid-croak via a small pulsing circle behind it.
 const FROG_PHRASES = [
   'квак-квак, гружусь...',
   'разгоняюсь для прыжка...',
@@ -31,8 +34,19 @@ export default function FrogLoader({ phrase }: FrogLoaderProps) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-16">
-      <div className="frog-loader-hop">
-        <FrogIcon size={48} color={ACCENT} />
+      <div className="frog-loader-hop" style={{ position: 'relative' }}>
+        {/* Throat puff — a soft glow behind the sprite that pulses like a
+            croak mid-inflate, purely decorative, sits behind the sprite. */}
+        <div
+          className="frog-loader-croak"
+          style={{
+            position: 'absolute', left: '50%', top: '58%',
+            width: 22, height: 22, borderRadius: '9999px',
+            background: ACCENT, opacity: 0.25, filter: 'blur(1px)',
+            transform: 'translate(-50%, -50%)', zIndex: 0,
+          }}
+        />
+        <PixelFrogSprite size={56} className="relative" />
       </div>
 
       {/* Pixel bounce dots */}

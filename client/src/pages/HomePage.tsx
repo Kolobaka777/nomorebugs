@@ -47,7 +47,7 @@ const HOME_NEWS_TYPES = new Set(['lecture_video_added', 'guide_published', 'cour
 export default function HomePage({ user, onLogout }: HomePageProps) {
   const navigate = useNavigate();
   const isTester = user.role === 'tester';
-  const [stats, setStats] = useState<GlobalStats>({ courses: 10, testers: 4, bugsCaught: 0, avgScore: 0 });
+  const [stats, setStats] = useState<GlobalStats>({ courses: 10, testers: 4, avgScore: 0 });
   const [loading, setLoading] = useState(true);
 
   // Tester-facing
@@ -318,12 +318,11 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
         {/* ===== BOTTOM: platform-wide stats ===== */}
         <div className="mt-10">
           <TwoTone first="СТАТИСТИКА" second="ПЛОЩАДКИ" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
             {[
               { icon: graduationCapIcon, label: 'Курсов', value: stats.courses },
               { icon: chartLineIcon, label: 'Балл', value: stats.avgScore },
               { icon: peopleGroupIcon, label: 'Тестеров', value: stats.testers },
-              { icon: null, label: 'Мух', value: stats.bugsCaught },
             ].map(item => (
               <div
                 key={item.label}
@@ -332,10 +331,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
               >
                 <p className="font-geist font-normal flex items-center justify-center gap-1.5" style={{ color: ACCENT, fontSize: 20, letterSpacing: 4 }}>
                   {item.value}
-                  {/* "Мух" (flies caught) has no icon-kit asset — frogs catch
-                      flies with their tongue, matching the app's "QA testers
-                      catch bugs" gag one step further down the food chain. */}
-                  {item.icon ? <img src={item.icon} width={24} height={24} alt="" /> : <Icon name="frog" size={24} color={ACCENT} />}
+                  <img src={item.icon} width={24} height={24} alt="" />
                 </p>
                 <p className="font-geist font-normal text-center" style={{ color: STAT_LABEL_COLOR, fontSize: 16, letterSpacing: 3.2 }}>{item.label}</p>
               </div>

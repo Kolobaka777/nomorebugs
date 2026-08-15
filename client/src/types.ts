@@ -187,7 +187,6 @@ export interface TestHistoryItem {
 export interface GlobalStats {
   courses: number;
   testers: number;
-  bugsCaught: number;
   avgScore: number;
 }
 

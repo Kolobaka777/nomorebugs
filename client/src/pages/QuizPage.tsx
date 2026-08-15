@@ -7,6 +7,7 @@ import Icon from '../components/Icon';
 import Navigation from '../components/Navigation';
 import { BookOpenIcon, CheckCircleIcon } from '../components/CatalogIcons';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
+import { celebrateAchievements } from '../utils/achievements';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
 
 interface QuizPageProps {
@@ -182,6 +183,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
         tabSwitches: tabSwitchesRef.current,
       });
       setResult(res.data);
+      celebrateAchievements(res.data.newAchievements);
       localStorage.removeItem(progressKey);
     } catch (err: any) {
       console.error(err);

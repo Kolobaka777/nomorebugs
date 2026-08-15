@@ -529,10 +529,13 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
     const craftedSkillBadges = db.prepare(
       `SELECT COUNT(*) as c FROM user_badges WHERE user_id = ? AND badge_id IN (${Object.keys(BADGE_UNLOCKS).map(() => '?').join(',')})`
     ).get(userId, ...Object.keys(BADGE_UNLOCKS)).c;
-    if (craftedSkillBadges >= Object.keys(BADGE_UNLOCKS).length) awardAchievement(userId, ACHIEVEMENT_IDS.KOLLEKTSIONER);
+    const newAchievements = [];
+    if (craftedSkillBadges >= Object.keys(BADGE_UNLOCKS).length) {
+      if (awardAchievement(userId, ACHIEVEMENT_IDS.KOLLEKTSIONER)) newAchievements.push(ACHIEVEMENT_IDS.KOLLEKTSIONER);
+    }
 
     const unlocks = BADGE_UNLOCKS[skill_area] || { frame: 'gold', bg: 'forest', spec: '' };
-    res.json({ success: true, badge_id: skill_area, unlocks });
+    res.json({ success: true, badge_id: skill_area, unlocks, newAchievements });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

@@ -628,8 +628,18 @@
 .frog-companion-bug {
   animation: frog-companion-bug-catch 0.4s ease-out forwards;
 }
+@keyframes frog-companion-bubble-in {
+  0%   { transform: translateY(6px) scale(0.9); opacity: 0; }
+  100% { transform: translateY(0) scale(1);     opacity: 1; }
+}
+.frog-companion-bubble {
+  animation: frog-companion-bubble-in 0.25s ease-out;
+}
 @media (prefers-reduced-motion: reduce) {
   .frog-companion-idle, .frog-companion-hop {
+    animation: none;
+  }
+  .frog-companion-bubble {
     animation: none;
   }
 }
@@ -648,6 +658,20 @@
 @keyframes loader-dot-hop {
   0%, 100% { transform: translateY(0); opacity: 0.7; }
   50%       { transform: translateY(-5px); opacity: 1; }
+}
+/* Throat puff behind the pixel frog sprite — a slow, gentle "mid-croak"
+   inflate/deflate, offset from the hop so the two don't read as one motion. */
+@keyframes frog-loader-croak-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.18; }
+  50%       { transform: translate(-50%, -50%) scale(1.35); opacity: 0.4; }
+}
+.frog-loader-croak {
+  animation: frog-loader-croak-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .frog-loader-hop, .frog-loader-croak {
+    animation: none;
+  }
 }
 
 /* ===== HOMM ACHIEVEMENT ===== */

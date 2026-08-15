@@ -7,6 +7,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import BaselineSurvey from './pages/BaselineSurvey';
 import InstallPrompt from './components/InstallPrompt';
 import OnboardingTour from './components/OnboardingTour';
+import FrogCompanion from './components/FrogCompanion';
 import BgWatermark from './components/BgWatermark';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import {
@@ -164,15 +165,16 @@ function App() {
   return (
     <BrowserRouter>
       {/* Global ambient decorations */}
-      {/* FrogCompanion (cursor-lean + click-to-catch corner mascot) is
-          paused per the user's request — she's designing a different
-          interaction for the frog. Component file kept, just unmounted;
-          see components/FrogCompanion.tsx.
+      {/* FrogCompanion was paused pending a redesign of its interaction —
+          that redesign shipped 2026-08-15: chunky pixel sprite (matching
+          the loading screens), occasional tip bubbles, and real praise on
+          newly-earned achievements (see utils/achievements.ts). Remounted.
           ScrollBug (the beetle that walked along a bottom scroll-progress
-          bar) was removed outright per her request — old-design cruft,
-          unlike FrogCompanion which she's actively redesigning. */}
+          bar) was removed outright earlier — old-design cruft, unlike
+          FrogCompanion which got redesigned instead of deleted. */}
       <InstallPrompt />
       <OnboardingTour user={u} />
+      <FrogCompanion />
 
       {/* Sits behind every routed page — see BgWatermark.tsx. The routes
           wrapper below gets an explicit z-index so it paints on top

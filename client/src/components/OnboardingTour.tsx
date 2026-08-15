@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon';
+import PixelFrogSprite from './PixelFrogSprite';
+import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, PAGE_BG } from '../utils/theme';
 
 interface Step {
   selector: string;
@@ -120,9 +122,9 @@ export default function OnboardingTour({ user }: Props) {
           left: rect.left - 4,
           width: rect.width + 8,
           height: rect.height + 8,
-          border: '2px solid #EF9F27',
-          borderRadius: 4,
-          boxShadow: '0 0 0 4000px rgba(0,0,0,0.55)',
+          border: `2px solid ${ACCENT}`,
+          borderRadius: 8,
+          boxShadow: `0 0 0 4000px rgba(0,0,0,0.55), 0 0 16px 0 ${ACCENT}80`,
           zIndex: 201,
           transition: 'all 0.2s ease-out',
         }}
@@ -130,29 +132,40 @@ export default function OnboardingTour({ user }: Props) {
       <div
         role="dialog"
         aria-label={step.title}
-        className="fixed rounded-lg p-4"
+        className="fixed rounded-lg p-5"
         style={{
-          top: tooltipTop, left: tooltipLeft, width: 280,
-          background: '#1F2833', border: '2px solid #EF9F27',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 202,
+          top: tooltipTop, left: tooltipLeft, width: 320,
+          background: CARD_BG, border: `1px solid ${ACCENT}`,
+          boxShadow: CARD_SHADOW_TALL, zIndex: 202,
         }}
         onClick={e => e.stopPropagation()}
       >
-        <p className="font-pixel text-amber mb-2" style={{ fontSize: '0.6rem', lineHeight: 1.7 }}>{step.title}</p>
-        <p className="font-sans text-xs mb-4" style={{ color: 'rgba(197, 198, 199,0.75)' }}>{step.body}</p>
+        <div className="flex items-start gap-3 mb-3">
+          {/* The site's mascot pokes in to deliver the tip — same sprite
+              as the loading screens, so it reads as one consistent
+              character rather than a generic help-icon. */}
+          <PixelFrogSprite size={40} className="shrink-0" />
+          <p
+            className="font-montserrat font-semibold"
+            style={{ fontSize: 19, lineHeight: '24px', letterSpacing: TRACK_WIDE, color: TEXT_PRIMARY, paddingTop: 4 }}
+          >
+            {step.title}
+          </p>
+        </div>
+        <p className="font-geist mb-5" style={{ fontSize: 15, lineHeight: 1.6, color: TEXT_MUTED }}>{step.body}</p>
         <div className="flex items-center justify-between">
-          <button onClick={finish} className="font-sans text-xs cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
+          <button onClick={finish} className="font-geist cursor-pointer" style={{ fontSize: 13, color: TEXT_MUTED }}>
             Пропустить всё
           </button>
-          <div className="flex items-center gap-3">
-            <span className="font-sans text-xs" style={{ color: 'rgba(197, 198, 199,0.6)' }}>{stepIndex + 1}/{steps.length}</span>
+          <div className="flex items-center gap-4">
+            <span className="font-geist" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{stepIndex + 1}/{steps.length}</span>
             <button
               onClick={next}
-              className="font-sans text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
-              style={{ background: '#EF9F27', color: '#0B0C10' }}
+              className="font-geist font-semibold px-4 py-2 rounded-lg cursor-pointer"
+              style={{ fontSize: 14, background: ACCENT, color: PAGE_BG }}
             >
               {isLast ? 'Готово' : (
-                <span className="inline-flex items-center gap-1">Далее <Icon name="arrowRight" size={14} color="currentColor" /></span>
+                <span className="inline-flex items-center gap-1.5">Далее <Icon name="arrowRight" size={15} color="currentColor" /></span>
               )}
             </button>
           </div>

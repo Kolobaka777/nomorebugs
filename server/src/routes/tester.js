@@ -197,13 +197,11 @@ router.get('/api/stats', (req, res) => {
 
     const courses = db.prepare('SELECT COUNT(*) as count FROM lectures').get();
     const testers = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'tester'").get();
-    const bugsCaught = db.prepare('SELECT COUNT(*) as count FROM test_results WHERE score >= 60').get();
     const avgScore = db.prepare('SELECT AVG(score) as avg FROM test_results').get();
 
     const data = {
       courses: courses?.count || 0,
       testers: testers?.count || 0,
-      bugsCaught: bugsCaught?.count || 0,
       // Homepage's "Балл" stat card — global average test score, rescaled
       // from the 0-100 DB range to the /5 the design shows (e.g. "4.7").
       avgScore: Math.round(((avgScore?.avg || 0) / 100) * 5 * 10) / 10,
@@ -362,6 +360,11 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
     // with no card/coins granted for it.
     const coinsEarned = isFirstSubmission ? (score >= 90 ? 25 : score >= 75 ? 18 : score >= 60 ? 10 : 3) : 0;
     let cardDrop = null;
+    // Collected from awardAchievement's own newly-granted signal (it's
+    // idempotent — INSERT OR IGNORE under the hood) rather than assumed,
+    // so a re-qualifying retake that already has the badge correctly
+    // reports nothing new to celebrate client-side.
+    const newAchievements = [];
     db.transaction(() => {
       // Keeps the *best* score across retakes, not just the latest — a
       // retake used to overwrite an already-passing score with a worse one
@@ -433,11 +436,11 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
         'SELECT score FROM test_results WHERE user_id = ? ORDER BY completed_at DESC LIMIT 5'
       ).all(userId);
       if (recentScores.length === 5 && recentScores.every(r => r.score >= 90)) {
-        awardAchievement(userId, ACHIEVEMENT_IDS.OTLICHNIK);
+        if (awardAchievement(userId, ACHIEVEMENT_IDS.OTLICHNIK)) newAchievements.push(ACHIEVEMENT_IDS.OTLICHNIK);
       }
     })();
 
-    res.json({ score, passed: score >= 60, cardDrop, coinsEarned });
+    res.json({ score, passed: score >= 60, cardDrop, coinsEarned, newAchievements });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

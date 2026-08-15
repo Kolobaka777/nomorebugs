@@ -15,6 +15,7 @@ import Icon, { IconName } from '../components/Icon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
+import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { shopItemFor } from '../utils/shop';
@@ -303,7 +304,8 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const handleCraft = async (skill_area: string) => {
     setCrafting(skill_area);
     try {
-      await testerApi.craftBadge(skill_area);
+      const res = await testerApi.craftBadge(skill_area);
+      celebrateAchievements(res.data.newAchievements);
       setCraftSuccess(skill_area);
       await loadAll();
       setTimeout(() => setCraftSuccess(null), 3000);
