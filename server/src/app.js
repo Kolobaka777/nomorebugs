@@ -9,7 +9,8 @@ import compression from 'compression';
 import { db, initDb } from '../db/schema.js';
 import bcryptjs from 'bcryptjs';
 import cookieParser from 'cookie-parser';
-import { initTelegramBot } from './telegram.js';
+import { initTelegramBot, isTelegramConfigured } from './telegram.js';
+import { isEmailConfigured } from './email.js';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { startBackupSchedule, runBackup } from './backup.js';
@@ -46,6 +47,19 @@ initDb();
 // its own competing poller against the same bot token).
 if (process.env.NODE_ENV !== 'test') {
   initTelegramBot();
+  // Both channels are individually optional (each one no-ops quietly on
+  // its own — see telegram.js/email.js), which is fine on its own, but if
+  // NEITHER is configured every notifyUser() call in the app (new-login
+  // alerts, permission grants, proposal approvals, achievement pings) goes
+  // out into the void with nothing telling anyone it happened. That's a
+  // one-time, loud, startup-only check — not a per-call one, so it doesn't
+  // spam the log for every silent no-op notification afterwards.
+  if (!isTelegramConfigured() && !isEmailConfigured()) {
+    console.warn(
+      'No notification channel configured (neither TELEGRAM_BOT_TOKEN nor SMTP_*) — ' +
+      'security alerts and other user notifications will silently do nothing.'
+    );
+  }
 }
 
 // Periodic on-volume backups — a no-op for the ':memory:' DB tests use.
