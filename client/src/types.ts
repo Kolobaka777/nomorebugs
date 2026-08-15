@@ -119,6 +119,17 @@ export interface BlockProgress {
   collected: number;
 }
 
+// A publicly-shared uploaded avatar (see custom_avatars table /
+// GET /api/avatars/gallery) — anyone can pick one as their own avatar_id:
+// 'custom' + custom_avatar. Distinct from a private upload, which never
+// appears here.
+export interface GalleryAvatar {
+  id: number;
+  image: string;
+  user_id: number;
+  uploader_name: string;
+}
+
 export interface FullProfile {
   id: number;
   email: string;
@@ -304,8 +315,20 @@ export interface PublicProfileHidden {
   is_public: false;
 }
 
+// email/phone/gender/bug_coins/purchased_items and the course/guide
+// proposal counts ("Мои предложения" — an owner-only panel in MoyaNora
+// too) are stripped server-side (GET /api/users/:id/profile) for any
+// viewer who isn't the profile owner or a lead — contact/personal details,
+// someone else's shop balance, and what they've proposed have no business
+// being visible on a teammate's public profile. Optional here rather than
+// a second near-duplicate interface, since every other field is identical
+// to FullProfile. role/birthday are new fields the public route adds that
+// FullProfile itself doesn't carry.
+type PublicOnlyOmittedFields = 'email' | 'phone' | 'gender' | 'bug_coins' | 'purchased_items' | 'coursesProposed' | 'coursesApproved' | 'guidesProposed' | 'guidesApproved';
 export type PublicProfile =
-  | (FullProfile & { workStart: string | null; workEnd: string | null; workDays: string; timezone: string })
+  | (Omit<FullProfile, PublicOnlyOmittedFields> &
+      Partial<Pick<FullProfile, PublicOnlyOmittedFields>> &
+      { role?: string; birthday: string | null; workStart: string | null; workEnd: string | null; workDays: string; timezone: string })
   | PublicProfileHidden;
 
 // ===== FAVORITES & NOTES (profile cabinet) =====

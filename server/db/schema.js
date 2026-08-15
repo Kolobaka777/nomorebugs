@@ -1047,6 +1047,23 @@ export function initDb() {
     );
   `);
 
+  // A user's uploaded avatar, kept separate from user_profiles.custom_avatar
+  // (which stays exactly what it always was: a private upload only its
+  // owner can be seen wearing). This table exists so a *public* upload has
+  // a stable id other users can reference as their own avatar_id
+  // ('gallery:<id>') without duplicating the base64 image into every row
+  // that picks it — same base64-in-DB trade-off as custom_avatar/guide
+  // images elsewhere, just shared instead of per-owner.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS custom_avatars (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      image TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,
   // but every one of these queries was a full table scan waiting to

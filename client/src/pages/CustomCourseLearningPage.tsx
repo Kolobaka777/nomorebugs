@@ -405,13 +405,17 @@ function LeadTimer({ startTimeMs, color }: { startTimeMs: number; color: string 
 
 // ─── Course result screen (pass/fail) ──────────────────────────────────────────
 
-// Shown once the last lesson is completed, *if* the course had at least one
-// completed quiz to score — a course made entirely of reading lessons has
-// nothing to grade, so it still gets the older plain "Курс завершён!" screen
-// (see the render logic in the main component below) rather than a
-// fabricated 100%.
+// Shown once the last lesson is completed — always this frog pass/fail
+// screen, never a separate plain "Курс завершён!" one (that used to exist
+// for reading-only courses with nothing to grade; removed on purpose so
+// there's exactly one course-completion screen, not two different ones
+// depending on whether the course happened to have a quiz). `score` is
+// `null` for a course with no gradable quizzes — coursePassed is forced
+// `true` in that case (see the caller), so this renders as a pass with the
+// frog and no fabricated percentage, rather than a 100%/0% that was never
+// actually measured.
 function CourseResultScreen({ course, color, passed, score, weakModules, onRetry, onBackToCourse, onNext, onModuleClick }: {
-  course: any; color: string; passed: boolean; score: number;
+  course: any; color: string; passed: boolean; score: number | null;
   weakModules: string[]; onRetry: () => void; onBackToCourse: () => void; onNext: () => void;
   onModuleClick: (title: string) => void;
 }) {
@@ -446,17 +450,29 @@ function CourseResultScreen({ course, color, passed, score, weakModules, onRetry
 
         <div className="flex items-center justify-center gap-5 mb-8">
           <img src={passed ? successFrogUrl : failedFrogUrl} alt="" style={{ height: 110, width: 'auto' }} />
-          <div className="text-left">
-            <p className="font-montserrat font-bold tabular-nums" style={{ fontSize: 44, color: passed ? RESULT_PASS_COLOR : RESULT_FAIL_COLOR, lineHeight: 1 }}>{score}%</p>
-            <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>Правильных ответов</p>
-          </div>
+          {score !== null && (
+            <div className="text-left">
+              <p className="font-montserrat font-bold tabular-nums" style={{ fontSize: 44, color: passed ? RESULT_PASS_COLOR : RESULT_FAIL_COLOR, lineHeight: 1 }}>{score}%</p>
+              <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>Правильных ответов</p>
+            </div>
+          )}
         </div>
 
         {passed ? (
           <p className="font-geist text-sm leading-relaxed mb-10" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
-            Твой результат говорит о глубоком понимании темы курса<br />
-            Новая ачивка уже в твоём профиле<br />
-            Ты её заслужил!
+            {score !== null ? (
+              <>
+                Твой результат говорит о глубоком понимании темы курса<br />
+                Новая ачивка уже в твоём профиле<br />
+                Ты её заслужил!
+              </>
+            ) : (
+              <>
+                Ты прошёл весь материал курса <span style={{ color: TEXT_PRIMARY, fontWeight: 600 }}>{course.title}</span><br />
+                Новая ачивка уже в твоём профиле<br />
+                Ты её заслужил!
+              </>
+            )}
           </p>
         ) : (
           <p className="font-geist text-sm leading-relaxed mb-10" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
@@ -836,7 +852,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">
-          {showCompleted && courseScore !== null ? (
+          {showCompleted ? (
             <CourseResultScreen
               course={course}
               color={color}
@@ -848,16 +864,6 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
               onNext={() => navigate('/zhukademia')}
               onModuleClick={jumpToModule}
             />
-          ) : showCompleted ? (
-            // No gradable quizzes in this course — nothing to score, so this
-            // stays the original plain completion screen rather than
-            // fabricating a percentage.
-            <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-              <div className="mb-6"><Icon name="trophy" size={64} color="#EF9F27" /></div>
-              <h2 className="font-montserrat font-bold mb-3" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>Курс завершён!</h2>
-              <p className="font-geist text-sm mb-10" style={{ color: TEXT_MUTED }}>{course.title}</p>
-              <button onClick={() => navigate('/zhukademia')} className="px-8 py-3 rounded-lg font-geist font-bold text-sm hover:brightness-110 transition-all cursor-pointer" style={{ background: color, color: PAGE_BG }}><Icon name="chevronLeft" size={22} color="currentColor" /> Вернуться к курсам</button>
-            </div>
           ) : currentLesson ? (
             <div className="max-w-3xl mx-auto px-8 py-8">
               {/* Breadcrumb */}

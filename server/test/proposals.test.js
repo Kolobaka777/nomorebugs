@@ -196,10 +196,20 @@ describe('proposal counts on profile', () => {
     expect(res.body.guidesApproved).toBe(1);
   });
 
-  it('the same counts are visible on the tester\'s public profile to a colleague', async () => {
-    const res = await request(app).get(`/api/users/${fixtures.testerId}/profile`).set('Authorization', `Bearer ${otherTesterToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.coursesProposed).toBe(3);
-    expect(res.body.guidesProposed).toBe(2);
+  // "Мои предложения" is an explicitly owner-only panel in MoyaNora
+  // (matches bug_coins/purchased_items/bookmarks/premium-points in being
+  // treated as personal, not "how's this person doing" — see the
+  // stripping comment in profile.js) — a colleague's own view of someone
+  // else's public profile should not include these counts at all.
+  it('proposal counts are NOT visible to a colleague on the tester\'s public profile, but a lead still sees them', async () => {
+    const colleagueView = await request(app).get(`/api/users/${fixtures.testerId}/profile`).set('Authorization', `Bearer ${otherTesterToken}`);
+    expect(colleagueView.status).toBe(200);
+    expect(colleagueView.body.coursesProposed).toBeUndefined();
+    expect(colleagueView.body.guidesProposed).toBeUndefined();
+
+    const leadView = await request(app).get(`/api/users/${fixtures.testerId}/profile`).set('Authorization', `Bearer ${leadToken}`);
+    expect(leadView.status).toBe(200);
+    expect(leadView.body.coursesProposed).toBe(3);
+    expect(leadView.body.guidesProposed).toBe(2);
   });
 });

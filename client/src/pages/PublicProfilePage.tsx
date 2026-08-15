@@ -17,6 +17,22 @@ interface Props {
   onLogout: () => void;
 }
 
+// Same palette as MoyaNora's own "Коллекция" tab — kept as its own local
+// copy rather than extracted to a shared util for two small lookup tables.
+const RARITY_COLORS: Record<string, string> = { common: ACCENT, rare: '#7F77DD', epic: '#EF9F27' };
+const RARITY_LABEL: Record<string, string> = { common: '', rare: 'RARE', epic: 'EPIC' };
+const WEEKDAY_LABELS: [string, string][] = [['1', 'Пн'], ['2', 'Вт'], ['3', 'Ср'], ['4', 'Чт'], ['5', 'Пт'], ['6', 'Сб'], ['7', 'Вс']];
+const ROLE_LABELS: Record<string, string> = { tester: 'Тестировщик', lead: 'Тимлид', admin: 'Админ' };
+
+// Birthday is stored as 'MM-DD' (no year — see server/src/routes/presence.js).
+// Same formatting MoyaNora's own presence tab uses for its own birthday.
+const MONTHS_GENITIVE = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+function formatBirthday(mmdd: string): string {
+  const [mm, dd] = mmdd.split('-').map(Number);
+  const month = MONTHS_GENITIVE[mm - 1];
+  return month ? `${dd} ${month}` : mmdd;
+}
+
 function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -31,7 +47,7 @@ function StatRow({ label, value, max, color }: { label: string; value: number; m
   );
 }
 
-// A small labeled number tile — reused for lectures/score/proposals so the
+// A small labeled number tile — reused for lectures/score/streak so the
 // "general info visible to everyone" part of the profile reads like a
 // summary dashboard (Steam-profile-ish) rather than a wall of text.
 function MiniStat({ icon, value, label, color }: { icon: IconName; value: string | number; label: string; color: string }) {
@@ -102,9 +118,19 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
               customSrc={'custom_avatar' in profile ? profile.custom_avatar : null}
             />
             <div className="min-w-0">
-              <p className="font-montserrat font-bold break-words" style={{ fontSize: 20, color: BADGE_NOTIFY, letterSpacing: TRACK_WIDE }}>
-                {'nickname' in profile ? profile.nickname : profile.name}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-montserrat font-bold break-words" style={{ fontSize: 20, color: BADGE_NOTIFY, letterSpacing: TRACK_WIDE }}>
+                  {'nickname' in profile ? profile.nickname : profile.name}
+                </p>
+                {!isHidden && 'role' in profile && profile.role && ROLE_LABELS[profile.role] && (
+                  <span
+                    className="font-geist font-semibold rounded px-2 py-0.5 shrink-0"
+                    style={{ fontSize: 10, letterSpacing: TRACK_WIDE, background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55` }}
+                  >
+                    {ROLE_LABELS[profile.role].toUpperCase()}
+                  </span>
+                )}
+              </div>
               {!isHidden && 'specialization' in profile && profile.specialization && (
                 <p className="font-geist text-sm break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
               )}
@@ -126,25 +152,38 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
                 <p className="font-geist text-sm italic mb-4 break-words" style={{ color: TEXT_PRIMARY }}>«{profile.status_quote}»</p>
               )}
 
-              {'workStart' in profile && profile.workStart && profile.workEnd && (
-                <p className="font-geist text-sm mb-4 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
-                  <Icon name="calendar" size={16} color="currentColor" />
-                  Рабочее время: {profile.workStart}–{profile.workEnd} ({TIMEZONES.find(tz => tz.value === profile.timezone)?.label || profile.timezone})
-                </p>
+              {(('birthday' in profile && profile.birthday) || ('workStart' in profile && profile.workStart && profile.workEnd)) && (
+                <div className="space-y-1 mb-4">
+                  {'birthday' in profile && profile.birthday && (
+                    <p className="font-geist text-sm flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                      <Icon name="star" size={16} color="currentColor" />
+                      День рождения: {formatBirthday(profile.birthday)}
+                    </p>
+                  )}
+                  {'workStart' in profile && profile.workStart && profile.workEnd && (
+                    <p className="font-geist text-sm flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                      <Icon name="calendar" size={16} color="currentColor" />
+                      Рабочее время: {profile.workStart}–{profile.workEnd} ({TIMEZONES.find(tz => tz.value === profile.timezone)?.label || profile.timezone})
+                      {'workDays' in profile && profile.workDays && (
+                        <span style={{ color: 'rgba(197, 198, 199,0.5)' }}>
+                          · {WEEKDAY_LABELS.filter(([d]) => profile.workDays!.split(',').includes(d)).map(([, l]) => l).join(', ')}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
               )}
 
-              {/* Summary dashboard — courses/score/proposals, all "general
+              {/* Summary dashboard — courses/score/streak, all "general
                   info" per the owner's own call: visible to any viewer,
-                  unlike notes/bookmarks which stay cabinet-only. */}
+                  unlike bookmarks/premium points/proposals which stay
+                  cabinet-only (see profile.js's payload-stripping comment). */}
               {'lecturesCompleted' in profile && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <MiniStat icon="graduation" value={`${profile.lecturesCompleted}/10`} label="КУРСОВ" color={ACCENT} />
                   <MiniStat icon="chartup" value={`${profile.averageScore}%`} label="СР. БАЛЛ" color={BADGE_NOTIFY} />
-                  {profile.coursesProposed > 0 && (
-                    <MiniStat icon="lightbulb" value={profile.coursesProposed} label="КУРСОВ ПРЕДЛОЖЕНО" color="#7F77DD" />
-                  )}
-                  {profile.guidesProposed > 0 && (
-                    <MiniStat icon="books" value={profile.guidesProposed} label="ГАЙДОВ ПРЕДЛОЖЕНО" color="#7F77DD" />
+                  {'streak' in profile && profile.streak > 0 && (
+                    <MiniStat icon="lightning" value={profile.streak} label="ДНЕЙ ПОДРЯД" color="#EF9F27" />
                   )}
                 </div>
               )}
@@ -160,7 +199,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
               )}
 
               {'badges' in profile && profile.badges.length > 0 && (
-                <div className="mb-3">
+                <div className="mb-4">
                   <p className="font-geist text-xs mb-1.5 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
                     <Icon name="trophy" size={14} color={TEXT_MUTED} /> Значков: {profile.badges.length}
                   </p>
@@ -180,15 +219,37 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Card collection — a real grid (rarity-colored tiles, same
+                  as MoyaNora's own "Коллекция" tab), not just a count —
+                  the Steam-profile "inventory showcase" this whole
+                  expansion is aiming for. */}
               {'cards' in profile && profile.cards.length > 0 && (
-                <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
-                  <Icon name="card" size={14} color={TEXT_MUTED} /> Карточек: {profile.cards.length}
-                </p>
+                <div className="mb-4">
+                  <p className="font-geist text-xs mb-1.5 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
+                    <Icon name="card" size={14} color={TEXT_MUTED} /> Карточек: {profile.cards.length}
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {profile.cards.map(c => {
+                      const color = RARITY_COLORS[c.rarity] || ACCENT;
+                      return (
+                        <div key={c.id} className="rounded-lg p-2.5" style={{ background: 'rgba(197, 198, 199,0.04)', border: `1px solid ${color}40` }}>
+                          <p className="font-geist font-semibold" style={{ fontSize: 9, color, letterSpacing: TRACK_WIDE }}>{RARITY_LABEL[c.rarity] || 'CARD'}</p>
+                          <p className="font-geist text-xs font-semibold mt-0.5 break-words" style={{ color: TEXT_PRIMARY }}>{c.skill_area}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
               {'favLecture' in profile && profile.favLecture && (
                 <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
-                  <Icon name="star" size={14} color={TEXT_MUTED} /> Любимая лекция: <span className="break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</span>
+                  <Icon name="star" size={14} color={TEXT_MUTED} />
+                  Любимая лекция: <span className="break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</span>
+                  {typeof profile.favLecture.score === 'number' && (
+                    <span style={{ color: 'rgba(197, 198, 199,0.5)' }}>({profile.favLecture.score}%)</span>
+                  )}
                 </p>
               )}
 

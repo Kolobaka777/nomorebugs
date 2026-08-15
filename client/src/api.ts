@@ -102,6 +102,12 @@ export const testerApi = {
 
   updateProfile: (data: any) => api.put('/tester/profile', data),
 
+  getAvatarGallery: () => api.get('/avatars/gallery'),
+
+  publishAvatarToGallery: (image: string) => api.post('/tester/avatar/gallery', { image }),
+
+  deleteGalleryAvatar: (id: number) => api.delete(`/tester/avatar/gallery/${id}`),
+
   getMetrics: () => api.get('/tester/metrics'),
 
   getLectures: () => api.get('/tester/lectures'),

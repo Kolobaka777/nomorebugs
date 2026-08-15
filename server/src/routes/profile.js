@@ -141,10 +141,10 @@ router.get('/api/tester/profile-full', authMiddleware, (req, res) => {
 router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
   try {
     const targetId = parseInt(req.params.id, 10);
-    const target = db.prepare('SELECT id, name, avatar_initials, archived_at FROM users WHERE id = ?').get(targetId);
+    const target = db.prepare('SELECT id, name, avatar_initials, role, archived_at FROM users WHERE id = ?').get(targetId);
     if (!target || target.archived_at) return res.status(404).json({ error: 'Пользователь не найден' });
 
-    const profileRow = db.prepare('SELECT is_public, avatar_id, avatar_frame, custom_avatar, work_start, work_end, work_days, timezone FROM user_profiles WHERE user_id = ?').get(targetId) || {};
+    const profileRow = db.prepare('SELECT is_public, avatar_id, avatar_frame, custom_avatar, birthday, work_start, work_end, work_days, timezone FROM user_profiles WHERE user_id = ?').get(targetId) || {};
     const isPublic = profileRow.is_public !== undefined ? !!profileRow.is_public : true;
     const isSelf = targetId === req.user.id;
     const isLead = req.user.role === 'lead' || req.user.role === 'admin';
@@ -164,8 +164,25 @@ router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
     const full = buildFullProfile(targetId);
     if (!full) return res.status(404).json({ error: 'Пользователь не найден' });
 
+    // Self/lead get everything buildFullProfile computes (leads already see
+    // contact info elsewhere, e.g. /api/lead/team). A regular teammate
+    // viewing a public profile does not — email/phone/gender are contact/
+    // personal details unrelated to "how's this person doing"; bug_coins/
+    // purchased_items are the shop-balance equivalent of showing someone
+    // else your wallet; coursesProposed/coursesApproved/guidesProposed/
+    // guidesApproved are "Мои предложения" — MoyaNora's own explicitly
+    // owner-only panel, so it stays owner-only here too. These were
+    // previously sent to every teammate viewer regardless (just never
+    // rendered client-side, which isn't the same as actually private) —
+    // stripped here instead.
+    const payload = isSelf || isLead
+      ? full
+      : (({ email, phone, gender, bug_coins, purchased_items, coursesProposed, coursesApproved, guidesProposed, guidesApproved, ...rest }) => rest)(full);
+
     res.json({
-      ...full,
+      ...payload,
+      role: target.role,
+      birthday: profileRow.birthday || null,
       workStart: profileRow.work_start || null,
       workEnd: profileRow.work_end || null,
       workDays: profileRow.work_days || '1,2,3,4,5',
@@ -242,6 +259,60 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
     );
 
     res.json({ success: true });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Public avatar gallery ──────────────────────────────────────────────────
+// A user's own upload (user_profiles.custom_avatar, set via the PUT above)
+// stays exactly what it always was: visible only wherever *their* avatar
+// renders, and never selectable by anyone else. Publishing here is a
+// separate, explicit opt-in — it copies the image into this shared table so
+// other testers can pick "the same picture" as their own avatar too (via
+// the normal PUT above, avatar_id: 'custom' + custom_avatar: <these bytes>
+// — picking a gallery entry is indistinguishable from uploading it
+// yourself, deliberately: no new avatar_id format, every existing avatar-
+// rendering call site needs zero changes). Deleting a gallery entry only
+// removes it from the picker; anyone who already picked it keeps their own
+// independent copy.
+const MAX_AVATAR_BASE64_CHARS = 2.8 * 1024 * 1024; // same cap as custom_avatar above
+
+router.get('/api/avatars/gallery', authMiddleware, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT ca.id, ca.image, ca.user_id, u.name as uploader_name
+      FROM custom_avatars ca JOIN users u ON u.id = ca.user_id
+      ORDER BY ca.created_at DESC
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/api/tester/avatar/gallery', authMiddleware, (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image || typeof image !== 'string') return res.status(400).json({ error: 'Нужна картинка' });
+    if (image.length > MAX_AVATAR_BASE64_CHARS) return res.status(400).json({ error: 'Картинка слишком большая (макс 2 MB)' });
+    const result = db.prepare('INSERT INTO custom_avatars (user_id, image) VALUES (?, ?)').run(req.user.id, image);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/api/tester/avatar/gallery/:id', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT user_id FROM custom_avatars WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Нет доступа' });
+    db.prepare('DELETE FROM custom_avatars WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

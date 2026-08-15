@@ -713,15 +713,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                           key={av.id}
                           onClick={() => { if (!locked) equipItem({ avatar_id: av.id }); else if (shopItem) buyAndEquip(shopItem.id, 'avatar', av.id); }}
                           disabled={locked && !shopItem}
-                          className="relative flex flex-col items-center gap-1 p-1.5 rounded-lg cursor-pointer overflow-hidden transition-all"
+                          className="relative flex items-center justify-center p-1.5 rounded-lg cursor-pointer overflow-hidden transition-all"
                           style={{ background: equipped ? `${accent}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? accent : 'transparent'}` }}
                         >
                           {equipped && <Icon name="check" size={12} color={accent} className="absolute top-1 right-1 z-10" />}
                           <PixelAvatar id={av.id} size={56} />
-                          {!locked && <span className="font-geist text-center break-words" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{av.name}</span>}
                           {locked && shopItem && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-1" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
-                              <span className="font-geist font-semibold text-center break-words" style={{ fontSize: 9, color: '#fff' }}>{av.name}</span>
+                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
                               <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
                                 {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
                               </span>

@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { testerApi, authApi } from '../api';
 import { setAccessToken } from '../auth';
-import { FullProfile } from '../types';
+import { FullProfile, GalleryAvatar } from '../types';
 import PixelAvatar, { AVATAR_LIST, FRAME_LIST, BG_LIST, AvatarId, FrameId, BgId } from './PixelAvatar';
 import Icon, { IconName } from './Icon';
 import Modal from './Modal';
@@ -68,6 +68,18 @@ export default function ProfileEditModal({
   const [showcase, setShowcase]             = useState<string[]>(profile.showcase_badges || []);
   const [favLectureId]                      = useState<number | null>(profile.favorite_lecture_id);
   const [customAvatar, setCustomAvatar]     = useState<string | null>(profile.custom_avatar);
+  // Whether a *just-uploaded* file (this session) should also be published
+  // to the shared gallery on save — a one-shot action tied to this upload,
+  // not a persistent flag on the avatar itself (see the server route
+  // comment for why re-checking this on an old upload doesn't do anything
+  // retroactive; only a fresh upload triggers a new gallery entry).
+  const [publishPublicly, setPublishPublicly] = useState(false);
+  const [galleryAvatars, setGalleryAvatars] = useState<GalleryAvatar[]>([]);
+  const [deletingGalleryId, setDeletingGalleryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    testerApi.getAvatarGallery().then(r => setGalleryAvatars(r.data)).catch(() => {});
+  }, []);
   // Purely for correctly-gendered verb endings elsewhere (activity feeds,
   // "Ты прошёл/прошла..." on the home page) — never shown to anyone else as
   // an identity field, and "не указывать" is a real, first-class option.
@@ -148,6 +160,13 @@ export default function ProfileEditModal({
   const handleSave = async () => {
     setSaving(true); setError('');
     try {
+      // Publish first — if it fails, the profile save below still hasn't
+      // run, so nothing's left half-applied (avatar equipped but not
+      // actually shared, or vice versa).
+      if (publishPublicly && avatarId === 'custom' && customAvatar) {
+        await testerApi.publishAvatarToGallery(customAvatar);
+        setPublishPublicly(false);
+      }
       await testerApi.updateProfile({
         nickname, status_quote: statusQuote, specialization: spec,
         info_box: infoBox, snail_joke: snailJoke, is_public: isPublic,
@@ -386,13 +405,24 @@ export default function ProfileEditModal({
                   size={84}
                   customSrc={avatarId === 'custom' ? customAvatar : null}
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 rounded-lg cursor-pointer flex items-center justify-center gap-2 py-3 font-geist text-xs font-semibold transition-colors"
-                  style={{ background: 'rgba(102, 252, 241,0.12)', color: '#66FCF1' }}
-                >
-                  Загрузить свой <Icon name="camera" size={14} color="currentColor" />
-                </button>
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full rounded-lg cursor-pointer flex items-center justify-center gap-2 py-3 font-geist text-xs font-semibold transition-colors"
+                    style={{ background: 'rgba(102, 252, 241,0.12)', color: '#66FCF1' }}
+                  >
+                    Загрузить свой <Icon name="camera" size={14} color="currentColor" />
+                  </button>
+                  {/* Only meaningful once a custom image is actually
+                      equipped — picking a built-in frog clears customAvatar
+                      (see below), which hides this along with it. */}
+                  {avatarId === 'custom' && customAvatar && (
+                    <label className="flex items-center gap-1.5 text-xs font-sans cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.7)' }}>
+                      <input type="checkbox" checked={publishPublicly} onChange={e => setPublishPublicly(e.target.checked)} />
+                      Показывать в общей галерее — смогут выбрать себе и другие
+                    </label>
+                  )}
+                </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
               </div>
 
@@ -450,8 +480,10 @@ export default function ProfileEditModal({
               </div>
 
               {/* Avatar gallery — most of the 9 frogs are free, one is a
-                  priced shop tile (price+name overlay), one unlocks with
-                  any earned badge (plain padlock overlay, no price). */}
+                  priced shop tile (price overlay), one unlocks with any
+                  earned badge (plain padlock overlay, no price). No names
+                  under the tiles — just the pictures, matching the shared
+                  gallery below which has no names to show anyway. */}
               <div>
                 <label style={labelStyle}>ДОСТУПНЫЕ АВАТАРЫ</label>
                 <div className="grid grid-cols-5 gap-2">
@@ -461,9 +493,9 @@ export default function ProfileEditModal({
                     return (
                       <button
                         key={av.id}
-                        onClick={() => { if (!locked) { setAvatarId(av.id); setCustomAvatar(null); } else if (shopItem) buyItem(shopItem.id); }}
+                        onClick={() => { if (!locked) { setAvatarId(av.id); setCustomAvatar(null); setPublishPublicly(false); } else if (shopItem) buyItem(shopItem.id); }}
                         disabled={locked && !shopItem}
-                        className="relative flex flex-col items-center gap-1 p-1 rounded-lg cursor-pointer overflow-hidden transition-all"
+                        className="relative flex items-center justify-center p-1 rounded-lg cursor-pointer overflow-hidden transition-all"
                         style={{
                           background: avatarId === av.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
                           boxShadow: avatarId === av.id
@@ -472,10 +504,8 @@ export default function ProfileEditModal({
                         }}
                       >
                         <PixelAvatar id={av.id} size={44} />
-                        {!locked && <span className="text-pixel/60 font-sans text-center break-words" style={{ fontSize: '0.55rem' }}>{av.name}</span>}
                         {locked && shopItem && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-0.5" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
-                            <span className="font-sans text-center break-words" style={{ fontSize: '0.5rem', color: '#fff' }}>{av.name}</span>
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
                             <span className="font-geist font-semibold rounded flex items-center gap-1 px-1 py-0.5" style={{ fontSize: '0.55rem', color: coins >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
                               {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={8} color="currentColor" /></>}
                             </span>
@@ -491,6 +521,61 @@ export default function ProfileEditModal({
                   })}
                 </div>
               </div>
+
+              {/* Shared gallery — avatars other testers (or you, earlier)
+                  published publicly. Picking one is exactly equivalent to
+                  uploading that same image yourself (avatar_id stays
+                  'custom'); the trash icon only shows on your own entries. */}
+              {galleryAvatars.length > 0 && (
+                <div>
+                  <label style={labelStyle}>ОБЩАЯ ГАЛЕРЕЯ</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {galleryAvatars.map(g => {
+                      const isMine = g.user_id === profile.id;
+                      const equipped = avatarId === 'custom' && customAvatar === g.image;
+                      return (
+                        <div
+                          key={g.id}
+                          className="relative flex items-center justify-center p-1 rounded-lg overflow-hidden"
+                          style={{
+                            background: equipped ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
+                            boxShadow: equipped
+                              ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
+                              : 'none',
+                          }}
+                        >
+                          <button
+                            onClick={() => { setAvatarId('custom'); setCustomAvatar(g.image); setPublishPublicly(false); }}
+                            title={`Загрузил(а): ${g.uploader_name}`}
+                            className="cursor-pointer flex items-center justify-center"
+                          >
+                            <PixelAvatar id="frog1" customSrc={g.image} size={44} />
+                          </button>
+                          {isMine && (
+                            <button
+                              onClick={async () => {
+                                setDeletingGalleryId(g.id);
+                                try {
+                                  await testerApi.deleteGalleryAvatar(g.id);
+                                  setGalleryAvatars(prev => prev.filter(x => x.id !== g.id));
+                                } catch { /* toast not critical here — the tile just stays */ }
+                                finally { setDeletingGalleryId(null); }
+                              }}
+                              disabled={deletingGalleryId === g.id}
+                              aria-label="Убрать из общей галереи"
+                              title="Убрать из общей галереи"
+                              className="absolute top-0.5 right-0.5 rounded flex items-center justify-center cursor-pointer"
+                              style={{ width: 16, height: 16, background: 'rgba(0, 0, 0, 0.7)' }}
+                            >
+                              <Icon name="close" size={10} color="#e05252" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Frame gallery — empty swatches (just the border style, no
                   avatar inside), matching the reference; locked-but-
