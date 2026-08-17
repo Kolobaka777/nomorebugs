@@ -5,7 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 // Truncates a rejected/approved proposal's own text for use inside a
@@ -159,9 +159,13 @@ router.patch('/api/bug-examples/:id/approve', authMiddleware, requirePermission(
     db.prepare("UPDATE bug_examples SET is_published = 1, proposal_status = 'approved' WHERE id = ?").run(example.id);
     if (example.created_by) {
       awardAchievement(example.created_by, ACHIEVEMENT_IDS.AVTOR);
+      // Coins only when someone *else* signed off. A reviewer approving
+      // their own proposal is just publishing, and paying for that would
+      // make the reward self-serve for anyone holding the permission.
       if (example.created_by !== req.user.id) {
+        awardCoins(example.created_by, COIN_REWARDS.proposalBugExample);
         const author = db.prepare('SELECT * FROM users WHERE id = ?').get(example.created_by);
-        if (author) notifyUser(author, 'Пример одобрен!', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» одобрен и опубликован.`);
+        if (author) notifyUser(author, 'Пример одобрен!', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» одобрен и опубликован. +${COIN_REWARDS.proposalBugExample} баг-коинов.`);
       }
     }
     res.json({ ok: true });
@@ -274,8 +278,9 @@ router.patch('/api/glossary/:id/approve', authMiddleware, requirePermission('man
       ).get(term.created_by).c;
       if (approvedCount >= 5) awardAchievement(term.created_by, ACHIEVEMENT_IDS.BIBLIOTEKAR);
       if (term.created_by !== req.user.id) {
+        awardCoins(term.created_by, COIN_REWARDS.proposalGlossary);
         const author = db.prepare('SELECT * FROM users WHERE id = ?').get(term.created_by);
-        if (author) notifyUser(author, 'Термин одобрен!', `Твой предложенный термин «${truncateForNotify(term.term)}» одобрен и опубликован.`);
+        if (author) notifyUser(author, 'Термин одобрен!', `Твой предложенный термин «${truncateForNotify(term.term)}» одобрен и опубликован. +${COIN_REWARDS.proposalGlossary} баг-коинов.`);
       }
     }
     res.json({ ok: true });
@@ -455,8 +460,9 @@ router.patch('/api/guides/:id/approve', authMiddleware, requirePermission('manag
     ).get(guide.created_by).c;
     if (approvedCount >= 3) awardAchievement(guide.created_by, ACHIEVEMENT_IDS.NASTAVNIK);
     if (guide.created_by !== req.user.id) {
+      awardCoins(guide.created_by, COIN_REWARDS.proposalGuide);
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(guide.created_by);
-      if (author) notifyUser(author, 'Гайд одобрен!', `Твой предложенный гайд «${truncateForNotify(guide.title)}» одобрен и опубликован.`);
+      if (author) notifyUser(author, 'Гайд одобрен!', `Твой предложенный гайд «${truncateForNotify(guide.title)}» одобрен и опубликован. +${COIN_REWARDS.proposalGuide} баг-коинов.`);
     }
     res.json({ ok: true });
   } catch (err) {

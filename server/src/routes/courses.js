@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -623,8 +623,9 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
     if (approvingProposal) {
       awardAchievement(course.created_by, ACHIEVEMENT_IDS.AVTOR);
       if (course.created_by !== req.user.id) {
+        awardCoins(course.created_by, COIN_REWARDS.proposalCourse);
         const author = db.prepare('SELECT * FROM users WHERE id = ?').get(course.created_by);
-        if (author) notifyUser(author, 'Курс одобрен!', `Твой предложенный курс «${course.title}» одобрен и опубликован.`);
+        if (author) notifyUser(author, 'Курс одобрен!', `Твой предложенный курс «${course.title}» одобрен и опубликован. +${COIN_REWARDS.proposalCourse} баг-коинов.`);
       }
     }
 
@@ -695,15 +696,40 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
       return res.status(400).json({ error: 'Неверные данные' });
     }
     const clampedSeconds = Math.min(seconds_spent, MAX_COURSE_SECONDS_SPENT);
-    db.prepare(`
-      INSERT INTO course_time_tracking (user_id, course_id, seconds_spent, completed_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(user_id, course_id) DO UPDATE SET
-        seconds_spent = excluded.seconds_spent,
-        completed_at = excluded.completed_at
-    `).run(userId, course_id, clampedSeconds);
-    db.prepare('INSERT INTO activity_log (user_id, action, lecture_id) VALUES (?, ?, ?)')
-      .run(userId, 'course_completed', course_id);
+    // Coins for finishing a whole course need two guards this route can't
+    // get from its own arguments. It upserts, so "was this the first call"
+    // has to be read *before* the write; and it's an ordinary client POST
+    // with a course_id in the body, so its word that the course is finished
+    // buys nothing — every lesson has to be visible as done in
+    // custom_lesson_progress, which only the gated
+    // /api/custom-lessons/:id/complete route can write.
+    const alreadyTracked = db.prepare(
+      'SELECT 1 FROM course_time_tracking WHERE user_id = ? AND course_id = ?'
+    ).get(userId, course_id);
+    const lessonIds = db.prepare(`
+      SELECT l.id FROM custom_lessons l
+      JOIN custom_modules m ON m.id = l.module_id
+      WHERE m.course_id = ?
+    `).all(course_id).map(r => r.id);
+    const doneCount = lessonIds.length
+      ? db.prepare(
+        `SELECT COUNT(*) as c FROM custom_lesson_progress WHERE user_id = ? AND lesson_id IN (${lessonIds.map(() => '?').join(',')})`
+      ).get(userId, ...lessonIds).c
+      : 0;
+    const reallyFinished = lessonIds.length > 0 && doneCount === lessonIds.length;
+
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO course_time_tracking (user_id, course_id, seconds_spent, completed_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, course_id) DO UPDATE SET
+          seconds_spent = excluded.seconds_spent,
+          completed_at = excluded.completed_at
+      `).run(userId, course_id, clampedSeconds);
+      db.prepare('INSERT INTO activity_log (user_id, action, lecture_id) VALUES (?, ?, ?)')
+        .run(userId, 'course_completed', course_id);
+      if (!alreadyTracked && reallyFinished) awardCoins(userId, COIN_REWARDS.courseCompleted);
+    })();
     res.json({ ok: true });
   } catch (err) {
     logError(err);

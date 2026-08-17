@@ -92,6 +92,45 @@ export function awardAchievement(userId, badgeId) {
   return result.changes > 0;
 }
 
+// The one place bug-coin amounts are decided. Coins used to be awarded from
+// a single inline ladder in routes/tester.js and nowhere else, so "what does
+// this app actually pay you for" was one quiz score and nothing more; the
+// Помощь page now documents this table for a lead, and a documented economy
+// has to have exactly one definition to document.
+//
+// Values are calibrated against the shop (SHOP_CATALOG in routes/tester.js:
+// 120–350 per item): a quiz is pocket change, finishing a whole course is
+// half a cheap item, and authoring something the team actually keeps is the
+// only thing that pays for a frame on its own.
+//
+// The client mirrors this by hand in client/src/utils/coins.ts — same
+// arrangement as SHOP_CATALOG/shop.ts, since there's no shared-types
+// boundary in this repo. Change one, change the other.
+export const COIN_REWARDS = {
+  quizExcellent: 25,      // first submission, 90%+
+  quizGood: 18,           // first submission, 75–89%
+  quizPass: 10,           // first submission, 60–74%
+  quizFail: 3,            // first submission, below 60% — a consolation, not a reward
+  courseCompleted: 50,    // every lesson of a custom course done, once per course
+  proposalCourse: 100,    // own course proposal approved by a lead
+  proposalGuide: 60,      // own guide proposal approved
+  proposalBugExample: 30, // own bug example approved
+  proposalGlossary: 20,   // own glossary term approved
+};
+
+// Same upsert the quiz reward has always used. Not idempotent by itself —
+// it adds every time it's called, so each call site owns the "has this
+// already been paid for" check (a pending→approved transition, a first
+// course completion, a first quiz submission).
+export function awardCoins(userId, amount) {
+  if (!userId || !amount) return;
+  db.prepare(`
+    INSERT INTO user_profiles (user_id, bug_coins)
+    VALUES (?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET bug_coins = COALESCE(bug_coins, 0) + excluded.bug_coins
+  `).run(userId, amount);
+}
+
 // Revokes every outstanding refresh token for a user — called on any
 // password change (routes/auth.js) so a leaked/compromised session doesn't
 // survive it, and on archiving a user (routes/admin.js) so a deactivated
