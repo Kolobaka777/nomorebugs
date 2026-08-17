@@ -592,7 +592,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
               {filteredOnboardingCourses.map((cc: any) => {
                 const color = cc.color || ACCENT;
                 const isDraft = !cc.is_published;
@@ -630,7 +630,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
 
         {/* ===== COURSE GRID ===== */}
         {lectures.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
             {filteredLectures.map((lecture) => {
               const tagColor = getCourseTagColor(getTopicTag(lecture.skill_area));
               const isTester = user.role === 'tester';
@@ -737,7 +737,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 {sections.length > 0 && (
                   <p className="font-montserrat font-semibold mb-3" style={{ color: TEXT_MUTED, fontSize: 13, letterSpacing: TRACK_WIDE }}>{group.name.toUpperCase()}</p>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
                   {group.courses.map((cc: any) => {
                     const color = cc.color || ACCENT;
                     const courseIsNew = isNew(cc.created_at, !!cc.viewed);

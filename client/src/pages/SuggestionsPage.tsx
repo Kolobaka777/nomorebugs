@@ -508,7 +508,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             {typeGroups.map(({ type: t, items }) => (
               <div key={t}>
                 <p className="font-montserrat font-semibold mb-3" style={{ color: TYPE_COLORS[t], fontSize: 13, letterSpacing: TRACK_WIDE }}>{TYPE_LABELS[t].toUpperCase()}</p>
-                <div className="space-y-3">
+                <div className="space-y-3 stagger-in">
                   {items.map(s => <SuggestionCard key={s.id} s={s} {...cardProps} isLiking={likingIds.has(s.id)} />)}
                 </div>
               </div>
@@ -521,7 +521,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
             {folderGroups.map(({ folder: f, items }) => (
               <div key={String(f.id)}>
                 <p className="font-montserrat font-semibold mb-3 break-words" style={{ color: TEXT_MUTED, fontSize: 13, letterSpacing: TRACK_WIDE }}>{f.name.toUpperCase()}</p>
-                <div className="space-y-3">
+                <div className="space-y-3 stagger-in">
                   {items.map(s => <SuggestionCard key={s.id} s={s} {...cardProps} isLiking={likingIds.has(s.id)} />)}
                 </div>
               </div>

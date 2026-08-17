@@ -352,6 +352,9 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           </div>
         )}
 
+        {/* Keyed on the active tab so React builds a fresh node on every
+            switch — that remount is what re-runs .fade-in. */}
+        <div key={tab} className="fade-in">
         {!loading && !loadError && tab === 'examples' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: примеры */}
@@ -397,7 +400,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                 <p className="text-sm font-geist text-center py-8" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>Пока нет примеров</p>
               )}
 
-              <div className="space-y-5">
+              <div className="space-y-5 stagger-in">
                 {bugExamples.map((pair) => {
                   const isPending = pair.proposal_status === 'pending';
                   const isOwn = pair.created_by === user.id;
@@ -549,7 +552,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
               <p className="text-sm font-geist text-center py-8" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>Пока нет терминов</p>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 stagger-in">
               {glossary.map(item => {
                 const isPending = item.proposal_status === 'pending';
                 const isOwn = item.created_by === user.id;
@@ -628,6 +631,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

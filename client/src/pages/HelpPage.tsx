@@ -179,7 +179,7 @@ function SectionHeading({ icon, title, subtitle }: { icon: IconName; title: stri
 // mean nobody reads the one they didn't know to look for.
 function HowToSection({ items }: { items: HowToItem[] }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid gap-2 sm:grid-cols-2 stagger-in">
       {items.map((item, i) => (
         <div
           key={i}
@@ -202,7 +202,7 @@ function HowToSection({ items }: { items: HowToItem[] }) {
 // row costs more than it explains.
 function RewardTable({ rows, accent }: { rows: RewardRow[]; accent: string }) {
   return (
-    <div className="rounded-lg overflow-hidden" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
+    <div className="rounded-lg overflow-hidden stagger-in" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
       {rows.map((row, i) => (
         <div
           key={i}
@@ -223,7 +223,7 @@ function RewardTable({ rows, accent }: { rows: RewardRow[]; accent: string }) {
 function FaqSection({ items }: { items: FaqItem[] }) {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 stagger-in">
       {items.map((item, i) => {
         const open = openIdx === i;
         return (

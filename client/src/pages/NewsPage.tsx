@@ -70,7 +70,7 @@ export default function NewsPage({ user, onLogout }: Props) {
             )}
 
             {news.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 stagger-in">
                 {news.map(item => (
                   <div key={item.id} className="px-4 py-3 flex items-start gap-3 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', boxShadow: CARD_SHADOW }}>
                     <Icon name={EVENT_ICON[item.event_type] || 'bug'} size={22} color={ACCENT} />

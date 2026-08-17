@@ -339,6 +339,10 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
           ))}
         </div>
 
+        {/* Keyed on the active tab so React builds a fresh node on every
+            switch — that remount is what re-runs .fade-in. Without the key
+            the class would only ever animate on first paint. */}
+        <div key={tab} className="fade-in">
         {/* ===== TAB: TEAM ===== */}
         {tab === 'team' && (
           <TeamTab
@@ -413,6 +417,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             teamNameById={teamNameById}
           />
         )}
+        </div>
       </div>
     </div>
   );

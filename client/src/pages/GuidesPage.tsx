@@ -266,7 +266,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4 stagger-in">
             {!listError && Object.keys(grouped).length === 0 && (
               <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Гайдов пока нет — добавь первый.</p>
             )}
