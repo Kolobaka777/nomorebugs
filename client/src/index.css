@@ -608,26 +608,10 @@
 .frog-companion-hop {
   animation: frog-companion-hop-anim 0.6s ease-out;
 }
-/* Tongue is bottom-anchored (position: absolute; bottom: ...) so growing
-   its height extends the top edge upward — reads as a flick-out-and-back. */
-@keyframes frog-companion-tongue-flick {
-  0%   { height: 0; opacity: 0; }
-  35%  { height: 26px; opacity: 1; }
-  65%  { height: 26px; opacity: 1; }
-  100% { height: 0; opacity: 0; }
-}
-.frog-companion-tongue {
-  animation: frog-companion-tongue-flick 0.4s ease-out;
-}
-@keyframes frog-companion-bug-catch {
-  0%   { transform: translateY(0) scale(1); opacity: 1; }
-  40%  { transform: translateY(-6px) scale(1); opacity: 1; }
-  70%  { transform: translateY(-10px) scale(0.4); opacity: 0.6; }
-  100% { transform: translateY(-10px) scale(0); opacity: 0; }
-}
-.frog-companion-bug {
-  animation: frog-companion-bug-catch 0.4s ease-out forwards;
-}
+/* The click-to-catch-a-bug tongue/bug pair that used to live here is gone:
+   clicking the companion now opens «Помощь», so nothing triggered it, and
+   its anchor was wrong anyway — the tongue flicked out of the frog's eye
+   rather than its mouth. The knight sprite slays bugs with the sword. */
 @keyframes frog-companion-bubble-in {
   0%   { transform: translateY(6px) scale(0.9); opacity: 0; }
   100% { transform: translateY(0) scale(1);     opacity: 1; }
@@ -635,11 +619,63 @@
 .frog-companion-bubble {
   animation: frog-companion-bubble-in 0.25s ease-out;
 }
+
+/* The three layers of PixelFrogKnightSprite. transform-box: fill-box makes
+   the transform-origin below resolve against the layer's own bounding box
+   instead of the shared viewBox, which is the whole reason each part can
+   pivot around its own anchor: the croc around the ground it stands on, the
+   sword around the bottom of its hilt — the frog's fists are drawn there, so
+   the blade turns in the hands rather than about its middle. Distances are
+   in viewBox units (1 unit = one quarter of a pixel cell), not screen px, so
+   the motion scales with the sprite.
+   The rider deliberately gets no origin: it only ever translates. A rotation
+   there would have to pivot on a bounding box that *contains the swinging
+   sword*, so the origin would crawl from frame to frame as the blade moved. */
+.frog-knight-mount, .frog-knight-sword {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+/* Resting pose: blade up and tilted back off the frog's face. Every swing
+   keyframe returns here, so this angle is the one the sprite sits at. */
+.frog-knight-sword {
+  transform: rotate(-20deg);
+}
+/* Hover: the frog swings the sword while the croc gallops under it. The
+   mount and the rider run the same 0.5s cycle in opposite phase — the croc
+   rocks down as the frog comes up — which is what sells "riding" rather
+   than "two things bouncing". The swing is deliberately a slower 0.75s so
+   the two never lock into one mechanical beat. It also stays on the negative
+   side of vertical: swinging forward past 0 would drag the blade across the
+   frog's eyes. */
+@keyframes frog-knight-swing {
+  0%, 100% { transform: rotate(-20deg); }
+  30%      { transform: rotate(-45deg); }
+  65%      { transform: rotate(-4deg); }
+}
+@keyframes frog-knight-ride {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+@keyframes frog-knight-gallop {
+  0%, 100% { transform: translateY(0) rotate(1.5deg); }
+  50%      { transform: translateY(1px) rotate(-1.5deg); }
+}
+.frog-knight-charging .frog-knight-sword { animation: frog-knight-swing 0.75s ease-in-out infinite; }
+.frog-knight-charging .frog-knight-rider { animation: frog-knight-ride 0.5s ease-in-out infinite; }
+.frog-knight-charging .frog-knight-mount { animation: frog-knight-gallop 0.5s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .frog-companion-idle, .frog-companion-hop {
     animation: none;
   }
   .frog-companion-bubble {
+    animation: none;
+  }
+  /* Static knight: the sword keeps its resting tilt (that's the pose, not
+     motion), everything else stops. */
+  .frog-knight-charging .frog-knight-sword,
+  .frog-knight-charging .frog-knight-rider,
+  .frog-knight-charging .frog-knight-mount {
     animation: none;
   }
 }
