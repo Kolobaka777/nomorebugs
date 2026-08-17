@@ -974,7 +974,7 @@
    layout; the empty gutter reserved via the editor's own left padding is
    just enough room for it to sit in without overlapping text. */
 .rich-text-drag-handle {
-  width: 18px; height: 24px; display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 24px; display: flex; align-items: center; justify-content: center;
   color: rgba(197, 198, 199, 0.35); cursor: grab; border-radius: 4px; font-size: 14px; letter-spacing: -2px;
   transition: color 0.15s, background 0.15s;
 }

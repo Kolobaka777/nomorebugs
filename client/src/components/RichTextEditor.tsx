@@ -32,7 +32,82 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 // highlight.js's full ~190-language grammar set into the bundle.
 const lowlight = createLowlight(common);
 
-function ToolbarButton({ active, onClick, children, label }: { active?: boolean; onClick: () => void; children: React.ReactNode; label: string }) {
+// One uniform break rule across every block type, code blocks included:
+//   Enter       → close this block, start a new one
+//   Shift+Enter → stay inside the current block, just a new line
+// Paragraphs/headings/list items already behave that way out of the box
+// (StarterKit's HardBreak binds Shift-Enter to a hard break), but a code
+// block did the exact opposite: Enter inserted a newline *inside* the block
+// (prosemirror's newlineInCode, from the base keymap). So a code block is
+// the only node that needs the rule spelled out.
+//
+// priority 900 is what makes these win: keymap plugins are ordered by
+// extension priority (highest first), and at the default 100 this would tie
+// with HardBreak/the base keymap and lose. It stays *below* Paragraph's 1000
+// on purpose — schema node order follows the same priority sort, and a code
+// block ranked above the paragraph would become the doc's default block type.
+const CodeBlock = CodeBlockLowlight.extend({
+  priority: 900,
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.(),
+      // Mod-Enter is deliberately left alone: HardBreak's setHardBreak falls
+      // back to exitCode inside a code node, which drops the cursor into a
+      // fresh paragraph after the block — a handy way out, and no longer the
+      // shortcut anything here advertises.
+      'Shift-Enter': ({ editor }: any) => editor.isActive('codeBlock') && editor.commands.newlineInCode(),
+      Enter: ({ editor }: any) => {
+        if (!editor.isActive('codeBlock')) return false;
+        const { $from, empty } = editor.state.selection;
+        // Escape hatch. Overriding Enter drops the extension's own
+        // exit-on-triple-Enter handler, so without this an empty code block
+        // at the end of the doc is a trap: every Enter just makes another
+        // empty code block and there's no keyboard way back out.
+        if (empty && $from.parent.content.size === 0) {
+          return editor.chain().focus().toggleCodeBlock().run();
+        }
+        // splitBlock alone gives the second half the position's *default*
+        // type (a paragraph) when the cursor sits at the end of the block —
+        // setNode puts it back to a code block, carrying the language across.
+        // Mid-block splits already keep the type, so setNode is a no-op there.
+        return editor.chain().splitBlock().setNode('codeBlock', editor.getAttributes('codeBlock')).run();
+      },
+    };
+  },
+}).configure({ lowlight });
+
+// Wraps everything the selection touches in ONE code block, instead of
+// Tiptap's toggleCodeBlock, which is a setBlockType over the range and so
+// converts each paragraph/list item it covers into a code block of its own
+// (three selected lines → three separate <pre> boxes). Both are wanted —
+// see the Alt-click branch on the toolbar button — this is just the default.
+//
+// It replaces whole top-level blocks rather than the raw selection range:
+// starting the replacement mid-list would leave the list structure cut in
+// half. Block boundaries and leaf nodes (hard breaks) collapse into
+// newlines, so a paragraph broken up with Shift-Enter survives the
+// conversion — plain toggleCodeBlock drops those break nodes, since
+// code_block's content spec has no room for them.
+function setMergedCodeBlock(editor: any) {
+  const { state } = editor;
+  const { $from, $to, empty } = state.selection;
+  if (empty || editor.isActive('codeBlock')) {
+    editor.chain().focus().toggleCodeBlock().run();
+    return;
+  }
+  const from = $from.depth > 0 ? $from.before(1) : $from.pos;
+  const to = $to.depth > 0 ? $to.after(1) : $to.pos;
+  const text = state.doc.textBetween(from, to, '\n', '\n');
+  editor
+    .chain()
+    .focus()
+    .insertContentAt({ from, to }, { type: 'codeBlock', content: text ? [{ type: 'text', text }] : undefined })
+    .run();
+}
+
+// onClick gets the event so a button can branch on a modifier key (the code
+// block one does — Alt picks per-line instead of one merged block).
+function ToolbarButton({ active, onClick, children, label }: { active?: boolean; onClick: (e: React.MouseEvent) => void; children: React.ReactNode; label: string }) {
   return (
     <button
       type="button"
@@ -69,8 +144,8 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }), // replaced by CodeBlockLowlight below
-      CodeBlockLowlight.configure({ lowlight }),
+      StarterKit.configure({ codeBlock: false }), // replaced by our CodeBlock above
+      CodeBlock,
       Image,
       Placeholder.configure({ placeholder }),
       // Toggle list ("▸ Список-тоггл" in the toolbar) — Notion calls this a
@@ -124,7 +199,15 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
           <ToolbarButton label="Жирный" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>B</ToolbarButton>
           <ToolbarButton label="Курсив" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>I</ToolbarButton>
           <ToolbarButton label="Цитата" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>❝</ToolbarButton>
-          <ToolbarButton label="Блок кода" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>{'</>'}</ToolbarButton>
+          {/* Alt-click keeps the old per-line behaviour (one code block per
+              selected line); a plain click merges the whole selection into a
+              single block, which is what people actually mean when they
+              paste a snippet in and hit this. */}
+          <ToolbarButton
+            label="Блок кода — весь выделенный текст одним блоком (Alt — по блоку на строку)"
+            active={editor.isActive('codeBlock')}
+            onClick={e => (e.altKey ? editor.chain().focus().toggleCodeBlock().run() : setMergedCodeBlock(editor))}
+          >{'</>'}</ToolbarButton>
           <ToolbarButton label="Нумерованный список" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>1.</ToolbarButton>
           <ToolbarButton label="Маркированный список" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}>•</ToolbarButton>
           <ToolbarButton label="Список-тоггл" active={editor.isActive('details')} onClick={() => editor.chain().focus().setDetails().run()}>▸</ToolbarButton>
@@ -136,6 +219,15 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
             style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; if (f) insertImage(f); e.target.value = ''; }}
           />
+        </div>
+      )}
+
+      {/* The Enter/Shift-Enter split is the one rule here that isn't visible
+          in the toolbar, so it gets a line of its own rather than living only
+          in a tooltip nobody hovers. */}
+      {editable && (
+        <div className="mb-2 font-geist" style={{ fontSize: 11, color: 'rgba(197, 198, 199, 0.45)' }}>
+          Enter — новый блок · Shift+Enter — новая строка в текущем блоке
         </div>
       )}
 
@@ -154,7 +246,10 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
 
       <div
         className={editable ? 'rich-text-content pixel-input' : 'rich-text-content'}
-        style={editable ? { minHeight: 240, padding: editable ? '10px 12px 10px 34px' : '10px 12px' } : undefined}
+        // The extra left padding in edit mode is only there to keep the drag
+        // handle off the text — 22px is the handle's own 18px plus a hair,
+        // where the old 34px read as a stray indent on every line.
+        style={editable ? { minHeight: 240, padding: '10px 12px 10px 22px' } : undefined}
       >
         {/* Drag-to-reorder handle — edit mode only, floats next to whatever
             block the cursor is over. Read-only instances render the same
