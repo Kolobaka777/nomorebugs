@@ -664,6 +664,68 @@
 .frog-knight-charging .frog-knight-rider { animation: frog-knight-ride 0.5s ease-in-out infinite; }
 .frog-knight-charging .frog-knight-mount { animation: frog-knight-gallop 0.5s ease-in-out infinite; }
 
+/* The flies he's swinging at. Each one's loop is 2.25s — exactly three
+   swings — and every slot is offset by a whole swing, so the three share one
+   set of keyframes and still arrive one per swing. That whole-multiple
+   relationship is the entire timing mechanism: both animations start at the
+   same instant (the flies mount with .frog-knight-charging), and because the
+   periods divide evenly they cannot drift apart afterwards. A JS timer
+   spawning flies would.
+   The 52% mark below is where the blade actually is: the fly parks at
+   (36, 22) in viewBox units, that point sits at −11° on the sword's arc, and
+   the swing passes −11° a hair past its own midpoint — 0.42s into a 0.75s
+   swing, which is 52% of the fly's three-swing loop. Retiming the swing or
+   moving the fly means recomputing this. */
+@keyframes frog-knight-fly-path {
+  /* In from off-canvas left, wobbling like something that hasn't noticed the sword yet. */
+  0%     { transform: translate(-52px, 14px) rotate(0deg); }
+  14%    { transform: translate(-34px, 2px)  rotate(0deg); }
+  25%    { transform: translate(-16px, 10px) rotate(0deg); }
+  33%    { transform: translate(0, 0)        rotate(0deg); }
+  42%    { transform: translate(-3px, -3px)  rotate(0deg); }
+  /* Impact: 0.1% apart, so it snaps rather than eases. */
+  51.9%  { transform: translate(0, 0)        rotate(0deg); }
+  52%    { transform: translate(2px, 0)      rotate(30deg); }
+  /* Knocked up and back, then down onto the croc's back, left of the frog.
+     54px is what puts the corpse's underside on the croc's spine rather
+     than hovering over it or sinking through — the fly art's bottom edge
+     sits at y=28 and the croc's back is at y=80. */
+  57%    { transform: translate(-6px, -7px)  rotate(80deg); }
+  66%    { transform: translate(-12px, 22px) rotate(150deg); }
+  73%    { transform: translate(-14px, 54px) rotate(180deg); }
+  100%   { transform: translate(-14px, 54px) rotate(180deg); }
+}
+/* Live fly and corpse are two drawings in the same slot, cross-cut at the
+   moment of impact — a hard swap on adjacent keyframes is how a sprite
+   changes frame in CSS. The corpse then lies there a good second before
+   fading, because a body that vanishes on landing reads as a bug that got
+   away rather than one that lost. */
+@keyframes frog-knight-fly-alive {
+  0%, 51.9% { opacity: 1; }
+  52%, 100% { opacity: 0; }
+}
+@keyframes frog-knight-fly-dead {
+  0%, 51.9% { opacity: 0; }
+  52%, 88%  { opacity: 1; }
+  100%      { opacity: 0; }
+}
+.frog-knight-fly {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: frog-knight-fly-path 2.25s linear infinite;
+}
+/* linear, not steps() — the swap is already instant because the keyframes
+   either side of it are 0.1% apart, and stepping would also flatten the
+   corpse's fade-out into another hard cut. */
+.frog-knight-fly-alive { animation: frog-knight-fly-alive 2.25s linear infinite; }
+.frog-knight-fly-dead  { animation: frog-knight-fly-dead  2.25s linear infinite; }
+/* The stagger lives here rather than as an inline style per slot so all of
+   this animation's timing stays in one file. The descendant selector covers
+   the slot's path animation and both opacity animations at once — they have
+   to share a delay or the corpse appears on the wrong fly. */
+.frog-knight-flies > g:nth-child(2) * { animation-delay: -0.75s; }
+.frog-knight-flies > g:nth-child(3) * { animation-delay: -1.5s; }
+
 @media (prefers-reduced-motion: reduce) {
   .frog-companion-idle, .frog-companion-hop {
     animation: none;
@@ -672,12 +734,19 @@
     animation: none;
   }
   /* Static knight: the sword keeps its resting tilt (that's the pose, not
-     motion), everything else stops. */
+     motion), everything else stops. The flies aren't rendered at all here
+     (PixelFrogKnightSprite skips them) — they're nothing but movement, and
+     frozen mid-air they'd read as a bug in the drawing. This rule is the
+     backstop for that, not the mechanism. */
   .frog-knight-charging .frog-knight-sword,
   .frog-knight-charging .frog-knight-rider,
-  .frog-knight-charging .frog-knight-mount {
+  .frog-knight-charging .frog-knight-mount,
+  .frog-knight-fly,
+  .frog-knight-fly-alive,
+  .frog-knight-fly-dead {
     animation: none;
   }
+  .frog-knight-flies { display: none; }
 }
 
 /* ===== FROG LOADER ===== */

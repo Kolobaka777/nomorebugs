@@ -40,6 +40,10 @@ const PALETTE: Record<string, string> = {
   H: TEXT_MUTED,       // blade shade
   G: BADGE_NOTIFY,     // hilt
   g: '#B8741A',        // hilt shade / grip
+  f: TEXT_MUTED,       // live fly body
+  w: 'rgba(220, 250, 248, 0.5)', // fly wings — translucent so they read as wings, not blocks
+  z: '#5C5D60',        // dead fly body, drained of the live one's contrast
+  j: TEXT_MUTED,       // dead fly legs
 };
 
 function gridToRects({ x: ox, y: oy, rows }: Grid): [number, number, number, number, string][] {
@@ -114,7 +118,37 @@ const SWORD: Grid = {
   ],
 };
 
+// The flies the knight is actually fighting. Both grids sit at the same
+// cell origin so the pair shares one bounding box, which is what lets the
+// slot rotate about the fly's own centre (transform-origin: 50% 50%) — and
+// that centre, (36, 22) in viewBox units, is a point the blade sweeps
+// through on its way forward, so the hit lands on the fly rather than near
+// it. Move one and the CSS timing in index.css stops meaning anything.
+const FLY_ALIVE: Grid = { x: 7, y: 4, rows: ['.ff.', 'wffw', '.ff.'] };
+// Drawn the right way up on purpose: the slot tumbles to 180° as it falls,
+// so these legs end up in the air, which is the only pose that reads as
+// "dead bug" without a single extra pixel of explanation.
+const FLY_DEAD: Grid = { x: 7, y: 4, rows: ['.zz.', '.zz.', 'j..j'] };
+
+// Three is what the swing period allows: each fly's loop is three swings
+// long (fly in, get hit, fall and lie there), so three staggered slots put
+// exactly one fly in the blade's path per swing, with no gaps and no swarm.
+// The stagger itself is pure CSS (animation-delay per slot, in index.css) —
+// a JS interval would drift out of phase with the sword within seconds.
+// Each slot is nudged off the shared path so the three don't retrace one
+// identical line. The nudges are mostly vertical for a geometric reason: the
+// fly parks at about −11° on the sword's arc, and from the hilt that
+// direction is nearly straight up, so moving a fly up or down slides it
+// along the blade and it still gets hit at the same instant. Moving one
+// sideways swings its angle instead — a few units left or right is worth
+// several degrees, which is enough to put it outside the swing's forward
+// limit and have the blade miss it entirely. Hence ±4 vertical, ±3
+// horizontal, and no more.
+const FLY_SLOTS = [{ dx: 0, dy: 0 }, { dx: -3, dy: 4 }, { dx: 3, dy: -4 }];
+
 const CROC_RECTS = gridToRects(CROC);
+const FLY_ALIVE_RECTS = gridToRects(FLY_ALIVE);
+const FLY_DEAD_RECTS = gridToRects(FLY_DEAD);
 const SWORD_RECTS = gridToRects(SWORD);
 const FROG_RECTS = { open: gridToRects(frogGrid(false)), shut: gridToRects(frogGrid(true)) };
 
@@ -171,6 +205,25 @@ export default function PixelFrogKnightSprite({ size = 72, className, charging, 
         {draw(shut ? FROG_RECTS.shut : FROG_RECTS.open)}
         <g className="frog-knight-sword">{draw(SWORD_RECTS)}</g>
       </g>
+      {/* Flies exist only while the knight is swinging — they're the reason
+          he's swinging. Outside the rider group so they keep their own path
+          instead of inheriting his bounce, and last in draw order so a
+          corpse lands in front of the mount rather than inside it. Mounting
+          and unmounting them with `charging` also restarts every slot from
+          the same instant the sword animation restarts, which is what keeps
+          the two in phase. */}
+      {charging && !reducedMotion.current && (
+        <g className="frog-knight-flies">
+          {FLY_SLOTS.map((slot, i) => (
+            <g key={i} transform={`translate(${slot.dx} ${slot.dy})`}>
+              <g className="frog-knight-fly">
+                <g className="frog-knight-fly-alive">{draw(FLY_ALIVE_RECTS)}</g>
+                <g className="frog-knight-fly-dead">{draw(FLY_DEAD_RECTS)}</g>
+              </g>
+            </g>
+          ))}
+        </g>
+      )}
     </svg>
   );
 }
