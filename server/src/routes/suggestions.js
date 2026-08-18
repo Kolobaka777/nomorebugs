@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -40,21 +40,29 @@ router.get('/api/suggestions', authMiddleware, (req, res) => {
     // everything".
     const PAGE_SIZE = 30;
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    // ?type=idea,complaint — the board and the Помощь page now show
+    // different slices of the same table: questions live under «Частые
+    // вопросы» in Помощь, ideas and complaints on the Идеи board. An
+    // unrecognised value is dropped rather than 400'd, so a filter that
+    // ends up empty falls back to "everything" instead of an error page.
+    const wanted = String(req.query.type || '').split(',')
+      .map(t => t.trim()).filter(t => SUGGESTION_TYPES.includes(t));
+    const typeFilter = wanted.length ? `AND s.type IN (${wanted.map(() => '?').join(',')})` : '';
     const rows = db.prepare(`
       SELECT s.id, s.type, s.text, s.status, s.created_at, s.is_anonymous,
-        s.answer, s.answered_at, a.name as answered_by_name,
+        s.answer, s.answered_at, ${displayName('a')} as answered_by_name,
         ${isLead ? 's.user_id' : '(CASE WHEN s.is_anonymous THEN NULL ELSE s.user_id END)'} as user_id,
-        ${isLead ? 'u.name' : '(CASE WHEN s.is_anonymous THEN NULL ELSE u.name END)'} as author_name,
+        ${isLead ? displayName('u') : `(CASE WHEN s.is_anonymous THEN NULL ELSE ${displayName('u')} END)`} as author_name,
         (SELECT COUNT(*) FROM suggestion_likes WHERE suggestion_id = s.id) as likeCount,
         EXISTS(SELECT 1 FROM suggestion_likes WHERE suggestion_id = s.id AND user_id = ?) as likedByMe
         ${isLead ? ', s.folder_id, f.name as folder_name' : ''}
       FROM suggestions s JOIN users u ON u.id = s.user_id
       LEFT JOIN users a ON a.id = s.answered_by
       ${isLead ? 'LEFT JOIN suggestion_folders f ON f.id = s.folder_id' : ''}
-      WHERE s.deleted_at IS NULL
+      WHERE s.deleted_at IS NULL ${typeFilter}
       ORDER BY s.created_at DESC
       LIMIT ? OFFSET ?
-    `).all(req.user.id, PAGE_SIZE + 1, offset);
+    `).all(req.user.id, ...wanted, PAGE_SIZE + 1, offset);
 
     const hasMore = rows.length > PAGE_SIZE;
     res.json({

@@ -260,3 +260,60 @@ describe('suggestions board — lead-only folders', () => {
     expect(row.folder_id).toBeNull();
   });
 });
+
+// The board and Помощь's «Частые вопросы» are two views of this one table:
+// ideas and complaints on the board, questions under Помощь. The split is a
+// query filter rather than a second table, so everything already asked came
+// along with the move and a lead answers in exactly the same way.
+describe('suggestions board — ?type filter', () => {
+  let ideaId, questionId;
+
+  beforeAll(async () => {
+    const idea = await request(server).post('/api/suggestions').set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'idea', text: 'Идея для фильтра', is_anonymous: false });
+    ideaId = idea.body.id;
+    const question = await request(server).post('/api/suggestions').set('Authorization', `Bearer ${testerToken}`)
+      .send({ type: 'question', text: 'Вопрос для фильтра', is_anonymous: false });
+    questionId = question.body.id;
+  });
+
+  it('returns only questions for ?type=question', async () => {
+    const res = await request(server).get('/api/suggestions?type=question').set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.rows.every(r => r.type === 'question')).toBe(true);
+    expect(res.body.rows.map(r => r.id)).toContain(questionId);
+  });
+
+  it('accepts a comma-separated list, which is how the board asks for its two types', async () => {
+    const res = await request(server).get('/api/suggestions?type=idea,complaint').set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.rows.every(r => r.type === 'idea' || r.type === 'complaint')).toBe(true);
+    expect(res.body.rows.map(r => r.id)).toContain(ideaId);
+    expect(res.body.rows.map(r => r.id)).not.toContain(questionId);
+  });
+
+  it('ignores an unknown value rather than erroring — a bad filter falls back to everything', async () => {
+    const res = await request(server).get('/api/suggestions?type=nonsense').set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    const ids = res.body.rows.map(r => r.id);
+    expect(ids).toContain(ideaId);
+    expect(ids).toContain(questionId);
+  });
+
+  it('omitting the filter still returns every type, so nothing became unreachable', async () => {
+    const res = await request(server).get('/api/suggestions').set('Authorization', `Bearer ${testerToken}`);
+    const ids = res.body.rows.map(r => r.id);
+    expect(ids).toContain(ideaId);
+    expect(ids).toContain(questionId);
+  });
+
+  // The lead's SELECT has extra columns and an extra JOIN; the filter's
+  // placeholders sit between the SELECT's and the LIMIT's, so a lead is the
+  // case where mis-ordered bindings would show up.
+  it('binds correctly for a lead, whose query has more parameters', async () => {
+    const res = await request(server).get('/api/suggestions?type=question').set('Authorization', `Bearer ${leadToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.rows.every(r => r.type === 'question')).toBe(true);
+    expect(res.body.rows.map(r => r.id)).toContain(questionId);
+  });
+});

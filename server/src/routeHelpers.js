@@ -15,6 +15,28 @@ export function isUniqueConstraintError(err) {
   return typeof err?.code === 'string' && err.code.startsWith('SQLITE_CONSTRAINT');
 }
 
+// A person's name as everybody else should see it.
+//
+// Two names exist. users.name is what the account registered with (or what
+// an admin typed when creating it); user_profiles.nickname is what the
+// person set on their own profile page and what they actually go by. They
+// used to disagree everywhere: someone renamed themselves to "I'm BOSS",
+// their profile said so, and the news feed, guide bylines, the team list
+// and the ratings all kept crediting "Alex Lead" — a name nobody used any
+// more but that every list still showed.
+//
+// So every query that shows a name to another person builds it from this
+// instead of selecting users.name directly. NULLIF covers a nickname that
+// exists but is blank; the account name is the fallback, never the winner.
+// Derived rather than copied into the rows, so a rename takes effect on the
+// next page load everywhere at once — including on rows written years ago.
+//
+// The one place that deliberately still reads users.name is authentication
+// (an account's own identity, e.g. the email a notification is addressed
+// to), where the registered name is the point.
+export const displayName = (alias = 'u') =>
+  `COALESCE(NULLIF((SELECT nickname FROM user_profiles WHERE user_id = ${alias}.id), ''), ${alias}.name)`;
+
 // SQLite's CURRENT_TIMESTAMP returns UTC time as "YYYY-MM-DD HH:MM:SS" with
 // no timezone marker. Node parses that non-standard, space-separated string
 // as LOCAL (server) time rather than UTC, which silently skews any Date

@@ -24,7 +24,7 @@ const lead = { id: 1, name: 'Lead', role: 'lead' };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(statsApi.getGlobal).mockResolvedValue({ data: { users: 5, lectures: 10 } } as any);
-  vi.mocked(testerApi.getMetrics).mockResolvedValue({ data: { completedLectures: 2, totalLectures: 10, averageScore: 80, streak: 3 } } as any);
+  vi.mocked(testerApi.getMetrics).mockResolvedValue({ data: { completedLectures: 2, totalLectures: 10, averageScore: 80 } } as any);
   vi.mocked(testerApi.getMyActivity).mockResolvedValue({ data: { rows: [], hasMore: false } } as any);
   vi.mocked(leadApi.getTeam).mockResolvedValue({ data: [] } as any);
   vi.mocked(leadApi.getActivity).mockResolvedValue({ data: { rows: [], hasMore: false } } as any);

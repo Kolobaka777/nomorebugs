@@ -5,8 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
-import { todayInTimezone } from '../presence.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -43,28 +42,6 @@ function buildFullProfile(userId) {
     def:     Math.min(10, Math.round((passedCount / Math.max(1, totalTests)) * 10)),
     bug_pwr: Math.min(20, totalTests * 2),
   };
-
-  // Streak — grouped by the user's own local calendar day, not UTC. SQLite's
-  // DATE() only understands fixed +HH:MM offsets, not IANA zone names, so
-  // the day-bucketing has to happen in JS (same as presence.js's
-  // todayInTimezone) rather than in the query. Row count here is a handful
-  // of distinct days at most for any real user, never every activity_log
-  // row ever — cheap regardless.
-  const tz = profile.timezone || 'Europe/Moscow';
-  const rawTimestamps = db.prepare(
-    'SELECT created_at FROM activity_log WHERE user_id = ? ORDER BY created_at DESC'
-  ).all(userId);
-  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz });
-  const days = [...new Set(rawTimestamps.map(r => dayFmt.format(parseDbDate(r.created_at))))];
-  let streak = 0;
-  let expected = todayInTimezone(tz);
-  for (const day of days) {
-    if (day === expected) {
-      streak++;
-      const d = new Date(`${expected}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1);
-      expected = dayFmt.format(d);
-    } else break;
-  }
 
   // Cards & badges
   const cards  = db.prepare('SELECT * FROM user_cards WHERE user_id = ? ORDER BY earned_at DESC').all(userId);
@@ -126,7 +103,7 @@ function buildFullProfile(userId) {
     custom_avatar:      profile.custom_avatar || null,
     bug_coins:          profile.bug_coins    || 0,
     purchased_items:    JSON.parse(profile.purchased_items || '[]'),
-    stats, streak, cards, badges, craftable, favLecture,
+    stats, cards, badges, craftable, favLecture,
     lecturesCompleted, averageScore,
     coursesProposed, coursesApproved, guidesProposed, guidesApproved,
   };
@@ -186,8 +163,8 @@ router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
     // stripped here instead.
     //
     // How far along someone is joins that list: stats (the int/per/spd/def/
-    // bug_pwr bars), lecturesCompleted, averageScore and streak are their
-    // own progress through the courses, and a teammate's page is not a
+    // bug_pwr bars), lecturesCompleted and averageScore are their own
+    // progress through the courses, and a teammate's page is not a
     // scoreboard. They stay in the owner's own cabinet (МояНора, via
     // /api/tester/profile-full) and in the lead's team view, which is what
     // the "how's this person doing" question actually exists for.
@@ -196,7 +173,7 @@ router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
       : (({
           email, phone, gender, bug_coins, purchased_items,
           coursesProposed, coursesApproved, guidesProposed, guidesApproved,
-          stats, streak, lecturesCompleted, averageScore,
+          stats, lecturesCompleted, averageScore,
           ...rest
         }) => rest)(full);
 
@@ -303,7 +280,7 @@ const MAX_AVATAR_BASE64_CHARS = 2.8 * 1024 * 1024; // same cap as custom_avatar 
 router.get('/api/avatars/gallery', authMiddleware, (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT ca.id, ca.image, ca.user_id, u.name as uploader_name
+      SELECT ca.id, ca.image, ca.user_id, ${displayName('u')} as uploader_name
       FROM custom_avatars ca JOIN users u ON u.id = ca.user_id
       ORDER BY ca.created_at DESC
     `).all();

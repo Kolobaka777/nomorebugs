@@ -68,7 +68,7 @@ merge multi-frame icons into one and drop the pieces.
 | `test-tube.svg` | vial/test tube | `Flask.svg` (name swapped — original was misleading) |
 | `cpu.svg` | chip with pins | `CPU.svg` |
 | `bug.svg` | ladybug/beetle | `Bug.svg` |
-| `fire.svg` | flame (streak) | `Fire.svg` |
+| `fire.svg` | flame | `Fire.svg` |
 | `lightbulb.svg` | lightbulb | `Lamp.svg` |
 | `lightning-circle.svg` | bolt inside a ring | `lightning_ring.svg` |
 | `star.svg` | 5-point star, glow | `Star 1.svg` |

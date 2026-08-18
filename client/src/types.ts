@@ -156,7 +156,6 @@ export interface FullProfile {
   purchased_items: string[];
   // computed
   stats: RpgStats;
-  streak: number;
   cards: UserCard[];
   badges: UserBadge[];
   craftable: string[];
@@ -238,7 +237,7 @@ export interface PresenceEntry {
 }
 
 // ===== TEAM NEWS FEED =====
-export type TeamEventType = 'member_joined' | 'guide_published' | 'course_published' | 'lecture_video_added' | 'birthday' | 'leave_started' | 'leave_ended';
+export type TeamEventType = 'member_joined' | 'guide_published' | 'course_published' | 'lecture_video_added' | 'birthday' | 'leave_started' | 'leave_ended' | 'announcement';
 
 export interface TeamNewsItem {
   id: number | string;
@@ -252,6 +251,9 @@ export interface TeamNewsItem {
   course_title?: string | null;
   lecture_title?: string | null;
   leave_type?: LeaveType;
+  // Only for 'announcement' — a lead's own post, where the row carries the
+  // sentence instead of the client building one (see formatTeamEvent).
+  text?: string | null;
 }
 
 // ===== SUGGESTION / IDEAS BOARD =====
@@ -290,7 +292,7 @@ export interface PublicProfileHidden {
 
 // email/phone/gender/bug_coins/purchased_items, the course/guide proposal
 // counts ("Мои предложения" — an owner-only panel in MoyaNora too) and the
-// course-progress numbers (stats/lecturesCompleted/averageScore/streak) are
+// course-progress numbers (stats/lecturesCompleted/averageScore) are
 // stripped server-side (GET /api/users/:id/profile) for any viewer who isn't
 // the profile owner or a lead — contact/personal details, someone else's shop
 // balance, what they've proposed and how far along they are have no business
@@ -301,7 +303,7 @@ export interface PublicProfileHidden {
 type PublicOnlyOmittedFields =
   | 'email' | 'phone' | 'gender' | 'bug_coins' | 'purchased_items'
   | 'coursesProposed' | 'coursesApproved' | 'guidesProposed' | 'guidesApproved'
-  | 'stats' | 'streak' | 'lecturesCompleted' | 'averageScore';
+  | 'stats' | 'lecturesCompleted' | 'averageScore';
 export type PublicProfile =
   | (Omit<FullProfile, PublicOnlyOmittedFields> &
       Partial<Pick<FullProfile, PublicOnlyOmittedFields>> &

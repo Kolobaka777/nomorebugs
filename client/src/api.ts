@@ -194,6 +194,10 @@ export const presenceApi = {
 
 export const teamApi = {
   getNews: (params?: { offset?: number }) => api.get('/team/news', { params }),
+  // Lead-only. Announcements are the one feed item a person writes directly;
+  // removeNews covers any stored event, not only those.
+  postNews: (text: string) => api.post('/team/news', { text }),
+  removeNews: (id: number) => api.delete(`/team/news/${id}`),
 };
 
 export const usersApi = {
@@ -201,7 +205,10 @@ export const usersApi = {
 };
 
 export const suggestionsApi = {
-  list: (params?: { offset?: number }) => api.get('/suggestions', { params }),
+  // type is a comma-separated allowlist ('question', 'idea,complaint') —
+  // the Идеи board and Помощь's «Частые вопросы» show different slices of
+  // the same table. Omitting it returns every type.
+  list: (params?: { offset?: number; type?: string }) => api.get('/suggestions', { params }),
   create: (data: { type: string; text: string; is_anonymous: boolean }) => api.post('/suggestions', data),
   update: (id: number, data: { type: string; text: string; is_anonymous: boolean }) => api.put(`/suggestions/${id}`, data),
   like: (id: number) => api.post(`/suggestions/${id}/like`),

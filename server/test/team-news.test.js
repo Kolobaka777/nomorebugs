@@ -209,3 +209,79 @@ describe('team news feed — computed (birthday / leave) items', () => {
     expect(seenStoredIds.size).toBe(totalStored);
   });
 });
+
+// A lead writing into the feed directly, and clearing items out of it.
+// Everything else in the feed is a side effect of somebody doing something;
+// an announcement is the one item a person writes.
+describe('team news — a lead posting and deleting', () => {
+  let announcementId;
+
+  it('a lead can post an announcement, and everyone sees it with its text', async () => {
+    const res = await request(server).post('/api/team/news').set('Authorization', `Bearer ${leadToken}`)
+      .send({ text: '  В пятницу ретро в 15:00  ' });
+    expect(res.status).toBe(200);
+    announcementId = res.body.id;
+
+    const news = await request(server).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
+    const item = news.body.rows.find(n => n.id === announcementId);
+    expect(item.event_type).toBe('announcement');
+    expect(item.text).toBe('В пятницу ретро в 15:00'); // trimmed
+    expect(item.user_id).toBe(fixtures.leadId);
+  });
+
+  it('refuses an empty or overlong announcement instead of posting a blank row', async () => {
+    const empty = await request(server).post('/api/team/news').set('Authorization', `Bearer ${leadToken}`)
+      .send({ text: '   ' });
+    expect(empty.status).toBe(400);
+
+    const long = await request(server).post('/api/team/news').set('Authorization', `Bearer ${leadToken}`)
+      .send({ text: 'а'.repeat(1001) });
+    expect(long.status).toBe(400);
+  });
+
+  it('a tester can neither post nor delete', async () => {
+    const post = await request(server).post('/api/team/news').set('Authorization', `Bearer ${testerToken}`)
+      .send({ text: 'Я тоже хочу' });
+    expect(post.status).toBe(403);
+
+    const del = await request(server).delete(`/api/team/news/${announcementId}`).set('Authorization', `Bearer ${testerToken}`);
+    expect(del.status).toBe(403);
+  });
+
+  it('a lead can delete any stored event, not only their own announcements', async () => {
+    const reg = await request(server).post('/api/auth/register').send({
+      email: 'deleteme@test.local', password: 'password123', name: 'Delete Me',
+    });
+    const before = await request(server).get('/api/team/news').set('Authorization', `Bearer ${leadToken}`);
+    const joined = before.body.rows.find(n => n.event_type === 'member_joined' && n.user_id === reg.body.user.id);
+    expect(joined).toBeTruthy();
+
+    const del = await request(server).delete(`/api/team/news/${joined.id}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(del.status).toBe(200);
+
+    const after = await request(server).get('/api/team/news').set('Authorization', `Bearer ${leadToken}`);
+    expect(after.body.rows.find(n => n.id === joined.id)).toBeUndefined();
+  });
+
+  it('404s on an id that is not there, rather than reporting a silent success', async () => {
+    const res = await request(server).delete('/api/team/news/999999').set('Authorization', `Bearer ${leadToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  // Birthdays and leave are recomputed on every read, so there is no row to
+  // remove — deleting one would look like it worked and the item would be
+  // back on the next load. Say so instead.
+  it('explains that a computed birthday/leave item cannot be deleted', async () => {
+    const res = await request(server).delete(`/api/team/news/birthday-${fixtures.testerId}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/нельзя удалить/);
+  });
+
+  it('deleting the announcement removes it for everyone', async () => {
+    const del = await request(server).delete(`/api/team/news/${announcementId}`).set('Authorization', `Bearer ${leadToken}`);
+    expect(del.status).toBe(200);
+
+    const news = await request(server).get('/api/team/news').set('Authorization', `Bearer ${testerToken}`);
+    expect(news.body.rows.find(n => n.id === announcementId)).toBeUndefined();
+  });
+});

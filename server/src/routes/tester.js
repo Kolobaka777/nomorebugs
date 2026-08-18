@@ -428,7 +428,7 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
       // «Отличник» achievement — the 5 most-recently-completed lectures (by
       // distinct lecture, best score kept on retake) are all ≥90%. Re-checked
       // on every submission, not just isFirstSubmission, since a retake that
-      // raises an old score can be what completes the streak; awardAchievement
+      // raises an old score can be what completes the run; awardAchievement
       // is idempotent so re-awarding on a later still-qualifying submission
       // is a harmless no-op.
       const recentScores = db.prepare(

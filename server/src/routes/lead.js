@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { parseDbDate } from '../routeHelpers.js';
+import { parseDbDate, displayName } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ const router = express.Router();
 router.get('/api/lead/archived-testers', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT u.id, u.name, u.avatar_initials, u.archived_at,
+      SELECT u.id, ${displayName('u')} as name, u.avatar_initials, u.archived_at,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender
       FROM users u WHERE u.role = 'tester' AND u.archived_at IS NOT NULL ORDER BY u.archived_at DESC
     `).all();
@@ -37,7 +37,7 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
     // the old loop's "current" query was duplicating that exact value.
     const teamData = db.prepare(`
       SELECT
-        u.id, u.name, u.avatar_initials, u.lead_note,
+        u.id, ${displayName('u')} as name, u.avatar_initials, u.lead_note,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         (SELECT COUNT(*) FROM test_results WHERE user_id = u.id AND score >= 60) as lecturesCompleted,
         (SELECT AVG(score) FROM test_results WHERE user_id = u.id) as avgScore,
@@ -46,7 +46,7 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
          FROM baseline_survey WHERE user_id = u.id) as baselineAvg
       FROM users u
       WHERE u.role = 'tester' AND u.archived_at IS NULL
-      ORDER BY u.name
+      ORDER BY ${displayName('u')}
     `).all();
 
     const now = Date.now();
@@ -275,7 +275,7 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
     const rows = db.prepare(`
       SELECT
         a.id, a.action, a.created_at,
-        u.id as user_id, u.name,
+        u.id as user_id, ${displayName('u')} as name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         l.title as lecture_title,
         c.title as course_title
@@ -313,7 +313,7 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
     const rows = db.prepare(`
       SELECT
         a.id, a.action, a.created_at,
-        u.id as user_id, u.name,
+        u.id as user_id, ${displayName('u')} as name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         l.title as lecture_title,
         c.title as course_title

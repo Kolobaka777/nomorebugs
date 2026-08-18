@@ -69,14 +69,14 @@ describe('PublicProfilePage', () => {
     vi.mocked(usersApi.getProfile).mockResolvedValue({
       data: fullProfile({
         stats: { int: 5, per: 4, spd: 6, def: 3, bug_pwr: 12 },
-        lecturesCompleted: 7, averageScore: 84, streak: 3,
+        lecturesCompleted: 7, averageScore: 84,
       }),
     } as any);
 
     renderPage();
 
     expect(await screen.findByText('BugHunter')).toBeInTheDocument();
-    for (const label of ['ИНТ', 'ВНИМ', 'СКОР', 'ЗАЩ', 'МОЩЬ', 'КУРСОВ', 'СР. БАЛЛ', 'ДНЕЙ ПОДРЯД']) {
+    for (const label of ['ИНТ', 'ВНИМ', 'СКОР', 'ЗАЩ', 'МОЩЬ', 'КУРСОВ', 'СР. БАЛЛ']) {
       expect(screen.queryByText(label)).toBeNull();
     }
     expect(screen.queryByText(/84/)).toBeNull();

@@ -15,14 +15,15 @@ vi.mock('react-router-dom', async (importOriginal) => {
 vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="nav" /> }));
 
 vi.mock('../api', () => ({
-  teamApi: { getNews: vi.fn() },
+  teamApi: { getNews: vi.fn(), postNews: vi.fn(), removeNews: vi.fn() },
   presenceApi: { getTeam: vi.fn() },
 }));
 
 const user = { id: 1, name: 'Tester', role: 'tester' };
+const lead = { id: 9, name: 'Lead', role: 'lead', avatar_initials: 'L' };
 
-function renderPage() {
-  return render(<NewsPage user={user} onLogout={vi.fn()} />);
+function renderPage(as = user) {
+  return render(<NewsPage user={as} onLogout={vi.fn()} />);
 }
 
 function newsItem(overrides: Partial<Record<string, any>> = {}) {
@@ -116,5 +117,85 @@ describe('NewsPage', () => {
     expect(screen.getByText(/First/)).toBeInTheDocument();
     expect(screen.queryByText('Показать ещё')).toBeNull();
     expect(teamApi.getNews).toHaveBeenNthCalledWith(2, { offset: 1 });
+  });
+});
+
+// Writing into the feed and clearing items out of it — the only two things
+// here anyone does on purpose. Both lead-only.
+describe('NewsPage — a lead posting and deleting', () => {
+  beforeEach(() => {
+    vi.mocked(presenceApi.getTeam).mockResolvedValue({ data: [] } as any);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it('offers the compose box and the delete buttons to a lead only', async () => {
+    vi.mocked(teamApi.getNews).mockResolvedValue({ data: { rows: [newsItem()], hasMore: false, storedCount: 1 } } as any);
+
+    const { unmount } = renderPage();
+    await screen.findByText(/New Person/);
+    expect(screen.queryByLabelText('Текст новости')).toBeNull();
+    expect(screen.queryByLabelText('Удалить новость')).toBeNull();
+    unmount();
+
+    renderPage(lead);
+    await screen.findByText(/New Person/);
+    expect(screen.getByLabelText('Текст новости')).toBeInTheDocument();
+    expect(screen.getByLabelText('Удалить новость')).toBeInTheDocument();
+  });
+
+  it('posts a trimmed announcement and shows it without refetching the whole feed', async () => {
+    vi.mocked(teamApi.getNews).mockResolvedValue({ data: { rows: [], hasMore: false, storedCount: 0 } } as any);
+    vi.mocked(teamApi.postNews).mockResolvedValue({ data: { id: 77 } } as any);
+
+    renderPage(lead);
+    await waitFor(() => expect(teamApi.getNews).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText('Текст новости'), { target: { value: '  В пятницу ретро  ' } });
+    fireEvent.click(screen.getByText('Опубликовать'));
+
+    await waitFor(() => expect(teamApi.postNews).toHaveBeenCalledWith('В пятницу ретро'));
+    expect(await screen.findByText('В пятницу ретро')).toBeInTheDocument();
+    // A refetch would re-run the birthday/leave computation and reset the
+    // paging cursor, throwing away pages already loaded.
+    expect(teamApi.getNews).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to post an empty announcement', async () => {
+    vi.mocked(teamApi.getNews).mockResolvedValue({ data: { rows: [], hasMore: false, storedCount: 0 } } as any);
+
+    renderPage(lead);
+    await waitFor(() => expect(teamApi.getNews).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Текст новости'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByText('Опубликовать'));
+
+    expect(await screen.findByText('Напиши текст новости')).toBeInTheDocument();
+    expect(teamApi.postNews).not.toHaveBeenCalled();
+  });
+
+  it('never offers to delete a birthday or leave item — there is no row behind them', async () => {
+    vi.mocked(teamApi.getNews).mockResolvedValue({ data: {
+      rows: [
+        newsItem({ id: 'birthday-4', event_type: 'birthday', name: 'Именинник' }),
+        newsItem({ id: 5, event_type: 'member_joined', name: 'Обычный' }),
+      ], hasMore: false, storedCount: 1,
+    } } as any);
+
+    renderPage(lead);
+    await screen.findByText(/Именинник/);
+    // One button for the stored row, none for the computed one.
+    expect(screen.getAllByLabelText('Удалить новость')).toHaveLength(1);
+  });
+
+  it('puts the item back if the delete fails, rather than leaving the feed lying', async () => {
+    vi.mocked(teamApi.getNews).mockResolvedValue({ data: { rows: [newsItem()], hasMore: false, storedCount: 1 } } as any);
+    vi.mocked(teamApi.removeNews).mockRejectedValue(new Error('нет сети'));
+
+    renderPage(lead);
+    await screen.findByText(/New Person/);
+    fireEvent.click(screen.getByLabelText('Удалить новость'));
+
+    await waitFor(() => expect(teamApi.removeNews).toHaveBeenCalledWith(1));
+    expect(await screen.findByText(/New Person/)).toBeInTheDocument();
   });
 });

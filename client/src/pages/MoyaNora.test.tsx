@@ -25,7 +25,7 @@ const user = { id: 2, name: 'Nazariy', role: 'tester' };
 const profile = (o = {}) => ({
   id: 2, name: 'Nazariy', email: 'n@qa.com', role: 'tester', avatar_initials: 'NZ',
   bug_coins: 250, purchased_items: [], badges: [], cards: [], craftable: [],
-  stats: { int: 1, per: 1, spd: 1, def: 1, bug_pwr: 1 }, streak: 3,
+  stats: { int: 1, per: 1, spd: 1, def: 1, bug_pwr: 1 },
   profile_frame: null, profile_bg: null, profile_accent_color: '#66FCF1',
   created_at: '2026-01-01', ...o,
 });

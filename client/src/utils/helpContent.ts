@@ -73,12 +73,6 @@ export const TESTER_HOW_TO: HowToItem[] = [
     body: 'Ник, статус-цитата, специализация, инфобокс, лягушачья шутка. Аватар можно загрузить свой и выложить в общую галерею, а рамку, фон и акцентный цвет — купить в Багодельне. Профиль можно открыть для всех или держать закрытым.',
   },
   {
-    id: 'streak',
-    icon: 'lightning',
-    title: 'Держи стрик',
-    body: 'Дни подряд, в которые ты что-то делал. Считается по твоему дню, а не по серверному времени — про полночь можно не переживать.',
-  },
-  {
     id: 'suggestions',
     icon: 'memo',
     title: 'Кидай идеи и жалобы',
@@ -237,7 +231,7 @@ const TESTER_TOPICS: { id: string; label: string; icon: IconName; refs: Ref[] }[
   },
   {
     id: 'me', label: 'Профиль и прогресс', icon: 'user',
-    refs: [{ how: 'profile' }, { how: 'cards' }, { how: 'streak' }],
+    refs: [{ how: 'profile' }, { how: 'cards' }],
   },
   {
     id: 'team', label: 'Связь с командой', icon: 'memo',

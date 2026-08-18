@@ -101,7 +101,7 @@ describe('SuggestionsPage — tester view', () => {
 
     await screen.findByText('Вторая идея');
     expect(screen.getByText('Первая идея')).toBeInTheDocument(); // appended, not replaced
-    expect(suggestionsApi.list).toHaveBeenLastCalledWith({ offset: 1 });
+    expect(suggestionsApi.list).toHaveBeenLastCalledWith({ offset: 1, type: 'idea,complaint' });
     expect(screen.queryByText('Показать ещё')).toBeNull(); // hasMore was false on page 2
   });
 
@@ -190,43 +190,34 @@ describe('SuggestionsPage — tester view', () => {
   });
 });
 
-describe('SuggestionsPage — questions', () => {
-  it('an unanswered question shows a waiting message to a plain tester, not a reply box', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
-      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?' })],
-    ));
+describe('SuggestionsPage — questions moved to Помощь', () => {
+  // Questions used to be a third type on this board. They live under
+  // Помощь → «Частые вопросы» now (see components/TeamQuestions.test.tsx);
+  // what matters here is that the board neither asks for them nor offers
+  // to create one, and that it says where they went.
+  it('asks the server only for ideas and complaints', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     renderPage();
-    await screen.findByText('Как сбросить пароль?');
-    expect(screen.getByText('Ждём ответа тимлида')).toBeInTheDocument();
-    expect(screen.queryByText('Ответить')).toBeNull();
+    await waitFor(() => expect(suggestionsApi.list).toHaveBeenCalledWith({ type: 'idea,complaint' }));
   });
 
-  it('an answered question shows the answer to everyone, with the answerer credited', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
-      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?', answer: 'Через "Забыли пароль" на странице входа', answered_by_name: 'Lead' })],
-    ));
+  it('drops «Вопрос» from the type picker, so nothing new lands in the wrong place', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
     renderPage();
-    await screen.findByText('Через "Забыли пароль" на странице входа');
-    expect(screen.getByText('Ответ от Lead')).toBeInTheDocument();
+    await waitFor(() => expect(suggestionsApi.list).toHaveBeenCalled());
+
+    expect(screen.getByText('Идея')).toBeInTheDocument();
+    expect(screen.getByText('Что бесит')).toBeInTheDocument();
+    expect(screen.queryByText('Вопрос')).toBeNull();
   });
 
-  it('a lead can answer a pending question, and it appears immediately without a full reload', async () => {
-    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse(
-      [suggestion({ id: 1, type: 'question', text: 'Как сбросить пароль?' })],
-    ));
-    vi.mocked(suggestionsApi.answer).mockResolvedValue({ data: {} } as any);
+  it('points anyone with a question at Помощь rather than leaving them guessing', async () => {
+    vi.mocked(suggestionsApi.list).mockResolvedValue(listResponse([]));
+    renderPage();
+    await waitFor(() => expect(suggestionsApi.list).toHaveBeenCalled());
 
-    renderPage(lead);
-    await screen.findByText('Как сбросить пароль?');
-    fireEvent.click(screen.getByText('Ответить'));
-
-    const textarea = screen.getByPlaceholderText('Твой ответ...');
-    fireEvent.change(textarea, { target: { value: '  Через "Забыли пароль"  ' } });
-    fireEvent.click(screen.getByText('Ответить'));
-
-    await waitFor(() => expect(suggestionsApi.answer).toHaveBeenCalledWith(1, 'Через "Забыли пароль"'));
-    expect(await screen.findByText('Через "Забыли пароль"')).toBeInTheDocument();
-    expect(suggestionsApi.list).toHaveBeenCalledTimes(1); // no extra reload — merged in place
+    fireEvent.click(screen.getByText('Помощи'));
+    expect(mockNavigate).toHaveBeenCalledWith('/help');
   });
 });
 

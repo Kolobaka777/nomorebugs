@@ -13,7 +13,7 @@ import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { ROLES, isValidRole } from '../roles.js';
 import { notifyUser } from '../telegram.js';
-import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS } from '../routeHelpers.js';
+import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS, displayName } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ router.get('/api/admin/users', authMiddleware, requireRole('admin'), (req, res) 
   try {
     const archived = req.query.archived === '1';
     const users = db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.avatar_initials, u.created_at, u.archived_at,
+      SELECT u.id, u.email, ${displayName('u')} as name, u.name as account_name, u.role, u.avatar_initials, u.created_at, u.archived_at,
         u.telegram_id IS NOT NULL as has_telegram, u.must_change_password,
         (SELECT MAX(a.created_at) FROM activity_log a WHERE a.user_id = u.id) as last_active
       FROM users u
@@ -277,8 +277,8 @@ router.get('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, r
     // this is surfacing for a manual decision, not an automatic revoke.
     const rows = db.prepare(`
       SELECT gp.id, gp.permission, gp.granted_at, gp.expires_at,
-             u.id as user_id, u.name as user_name, u.avatar_initials,
-             gb.name as granted_by_name, gb.role as granted_by_role,
+             u.id as user_id, ${displayName('u')} as user_name, u.avatar_initials,
+             ${displayName('gb')} as granted_by_name, gb.role as granted_by_role,
              (SELECT gender FROM user_profiles WHERE user_id = gb.id) as granted_by_gender
       FROM granted_permissions gp
       JOIN users u ON u.id = gp.user_id
@@ -406,7 +406,7 @@ router.get('/api/me/premium-points', authMiddleware, (req, res) => {
   try {
     const profile = db.prepare('SELECT premium_points FROM user_profiles WHERE user_id = ?').get(req.user.id);
     const history = db.prepare(`
-      SELECT amount, reason, awarded_at, ab.name as awarded_by_name
+      SELECT amount, reason, awarded_at, ${displayName('ab')} as awarded_by_name
       FROM bonus_awards ba JOIN users ab ON ab.id = ba.awarded_by
       WHERE ba.user_id = ? ORDER BY ba.awarded_at DESC LIMIT 20
     `).all(req.user.id);
@@ -425,7 +425,7 @@ router.get('/api/lead/internal-ratings', authMiddleware, requireRole('lead'), (r
   try {
     const rows = db.prepare(`
       SELECT
-        u.id, u.name, u.avatar_initials,
+        u.id, ${displayName('u')} as name, u.avatar_initials,
         (SELECT COALESCE(SUM(points), 0) FROM internal_score_events WHERE user_id = u.id) as hiddenScore,
         (SELECT COALESCE(premium_points, 0) FROM user_profiles WHERE user_id = u.id) as premiumPoints,
         (SELECT COUNT(*) FROM internal_score_events WHERE user_id = u.id AND source = 'auto_quiz_excellence') as excellentQuizzes
@@ -464,7 +464,7 @@ router.get('/api/lead/internal-ratings', authMiddleware, requireRole('lead'), (r
 router.get('/api/lead/bonus-awards', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT ba.id, ba.amount, ba.reason, ba.awarded_at, u.name as user_name, ab.name as awarded_by_name
+      SELECT ba.id, ba.amount, ba.reason, ba.awarded_at, ${displayName('u')} as user_name, ${displayName('ab')} as awarded_by_name
       FROM bonus_awards ba
       JOIN users u ON u.id = ba.user_id
       JOIN users ab ON ab.id = ba.awarded_by
@@ -486,7 +486,7 @@ router.get('/api/admin/bonus-candidates', authMiddleware, requireRole('admin'), 
   try {
     const rows = db.prepare(`
       SELECT
-        u.id, u.name,
+        u.id, ${displayName('u')} as name,
         (SELECT COUNT(*) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as quizzesLast30d,
         (SELECT AVG(score) FROM test_results tr WHERE tr.user_id = u.id AND tr.completed_at >= datetime('now', '-30 days')) as avgScoreLast30d,
         (SELECT COALESCE(SUM(ba.amount), 0) FROM bonus_awards ba WHERE ba.user_id = u.id) as totalBonusReceived

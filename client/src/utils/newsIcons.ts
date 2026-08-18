@@ -4,6 +4,7 @@
 import { IconName } from '../components/Icon';
 
 export const EVENT_ICON: Record<string, IconName> = {
+  announcement: 'antenna',
   birthday: 'star',
   member_joined: 'bee',
   guide_published: 'books',

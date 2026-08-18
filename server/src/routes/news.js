@@ -5,7 +5,10 @@
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
-import { authMiddleware } from '../auth.js';
+import { authMiddleware, requireRole } from '../auth.js';
+import { displayName } from '../routeHelpers.js';
+
+const MAX_ANNOUNCEMENT_LENGTH = 1000;
 import { todayInTimezone, todayMonthDayInTimezone } from '../presence.js';
 
 const router = express.Router();
@@ -19,7 +22,7 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
     const PAGE_SIZE = 30;
 
     const stored = db.prepare(`
-      SELECT te.id, te.event_type, te.ref_id, te.created_at, u.id as user_id, u.name, u.avatar_initials,
+      SELECT te.id, te.event_type, te.ref_id, te.text, te.created_at, u.id as user_id, ${displayName('u')} as name, u.avatar_initials,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         g.title as guide_title, cc.title as course_title, l.title as lecture_title
       FROM team_events te
@@ -39,7 +42,7 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
     const virtual = [];
     if (offset === 0) {
       const activeUsers = db.prepare(`
-        SELECT u.id, u.name, u.avatar_initials,
+        SELECT u.id, ${displayName('u')} as name, u.avatar_initials,
           p.gender, p.birthday, p.timezone
         FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
         WHERE u.archived_at IS NULL
@@ -56,7 +59,7 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
       }
 
       const leaves = db.prepare(`
-        SELECT lp.*, u.name, u.avatar_initials,
+        SELECT lp.*, ${displayName('u')} as name, u.avatar_initials,
           (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
           (SELECT timezone FROM user_profiles WHERE user_id = u.id) as timezone
         FROM leave_periods lp JOIN users u ON u.id = lp.user_id
@@ -89,6 +92,55 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
     // rows.length instead, the extra virtual-item count silently skipped
     // that many real stored rows on the next page.
     res.json({ rows: merged, hasMore, storedCount: storedPage.length });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// A lead writing their own item into the feed. Everything else in here is
+// a side effect of somebody doing something (publishing a guide, having a
+// birthday); this is the one thing a lead can say directly — a deadline, a
+// change of plan, a thank-you — without it having to be an idea on the
+// board or a message in some other chat.
+router.post('/api/team/news', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const { text } = req.body;
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'Напиши текст новости' });
+    }
+    if (text.trim().length > MAX_ANNOUNCEMENT_LENGTH) {
+      return res.status(400).json({ error: `Слишком длинный текст (макс ${MAX_ANNOUNCEMENT_LENGTH})` });
+    }
+    const id = db.prepare(
+      "INSERT INTO team_events (event_type, user_id, text) VALUES ('announcement', ?, ?)"
+    ).run(req.user.id, text.trim()).lastInsertRowid;
+    res.json({ id });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Deleting is lead-only and covers any stored event, not just announcements:
+// a course published by mistake leaves an item in everyone's feed, and
+// unpublishing the course doesn't take it back out.
+//
+// The birthday and leave items have no row to delete — they are recomputed
+// from user_profiles/leave_periods on every read (see the GET above), so a
+// delete would appear to work and the item would be back on the next load.
+// Their ids are strings like "birthday-4", which no amount of parseInt makes
+// a real row id, so they are rejected with an explanation rather than
+// silently doing nothing.
+router.delete('/api/team/news/:id', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || String(id) !== String(req.params.id)) {
+      return res.status(400).json({ error: 'Дни рождения и отпуска считаются на лету — их нельзя удалить' });
+    }
+    const result = db.prepare('DELETE FROM team_events WHERE id = ?').run(id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Новость не найдена' });
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

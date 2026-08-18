@@ -120,7 +120,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
     // mounts racing for the same user id (see its own comment) — so this
     // effect never needs to duplicate that bookkeeping itself. The endpoint
     // behind it (self-view GET /api/users/:id/profile) runs a full
-    // buildFullProfile() server-side (stats/streak/badges/etc., ~15
+    // buildFullProfile() server-side (stats/cards/badges/etc., ~15
     // queries) just to hand back 3 avatar fields, and custom_avatar can be
     // several hundred KB of base64 — refetching that on every single
     // navigation (Navigation remounts per-route, see above) was pure waste

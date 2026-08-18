@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -34,7 +34,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
     let rows;
     if (req.user.role === 'lead') {
       rows = db.prepare(`
-        SELECT cc.*, u.name as author_name,
+        SELECT cc.*, ${displayName('u')} as author_name,
           (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender,
           cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
@@ -50,7 +50,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
       rows = rows.map(r => ({ ...r, totalTesters }));
     } else {
       rows = db.prepare(`
-        SELECT cc.*, u.name as author_name,
+        SELECT cc.*, ${displayName('u')} as author_name,
           (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender,
           cs.name as section_name,
           EXISTS(SELECT 1 FROM custom_course_views v WHERE v.user_id = ? AND v.course_id = cc.id) as viewed,
@@ -73,7 +73,7 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
 router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
   try {
     const course = db.prepare(`
-      SELECT cc.*, u.name as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
+      SELECT cc.*, ${displayName('u')} as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
       FROM custom_courses cc JOIN users u ON u.id = cc.created_by
       WHERE cc.id = ? AND cc.deleted_at IS NULL
     `).get(req.params.id);
@@ -149,7 +149,7 @@ router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
         finishedAt: finishedAtByUser[t.id] || null,
       }));
       deadlineOverrides = db.prepare(`
-        SELECT o.user_id, o.deadline_at, o.reason, u.name
+        SELECT o.user_id, o.deadline_at, o.reason, ${displayName('u')} as name
         FROM course_deadline_overrides o JOIN users u ON u.id = o.user_id
         WHERE o.course_id = ?
       `).all(course.id);
@@ -742,7 +742,7 @@ router.get('/api/courses/time-stats', authMiddleware, requireRole('lead'), (req,
   try {
     const rows = db.prepare(`
       SELECT
-        u.id as user_id, u.name, u.avatar_initials,
+        u.id as user_id, ${displayName('u')} as name, u.avatar_initials,
         ctt.course_id,
         ctt.seconds_spent,
         ctt.completed_at

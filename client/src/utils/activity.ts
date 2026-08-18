@@ -128,6 +128,10 @@ export function formatTeamEvent(item: TeamNewsItem): string {
   const pick = (m: string, f: string, n: string) => pickByGender(g, m, f, n);
 
   switch (item.event_type) {
+    // A lead's own post is already a sentence — the only event type whose
+    // text is written rather than derived.
+    case 'announcement':
+      return item.text || '';
     case 'member_joined':
       return pick(`${item.name} присоединился к команде`, `${item.name} присоединилась к команде`, `${item.name} — новый участник команды`);
     case 'guide_published': {

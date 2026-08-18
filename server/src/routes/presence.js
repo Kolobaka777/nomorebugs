@@ -5,6 +5,7 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { LEAVE_TYPES, STATUS_VALUES, computeIsWorkingNow, todayInTimezone, isValidTimezone } from '../presence.js';
+import { displayName } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -67,12 +68,12 @@ function validatePresenceBody(body) {
 router.get('/api/team/presence', authMiddleware, (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT u.id, u.name, u.avatar_initials,
+      SELECT u.id, ${displayName('u')} as name, u.avatar_initials,
         p.gender, p.status, p.work_start, p.work_end, p.work_days, p.timezone, p.birthday
       FROM users u
       LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE u.archived_at IS NULL
-      ORDER BY u.name
+      ORDER BY ${displayName('u')}
     `).all();
 
     // Small table, whole team at most — cheaper and simpler to filter

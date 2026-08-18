@@ -465,6 +465,16 @@ export function initDb() {
     );
   `);
 
+  // A lead's own announcement carries its text here. Every other event type
+  // is derived — the row records "who did what to which ref_id" and the
+  // client builds the sentence (see utils/activity.ts) — but an
+  // announcement has no underlying action to describe, so its body is the
+  // row. NULL for every other type.
+  const teamEventCols = db.prepare("PRAGMA table_info(team_events)").all().map(c => c.name);
+  if (!teamEventCols.includes('text')) {
+    db.exec("ALTER TABLE team_events ADD COLUMN text TEXT DEFAULT NULL");
+  }
+
   // Course deadlines (Жукадеми / custom_courses only — the older seeded
   // lecture track has no per-course structure to hang a deadline off).
   const customCourseColsForDeadline = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
@@ -1099,8 +1109,8 @@ export function initDb() {
   // old OnboardingTour shipped with. Those covered Главная/Курсы/Багодельня/
   // Помощь/Аккаунт and nothing else, so a new tester finished onboarding
   // never having been told that Гайды, Идеи and Новости exist, that bug
-  // coins are a thing, that the streak counts, or that the frog in the
-  // corner is clickable. Each of those is a step now.
+  // coins are a thing, or that the frog in the corner is clickable. Each
+  // of those is a step now.
   if (db.prepare('SELECT COUNT(*) as c FROM frog_lines').get().c === 0) {
     const insLine = db.prepare(
       'INSERT INTO frog_lines (kind, text, title, target, role, order_num) VALUES (?, ?, ?, ?, ?, ?)'
@@ -1114,12 +1124,10 @@ export function initDb() {
 
     tip('Совет: избранные курсы и лекции удобно смотреть на своей странице — там же и заметки к урокам.');
     tip('В Багодельне можно предложить свой пример бага — лид посмотрит и опубликует.');
-    tip('Стрик считается по твоему дню, не по серверному времени — не переживай про полночь.');
     tip('Если что-то непонятно — нажми на меня, выберешь тему и я отвечу прямо тут.');
     tip('Можно загрузить свою аватарку и сделать её доступной всем в общей галерее.');
     tip('Идея или что-то бесит — пиши на доске предложений, лид правда читает.');
     tip('Пароль лучше сменить, если он временный — иначе будет всё время напоминать.');
-    tip('Держишь стрик? Так и продолжай, я слежу 👀');
     tip('Пройденные курсы можно переслушать в любой момент — они никуда не денутся.');
     tip('За одобренный гайд или пример бага тоже капают баг-коины, не только за тесты.');
     tip('Тест можно пересдать сколько угодно раз — сохранится лучший результат.');
@@ -1148,8 +1156,8 @@ export function initDb() {
     tour('nav-suggestions', 'Идеи', 'Доска предложений и жалоб. Можно завести своё, можно лайкнуть чужое. Это не ящик в никуда — лид читает.');
     tour('nav-news', 'Новости', 'Лента команды: кто что прошёл, опубликовал и получил. Удобно, чтобы не пропустить чужой новый гайд.');
     tour('nav-admin', 'Админка', 'Пользователи, роли и архив — только для администраторов.', 'admin');
-    tour('nav-account', 'Твой профиль', 'Аватар (можно загрузить свой), рамка, фон, статус-цитата. Тут же карточки за сданные лекции, бейджи и стрик — дни подряд, в которые ты что-то делал.');
-    tour('nav-help', 'Помощь', 'Если что-то забылось — здесь расписано, что тут вообще можно делать, и лежат ответы на частые вопросы. Открыто всегда.');
+    tour('nav-account', 'Твой профиль', 'Аватар (можно загрузить свой), рамка, фон, статус-цитата. Тут же карточки за сданные лекции и бейджи.');
+    tour('nav-help', 'Помощь', 'Две вкладки: «Про платформу» — что тут вообще можно делать, и «Частые вопросы» — ответы. Если ответа нет, там же можно спросить, тимлид ответит.');
     tour('frog-companion', 'Ну и я', 'Живу в углу и иногда подсказываю сам. Наведись — покажу, зачем мне меч. Нажмёшь — откроется чат: выбираешь тему, я отвечаю. Не найдёшь свою — отправлю в «Помощь».');
   }
 
@@ -1172,6 +1180,29 @@ export function initDb() {
       'Меню'
     );
   }
+
+  // The mascot used to talk about a streak — days in a row with some
+  // activity. There is no streak any more (see routes/profile.js), so the
+  // copy that mentions it is corrected here for databases seeded before the
+  // removal. Matched on the exact seeded text so a line a lead has since
+  // reworded is left alone: this is a cleanup of our own default copy, not
+  // a licence to overwrite theirs.
+  db.prepare("DELETE FROM frog_lines WHERE kind = 'tip' AND text IN (?, ?)").run(
+    'Стрик считается по твоему дню, не по серверному времени — не переживай про полночь.',
+    'Держишь стрик? Так и продолжай, я слежу 👀'
+  );
+  db.prepare("UPDATE frog_lines SET text = ? WHERE kind = 'tour' AND target = 'nav-account' AND text = ?").run(
+    'Аватар (можно загрузить свой), рамка, фон, статус-цитата. Тут же карточки за сданные лекции и бейджи.',
+    'Аватар (можно загрузить свой), рамка, фон, статус-цитата. Тут же карточки за сданные лекции, бейджи и стрик — дни подряд, в которые ты что-то делал.'
+  );
+
+  // Same idea for the Помощь step: the page has two tabs now, and asking the
+  // team moved onto the second one from the Идеи board — worth saying, since
+  // this step is where most people learn the page exists at all.
+  db.prepare("UPDATE frog_lines SET text = ? WHERE kind = 'tour' AND target = 'nav-help' AND text = ?").run(
+    'Две вкладки: «Про платформу» — что тут вообще можно делать, и «Частые вопросы» — ответы. Если ответа нет, там же можно спросить, тимлид ответит.',
+    'Если что-то забылось — здесь расписано, что тут вообще можно делать, и лежат ответы на частые вопросы. Открыто всегда.'
+  );
 
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,

@@ -28,6 +28,17 @@ import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE
 // values are offered in the editor (FROG_LINE_TARGETS in routes/frogLines.js).
 const selectorFor = (target: string) => `[data-tour="${target}"]`;
 
+// Being in the DOM is not the same as being on the screen. Navigation renders
+// both the desktop link row and the burger menu's copy of it, so on a phone
+// every nav target still matches querySelector while sitting behind
+// display:none — and a hidden element measures 0x0 at (0, 0), which would put
+// the spotlight in the top-left corner with the arrow pointing at nothing.
+const onScreen = (target: string | null) => {
+  if (!target) return false;
+  const box = document.querySelector(selectorFor(target))?.getBoundingClientRect();
+  return !!box && box.width > 0 && box.height > 0;
+};
+
 const PANEL_WIDTH = 348;
 const FROG_SIZE = 60;
 const GAP = 18; // between the highlight ring and the panel
@@ -55,7 +66,12 @@ export default function OnboardingTour({ user }: Props) {
     const t = setTimeout(() => {
       loadFrogLines().then(() => {
         if (cancelled) return;
-        const mine = tourStepsFor(user.role);
+        // Steps pointing at something this viewer can't see are dropped up
+        // front, not skipped once the tour is running. Skipping mid-run left
+        // the counter opening at "2/13" on a desktop, because the first step
+        // (the phone-only burger menu) had already burned an index on its way
+        // past — and the total counted steps that would never be shown.
+        const mine = tourStepsFor(user.role).filter(step => onScreen(step.target));
         if (!mine.length) return; // a team that deleted every step gets no tour
         setSteps(mine);
         setActive(true);
@@ -69,12 +85,10 @@ export default function OnboardingTour({ user }: Props) {
     const step = steps[stepIndex];
     if (!step?.target) return;
     const el = document.querySelector(selectorFor(step.target));
-    // Present in the DOM is not the same as on the screen. Navigation renders
-    // both the desktop link row and the burger menu's copy, so on a phone
-    // every nav target still matches querySelector while being display:none —
-    // and a hidden element measures 0x0 at (0, 0), which would put the
-    // spotlight in the top-left corner with the arrow pointing at nothing.
-    // Treat that exactly like a missing target and move on.
+    // The list was filtered by onScreen() before the tour started, so this is
+    // the narrower case of a target that disappeared afterwards — the window
+    // crossing the burger-menu breakpoint mid-tour, a panel closing. Rare, and
+    // it does renumber what's left, but a step pointing at nothing is worse.
     const box = el?.getBoundingClientRect();
     if (!el || !box || box.width === 0 || box.height === 0) {
       if (stepIndex < steps.length - 1) setStepIndex(i => i + 1);
