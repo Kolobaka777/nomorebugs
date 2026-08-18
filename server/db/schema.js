@@ -465,6 +465,20 @@ export function initDb() {
     );
   `);
 
+  // What the frog says on the result screen when someone finishes this
+  // course — one line for passing, one for not. Per-course because the
+  // point is that it matches the course: a quiz about prison etiquette and
+  // a quiz about Winx fairies should not sign off the same way. Empty means
+  // "use the default" (see client/src/utils/courseResult.ts) rather than
+  // "say nothing", so a course whose author never filled these in still
+  // gets a send-off.
+  const customCourseTextCols = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
+  for (const col of ['success_text', 'fail_text']) {
+    if (!customCourseTextCols.includes(col)) {
+      db.exec(`ALTER TABLE custom_courses ADD COLUMN ${col} TEXT DEFAULT ''`);
+    }
+  }
+
   // A lead's own announcement carries its text here. Every other event type
   // is derived — the row records "who did what to which ref_id" and the
   // client builds the sentence (see utils/activity.ts) — but an

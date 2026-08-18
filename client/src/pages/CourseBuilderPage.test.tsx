@@ -6,6 +6,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import CourseBuilderPage from './CourseBuilderPage';
 import { authFetch } from '../auth';
 import { knowledgeApi } from '../api';
+import { DEFAULT_SUCCESS_TEXT, DEFAULT_FAIL_TEXT } from '../utils/courseResult';
 
 const mockNavigate = vi.fn();
 let params: Record<string, string> = {};
@@ -65,5 +66,28 @@ describe('CourseBuilderPage', () => {
     vi.mocked(authFetch).mockRejectedValue(new Error('offline'));
     renderFor(lead);
     expect(await screen.findByText('Ошибка загрузки курса')).toBeInTheDocument();
+  });
+});
+
+// The frog's closing lines. Optional, with the defaults shown as
+// placeholders so it's clear nothing is missing when they're left empty.
+describe('CourseBuilderPage — what the frog says at the end', () => {
+  it('offers both fields, with the defaults visible as placeholders', async () => {
+    renderFor(lead);
+    expect(await screen.findByLabelText('Фраза при успешном прохождении')).toBeInTheDocument();
+    expect(screen.getByLabelText('Фраза при неудачном прохождении')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(new RegExp(DEFAULT_SUCCESS_TEXT.slice(0, 20)))).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(new RegExp(DEFAULT_FAIL_TEXT.slice(0, 20)))).toBeInTheDocument();
+  });
+
+  it('keeps what the author types in both fields', async () => {
+    renderFor(lead);
+    await screen.findByLabelText('Фраза при успешном прохождении');
+
+    fireEvent.change(screen.getByLabelText('Фраза при успешном прохождении'), { target: { value: 'Ну всё, ты свой.' } });
+    fireEvent.change(screen.getByLabelText('Фраза при неудачном прохождении'), { target: { value: 'Перечитай.' } });
+
+    expect(screen.getByLabelText('Фраза при успешном прохождении')).toHaveValue('Ну всё, ты свой.');
+    expect(screen.getByLabelText('Фраза при неудачном прохождении')).toHaveValue('Перечитай.');
   });
 });

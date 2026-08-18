@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
+import { resultText } from '../utils/courseResult';
 import { LockIcon, CheckCircleIcon, PagesIcon, BookOpenIcon } from '../components/CatalogIcons';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
@@ -448,7 +449,7 @@ function CourseResultScreen({ course, color, passed, score, weakModules, onRetry
           {passed ? <>Ты успешно завершил курс <span style={{ color: TEXT_PRIMARY, fontWeight: 600 }}>{course.title}</span></> : 'Но это не провал.'}
         </p>
 
-        <div className="flex items-center justify-center gap-5 mb-8">
+        <div className="flex items-center justify-center gap-5 mb-5">
           <img src={passed ? successFrogUrl : failedFrogUrl} alt="" style={{ height: 110, width: 'auto' }} />
           {score !== null && (
             <div className="text-left">
@@ -457,6 +458,15 @@ function CourseResultScreen({ course, color, passed, score, weakModules, onRetry
             </div>
           )}
         </div>
+
+        {/* The frog's send-off, in the course's own voice. Set per course in
+            the builder; falls back to a default rather than to silence. */}
+        <p
+          className="font-geist italic mx-auto mb-8 px-4 break-words"
+          style={{ fontSize: 15, lineHeight: 1.5, color: passed ? RESULT_PASS_COLOR : RESULT_FAIL_COLOR, maxWidth: 460 }}
+        >
+          «{resultText(course, passed)}»
+        </p>
 
         {passed ? (
           <p className="font-geist text-sm leading-relaxed mb-10" style={{ color: 'rgba(197, 198, 199,0.75)' }}>

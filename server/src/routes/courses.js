@@ -9,6 +9,10 @@ import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
 
+// The frog's sign-off line on the course result screen. Short on purpose:
+// it sits next to the frog as a single spoken line, not a paragraph.
+const RESULT_TEXT_MAX = 300;
+
 // A custom course can be edited/published/deleted by whoever authored it,
 // or by an admin. A lead can additionally manage *any* pending proposal
 // (not just their own courses) — that's the whole point of the review
@@ -425,7 +429,7 @@ function validateCourseStructureInDb(courseId) {
 // work in progress only the author can see.
 router.post('/api/custom-courses', authMiddleware, (req, res) => {
   try {
-    const { title, description, tag, color, requirements, modules, deadline_at, section_id } = req.body;
+    const { title, description, tag, color, requirements, modules, deadline_at, section_id, success_text, fail_text } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Укажите название курса' });
     const lengthError = validateRichFieldLengths(description, requirements, modules);
     if (lengthError) return res.status(400).json({ error: lengthError });
@@ -448,8 +452,8 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
     // can't leave a course with, say, a module but no lessons in it.
     const courseId = db.transaction(() => {
       const courseRow = db.prepare(`
-        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status, is_onboarding, section_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO custom_courses (title, description, tag, color, requirements, is_published, deadline_at, created_by, updated_at, proposal_status, is_onboarding, section_id, success_text, fail_text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         title.trim(),
         description || '',
@@ -462,7 +466,9 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
         new Date().toISOString(),
         proposalStatus,
         isOnboarding ? 1 : 0,
-        sectionId
+        sectionId,
+        (success_text || '').trim().slice(0, RESULT_TEXT_MAX),
+        (fail_text || '').trim().slice(0, RESULT_TEXT_MAX)
       );
       insertCourseModules(courseRow.lastInsertRowid, modules);
       return courseRow.lastInsertRowid;
@@ -487,7 +493,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     if (!course) return res.status(404).json({ error: 'Не найдено' });
     if (!canManageCourse(course, req.user)) return res.status(403).json({ error: 'Нет доступа' });
 
-    const { title, description, tag, color, requirements, modules, is_published, is_onboarding, section_id, deadline_at, expected_updated_at } = req.body;
+    const { title, description, tag, color, requirements, modules, is_published, is_onboarding, section_id, deadline_at, expected_updated_at, success_text, fail_text } = req.body;
     const lengthError = validateRichFieldLengths(description, requirements, modules);
     if (lengthError) return res.status(400).json({ error: lengthError });
     const newPublishedFlag = is_published !== undefined ? (is_published ? 1 : 0) : course.is_published;
@@ -525,7 +531,7 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
     // the course in a genuinely broken half-edited state, not just a
     // failed request, so this needs to be all-or-nothing.
     db.transaction(() => {
-      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, is_onboarding=?, section_id=?, deadline_at=?, updated_at=? WHERE id=?`).run(
+      db.prepare(`UPDATE custom_courses SET title=?, description=?, tag=?, color=?, requirements=?, is_published=?, is_onboarding=?, section_id=?, deadline_at=?, success_text=?, fail_text=?, updated_at=? WHERE id=?`).run(
         title?.trim() || course.title,
         description ?? course.description,
         tag || course.tag,
@@ -535,6 +541,8 @@ router.put('/api/custom-courses/:id', authMiddleware, requirePermission('manage_
         newOnboardingFlag,
         newSectionId,
         deadline_at !== undefined ? (deadline_at || null) : course.deadline_at,
+        success_text !== undefined ? String(success_text).trim().slice(0, RESULT_TEXT_MAX) : course.success_text,
+        fail_text !== undefined ? String(fail_text).trim().slice(0, RESULT_TEXT_MAX) : course.fail_text,
         new Date().toISOString(),
         course.id
       );

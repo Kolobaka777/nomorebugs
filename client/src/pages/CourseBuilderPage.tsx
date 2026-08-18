@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
+import { DEFAULT_SUCCESS_TEXT, DEFAULT_FAIL_TEXT, RESULT_TEXT_MAX } from '../utils/courseResult';
 import { API_BASE_URL as API } from '../config';
 import { authFetch } from '../auth';
 import { knowledgeApi } from '../api';
@@ -55,6 +56,8 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
     tag: 'Custom',
     color: '#66FCF1',
     requirements: '',
+    success_text: '',
+    fail_text: '',
     deadline_at: '',
     modules: [emptyModule()],
     is_onboarding: false,
@@ -87,6 +90,8 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
           tag: data.tag || 'Custom',
           color: data.color || '#66FCF1',
           requirements: data.requirements || '',
+          success_text: data.success_text || '',
+          fail_text: data.fail_text || '',
           deadline_at: data.deadline_at ? String(data.deadline_at).slice(0, 10) : '',
           is_onboarding: !!data.is_onboarding,
           section_id: data.section_id ?? null,
@@ -317,6 +322,35 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                     placeholder="Подходит для новичков, не нужен опыт..."
                   />
                 </Suspense>
+              </div>
+
+              {/* What the frog says at the end. Optional on purpose — the
+                  placeholders show the exact defaults that ship if these
+                  are left empty, so it's clear nothing is missing rather
+                  than merely unset. */}
+              <div className="mt-4">
+                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>
+                  Что скажет лягух в конце
+                </label>
+                <input
+                  className="pixel-input text-sm mb-2"
+                  value={form.success_text}
+                  maxLength={RESULT_TEXT_MAX}
+                  onChange={e => setForm(f => ({ ...f, success_text: e.target.value }))}
+                  placeholder={`Если сдал — по умолчанию: «${DEFAULT_SUCCESS_TEXT}»`}
+                  aria-label="Фраза при успешном прохождении"
+                />
+                <input
+                  className="pixel-input text-sm"
+                  value={form.fail_text}
+                  maxLength={RESULT_TEXT_MAX}
+                  onChange={e => setForm(f => ({ ...f, fail_text: e.target.value }))}
+                  placeholder={`Если не сдал — по умолчанию: «${DEFAULT_FAIL_TEXT}»`}
+                  aria-label="Фраза при неудачном прохождении"
+                />
+                <p className="text-xs font-geist mt-1" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>
+                  Необязательно. Оставишь пустым — лягух скажет фразу по умолчанию.
+                </p>
               </div>
 
               {/* Deadline */}

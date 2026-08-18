@@ -9,6 +9,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import { db, initDb } from '../db/schema.js';
+import { seedDemoContent } from '../db/seedDemoContent.js';
 import bcryptjs from 'bcryptjs';
 import cookieParser from 'cookie-parser';
 import { initTelegramBot, isTelegramConfigured } from './telegram.js';
@@ -94,6 +95,18 @@ if (process.env.NODE_ENV !== 'test') {
     console.warn('No users in database and NODE_ENV=production: set ADMIN_EMAIL/ADMIN_PASSWORD env vars to bootstrap the first account, or seed manually.');
   }
 })();
+
+// Demo content — the joke quizzes, guides, bug examples and glossary terms
+// a fresh install opens with. Runs here rather than inside initDb() because
+// every item is attributed to a real lead, and on a first boot that account
+// is created by seedUsersIfEmpty just above. Skipped in tests: 10 courses
+// and ~120 questions per :memory: database would slow every test file down
+// for content none of them assert on (see test/demo-content.test.js, which
+// opts back in). Marker-guarded, so it inserts once and a lead deleting any
+// of it keeps it deleted.
+if (process.env.NODE_ENV !== 'test' || process.env.SEED_DEMO_CONTENT === '1') {
+  seedDemoContent(db);
+}
 
 // Expired/revoked refresh tokens had no pruning — they'd accumulate in the
 // table forever. Revoked tokens are kept for a short window (in case a

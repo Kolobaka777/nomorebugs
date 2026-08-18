@@ -39,6 +39,11 @@ export interface FormState {
   tag: string;
   color: string;
   requirements: string;
+  // What the frog says on the result screen when someone finishes this
+  // course — one line each for passing and not. Empty means "use the
+  // default" (see utils/courseResult.ts), not "say nothing".
+  success_text: string;
+  fail_text: string;
   deadline_at: string; // 'YYYY-MM-DD', empty = no deadline
   modules: BModule[];
   // Lead/admin-only — marks this as (one of) the permanent new-hire
