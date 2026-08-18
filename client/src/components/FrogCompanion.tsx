@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import FrogChat from './FrogChat';
 import PixelFrogKnightSprite from './PixelFrogKnightSprite';
 import { BADGE_META } from '../utils/badges';
 import { ACHIEVEMENT_EARNED_EVENT } from '../utils/achievements';
+import { loadFrogLines, randomFrogLine } from '../utils/frogLines';
 import { ACCENT, CARD_BG, TEXT_PRIMARY, CARD_SHADOW_TALL } from '../utils/theme';
 
 // Replaces the old AmbientSnail (crawled a fixed 120s loop along the header
@@ -14,9 +15,17 @@ import { ACCENT, CARD_BG, TEXT_PRIMARY, CARD_SHADOW_TALL } from '../utils/theme'
 // prefers-reduced-motion (renders a static frog, no bubbles).
 //
 // It is also the site's designated "helper", and now says so with more than
-// a tooltip: it's a real button that opens «Помощь», and hovering it winds
-// the mascot up — sword swinging, crocodile galloping (see
-// PixelFrogKnightSprite + the .frog-knight-* rules in index.css).
+// a tooltip: clicking it opens a support-chat panel (FrogChat) the way a
+// site's "talk to a manager" widget does, and hovering winds the mascot up —
+// sword swinging, crocodile galloping (see PixelFrogKnightSprite + the
+// .frog-knight-* rules in index.css). Hover deliberately does *not* open the
+// chat: a panel that unfurls whenever the cursor drifts into the corner is
+// the exact behaviour those widgets are hated for.
+//
+// Clicking used to navigate straight to «Помощь». That's still where the
+// chat sends anyone whose question isn't on a button — it just no longer
+// throws away the page you were on for a question the frog could have
+// answered in place.
 //
 // Two behaviours were dropped when that landed. The click-to-flick-the-
 // tongue bug catch went because the click now navigates, and its anchor
@@ -24,27 +33,35 @@ import { ACCENT, CARD_BG, TEXT_PRIMARY, CARD_SHADOW_TALL } from '../utils/theme'
 // tilt went because it rotated the whole scene: a crocodile tipping over to
 // follow the mouse is not a thing, and the sprite has plenty of life without
 // it.
-const TIPS = [
-  'Совет: избранные курсы и лекции удобно смотреть на своей странице — там же и заметки к урокам.',
-  'В Багодельне можно предложить свой пример бага — лид посмотрит и опубликует.',
-  'Стрик считается по твоему дню, не по серверному времени — не переживай про полночь.',
-  'Если что-то непонятно — жми на меня, там ответы на частые вопросы.',
-  'Можно загрузить свою аватарку и сделать её доступной всем в общей галерее.',
-  'Идея или что-то бесит — пиши на доске предложений, лид правда читает.',
-  'Пароль лучше сменить, если он временный — иначе будет всё время напоминать.',
-  'Держишь стрик? Так и продолжай, я слежу 👀',
-  'Пройденные курсы можно переслушать в любой момент — они никуда не денутся.',
-];
+//
+// The tip list used to be a TIPS array right here. It's lead-editable now
+// (Багодельня → «Лягух»); this component primes the shared cache on mount,
+// which also warms it for FrogLoader and the onboarding tour.
 
-export default function FrogCompanion() {
-  const navigate = useNavigate();
+interface Props {
+  user: any;
+}
+
+export default function FrogCompanion({ user }: Props) {
+  const [chatOpen, setChatOpen] = useState(false);
   const [hopping, setHopping] = useState(false);
   const [charging, setCharging] = useState(false);
   const [bubble, setBubble] = useState<string | null>(null);
+  const chatOpenRef = useRef(false);
   const reducedMotion = useRef(
     typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
+
+  // Mirrors chatOpen for the tip scheduler below, which reads it from inside
+  // a setTimeout closure and would otherwise see whatever the value was when
+  // that timer was first armed.
+  useEffect(() => { chatOpenRef.current = chatOpen; }, [chatOpen]);
+
+  // One fetch warms the tips, the loading-screen phrases and the tour steps
+  // for the whole session — see utils/frogLines.ts. This component is mounted
+  // app-wide and never unmounts, so it's the natural place to do it.
+  useEffect(() => { loadFrogLines(); }, []);
 
   // Occasional idle hop, purely for life — random 8-16s gap, self-scheduling.
   useEffect(() => {
@@ -71,7 +88,7 @@ export default function FrogCompanion() {
     let hideTimer: ReturnType<typeof setTimeout>;
     function scheduleTip() {
       timer = setTimeout(() => {
-        setBubble(prev => prev || TIPS[Math.floor(Math.random() * TIPS.length)]);
+        setBubble(prev => (prev || chatOpenRef.current ? prev : randomFrogLine('tip')));
         hideTimer = setTimeout(() => setBubble(null), 6000);
         scheduleTip();
       }, 45000 + Math.random() * 30000);
@@ -108,7 +125,8 @@ export default function FrogCompanion() {
       style={{ bottom: 54, right: 24 }}
     >
       <div>
-        {bubble && (
+        {chatOpen && <FrogChat role={user.role} onClose={() => setChatOpen(false)} />}
+        {!chatOpen && bubble && (
           <div
             className="frog-companion-bubble"
             aria-hidden="true"
@@ -131,7 +149,7 @@ export default function FrogCompanion() {
         )}
         <button
           type="button"
-          onClick={() => { setBubble(null); navigate('/help'); }}
+          onClick={() => { setBubble(null); setChatOpen(o => !o); }}
           // Focus mirrors hover so the wind-up isn't mouse-only — the button
           // is reachable by keyboard and should react the same way there.
           onMouseEnter={() => setCharging(true)}
@@ -140,8 +158,10 @@ export default function FrogCompanion() {
           onBlur={() => setCharging(false)}
           className={hopping ? 'frog-companion-hop' : 'frog-companion-idle'}
           style={{ pointerEvents: 'auto', cursor: 'pointer', display: 'block', background: 'none', border: 'none', padding: 0 }}
-          aria-label="Открыть раздел «Помощь»"
-          title="Помощь"
+          aria-label={chatOpen ? 'Закрыть чат с лягухом' : 'Спросить лягуха'}
+          aria-expanded={chatOpen}
+          title="Спросить лягуха"
+          data-tour="frog-companion"
         >
           <PixelFrogKnightSprite size={72} charging={charging} />
         </button>

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
+import FrogLinesEditor from '../components/FrogLinesEditor';
 import Icon, { IconName } from '../components/Icon';
 import { knowledgeApi } from '../api';
 import { showApiError } from '../utils/toast';
@@ -38,7 +39,7 @@ interface BagodelnyaPageProps {
   onLogout: () => void;
 }
 
-type Tab = 'examples' | 'glossary';
+type Tab = 'examples' | 'glossary' | 'frog';
 
 interface BugExample {
   id: number;
@@ -307,6 +308,14 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
   const TABS: { id: Tab; label: string; icon: IconName }[] = [
     { id: 'examples', label: 'Примеры багов', icon: 'bug' },
     { id: 'glossary', label: 'Словарь', icon: 'books' },
+    // Lead/admin only — writing to frog_lines is requireRole('lead') on the
+    // server, so showing this tab to a tester would only offer them a screen
+    // where every save fails. Note this checks the role rather than canEdit:
+    // a tester granted manage_knowledge_base can curate the knowledge base
+    // without also getting to rewrite what the mascot says app-wide.
+    ...(user.role === 'lead' || user.role === 'admin'
+      ? [{ id: 'frog' as Tab, label: 'Лягух', icon: 'frog' as IconName }]
+      : []),
   ];
 
   return (
@@ -517,6 +526,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
             </div>
           </div>
         )}
+
+        {tab === 'frog' && <FrogLinesEditor />}
 
         {!loading && !loadError && tab === 'glossary' && (
           <div>

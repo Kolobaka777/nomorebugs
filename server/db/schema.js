@@ -1062,7 +1062,96 @@ export function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    -- Everything the mascot says, in one lead-editable list. These used to
+    -- be three hardcoded arrays in the client (FrogCompanion's TIPS,
+    -- FrogLoader's FROG_PHRASES, OnboardingTour's steps), which meant
+    -- changing a single line of copy was a deploy. "kind" keeps them in one
+    -- table because they're the same shape and the same editing screen:
+    --   'tip'    — the unprompted advice bubble in the corner
+    --   'loader' — the one-liner under the loading frog
+    --   'tour'   — a first-run step; "target" names the element it points at
+    -- "target" is only meaningful for 'tour' rows and is a key from the
+    -- client's TOUR_TARGETS map, not a raw CSS selector: a selector typed
+    -- into a text field is a broken tour step nobody notices, so the editor
+    -- offers the known list instead. "role" narrows a row to one audience
+    -- ('tester'/'lead'), NULL means everyone.
+    CREATE TABLE IF NOT EXISTS frog_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      text TEXT NOT NULL,
+      title TEXT,
+      target TEXT,
+      role TEXT,
+      order_num INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
   `);
+
+  // One-time: seed frog_lines from the copy that used to be hardcoded in the
+  // client, so making these editable doesn't start everyone off with a mute
+  // mascot. Only runs while the table is empty — once a lead has edited the
+  // list it is the source of truth and this never touches it again.
+  //
+  // The tour rows are a deliberate expansion of the five nav-link steps the
+  // old OnboardingTour shipped with. Those covered Главная/Курсы/Багодельня/
+  // Помощь/Аккаунт and nothing else, so a new tester finished onboarding
+  // never having been told that Гайды, Идеи and Новости exist, that bug
+  // coins are a thing, that the streak counts, or that the frog in the
+  // corner is clickable. Each of those is a step now.
+  if (db.prepare('SELECT COUNT(*) as c FROM frog_lines').get().c === 0) {
+    const insLine = db.prepare(
+      'INSERT INTO frog_lines (kind, text, title, target, role, order_num) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    let n = 0;
+    const tip = text => insLine.run('tip', text, null, null, null, n++);
+    const loader = text => insLine.run('loader', text, null, null, null, n++);
+    // role: null = everyone, 'tester'/'lead'/'admin' = that audience only
+    // (lead steps also show to admins, see routes/frogLines.js).
+    const tour = (target, title, text, role = null) => insLine.run('tour', text, title, target, role, n++);
+
+    tip('Совет: избранные курсы и лекции удобно смотреть на своей странице — там же и заметки к урокам.');
+    tip('В Багодельне можно предложить свой пример бага — лид посмотрит и опубликует.');
+    tip('Стрик считается по твоему дню, не по серверному времени — не переживай про полночь.');
+    tip('Если что-то непонятно — нажми на меня, выберешь тему и я отвечу прямо тут.');
+    tip('Можно загрузить свою аватарку и сделать её доступной всем в общей галерее.');
+    tip('Идея или что-то бесит — пиши на доске предложений, лид правда читает.');
+    tip('Пароль лучше сменить, если он временный — иначе будет всё время напоминать.');
+    tip('Держишь стрик? Так и продолжай, я слежу 👀');
+    tip('Пройденные курсы можно переслушать в любой момент — они никуда не денутся.');
+    tip('За одобренный гайд или пример бага тоже капают баг-коины, не только за тесты.');
+    tip('Тест можно пересдать сколько угодно раз — сохранится лучший результат.');
+
+    loader('квак-квак, гружусь...');
+    loader('разгоняюсь для прыжка...');
+    loader('лягушка тоже не сразу допрыгала');
+    loader('скоро... наверное...');
+    loader('прыжок за прыжком');
+    loader('главное — мягко приземлиться');
+    loader('жизнь слишком коротка, чтобы не квакать');
+    loader('ловлю последний баг языком...');
+    loader('сижу на кувшинке, жду ответ сервера...');
+    loader('надуваю щёки перед прыжком');
+    loader('какой же я прыгучий...');
+    loader('ща ща ща...');
+    loader('быстреееееее');
+    loader('не хочу чета прыгать');
+
+    tour('nav-home', 'Главная', 'Отсюда всё начинается: сводка твоей активности и быстрые ссылки на то, чем занимаешься чаще всего.');
+    tour('nav-courses', 'Курсы', 'Главное место. Лекции идут по порядку, следующая открывается после сданного теста. Завалил — пересдавай сколько угодно, сохранится лучший результат.', 'tester');
+    tour('nav-courses', 'Курсы', 'Каталог курсов и кнопка «Создать курс». Сюда же падают курсы, которые предлагает команда, — их нужно одобрить, чтобы они опубликовались.', 'lead');
+    tour('nav-team', 'Команда', 'Прогресс каждого по курсам, аналитика по лекциям, рейтинг и лента активности. Отсюда же начисляются премии и выдаются права на разделы.', 'lead');
+    tour('nav-shop', 'Багодельня', 'Примеры багов «как плохо / как хорошо», словарь терминов и магазин. Баг-коины за тесты и курсы тратятся тут — на рамки, фоны и аватарки.');
+    tour('nav-guides', 'Гайды', 'Материалы команды вместо документов в чужих папках. Свой гайд можно предложить — после проверки он опубликуется под твоим именем.');
+    tour('nav-suggestions', 'Идеи', 'Доска предложений и жалоб. Можно завести своё, можно лайкнуть чужое. Это не ящик в никуда — лид читает.');
+    tour('nav-news', 'Новости', 'Лента команды: кто что прошёл, опубликовал и получил. Удобно, чтобы не пропустить чужой новый гайд.');
+    tour('nav-admin', 'Админка', 'Пользователи, роли и архив — только для администраторов.', 'admin');
+    tour('nav-account', 'Твой профиль', 'Аватар (можно загрузить свой), рамка, фон, статус-цитата. Тут же карточки за сданные лекции, бейджи и стрик — дни подряд, в которые ты что-то делал.');
+    tour('nav-help', 'Помощь', 'Если что-то забылось — здесь расписано, что тут вообще можно делать, и лежат ответы на частые вопросы. Открыто всегда.');
+    tour('frog-companion', 'Ну и я', 'Живу в углу и иногда подсказываю сам. Наведись — покажу, зачем мне меч. Нажмёшь — откроется чат: выбираешь тему, я отвечаю. Не найдёшь свою — отправлю в «Помощь».');
+  }
 
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,

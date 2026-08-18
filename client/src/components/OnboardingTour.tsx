@@ -1,50 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from './Icon';
-import PixelFrogSprite from './PixelFrogSprite';
+import PixelFrogKnightSprite from './PixelFrogKnightSprite';
+import { FrogLine, loadFrogLines, tourStepsFor } from '../utils/frogLines';
 import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, PAGE_BG } from '../utils/theme';
 
-interface Step {
-  selector: string;
-  title: string;
-  body: string;
-}
+// First-run walkthrough. Three things changed from the original:
+//
+// 1. The steps come from the database (frog_lines, kind 'tour') instead of
+//    three hardcoded arrays, so a lead can reword or add one without a
+//    deploy — Багодельня → «Лягух».
+// 2. It's the mascot talking. The frog stands next to a speech bubble and an
+//    arrow runs from the bubble to whatever it's describing, rather than a
+//    detached tooltip with a small frog icon in its corner.
+// 3. The spotlight is a real spotlight now. There used to be a full-screen
+//    dark div *and* a ring with a huge spread shadow; the div covered the
+//    highlighted element too, so the one thing the step was about was dimmed
+//    along with everything else. The overlay is transparent now and does
+//    nothing but swallow clicks — all the dimming comes from the ring's
+//    shadow, which by construction leaves its own interior unpainted.
+//
+// A step whose target isn't on the page for this role auto-skips. That
+// mattered more when the overlay ate clicks during the gap; it still does,
+// since a step pointing at nothing is worse than no step.
 
-// A step whose selector never resolves (target isn't on the page/role) gets
-// silently auto-skipped below — but that's exactly the bug: while it's
-// resolving, the tour's full-viewport dark overlay is already up and
-// intercepts clicks meant for the actual page underneath, so a user who
-// clicks something real (e.g. Guides' "+ Новый гайд") right as the tour
-// passes through a dead step can have that click silently eaten with no
-// feedback. 'Чеклисты' was exactly that dead step -- the nav link it
-// pointed at was commented out (see Navigation.tsx) when checklists got
-// pulled pending rework, so this step could never resolve for anyone.
-// Removed instead of relying on the skip logic to paper over it.
-const TESTER_STEPS: Step[] = [
-  { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница — сводка активности и полезные ссылки.' },
-  { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Все лекции и курсы. Начни отсюда, чтобы прокачать навыки QA.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин — трать баг-коины на украшения профиля.' },
-  { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Если что-то непонятно — здесь ответы на частые вопросы. Доступно в любой момент.' },
-  { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
-];
+// The stored target is the element's data-tour value, so the selector is
+// derivable and the two can't drift. The server keeps the allowlist of which
+// values are offered in the editor (FROG_LINE_TARGETS in routes/frogLines.js).
+const selectorFor = (target: string) => `[data-tour="${target}"]`;
 
-const LEAD_STEPS: Step[] = [
-  { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
-  { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
-  { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
-  { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
-  { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
-];
-
-const ADMIN_STEPS: Step[] = [
-  { selector: '[data-tour="nav-home"]', title: 'Главная', body: 'Стартовая страница команды.' },
-  { selector: '[data-tour="nav-courses"]', title: 'Курсы', body: 'Каталог курсов — здесь же можно создавать свои через "Создать курс".' },
-  { selector: '[data-tour="nav-team"]', title: 'Команда', body: 'Дашборд с прогрессом, аналитикой по лекциям и активностью команды.' },
-  { selector: '[data-tour="nav-shop"]', title: 'Багодельня', body: 'Магазин косметики для профилей команды.' },
-  { selector: '[data-tour="nav-admin"]', title: 'Админка', body: 'Управление пользователями и ролями — доступно только администраторам.' },
-  { selector: '[data-tour="nav-help"]', title: 'Помощь', body: 'Ответы на частые вопросы — доступно в любой момент.' },
-  { selector: '[data-tour="nav-account"]', title: 'Аккаунт', body: 'Профиль, настройки и выход из приложения.' },
-];
+const PANEL_WIDTH = 348;
+const FROG_SIZE = 60;
+const GAP = 18; // between the highlight ring and the panel
 
 interface Props {
   user: any;
@@ -52,28 +38,38 @@ interface Props {
 
 export default function OnboardingTour({ user }: Props) {
   const storageKey = `onboarding_seen_${user.id}`;
+  const [steps, setSteps] = useState<FrogLine[] | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [active, setActive] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
-
-  const steps = user.role === 'admin' ? ADMIN_STEPS : user.role === 'lead' ? LEAD_STEPS : TESTER_STEPS;
+  const [panelH, setPanelH] = useState(150);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (localStorage.getItem(storageKey)) return;
-    // Small delay so Navigation (and the rest of the page) has mounted
-    // before we start measuring element positions.
-    const t = setTimeout(() => setActive(true), 500);
-    return () => clearTimeout(t);
-  }, [storageKey]);
+    let cancelled = false;
+    // Steps have to be fetched before anything can be measured, and the
+    // page needs a beat to mount either way — the original waited 500ms for
+    // exactly that reason, so the fetch rides along inside the same wait
+    // instead of adding to it.
+    const t = setTimeout(() => {
+      loadFrogLines().then(() => {
+        if (cancelled) return;
+        const mine = tourStepsFor(user.role);
+        if (!mine.length) return; // a team that deleted every step gets no tour
+        setSteps(mine);
+        setActive(true);
+      });
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [storageKey, user.role]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !steps) return;
     const step = steps[stepIndex];
-    if (!step) return;
-    const el = document.querySelector(step.selector);
+    if (!step?.target) return;
+    const el = document.querySelector(selectorFor(step.target));
     if (!el) {
-      // Target isn't on this page/role — skip straight to the next step
-      // rather than showing a tooltip pointing at nothing.
       if (stepIndex < steps.length - 1) setStepIndex(i => i + 1);
       else finish();
       return;
@@ -88,7 +84,17 @@ export default function OnboardingTour({ user }: Props) {
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect, true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stepIndex, steps]);
+
+  // Measured rather than assumed: the panel's height depends on how long the
+  // step's text is, and both the above/below decision and the arrow's start
+  // point need the real number. Guarded against re-setting the same value so
+  // measuring can't feed itself.
+  useLayoutEffect(() => {
+    const h = panelRef.current?.offsetHeight;
+    if (h && Math.abs(h - panelH) > 1) setPanelH(h);
+  });
 
   const finish = () => {
     localStorage.setItem(storageKey, 'true');
@@ -96,78 +102,130 @@ export default function OnboardingTour({ user }: Props) {
   };
 
   const next = () => {
-    if (stepIndex < steps.length - 1) setStepIndex(i => i + 1);
+    if (steps && stepIndex < steps.length - 1) setStepIndex(i => i + 1);
     else finish();
   };
 
-  if (!active || !rect) return null;
+  if (!active || !steps || !rect) return null;
 
   const step = steps[stepIndex];
   const isLast = stepIndex === steps.length - 1;
-  const tooltipTop = rect.bottom + 12;
-  const tooltipLeft = Math.max(12, Math.min(rect.left, window.innerWidth - 300));
+
+  // Below the target when there's room for the panel and its arrow, above
+  // otherwise. Nav lives at the top of the page and the mascot at the bottom,
+  // so both cases are real, not theoretical.
+  const roomBelow = window.innerHeight - rect.bottom;
+  const below = roomBelow > panelH + GAP + 24;
+  const panelTop = below ? rect.bottom + GAP : Math.max(12, rect.top - GAP - panelH);
+  const panelLeft = Math.max(12, Math.min(rect.left - 8, window.innerWidth - PANEL_WIDTH - 12));
+
+  // The arrow runs from the panel's edge to the target's edge, curving so it
+  // reads as a drawn pointer rather than a border. Both endpoints are in
+  // viewport coordinates, which is what the fixed, full-screen SVG below uses.
+  const targetCx = rect.left + rect.width / 2;
+  const panelCx = panelLeft + PANEL_WIDTH / 2;
+  const fromY = below ? panelTop - 2 : panelTop + panelH + 2;
+  const toY = below ? rect.bottom + 6 : rect.top - 6;
+  const ctrlX = panelCx + (targetCx - panelCx) * 0.15;
+  const ctrlY = (fromY + toY) / 2;
 
   return (
     <>
-      <div
-        className="fixed inset-0"
-        style={{ background: 'rgba(0,0,0,0.55)', zIndex: 200 }}
-        onClick={finish}
-      />
-      {/* Highlight ring around the current target */}
+      {/* Transparent: this exists only to swallow clicks aimed at the page
+          underneath. Every pixel of dimming comes from the ring below. */}
+      <div className="fixed inset-0" style={{ zIndex: 200 }} onClick={finish} />
+
+      {/* The spotlight. A 4000px spread shadow paints everything outside this
+          box and nothing inside it, so the target keeps its real brightness
+          while the rest of the screen goes dark. */}
       <div
         className="fixed pointer-events-none"
         style={{
-          top: rect.top - 4,
-          left: rect.left - 4,
-          width: rect.width + 8,
-          height: rect.height + 8,
+          top: rect.top - 5,
+          left: rect.left - 5,
+          width: rect.width + 10,
+          height: rect.height + 10,
           border: `2px solid ${ACCENT}`,
-          borderRadius: 8,
-          boxShadow: `0 0 0 4000px rgba(0,0,0,0.55), 0 0 16px 0 ${ACCENT}80`,
+          borderRadius: 10,
+          boxShadow: `0 0 0 4000px rgba(0,0,0,0.72), 0 0 18px 0 ${ACCENT}90`,
           zIndex: 201,
-          transition: 'all 0.2s ease-out',
+          transition: 'top 0.25s ease-out, left 0.25s ease-out, width 0.25s ease-out, height 0.25s ease-out',
         }}
       />
+
+      <svg
+        className="fixed inset-0 pointer-events-none"
+        width="100%"
+        height="100%"
+        style={{ zIndex: 202 }}
+        aria-hidden="true"
+      >
+        <defs>
+          {/* orient="auto" turns the head to follow the curve, so the same
+              marker works whether the panel sits above or below. */}
+          <marker id="tour-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill={ACCENT} />
+          </marker>
+        </defs>
+        <path
+          d={`M ${panelCx} ${fromY} Q ${ctrlX} ${ctrlY} ${targetCx} ${toY}`}
+          fill="none"
+          stroke={ACCENT}
+          strokeWidth={2}
+          strokeLinecap="round"
+          markerEnd="url(#tour-arrowhead)"
+        />
+      </svg>
+
       <div
+        ref={panelRef}
         role="dialog"
-        aria-label={step.title}
-        className="fixed rounded-lg p-5"
-        style={{
-          top: tooltipTop, left: tooltipLeft, width: 320,
-          background: CARD_BG, border: `1px solid ${ACCENT}`,
-          boxShadow: CARD_SHADOW_TALL, zIndex: 202,
-        }}
+        aria-label={step.title || 'Подсказка'}
+        className="fixed flex items-end gap-2"
+        style={{ top: panelTop, left: panelLeft, width: PANEL_WIDTH, zIndex: 203 }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start gap-3 mb-3">
-          {/* The site's mascot pokes in to deliver the tip — same sprite
-              as the loading screens, so it reads as one consistent
-              character rather than a generic help-icon. */}
-          <PixelFrogSprite size={40} className="shrink-0" />
+        {/* The mascot itself delivers the line — same character as the one
+            living in the corner, so the tour reads as him talking rather
+            than as generic product chrome. */}
+        <PixelFrogKnightSprite size={FROG_SIZE} className="shrink-0" />
+        <div
+          className="rounded-lg p-4 relative flex-1"
+          style={{ background: CARD_BG, border: `1px solid ${ACCENT}`, boxShadow: CARD_SHADOW_TALL }}
+        >
+          {/* Speech tail pointing back at the frog. */}
+          <div
+            style={{
+              position: 'absolute', left: -7, bottom: 16, width: 12, height: 12,
+              background: CARD_BG, borderLeft: `1px solid ${ACCENT}`, borderBottom: `1px solid ${ACCENT}`,
+              transform: 'rotate(45deg)',
+            }}
+          />
           <p
-            className="font-montserrat font-semibold"
-            style={{ fontSize: 19, lineHeight: '24px', letterSpacing: TRACK_WIDE, color: TEXT_PRIMARY, paddingTop: 4 }}
+            className="font-montserrat font-semibold mb-1.5"
+            style={{ fontSize: 16, lineHeight: '20px', letterSpacing: TRACK_WIDE, color: TEXT_PRIMARY }}
           >
             {step.title}
           </p>
-        </div>
-        <p className="font-geist mb-5" style={{ fontSize: 15, lineHeight: 1.6, color: TEXT_MUTED }}>{step.body}</p>
-        <div className="flex items-center justify-between">
-          <button onClick={finish} className="font-geist cursor-pointer" style={{ fontSize: 13, color: TEXT_MUTED }}>
-            Пропустить всё
-          </button>
-          <div className="flex items-center gap-4">
-            <span className="font-geist" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{stepIndex + 1}/{steps.length}</span>
-            <button
-              onClick={next}
-              className="font-geist font-semibold px-4 py-2 rounded-lg cursor-pointer"
-              style={{ fontSize: 14, background: ACCENT, color: PAGE_BG }}
-            >
-              {isLast ? 'Готово' : (
-                <span className="inline-flex items-center gap-1.5">Далее <Icon name="arrowRight" size={15} color="currentColor" /></span>
-              )}
+          <p className="font-geist mb-4" style={{ fontSize: 14, lineHeight: 1.55, color: TEXT_MUTED }}>{step.text}</p>
+          <div className="flex items-center justify-between gap-3">
+            <button onClick={finish} className="font-geist cursor-pointer shrink-0" style={{ fontSize: 12, color: TEXT_MUTED }}>
+              Пропустить
             </button>
+            <div className="flex items-center gap-3">
+              <span className="font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                {stepIndex + 1}/{steps.length}
+              </span>
+              <button
+                onClick={next}
+                className="font-geist font-semibold px-3.5 py-1.5 rounded-lg cursor-pointer"
+                style={{ fontSize: 13, background: ACCENT, color: PAGE_BG }}
+              >
+                {isLast ? 'Готово' : (
+                  <span className="inline-flex items-center gap-1.5">Далее <Icon name="arrowRight" size={14} color="currentColor" /></span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

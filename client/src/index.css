@@ -686,17 +686,35 @@
 .frog-knight-sword {
   transform: rotate(-20deg);
 }
-/* Hover: the frog swings the sword while the croc gallops under it. The
-   mount and the rider run the same 0.5s cycle in opposite phase — the croc
-   rocks down as the frog comes up — which is what sells "riding" rather
-   than "two things bouncing". The swing is deliberately a slower 0.75s so
-   the two never lock into one mechanical beat. It also stays on the negative
-   side of vertical: swinging forward past 0 would drag the blade across the
-   frog's eyes. */
+/* Hover: a whole round of the fight, on one 5.25s clock.
+     0.00–2.25s  three swings, one fly cut down per swing
+     2.25–3.20s  the corpses lie in a heap while he catches his breath
+     3.20–4.85s  three tongue flicks, one corpse eaten per flick
+     4.85–5.25s  a beat, then it starts over
+   5.25s is seven 0.75s swings, and that whole-multiple relationship is the
+   entire timing mechanism. Every animation below runs on the same period (or
+   an exact divisor), all of them start at the same instant — the flies and
+   the tongue only exist while .frog-knight-charging is on — and because the
+   periods divide evenly they cannot drift apart afterwards. A JS timer
+   spawning flies and scheduling flicks would, within seconds.
+   The mount and the rider are the exception: they just bob in opposite phase
+   on their own 0.5s cycle, which is what sells "riding" rather than "two
+   things bouncing". Nothing keys off them, so their drift is free.
+   The swing stays on the negative side of vertical throughout: swinging
+   forward past 0 would drag the blade across the frog's eyes. */
 @keyframes frog-knight-swing {
-  0%, 100% { transform: rotate(-20deg); }
-  30%      { transform: rotate(-45deg); }
-  65%      { transform: rotate(-4deg); }
+  /* Three swings back to back, then the blade rests for the eating half. */
+  0%      { transform: rotate(-20deg); }
+  4.29%   { transform: rotate(-45deg); }
+  9.29%   { transform: rotate(-4deg); }
+  14.29%  { transform: rotate(-20deg); }
+  18.57%  { transform: rotate(-45deg); }
+  23.57%  { transform: rotate(-4deg); }
+  28.57%  { transform: rotate(-20deg); }
+  32.86%  { transform: rotate(-45deg); }
+  37.86%  { transform: rotate(-4deg); }
+  42.86%  { transform: rotate(-20deg); }
+  100%    { transform: rotate(-20deg); }
 }
 @keyframes frog-knight-ride {
   0%, 100% { transform: translateY(0); }
@@ -706,71 +724,117 @@
   0%, 100% { transform: translateY(0) rotate(1.5deg); }
   50%      { transform: translateY(1px) rotate(-1.5deg); }
 }
-.frog-knight-charging .frog-knight-sword { animation: frog-knight-swing 0.75s ease-in-out infinite; }
+.frog-knight-charging .frog-knight-sword { animation: frog-knight-swing 5.25s ease-in-out infinite; }
 .frog-knight-charging .frog-knight-rider { animation: frog-knight-ride 0.5s ease-in-out infinite; }
 .frog-knight-charging .frog-knight-mount { animation: frog-knight-gallop 0.5s ease-in-out infinite; }
 
-/* The flies he's swinging at. Each one's loop is 2.25s — exactly three
-   swings — and every slot is offset by a whole swing, so the three share one
-   set of keyframes and still arrive one per swing. That whole-multiple
-   relationship is the entire timing mechanism: both animations start at the
-   same instant (the flies mount with .frog-knight-charging), and because the
-   periods divide evenly they cannot drift apart afterwards. A JS timer
-   spawning flies would.
-   The 52% mark below is where the blade actually is: the fly parks at
-   (36, 22) in viewBox units, that point sits at −11° on the sword's arc, and
-   the swing passes −11° a hair past its own midpoint — 0.42s into a 0.75s
-   swing, which is 52% of the fly's three-swing loop. Retiming the swing or
-   moving the fly means recomputing this. */
+/* The flies. All three slots share one keyframe set and are started a swing
+   apart (positive animation-delay below), so slot n is hit by swing n and
+   eaten by flick n without any of them needing a timeline of its own.
+   The 7.86% mark is where the blade actually is: the fly parks at (34, 20)
+   in viewBox units, that point sits at about −11° on the sword's arc, and a
+   swing passes −11° a hair past its own midpoint — 0.41s in, which on the
+   5.25s clock is 7.86%. Retiming the swing or moving the fly's park point
+   means recomputing it.
+   Every keyframe carries the same three transform functions even where one
+   of them does nothing. Lists that don't match get interpolated as decomposed
+   matrices instead of per-function, and a 180°→250° rotation is exactly the
+   case where that stops looking like a tumble. */
 @keyframes frog-knight-fly-path {
-  /* In from off-canvas left, wobbling like something that hasn't noticed the sword yet. */
-  0%     { transform: translate(-52px, 14px) rotate(0deg); }
-  14%    { transform: translate(-34px, 2px)  rotate(0deg); }
-  25%    { transform: translate(-16px, 10px) rotate(0deg); }
-  33%    { transform: translate(0, 0)        rotate(0deg); }
-  42%    { transform: translate(-3px, -3px)  rotate(0deg); }
-  /* Impact: 0.1% apart, so it snaps rather than eases. */
-  51.9%  { transform: translate(0, 0)        rotate(0deg); }
-  52%    { transform: translate(2px, 0)      rotate(30deg); }
+  /* In from off-canvas left, wobbling like something that hasn't noticed the
+     sword yet. */
+  0%      { transform: translate(-52px, 14px) rotate(0deg)   scale(1); }
+  2.4%    { transform: translate(-34px, 2px)  rotate(0deg)   scale(1); }
+  4.3%    { transform: translate(-16px, 10px) rotate(0deg)   scale(1); }
+  5.7%    { transform: translate(0, 0)        rotate(0deg)   scale(1); }
+  7.2%    { transform: translate(-3px, -3px)  rotate(0deg)   scale(1); }
+  /* Impact: the two keyframes are 0.06% apart, so it snaps rather than eases. */
+  7.8%    { transform: translate(0, 0)        rotate(0deg)   scale(1); }
+  7.86%   { transform: translate(2px, 0)      rotate(30deg)  scale(1); }
   /* Knocked up and back, then down onto the croc's back, left of the frog.
-     54px is what puts the corpse's underside on the croc's spine rather
-     than hovering over it or sinking through — the fly art's bottom edge
-     sits at y=28 and the croc's back is at y=80. */
-  57%    { transform: translate(-6px, -7px)  rotate(80deg); }
-  66%    { transform: translate(-12px, 22px) rotate(150deg); }
-  73%    { transform: translate(-14px, 54px) rotate(180deg); }
-  100%   { transform: translate(-14px, 54px) rotate(180deg); }
+     54px is what puts the corpse's underside on the croc's spine rather than
+     hovering over it or sinking through — the fly art's bottom edge sits at
+     y=28 and the croc's back is at y=80. */
+  8.8%    { transform: translate(-6px, -7px)  rotate(80deg)  scale(1); }
+  10.5%   { transform: translate(-12px, 22px) rotate(150deg) scale(1); }
+  12.5%   { transform: translate(-14px, 54px) rotate(180deg) scale(1); }
+  /* Lies in the heap. Long enough that all three are down together for about
+     a second before the first one goes — the heap is the point. */
+  61%     { transform: translate(-14px, 54px) rotate(180deg) scale(1); }
+  /* Eaten: dragged up the tongue into the mouth at (56, 54) and shrunk out
+     of existence as it gets there. */
+  63.5%   { transform: translate(22px, 34px)  rotate(250deg) scale(0.15); }
+  100%    { transform: translate(22px, 34px)  rotate(250deg) scale(0.15); }
 }
 /* Live fly and corpse are two drawings in the same slot, cross-cut at the
    moment of impact — a hard swap on adjacent keyframes is how a sprite
-   changes frame in CSS. The corpse then lies there a good second before
-   fading, because a body that vanishes on landing reads as a bug that got
-   away rather than one that lost. */
+   changes frame in CSS. */
 @keyframes frog-knight-fly-alive {
-  0%, 51.9% { opacity: 1; }
-  52%, 100% { opacity: 0; }
+  0%, 7.8%    { opacity: 1; }
+  7.86%, 100% { opacity: 0; }
 }
 @keyframes frog-knight-fly-dead {
-  0%, 51.9% { opacity: 0; }
-  52%, 88%  { opacity: 1; }
-  100%      { opacity: 0; }
+  0%, 7.8%     { opacity: 0; }
+  7.86%, 63.4% { opacity: 1; }
+  63.5%, 100%  { opacity: 0; }
 }
+/* The tongue. scaleX only, about the mouth end — see the TONGUE grid in
+   PixelFrogKnightSprite.tsx. Three flicks, each timed to arrive just as the
+   corpse it collects starts moving: 61%, 75.3%, 89.6%, which is slot 0's
+   eat plus one and two swing-lengths, matching the slots' own delays. */
+@keyframes frog-knight-tongue {
+  0%, 59.6% { transform: rotate(-24deg) scaleX(0); }
+  61%       { transform: rotate(-24deg) scaleX(1); }
+  62%       { transform: rotate(-24deg) scaleX(1); }
+  63.5%     { transform: rotate(-24deg) scaleX(0); }
+  73.9%     { transform: rotate(-24deg) scaleX(0); }
+  75.3%     { transform: rotate(-24deg) scaleX(1); }
+  76.3%     { transform: rotate(-24deg) scaleX(1); }
+  77.8%     { transform: rotate(-24deg) scaleX(0); }
+  88.2%     { transform: rotate(-24deg) scaleX(0); }
+  89.6%     { transform: rotate(-24deg) scaleX(1); }
+  90.6%     { transform: rotate(-24deg) scaleX(1); }
+  92.1%     { transform: rotate(-24deg) scaleX(0); }
+  100%      { transform: rotate(-24deg) scaleX(0); }
+}
+.frog-knight-tongue {
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  /* Retracted unless the round is running, so the resting sprite has no
+     tongue hanging out of it. */
+  transform: rotate(-24deg) scaleX(0);
+}
+.frog-knight-charging .frog-knight-tongue { animation: frog-knight-tongue 5.25s linear infinite; }
 .frog-knight-fly {
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  animation: frog-knight-fly-path 2.25s linear infinite;
+  animation: frog-knight-fly-path 5.25s linear infinite backwards;
 }
-/* linear, not steps() — the swap is already instant because the keyframes
-   either side of it are 0.1% apart, and stepping would also flatten the
-   corpse's fade-out into another hard cut. */
-.frog-knight-fly-alive { animation: frog-knight-fly-alive 2.25s linear infinite; }
-.frog-knight-fly-dead  { animation: frog-knight-fly-dead  2.25s linear infinite; }
+/* linear, not steps() — the swaps are already instant because the keyframes
+   either side of them are a fraction of a percent apart. */
+.frog-knight-fly-alive { animation: frog-knight-fly-alive 5.25s linear infinite backwards; }
+.frog-knight-fly-dead  { animation: frog-knight-fly-dead  5.25s linear infinite backwards; }
+/* Wing buzz. Hard stops rather than a fade, so this is a square wave at
+   ~8Hz — a blur is what wings look like, and at four pixels across a blur
+   is only expressible as a flicker. It nests inside the alive layer's own
+   opacity gate, so the two multiply and the wings vanish with the rest of
+   the live fly the moment the blade lands. */
+@keyframes frog-knight-fly-buzz {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0.35; }
+}
+.frog-knight-fly-wings { animation: frog-knight-fly-buzz 0.13s linear infinite; }
 /* The stagger lives here rather than as an inline style per slot so all of
    this animation's timing stays in one file. The descendant selector covers
    the slot's path animation and both opacity animations at once — they have
-   to share a delay or the corpse appears on the wrong fly. */
-.frog-knight-flies > g:nth-child(2) * { animation-delay: -0.75s; }
-.frog-knight-flies > g:nth-child(3) * { animation-delay: -1.5s; }
+   to share a delay or the corpse appears on the wrong fly.
+   Positive delays, paired with fill-mode: backwards above, so the later
+   slots hold their off-canvas opening frame instead of starting mid-flight.
+   A negative delay would be a shorter way to reach the same steady state,
+   but it would also mean a corpse is already lying in the heap the instant
+   the cursor arrives, before a single swing. */
+.frog-knight-flies > g:nth-child(2) * { animation-delay: 0.75s; }
+.frog-knight-flies > g:nth-child(3) * { animation-delay: 1.5s; }
 
 @media (prefers-reduced-motion: reduce) {
   .frog-companion-idle, .frog-companion-hop {
@@ -789,7 +853,9 @@
   .frog-knight-charging .frog-knight-mount,
   .frog-knight-fly,
   .frog-knight-fly-alive,
-  .frog-knight-fly-dead {
+  .frog-knight-fly-dead,
+  .frog-knight-fly-wings,
+  .frog-knight-charging .frog-knight-tongue {
     animation: none;
   }
   .frog-knight-flies { display: none; }

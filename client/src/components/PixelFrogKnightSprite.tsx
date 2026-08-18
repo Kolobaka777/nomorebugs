@@ -40,10 +40,12 @@ const PALETTE: Record<string, string> = {
   H: TEXT_MUTED,       // blade shade
   G: BADGE_NOTIFY,     // hilt
   g: '#B8741A',        // hilt shade / grip
-  f: TEXT_MUTED,       // live fly body
-  w: 'rgba(220, 250, 248, 0.5)', // fly wings — translucent so they read as wings, not blocks
+  f: '#9B9C9F',        // live fly body
+  w: 'rgba(226, 252, 250, 0.78)', // fly wings — translucent, but bright enough to read as wings
+  r: '#E05252',        // fly eye. A red dot is the cheapest "this is an insect" signal there is
   z: '#5C5D60',        // dead fly body, drained of the live one's contrast
-  j: TEXT_MUTED,       // dead fly legs
+  j: TEXT_MUTED,       // fly legs
+  n: '#E0607A',        // tongue
 };
 
 function gridToRects({ x: ox, y: oy, rows }: Grid): [number, number, number, number, string][] {
@@ -118,17 +120,32 @@ const SWORD: Grid = {
   ],
 };
 
-// The flies the knight is actually fighting. Both grids sit at the same
-// cell origin so the pair shares one bounding box, which is what lets the
-// slot rotate about the fly's own centre (transform-origin: 50% 50%) — and
-// that centre, (36, 22) in viewBox units, is a point the blade sweeps
-// through on its way forward, so the hit lands on the fly rather than near
-// it. Move one and the CSS timing in index.css stops meaning anything.
-const FLY_ALIVE: Grid = { x: 7, y: 4, rows: ['.ff.', 'wffw', '.ff.'] };
+// The flies the knight is actually fighting. The first pass at these was a
+// small grey lump with faint blocks either side and read as debris, so this
+// one is bigger and spends every pixel on the three things that say "fly"
+// at a glance: wings swept back off the body, a red eye at the front, and a
+// leg trailing underneath. The wings are their own layer so they can flap
+// independently of everything else — see the buzz keyframes in index.css.
+//
+// All three grids share a cell origin so they share one bounding box, which
+// is what lets the slot rotate about the fly's own centre
+// (transform-origin: 50% 50%). That centre, (34, 20) in viewBox units, is a
+// point the blade sweeps through on its way forward, so the hit lands on the
+// fly rather than near it. Move it and the CSS timing stops meaning anything.
+const FLY_WINGS: Grid = { x: 6, y: 3, rows: ['ww...', '.ww..', '.....', '.....'] };
+const FLY_BODY: Grid = { x: 6, y: 3, rows: ['.....', '.....', '.fffr', '..j..'] };
 // Drawn the right way up on purpose: the slot tumbles to 180° as it falls,
 // so these legs end up in the air, which is the only pose that reads as
 // "dead bug" without a single extra pixel of explanation.
-const FLY_DEAD: Grid = { x: 7, y: 4, rows: ['.zz.', '.zz.', 'j..j'] };
+const FLY_DEAD: Grid = { x: 6, y: 3, rows: ['.....', '.zzz.', 'zzzz.', 'j.j.j'] };
+
+// The tongue, drawn as one horizontal bar reaching left out of the mouth and
+// then rotated and scaled by CSS. Its right end sits inside the frog's mouth
+// row (y 52..56, the K cells of the frog grid), which is what makes
+// transform-origin: 100% 50% the mouth: scaleX(0) collapses the whole thing
+// back into it, so "no tongue" and "tongue out" are the same element at two
+// scales rather than two drawings.
+const TONGUE: Grid = { x: 3, y: 13, rows: ['nnnnnnnnnnn'] };
 
 // Three is what the swing period allows: each fly's loop is three swings
 // long (fly in, get hit, fall and lie there), so three staggered slots put
@@ -147,9 +164,11 @@ const FLY_DEAD: Grid = { x: 7, y: 4, rows: ['.zz.', '.zz.', 'j..j'] };
 const FLY_SLOTS = [{ dx: 0, dy: 0 }, { dx: -3, dy: 4 }, { dx: 3, dy: -4 }];
 
 const CROC_RECTS = gridToRects(CROC);
-const FLY_ALIVE_RECTS = gridToRects(FLY_ALIVE);
+const FLY_WINGS_RECTS = gridToRects(FLY_WINGS);
+const FLY_BODY_RECTS = gridToRects(FLY_BODY);
 const FLY_DEAD_RECTS = gridToRects(FLY_DEAD);
 const SWORD_RECTS = gridToRects(SWORD);
+const TONGUE_RECTS = gridToRects(TONGUE);
 const FROG_RECTS = { open: gridToRects(frogGrid(false)), shut: gridToRects(frogGrid(true)) };
 
 const VIEW_W = 24 * CELL;
@@ -203,6 +222,12 @@ export default function PixelFrogKnightSprite({ size = 72, className, charging, 
       <g className="frog-knight-mount">{draw(CROC_RECTS)}</g>
       <g className="frog-knight-rider">
         {draw(shut ? FROG_RECTS.shut : FROG_RECTS.open)}
+        {/* Inside the rider, so it stays attached to the mouth while he
+            bounces, and *before* the sword so the hilt occludes it on the way
+            past. Drawn over the sword instead, it was a saturated pink bar
+            laid across a saturated orange one; going behind reads as the
+            tongue passing the sword arm, which is also what's happening. */}
+        <g className="frog-knight-tongue">{draw(TONGUE_RECTS)}</g>
         <g className="frog-knight-sword">{draw(SWORD_RECTS)}</g>
       </g>
       {/* Flies exist only while the knight is swinging — they're the reason
@@ -217,7 +242,10 @@ export default function PixelFrogKnightSprite({ size = 72, className, charging, 
           {FLY_SLOTS.map((slot, i) => (
             <g key={i} transform={`translate(${slot.dx} ${slot.dy})`}>
               <g className="frog-knight-fly">
-                <g className="frog-knight-fly-alive">{draw(FLY_ALIVE_RECTS)}</g>
+                <g className="frog-knight-fly-alive">
+                  <g className="frog-knight-fly-wings">{draw(FLY_WINGS_RECTS)}</g>
+                  {draw(FLY_BODY_RECTS)}
+                </g>
                 <g className="frog-knight-fly-dead">{draw(FLY_DEAD_RECTS)}</g>
               </g>
             </g>

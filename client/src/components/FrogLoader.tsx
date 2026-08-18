@@ -1,4 +1,5 @@
 import PixelFrogSprite from './PixelFrogSprite';
+import { randomFrogLine } from '../utils/frogLines';
 import { ACCENT } from '../utils/theme';
 
 // Replaced the old FrogLoader (crawling pixel-snail + "уже ползу..."
@@ -8,29 +9,18 @@ import { ACCENT } from '../utils/theme';
 // owner asked for. Blinks on its own timer (PixelFrogSprite's default
 // auto-blink), hops via the existing frog-loader-hop keyframe, and puffs
 // its throat like it's mid-croak via a small pulsing circle behind it.
-const FROG_PHRASES = [
-  'квак-квак, гружусь...',
-  'разгоняюсь для прыжка...',
-  'лягушка тоже не сразу допрыгала',
-  'скоро... наверное...',
-  'прыжок за прыжком',
-  'главное — мягко приземлиться',
-  'жизнь слишком коротка, чтобы не квакать',
-  'ловлю последний баг языком...',
-  'сижу на кувшинке, жду ответ сервера...',
-  'надуваю щёки перед прыжком',
-  'какой же я прыгучий...',
-  'ща ща ща...',
-  'быстреееееее',
-  'не хочу чета прыгать',
-];
+//
+// The phrases used to be a FROG_PHRASES array right here. They're lead-
+// editable rows now (Багодельня → «Лягух»); utils/frogLines.ts keeps the
+// synchronous read this component needs, since a loader can't wait on a
+// fetch before it has something to show.
 
 interface FrogLoaderProps {
   phrase?: string;
 }
 
 export default function FrogLoader({ phrase }: FrogLoaderProps) {
-  const text = phrase ?? FROG_PHRASES[Math.floor(Math.random() * FROG_PHRASES.length)];
+  const text = phrase ?? randomFrogLine('loader');
 
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-16">
@@ -72,5 +62,3 @@ export default function FrogLoader({ phrase }: FrogLoaderProps) {
     </div>
   );
 }
-
-export { FROG_PHRASES };

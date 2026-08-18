@@ -220,6 +220,18 @@ export const rewardsApi = {
   getMyPremiumPoints: () => api.get('/me/premium-points'),
 };
 
+// Mascot copy: corner tips, loading-screen phrases and first-run tour steps.
+// Reading is open to everyone (the frog talks to testers); writing is lead
+// only. See utils/frogLines.ts for the session cache in front of this.
+export const frogLinesApi = {
+  getAll: () => api.get('/frog-lines'),
+  create: (data: { kind: string; text: string; title?: string; target?: string; role?: string }) =>
+    api.post('/frog-lines', data),
+  update: (id: number, data: { text: string; title?: string; target?: string; role?: string }) =>
+    api.put(`/frog-lines/${id}`, data),
+  remove: (id: number) => api.delete(`/frog-lines/${id}`),
+};
+
 export const statsApi = {
   getGlobal: () => api.get('/stats'),
 };

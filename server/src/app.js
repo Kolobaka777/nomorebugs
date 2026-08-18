@@ -17,6 +17,7 @@ import { startBackupSchedule, runBackup } from './backup.js';
 import knowledgeRouter from './routes/knowledge.js';
 import suggestionsRouter from './routes/suggestions.js';
 import newsRouter from './routes/news.js';
+import frogLinesRouter from './routes/frogLines.js';
 import presenceRouter from './routes/presence.js';
 import leadRouter from './routes/lead.js';
 import profileRouter from './routes/profile.js';
@@ -259,6 +260,7 @@ app.get('/api/health', (req, res) => {
 app.use(knowledgeRouter);
 app.use(suggestionsRouter);
 app.use(newsRouter);
+app.use(frogLinesRouter);
 app.use(presenceRouter);
 app.use(leadRouter);
 app.use(profileRouter);

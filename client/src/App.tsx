@@ -174,7 +174,7 @@ function App() {
           FrogCompanion which got redesigned instead of deleted. */}
       <InstallPrompt />
       <OnboardingTour user={u} />
-      <FrogCompanion />
+      <FrogCompanion user={u} />
 
       {/* Sits behind every routed page — see BgWatermark.tsx. The routes
           wrapper below gets an explicit z-index so it paints on top
