@@ -271,6 +271,11 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
               aria-label="Меню разделов"
               aria-haspopup="menu"
               aria-expanded={mobileNavOpen}
+              // Only visible below lg, which is exactly what makes it a
+              // usable tour target on a phone: the onboarding step aimed at
+              // it auto-skips on a desktop, where this button is hidden and
+              // the real nav links are the ones on screen.
+              data-tour="nav-menu"
               className="flex items-center justify-center cursor-pointer rounded-lg transition-all duration-150"
               style={{
                 width: TAB_HEIGHT, height: TAB_HEIGHT,

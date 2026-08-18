@@ -1153,6 +1153,26 @@ export function initDb() {
     tour('frog-companion', 'Ну и я', 'Живу в углу и иногда подсказываю сам. Наведись — покажу, зачем мне меч. Нажмёшь — откроется чат: выбираешь тему, я отвечаю. Не найдёшь свою — отправлю в «Помощь».');
   }
 
+  // Backfill for databases seeded before the burger-menu step existed. On a
+  // phone every nav-* step points at a link that is rendered but hidden, so
+  // the client skips them all and onboarding was effectively desktop-only —
+  // this is the one step a phone user can actually see. Guarded on the target
+  // rather than on a version flag, so it inserts once and never again.
+  const hasMenuStep = db.prepare(
+    "SELECT 1 FROM frog_lines WHERE kind = 'tour' AND target = 'nav-menu'"
+  ).get();
+  if (!hasMenuStep) {
+    // order_num 0 puts it first: on a phone it is the only step that
+    // resolves, and on a desktop it skips instantly, so being first costs
+    // nothing there.
+    db.prepare(
+      "INSERT INTO frog_lines (kind, text, title, target, role, order_num) VALUES ('tour', ?, ?, 'nav-menu', NULL, -1)"
+    ).run(
+      'Все разделы спрятаны сюда: курсы, Багодельня, гайды, идеи и помощь. Жми — и они откроются списком.',
+      'Меню'
+    );
+  }
+
   // Indexes on every foreign-key / lookup column that gets JOINed or
   // filtered on. None of these existed before — fine at seed-data scale,
   // but every one of these queries was a full table scan waiting to

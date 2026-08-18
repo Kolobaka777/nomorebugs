@@ -21,6 +21,10 @@ export const FROG_LINE_KINDS = ['tip', 'loader', 'tour'];
 export const FROG_LINE_TARGETS = [
   'nav-home', 'nav-news', 'nav-courses', 'nav-team', 'nav-shop',
   'nav-guides', 'nav-suggestions', 'nav-help', 'nav-admin', 'nav-account',
+  // Only rendered below the lg breakpoint. A step aimed at it is effectively
+  // phone-only, because the client skips steps whose target isn't visible —
+  // which is also how the nav-* steps above end up desktop-only.
+  'nav-menu',
   'frog-companion',
 ];
 const ROLES = ['tester', 'lead', 'admin'];

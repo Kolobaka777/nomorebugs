@@ -26,6 +26,7 @@ const KIND_META: { id: Kind; label: string; hint: string }[] = [
 // the server rejects anything not on its own list. Values are data-tour
 // attributes, so a step can only point at something that actually exists.
 const TARGETS: { value: string; label: string }[] = [
+  { value: 'nav-menu', label: 'Бургер-меню (только на телефоне)' },
   { value: 'nav-home', label: 'Меню — Главная' },
   { value: 'nav-news', label: 'Меню — Новости' },
   { value: 'nav-courses', label: 'Меню — Курсы' },

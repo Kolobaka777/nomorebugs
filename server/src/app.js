@@ -2,6 +2,8 @@ import 'dotenv/config';
 // Must come before express/helmet/etc. below — see the comment in
 // sentry.js for why this ordering is load-bearing, not stylistic.
 import { Sentry, isSentryEnabled, logError } from './sentry.js';
+import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -232,6 +234,26 @@ const writeLimiter = rateLimit({
 });
 app.use(writeLimiter);
 
+// Anything below this and the next few backup cycles are the last ones that
+// will fit. Deliberately generous: an alert that fires with room to act on it
+// is the whole point, and a false alarm here costs nothing.
+const LOW_DISK_MB = 512;
+
+// statfsSync is Node 18.15+; wrapped because it is not implemented on every
+// platform and a health check must never be the thing that breaks. Returning
+// null just omits the field — the write probe above is still the real check.
+function diskSpace() {
+  try {
+    if (db.name === ':memory:') return null;
+    const st = fs.statfsSync(path.dirname(db.name));
+    const freeMb = Math.round((st.bavail * st.bsize) / 1024 / 1024);
+    const totalMb = Math.round((st.blocks * st.bsize) / 1024 / 1024);
+    return { freeMb, totalMb, usedPct: totalMb ? Math.round(((totalMb - freeMb) / totalMb) * 100) : null };
+  } catch {
+    return null;
+  }
+}
+
 // Health check for the hosting platform (Railway et al.) and any future
 // uptime monitor. Deliberately unauthenticated and unthrottled — checks
 // the DB is actually responsive, not just that the process is alive,
@@ -247,7 +269,15 @@ app.get('/api/health', (req, res) => {
     // single-row scratch table actually exercises a write, cheaply and
     // without growing the DB.
     db.prepare('INSERT OR REPLACE INTO _health_check (id, checked_at) VALUES (1, CURRENT_TIMESTAMP)').run();
-    res.json({ status: 'ok' });
+
+    // Free space on the volume holding the database. The write probe above
+    // catches a disk that is *already* full; this is the part that can be
+    // seen coming, because the DB and its 28 rotating backups share one
+    // volume and nothing else reports on it. A monitor can alert on
+    // disk.freeMb, and `degraded` makes a bare eyeball check enough.
+    const disk = diskSpace();
+    const low = disk && disk.freeMb < LOW_DISK_MB;
+    res.json({ status: low ? 'degraded' : 'ok', ...(disk ? { disk } : {}) });
   } catch (err) {
     logError(err);
     res.status(503).json({ status: 'error' });
