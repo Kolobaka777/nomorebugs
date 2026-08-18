@@ -8,7 +8,7 @@ import { primeAvatarCache } from '../components/Navigation';
 import { testerApi, rewardsApi, presenceApi } from '../api';
 import {
   Lecture, TestHistoryItem, SKillChart,
-  FullProfile, getLevel, PresenceEntry, CourseFavorite, CourseNoteGroup,
+  FullProfile, PresenceEntry, CourseFavorite, CourseNoteGroup,
 } from '../types';
 import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId, type AvatarId } from '../components/PixelAvatar';
 import Icon, { IconName } from '../components/Icon';
@@ -248,7 +248,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   );
 
   const completed      = metrics?.lecturesCompleted || 0;
-  const level          = getLevel(completed);
   const nextLecture     = lectures.find(l => l.status === 'active');
 
   const badgeIds       = profile?.badges.map(b => b.badge_id) || [];
@@ -292,14 +291,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const showcaseMeta = showcaseId ? BADGE_META[showcaseId] : undefined;
   const showcaseDescription = showcaseId ? ACHIEVEMENTS_CATALOG.find(a => a.id === showcaseId)?.description : undefined;
   const showcaseIsGoal = !pickedShowcaseId && !!nextGoal;
-
-  // A compact numeric rank (1-5) derived from the real tier system
-  // (getLevel's Икринка→Царь-лягушка ladder) — the reference's LEVEL box is a
-  // big bold number + "LEVEL" caption, not a tier name, so this maps the
-  // existing honest progression data onto that visual instead of inventing
-  // an unrelated score.
-  const LEVEL_NAMES = ['Икринка', 'Головастик', 'Лягушонок', 'Лягушка', 'Царь-лягушка', 'Царевна-лягушка'];
-  const levelRank = Math.max(1, LEVEL_NAMES.indexOf(level.name) + 1);
 
   const handleCraft = async (skill_area: string) => {
     setCrafting(skill_area);
@@ -511,14 +502,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             </div>
           </Panel>
 
-          {/* RIGHT: level + achievement showcase + edit button */}
+          {/* RIGHT: achievement showcase + edit button. The bordered
+              "3 LEVEL" box that used to sit opposite the ONLINE dot is
+              gone along with the rest of the level system — the courses
+              count and the badges below already carry that information. */}
           <div className="space-y-3">
             <Panel pad="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="rounded-lg flex items-baseline gap-1.5 px-3 py-1.5" title={level.name} style={{ border: `2px solid ${accent}` }}>
-                  <span className="font-montserrat font-bold" style={{ fontSize: 22, color: accent, lineHeight: 1 }}>{levelRank}</span>
-                  <span className="font-geist font-semibold" style={{ fontSize: 11, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>LEVEL</span>
-                </div>
+              <div className="flex items-center justify-end mb-3">
                 <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: accent }}>
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} /> ONLINE
                 </span>

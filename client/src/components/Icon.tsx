@@ -40,10 +40,9 @@ export type IconName =
   // 'trash' is real kit path data (trash.svg); 'key'/'archive'/'undo' are
   // hand-drawn to match (24x24, 2px stroke), no kit source exists for them.
   | 'trash' | 'key' | 'archive' | 'undo' | 'clock'
-  // ── Frog level ladder (see types.ts's getLevel) — replaces the old
-  // seedling/bug/gear-as-bug-tiers icon set now that the site's theme is
-  // frogs, not bugs.
-  | 'frogEgg' | 'tadpole' | 'frog';
+  // The mascot. 'frogEgg'/'tadpole' lived here too, as the lower rungs of
+  // a level ladder that no longer exists (see types.ts).
+  | 'frog';
 
 interface IconProps {
   name: IconName;
@@ -195,21 +194,8 @@ const RENDERERS: Record<IconName, (color: string, color2: string) => React.React
     <path d="M5 8L4 5.5" stroke={c} strokeWidth="2" strokeLinecap="round" />
     <path d="M7.5 8L7 5.5" stroke={c} strokeWidth="2" strokeLinecap="round" />
   </>,
-  // ── Frog level ladder (Икринка→Головастик→Лягушонок→Лягушка→Царь-лягушка,
-  // see types.ts's getLevel) — replaces the old bug-themed seedling/bug/
-  // gear/crown icon set for that ladder specifically, now that the site's
-  // avatars/copy have moved to frogs (see PixelAvatar.tsx). Hand-drawn to
-  // match the kit's 24x24/2px-stroke language, no kit source for any of these.
-  frogEgg: (c) => <>
-    <circle cx="8" cy="9.5" r="3" stroke={c} strokeWidth="2" />
-    <circle cx="15.5" cy="8.5" r="2.5" stroke={c} strokeWidth="2" />
-    <circle cx="11.5" cy="15" r="3.4" stroke={c} strokeWidth="2" />
-  </>,
-  tadpole: (c) => <>
-    <circle cx="9.5" cy="9.5" r="5" stroke={c} strokeWidth="2" />
-    <path d="M13.8 12.8C16.3 14.8 19 17 20.5 20.2" stroke={c} strokeWidth="2" strokeLinecap="round" />
-    <circle cx="7.8" cy="8" r="0.9" fill={c} />
-  </>,
+  // The mascot, hand-drawn to match the kit's 24x24/2px-stroke language
+  // (no kit source for it). See PixelAvatar.tsx for the pixel-art version.
   frog: (c) => <>
     <circle cx="8.3" cy="7" r="2.2" stroke={c} strokeWidth="2" />
     <circle cx="15.7" cy="7" r="2.2" stroke={c} strokeWidth="2" />

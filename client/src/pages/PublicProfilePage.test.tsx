@@ -65,7 +65,7 @@ describe('PublicProfilePage', () => {
   // scoring". The server strips these fields for a non-owner, non-lead
   // viewer (see server/test/public-profile.test.js) — this asserts the page
   // doesn't put them back if some other caller hands them over anyway.
-  it('shows no level, RPG stats or course progress, even when handed them', async () => {
+  it('shows no RPG stats or course progress, even when handed them', async () => {
     vi.mocked(usersApi.getProfile).mockResolvedValue({
       data: fullProfile({
         stats: { int: 5, per: 4, spd: 6, def: 3, bug_pwr: 12 },
@@ -78,10 +78,6 @@ describe('PublicProfilePage', () => {
     expect(await screen.findByText('BugHunter')).toBeInTheDocument();
     for (const label of ['ИНТ', 'ВНИМ', 'СКОР', 'ЗАЩ', 'МОЩЬ', 'КУРСОВ', 'СР. БАЛЛ', 'ДНЕЙ ПОДРЯД']) {
       expect(screen.queryByText(label)).toBeNull();
-    }
-    // The frog level ladder (types.ts's getLevel) went with them.
-    for (const level of ['Икринка', 'Головастик', 'Лягушонок', 'Лягушка', 'Царь-лягушка']) {
-      expect(screen.queryByText(level)).toBeNull();
     }
     expect(screen.queryByText(/84/)).toBeNull();
     expect(screen.queryByText(/7\/10/)).toBeNull();

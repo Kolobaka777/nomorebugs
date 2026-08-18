@@ -199,37 +199,13 @@ export interface LectureStat {
   passRate: number | null;
 }
 
-// ===== LEVEL SYSTEM =====
-export interface Level {
-  icon: string;
-  name: string;
-  color: string;
-  minCompleted: number;
-  maxCompleted: number;
-}
-
-// Frog life-cycle ladder (Икринка → Головастик → Лягушонок → Лягушка →
-// Царь-лягушка), replacing the old bug ladder now that the site's avatars/
-// theme moved to frogs (see PixelAvatar.tsx). isLead gets its own top tier —
-// "Царевна-лягушка" nods to the Russian fairy tale rather than reusing the
-// regular ladder's top name, same way "Королева улья" was its own thing
-// before.
-export function getLevel(completed: number, isLead = false): Level {
-  if (isLead) return { icon: 'crown', name: 'Царевна-лягушка', color: 'text-amber', minCompleted: 0, maxCompleted: 10 };
-  if (completed === 0) return { icon: 'frogEgg', name: 'Икринка', color: 'text-pixel/60', minCompleted: 0, maxCompleted: 1 };
-  if (completed <= 2) return { icon: 'tadpole', name: 'Головастик', color: 'text-pixel', minCompleted: 1, maxCompleted: 3 };
-  if (completed <= 5) return { icon: 'frog', name: 'Лягушонок', color: 'text-purple', minCompleted: 3, maxCompleted: 6 };
-  if (completed <= 9) return { icon: 'frog', name: 'Лягушка', color: 'text-primary', minCompleted: 6, maxCompleted: 10 };
-  return { icon: 'crown', name: 'Царь-лягушка', color: 'text-amber', minCompleted: 10, maxCompleted: 10 };
-}
-
-export function getLevelXpPercent(completed: number): number {
-  if (completed === 0) return 0;
-  if (completed <= 2) return ((completed - 0) / 2) * 100;
-  if (completed <= 5) return ((completed - 2) / 3) * 100;
-  if (completed <= 9) return ((completed - 5) / 4) * 100;
-  return 100;
-}
+// There is no level system. There used to be a frog life-cycle ladder
+// (Икринка → Головастик → Лягушонок → Лягушка → Царь-лягушка) derived from
+// the number of completed courses, shown in МояНора, on the team dashboard
+// and on public profiles. It was removed on the owner's call: the courses
+// completed and the badges earned already say everything a rank did, and a
+// derived tier name added a second, vaguer way of ranking people. The raw
+// numbers stay where they were; nothing summarises them into a title now.
 
 export const TOPIC_TAGS: Record<string, string> = {
   'HTML': '#66FCF1',

@@ -1,8 +1,8 @@
 import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Icon, { IconName } from '../Icon';
+import Icon from '../Icon';
 import Modal from '../Modal';
-import { TeamMember, PresenceEntry, getLevel } from '../../types';
+import { TeamMember, PresenceEntry } from '../../types';
 import { parseServerDate } from '../../utils/date';
 import { pickByGender } from '../../utils/gender';
 import { parseRichContent, richContentToPlainText } from '../../utils/richContent';
@@ -112,7 +112,6 @@ export default function TeamTab({
         )}
 
         {team.map(member => {
-          const lvl = getLevel(member.lecturesCompleted);
           const progPct = Math.round((member.lecturesCompleted / 10) * 100);
           return (
             <div
@@ -140,9 +139,6 @@ export default function TeamTab({
                       onClick={() => navigate(`/profile/${member.id}`)}
                     >
                       {member.name}
-                    </p>
-                    <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
-                      <span className="flex items-center gap-1"><Icon name={lvl.icon as IconName} size={14} color="currentColor" />{lvl.name}</span>
                     </p>
                   </div>
                 </div>
