@@ -83,6 +83,13 @@ monorepo with its **Root Directory** set per-service:
        once, on the very first boot against an empty `users` table; set a
        real password here, and change it via the app once logged in (these
        env vars aren't read again after that first boot).
+     - `REGISTRATION_ALLOWED_DOMAINS` — optional but **strongly recommended
+       before the URL is shared with anyone**. Comma-separated email domains
+       (e.g. `company.com,company.ru`); signup is refused for anything else.
+       Left unset, registration stays open to whoever reaches the API, which
+       is fine while the link is private and not fine once it can be
+       forwarded. Existing accounts are unaffected — this only gates
+       `POST /api/auth/register`.
      - `TELEGRAM_BOT_TOKEN` — optional. Enables Telegram login/registration
        and notifications; without it the feature self-disables (button
        hides client-side, endpoints 503). Get one from @BotFather.

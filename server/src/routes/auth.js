@@ -142,6 +142,27 @@ function initialsFromName(name) {
 // endpoints below. Deliberately returns the same shape as /login (access
 // token + user in the JSON body, refresh token as an httpOnly cookie) so
 // the client can treat "just registered" and "just logged in" identically.
+// Optional signup gate. Registration is open by design — this is an internal
+// tool where a lead hands the link to the team — but "open" stops being the
+// right default the moment that link is pasted anywhere it can be forwarded
+// from, because a stranger who finds it gets a real account inside the
+// company's training tool. Setting REGISTRATION_ALLOWED_DOMAINS to a
+// comma-separated list (e.g. "company.com,company.ru") restricts signup to
+// those email domains; leaving it unset keeps the previous behaviour exactly,
+// so nothing changes for anyone who doesn't opt in.
+const ALLOWED_SIGNUP_DOMAINS = (process.env.REGISTRATION_ALLOWED_DOMAINS || '')
+  .split(',')
+  .map(d => d.trim().toLowerCase().replace(/^@/, ''))
+  .filter(Boolean);
+
+export function isSignupEmailAllowed(email) {
+  if (!ALLOWED_SIGNUP_DOMAINS.length) return true;
+  const domain = String(email).trim().toLowerCase().split('@')[1] || '';
+  // Exact domain match only — a suffix check would let "notcompany.com"
+  // through for an allowlist entry of "company.com".
+  return ALLOWED_SIGNUP_DOMAINS.includes(domain);
+}
+
 router.post('/api/auth/register', registerLimiter, (req, res) => {
   try {
     const { email, password, name, gender, birthday } = req.body;
@@ -156,6 +177,9 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
     }
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Некорректный email' });
+    }
+    if (!isSignupEmailAllowed(email)) {
+      return res.status(403).json({ error: 'Регистрация доступна только по рабочей почте' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });

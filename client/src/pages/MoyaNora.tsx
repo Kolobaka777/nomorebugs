@@ -496,9 +496,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
               {/* Stat boxes — stacked, right-aligned, matching the
                   reference's two bordered boxes beside the identity block. */}
-              <div className="flex sm:flex-col gap-2 shrink-0" style={{ minWidth: 0 }}>
+              {/* Row on a phone, column from sm up. The row has to wrap: three
+                  150px tiles plus gaps do not fit in a 390px viewport, and
+                  without wrapping they pushed the whole page 132px wide
+                  horizontally instead of stacking. */}
+              <div className="flex flex-wrap sm:flex-nowrap sm:flex-col gap-2 shrink-0" style={{ minWidth: 0 }}>
                 {statItems.map((m, i) => (
-                  <div key={i} className="rounded-lg px-4 py-2.5 text-right" style={{ background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(197, 198, 199,0.15)', minWidth: 150 }}>
+                  <div key={i} className="rounded-lg px-4 py-2.5 text-right flex-1 sm:flex-none" style={{ background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(197, 198, 199,0.15)', minWidth: 140 }}>
                     <p className="font-montserrat font-bold" style={{ fontSize: 19, color: TEXT_PRIMARY }}>{m.value}</p>
                     <p className="font-geist" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{m.label}</p>
                   </div>

@@ -69,7 +69,14 @@ export default function OnboardingTour({ user }: Props) {
     const step = steps[stepIndex];
     if (!step?.target) return;
     const el = document.querySelector(selectorFor(step.target));
-    if (!el) {
+    // Present in the DOM is not the same as on the screen. Navigation renders
+    // both the desktop link row and the burger menu's copy, so on a phone
+    // every nav target still matches querySelector while being display:none —
+    // and a hidden element measures 0x0 at (0, 0), which would put the
+    // spotlight in the top-left corner with the arrow pointing at nothing.
+    // Treat that exactly like a missing target and move on.
+    const box = el?.getBoundingClientRect();
+    if (!el || !box || box.width === 0 || box.height === 0) {
       if (stepIndex < steps.length - 1) setStepIndex(i => i + 1);
       else finish();
       return;
