@@ -6,7 +6,8 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData } = await import('./helpers.js');
+const { seedTestData, testServer } = await import('./helpers.js');
+const server = await testServer(app);
 const { hashToken } = await import('../src/auth.js');
 const { cleanupRefreshTokens } = await import('../src/app.js');
 
@@ -24,7 +25,7 @@ function extractRefreshCookie(res) {
 }
 
 async function login() {
-  const res = await request(app)
+  const res = await request(server)
     .post('/api/auth/login')
     .send({ email: 'tester@test.local', password: 'testerpass123' });
   return { body: res.body, refreshToken: extractRefreshCookie(res), res };
@@ -54,7 +55,7 @@ describe('POST /api/auth/login — token pair', () => {
 
 describe('POST /api/auth/refresh', () => {
   it('exchanges the refresh cookie (persisted automatically by an agent, like a real browser) for a new access token', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post('/api/auth/login').send({ email: 'tester@test.local', password: 'testerpass123' });
 
     const res = await agent.post('/api/auth/refresh');
@@ -62,17 +63,17 @@ describe('POST /api/auth/refresh', () => {
     expect(typeof res.body.token).toBe('string');
 
     // The new access token actually works against a protected route.
-    const lectures = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${res.body.token}`);
+    const lectures = await request(server).get('/api/tester/lectures').set('Authorization', `Bearer ${res.body.token}`);
     expect(lectures.status).toBe(200);
   });
 
   it('rejects when there is no refresh cookie at all', async () => {
-    const res = await request(app).post('/api/auth/refresh');
+    const res = await request(server).post('/api/auth/refresh');
     expect(res.status).toBe(401);
   });
 
   it('rejects an unknown refresh token cookie', async () => {
-    const res = await request(app).post('/api/auth/refresh').set('Cookie', 'refreshToken=not-a-real-token');
+    const res = await request(server).post('/api/auth/refresh').set('Cookie', 'refreshToken=not-a-real-token');
     expect(res.status).toBe(401);
   });
 
@@ -81,14 +82,14 @@ describe('POST /api/auth/refresh', () => {
     db.prepare('UPDATE refresh_tokens SET expires_at = ? WHERE token_hash = ?')
       .run(new Date(Date.now() - 1000).toISOString(), hashToken(refreshToken));
 
-    const res = await request(app).post('/api/auth/refresh').set('Cookie', `refreshToken=${refreshToken}`);
+    const res = await request(server).post('/api/auth/refresh').set('Cookie', `refreshToken=${refreshToken}`);
     expect(res.status).toBe(401);
   });
 });
 
 describe('POST /api/auth/logout', () => {
   it('revokes the refresh token so it can no longer be exchanged, and clears the cookie', async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post('/api/auth/login').send({ email: 'tester@test.local', password: 'testerpass123' });
 
     const before = await agent.post('/api/auth/refresh');
@@ -104,7 +105,7 @@ describe('POST /api/auth/logout', () => {
   });
 
   it('is a no-op (still 200) when called without a refresh cookie', async () => {
-    const res = await request(app).post('/api/auth/logout');
+    const res = await request(server).post('/api/auth/logout');
     expect(res.status).toBe(200);
   });
 });

@@ -14,7 +14,8 @@ vi.mock('../src/email.js', () => ({
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
+const server = await testServer(app);
 const emailModule = await import('../src/email.js');
 const {
   createTelegramToken, pollTelegramToken, handleTelegramStart,
@@ -37,16 +38,16 @@ describe('isTelegramConfigured', () => {
 
 describe('Telegram HTTP endpoints without a configured bot', () => {
   it('POST /api/auth/telegram/start returns 503 rather than a broken deep link', async () => {
-    const res = await request(app).post('/api/auth/telegram/start');
+    const res = await request(server).post('/api/auth/telegram/start');
     expect(res.status).toBe(503);
   });
 
   it('POST /api/auth/telegram/link/start requires auth, then 503s the same way', async () => {
-    const unauth = await request(app).post('/api/auth/telegram/link/start');
+    const unauth = await request(server).post('/api/auth/telegram/link/start');
     expect(unauth.status).toBe(401);
 
-    const token = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-    const res = await request(app).post('/api/auth/telegram/link/start').set('Authorization', `Bearer ${token}`);
+    const token = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+    const res = await request(server).post('/api/auth/telegram/link/start').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(503);
   });
 });
@@ -82,7 +83,7 @@ describe('pollTelegramToken', () => {
 
   it('reaches the poll endpoint over HTTP too, not just the direct function', async () => {
     const { token } = createTelegramToken();
-    const res = await request(app).get(`/api/auth/telegram/poll/${token}`);
+    const res = await request(server).get(`/api/auth/telegram/poll/${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'pending' });
   });
@@ -167,10 +168,10 @@ describe('handleTelegramStart — link flow (attaching Telegram to an already-lo
 
 describe('DB constraint: telegram_id uniqueness', () => {
   it('rejects a second user claiming a telegram_id already in use, at the DB layer', async () => {
-    const res1 = await request(app).post('/api/auth/register').send({
+    const res1 = await request(server).post('/api/auth/register').send({
       email: 'dupetg1@test.local', password: 'a-real-password', name: 'Dupe One',
     });
-    const res2 = await request(app).post('/api/auth/register').send({
+    const res2 = await request(server).post('/api/auth/register').send({
       email: 'dupetg2@test.local', password: 'a-real-password', name: 'Dupe Two',
     });
 
@@ -183,20 +184,20 @@ describe('DB constraint: telegram_id uniqueness', () => {
 
 describe('GET/POST /api/auth/telegram/status & unlink', () => {
   it('reports linked:false by default, true once linked, false again after unlink', async () => {
-    const token = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+    const token = await loginAs(request, server, 'lead@test.local', 'leadpass123');
     db.prepare('UPDATE users SET telegram_id = NULL, telegram_username = NULL WHERE id = ?').run(leadId);
 
-    let res = await request(app).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
+    let res = await request(server).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
     expect(res.body).toEqual({ linked: false, telegramUsername: null });
 
     db.prepare('UPDATE users SET telegram_id = ?, telegram_username = ? WHERE id = ?').run('999999', 'statustest', leadId);
-    res = await request(app).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
+    res = await request(server).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
     expect(res.body).toEqual({ linked: true, telegramUsername: 'statustest' });
 
-    const unlinkRes = await request(app).post('/api/auth/telegram/unlink').set('Authorization', `Bearer ${token}`);
+    const unlinkRes = await request(server).post('/api/auth/telegram/unlink').set('Authorization', `Bearer ${token}`);
     expect(unlinkRes.status).toBe(200);
 
-    res = await request(app).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
+    res = await request(server).get('/api/auth/telegram/status').set('Authorization', `Bearer ${token}`);
     expect(res.body).toEqual({ linked: false, telegramUsername: null });
   });
 
@@ -210,7 +211,7 @@ describe('GET/POST /api/auth/telegram/status & unlink', () => {
     const polled = pollTelegramToken(startToken);
     expect(polled.status).toBe('ready');
 
-    const unlinkRes = await request(app).post('/api/auth/telegram/unlink').set('Authorization', `Bearer ${polled.token}`);
+    const unlinkRes = await request(server).post('/api/auth/telegram/unlink').set('Authorization', `Bearer ${polled.token}`);
     expect(unlinkRes.status).toBe(400);
 
     const user = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(polled.user.id);
@@ -287,7 +288,7 @@ describe('notifyUserConfirmed', () => {
 
 describe('integration: requests that trigger notifyUser still succeed with no channel configured', () => {
   it('registration succeeds (notifyUser silently no-ops)', async () => {
-    const res = await request(app).post('/api/auth/register').send({
+    const res = await request(server).post('/api/auth/register').send({
       email: 'notifytest@test.local', password: 'a-real-password', name: 'Notify Test',
     });
     expect(res.status).toBe(201);
@@ -304,7 +305,7 @@ describe('integration: requests that trigger notifyUser still succeed with no ch
     const bcryptjs = (await import('bcryptjs')).default;
     db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcryptjs.hashSync('resetpass123', 4), result.user.id);
 
-    const res = await request(app).post('/api/auth/login').send({ email: result.user.email, password: 'resetpass123' });
+    const res = await request(server).post('/api/auth/login').send({ email: result.user.email, password: 'resetpass123' });
     expect(res.status).toBe(200);
   });
 });

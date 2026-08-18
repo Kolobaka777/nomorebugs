@@ -6,14 +6,15 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let fixtures, testerToken, leadToken;
 
 beforeAll(async () => {
   fixtures = seedTestData(db);
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 });
 
 // These three were previously either missing entirely (progressByTester,
@@ -33,13 +34,13 @@ function activeTesterCount() {
 describe('GET /api/lead/lecture-stats — real completion counts', () => {
   it('reports how many testers actually passed, not just attempted', async () => {
     // Fixture correct answers: q1='b', q2='a' (see helpers.js/quiz-progression.test.js).
-    const submit = await request(app)
+    const submit = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ answers: { [fixtures.q1Id]: 'b', [fixtures.q2Id]: 'a' } });
     expect(submit.body.score).toBe(100);
 
-    const res = await request(app).get('/api/lead/lecture-stats').set('Authorization', `Bearer ${leadToken}`);
+    const res = await request(server).get('/api/lead/lecture-stats').set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(200);
     const lec1Stats = res.body.find(r => r.id === fixtures.lec1Id);
     const lec2Stats = res.body.find(r => r.id === fixtures.lec2Id);
@@ -53,7 +54,7 @@ describe('GET /api/lead/lecture-stats — real completion counts', () => {
 
 describe('custom course completion — lead-facing counts and per-tester progress', () => {
   async function createPublishedCourse() {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({
@@ -70,7 +71,7 @@ describe('custom course completion — lead-facing counts and per-tester progres
 
   it('completedCount is 0 and totalTesters is correct before anyone finishes it', async () => {
     const courseId = await createPublishedCourse();
-    const list = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`);
+    const list = await request(server).get('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`);
     const row = list.body.find(c => c.id === courseId);
     expect(row.completedCount).toBe(0);
     expect(row.totalTesters).toBe(activeTesterCount());
@@ -78,28 +79,28 @@ describe('custom course completion — lead-facing counts and per-tester progres
 
   it('completedCount becomes 1 once the tester finishes every lesson and syncs time-track (what the real learning page does on the last lesson)', async () => {
     const courseId = await createPublishedCourse();
-    const course = (await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${testerToken}`)).body;
+    const course = (await request(server).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${testerToken}`)).body;
     const [l1, l2] = course.modules[0].lessons;
 
-    await request(app).post(`/api/custom-lessons/${l1.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
-    await request(app).post(`/api/custom-lessons/${l2.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
-    await request(app)
+    await request(server).post(`/api/custom-lessons/${l1.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
+    await request(server).post(`/api/custom-lessons/${l2.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
+    await request(server)
       .post('/api/courses/time-track')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ course_id: courseId, seconds_spent: 42 })
       .expect(200);
 
-    const list = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`);
+    const list = await request(server).get('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`);
     expect(list.body.find(c => c.id === courseId).completedCount).toBe(1);
 
-    const detailAsLead = await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`);
+    const detailAsLead = await request(server).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`);
     const testerProgress = detailAsLead.body.progressByTester.find(t => t.id === fixtures.testerId);
     expect(testerProgress.completedLessons).toBe(2);
     expect(testerProgress.totalLessons).toBe(2);
     expect(testerProgress.finished).toBe(true);
 
     // A tester viewing the same course never sees teammates' progress.
-    const detailAsTester = await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${testerToken}`);
+    const detailAsTester = await request(server).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${testerToken}`);
     expect(detailAsTester.body.progressByTester).toBeUndefined();
   });
 });
@@ -111,7 +112,7 @@ describe('GET /api/lead/internal-ratings — recentEvents breakdown', () => {
     db.prepare('INSERT INTO internal_score_events (user_id, points, reason, source) VALUES (?, ?, ?, ?)')
       .run(fixtures.testerId, 3, 'Чистый прогон чеклиста (7 пунктов, 0 ошибок)', 'auto_checklist_clean');
 
-    const res = await request(app).get('/api/lead/internal-ratings').set('Authorization', `Bearer ${leadToken}`);
+    const res = await request(server).get('/api/lead/internal-ratings').set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(200);
     const row = res.body.find(r => r.id === fixtures.testerId);
     expect(row.hiddenScore).toBe(8);
@@ -123,7 +124,7 @@ describe('GET /api/lead/internal-ratings — recentEvents breakdown', () => {
   });
 
   it('is lead-only', async () => {
-    const res = await request(app).get('/api/lead/internal-ratings').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/lead/internal-ratings').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(403);
   });
 });

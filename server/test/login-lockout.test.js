@@ -6,8 +6,9 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData } = await import('./helpers.js');
+const { seedTestData, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 // Own file so this gets a fresh module load — a fresh in-memory failed-login
 // map, and a fresh per-IP loginLimiter budget (20 requests/15min, shared by
 // every request in this file — kept deliberately under that throughout, so
@@ -25,27 +26,27 @@ describe('per-account login lockout', () => {
     // 20) — looping one past that confirms the lock is actually in effect,
     // not just that the 8th guess itself was wrong.
     for (let i = 0; i < 9; i++) {
-      const res = await request(app).post('/api/auth/login').send({ email, password: 'wrongpassword' });
+      const res = await request(server).post('/api/auth/login').send({ email, password: 'wrongpassword' });
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
 
-    const withCorrectPassword = await request(app).post('/api/auth/login').send({ email, password: 'testerpass123' });
+    const withCorrectPassword = await request(server).post('/api/auth/login').send({ email, password: 'testerpass123' });
     expect(withCorrectPassword.status).toBe(429);
   });
 
   it('a successful login resets the counter, so a handful of typos afterward does not carry over toward a lockout', async () => {
     const email = 'lead@test.local';
     for (let i = 0; i < 3; i++) {
-      await request(app).post('/api/auth/login').send({ email, password: 'wrong' });
+      await request(server).post('/api/auth/login').send({ email, password: 'wrong' });
     }
-    const good = await request(app).post('/api/auth/login').send({ email, password: 'leadpass123' });
+    const good = await request(server).post('/api/auth/login').send({ email, password: 'leadpass123' });
     expect(good.status).toBe(200);
 
     for (let i = 0; i < 3; i++) {
-      await request(app).post('/api/auth/login').send({ email, password: 'wrong' });
+      await request(server).post('/api/auth/login').send({ email, password: 'wrong' });
     }
-    const stillOk = await request(app).post('/api/auth/login').send({ email, password: 'leadpass123' });
+    const stillOk = await request(server).post('/api/auth/login').send({ email, password: 'leadpass123' });
     expect(stillOk.status).toBe(200);
   });
 });

@@ -10,19 +10,20 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let leadToken, testerToken;
 
 beforeAll(async () => {
   seedTestData(db);
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 describe('course sections — CRUD', () => {
   it('a plain tester cannot create a section', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ name: 'Основы' });
@@ -30,31 +31,31 @@ describe('course sections — CRUD', () => {
   });
 
   it('a lead can create, rename, and delete a section', async () => {
-    const create = await request(app)
+    const create = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: 'Основы' });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
-    const list = await request(app).get('/api/course-sections').set('Authorization', `Bearer ${testerToken}`);
+    const list = await request(server).get('/api/course-sections').set('Authorization', `Bearer ${testerToken}`);
     expect(list.status).toBe(200);
     expect(list.body.find((s) => s.id === id)?.name).toBe('Основы');
 
-    const rename = await request(app)
+    const rename = await request(server)
       .patch(`/api/course-sections/${id}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: 'Базовый уровень' });
     expect(rename.status).toBe(200);
     expect(db.prepare('SELECT name FROM course_sections WHERE id = ?').get(id).name).toBe('Базовый уровень');
 
-    const del = await request(app).delete(`/api/course-sections/${id}`).set('Authorization', `Bearer ${leadToken}`);
+    const del = await request(server).delete(`/api/course-sections/${id}`).set('Authorization', `Bearer ${leadToken}`);
     expect(del.status).toBe(200);
     expect(db.prepare('SELECT 1 FROM course_sections WHERE id = ?').get(id)).toBeUndefined();
   });
 
   it('rejects an empty name on create and rename', async () => {
-    const create = await request(app)
+    const create = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: '   ' });
@@ -62,13 +63,13 @@ describe('course sections — CRUD', () => {
   });
 
   it('deleting a section un-files its courses instead of deleting them', async () => {
-    const section = await request(app)
+    const section = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: 'Временный раздел' });
     const sectionId = section.body.id;
 
-    const course = await request(app)
+    const course = await request(server)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({
@@ -79,7 +80,7 @@ describe('course sections — CRUD', () => {
     const courseId = course.body.id;
     expect(db.prepare('SELECT section_id FROM custom_courses WHERE id = ?').get(courseId).section_id).toBe(sectionId);
 
-    await request(app).delete(`/api/course-sections/${sectionId}`).set('Authorization', `Bearer ${leadToken}`);
+    await request(server).delete(`/api/course-sections/${sectionId}`).set('Authorization', `Bearer ${leadToken}`);
 
     const row = db.prepare('SELECT section_id, deleted_at FROM custom_courses WHERE id = ?').get(courseId);
     expect(row.section_id).toBeNull();
@@ -91,13 +92,13 @@ describe('course sections — visible to every role via GET /api/custom-courses'
   let sectionId, courseId;
 
   beforeAll(async () => {
-    const section = await request(app)
+    const section = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: 'Продвинутое' });
     sectionId = section.body.id;
 
-    const course = await request(app)
+    const course = await request(server)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({
@@ -108,7 +109,7 @@ describe('course sections — visible to every role via GET /api/custom-courses'
   });
 
   it('a tester (not just a lead) sees section_id and section_name on the course', async () => {
-    const res = await request(app).get('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`);
     const row = res.body.find((c) => c.id === courseId);
     expect(row).toBeTruthy();
     expect(row.section_id).toBe(sectionId);
@@ -116,12 +117,12 @@ describe('course sections — visible to every role via GET /api/custom-courses'
   });
 
   it('a lead can move a course to a different section via PUT with just { section_id }', async () => {
-    const other = await request(app)
+    const other = await request(server)
       .post('/api/course-sections')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ name: 'Другой раздел' });
 
-    const update = await request(app)
+    const update = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ section_id: other.body.id });
@@ -134,7 +135,7 @@ describe('course sections — visible to every role via GET /api/custom-courses'
   });
 
   it('a course can be unfiled by sending section_id: null', async () => {
-    const update = await request(app)
+    const update = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ section_id: null });
@@ -143,7 +144,7 @@ describe('course sections — visible to every role via GET /api/custom-courses'
   });
 
   it("a proposing tester's section_id is ignored on create", async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({

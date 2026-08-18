@@ -17,13 +17,14 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let fixtures, testerToken;
 
 beforeAll(async () => {
   fixtures = seedTestData(db);
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 afterEach(() => {
@@ -48,7 +49,7 @@ describe('streak — local timezone vs UTC calendar day', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-15T07:00:00Z'));
 
-    const res = await request(app).get('/api/tester/profile-full').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/tester/profile-full').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
     expect(res.body.streak).toBe(1);
   });
@@ -65,7 +66,7 @@ describe('streak — local timezone vs UTC calendar day', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-15T07:00:00Z')); // 2026-08-15 10:00 Moscow
 
-    const res = await request(app).get('/api/tester/profile-full').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/tester/profile-full').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
     expect(res.body.streak).toBe(2);
   });

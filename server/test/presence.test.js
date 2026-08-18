@@ -7,14 +7,15 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
 const { computeIsWorkingNow } = await import('../src/presence.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let fixtures, testerToken, leadToken;
 
 beforeAll(async () => {
   fixtures = seedTestData(db);
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 });
 
 describe('computeIsWorkingNow — pure function, deterministic Date inputs', () => {
@@ -60,7 +61,7 @@ describe('computeIsWorkingNow — pure function, deterministic Date inputs', () 
 
 describe('presence — self-service', () => {
   it('GET /api/team/presence includes every active user, unconfigured by default', async () => {
-    const res = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
     const me = res.body.find(p => p.id === fixtures.testerId);
     expect(me).toBeTruthy();
@@ -69,13 +70,13 @@ describe('presence — self-service', () => {
   });
 
   it('PATCH /api/me/presence sets hours/status/birthday, reflected in the team list', async () => {
-    const save = await request(app)
+    const save = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ work_start: '09:00', work_end: '18:00', work_days: '1,2,3,4,5', timezone: 'Europe/Moscow', status: 'remote', birthday: '08-15' });
     expect(save.status).toBe(200);
 
-    const res = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     const me = res.body.find(p => p.id === fixtures.testerId);
     expect(me.workStart).toBe('09:00');
     expect(me.workEnd).toBe('18:00');
@@ -87,19 +88,19 @@ describe('presence — self-service', () => {
     // The tester fixture's birthday was already set to '08-15' by the
     // preceding test — confirm a second, different value doesn't take
     // (birthday is meant to be set once, normally at registration).
-    const attempt = await request(app)
+    const attempt = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ birthday: '01-01' });
     expect(attempt.status).toBe(200);
 
-    const res = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     const me = res.body.find(p => p.id === fixtures.testerId);
     expect(me.birthday).toBe('08-15');
   });
 
   it('rejects an invalid time format', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ work_start: '9am' });
@@ -107,7 +108,7 @@ describe('presence — self-service', () => {
   });
 
   it('rejects an invalid status', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ status: 'on_the_moon' });
@@ -115,7 +116,7 @@ describe('presence — self-service', () => {
   });
 
   it('rejects an invalid birthday format', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ birthday: '2024-08-15' });
@@ -123,7 +124,7 @@ describe('presence — self-service', () => {
   });
 
   it('rejects an invalid timezone (a bogus one used to reach the DB and crash the whole team feed on the next read)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch('/api/me/presence')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ timezone: 'Not/A_Real_Zone' });
@@ -131,7 +132,7 @@ describe('presence — self-service', () => {
 
     // Confirm the team feed is still healthy (didn't get corrupted by a
     // request that should have been rejected).
-    const team = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const team = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     expect(team.status).toBe(200);
   });
 });
@@ -139,26 +140,26 @@ describe('presence — self-service', () => {
 describe('presence — leave (self-service)', () => {
   it('POST /api/me/leave creates a leave period visible as currentLeave when active today', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const create = await request(app)
+    const create = await request(server)
       .post('/api/me/leave')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ type: 'vacation', start_date: today, end_date: null, note: 'test' });
     expect(create.status).toBe(201);
     const leaveId = create.body.id;
 
-    const res = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     const me = res.body.find(p => p.id === fixtures.testerId);
     expect(me.currentLeave).toMatchObject({ id: leaveId, type: 'vacation' });
 
-    const del = await request(app).delete(`/api/me/leave/${leaveId}`).set('Authorization', `Bearer ${testerToken}`);
+    const del = await request(server).delete(`/api/me/leave/${leaveId}`).set('Authorization', `Bearer ${testerToken}`);
     expect(del.status).toBe(200);
 
-    const after = await request(app).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
+    const after = await request(server).get('/api/team/presence').set('Authorization', `Bearer ${testerToken}`);
     expect(after.body.find(p => p.id === fixtures.testerId).currentLeave).toBeNull();
   });
 
   it('rejects an unknown leave type', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/me/leave')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ type: 'nap', start_date: '2024-01-01' });
@@ -166,7 +167,7 @@ describe('presence — leave (self-service)', () => {
   });
 
   it('rejects an end_date before start_date', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/me/leave')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ type: 'vacation', start_date: '2024-06-10', end_date: '2024-06-01' });
@@ -175,32 +176,32 @@ describe('presence — leave (self-service)', () => {
 
   it('cannot delete another user\'s leave', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const create = await request(app)
+    const create = await request(server)
       .post('/api/me/leave')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ type: 'sick', start_date: today });
     const leaveId = create.body.id;
 
     // A second tester tries to delete the first tester's leave.
-    const otherReg = await request(app).post('/api/auth/register').send({
+    const otherReg = await request(server).post('/api/auth/register').send({
       email: 'otherpresence@test.local', password: 'password123', name: 'Other Presence',
     });
     const otherToken = otherReg.body.token;
 
-    const del = await request(app).delete(`/api/me/leave/${leaveId}`).set('Authorization', `Bearer ${otherToken}`);
+    const del = await request(server).delete(`/api/me/leave/${leaveId}`).set('Authorization', `Bearer ${otherToken}`);
     expect(del.status).toBe(403);
   });
 });
 
 describe('presence — lead-managed', () => {
   it('PATCH /api/lead/team/:id/presence is lead-only', async () => {
-    const asTester = await request(app)
+    const asTester = await request(server)
       .patch(`/api/lead/team/${fixtures.testerId}/presence`)
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ status: 'remote' });
     expect(asTester.status).toBe(403);
 
-    const asLead = await request(app)
+    const asLead = await request(server)
       .patch(`/api/lead/team/${fixtures.testerId}/presence`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ work_start: '10:00', work_end: '19:00', status: 'active' });
@@ -208,13 +209,13 @@ describe('presence — lead-managed', () => {
   });
 
   it('lead can schedule and cancel leave for someone else', async () => {
-    const create = await request(app)
+    const create = await request(server)
       .post(`/api/lead/team/${fixtures.testerId}/leave`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ type: 'day_off', start_date: '2030-01-01', end_date: '2030-01-01' });
     expect(create.status).toBe(201);
 
-    const del = await request(app)
+    const del = await request(server)
       .delete(`/api/lead/team/${fixtures.testerId}/leave/${create.body.id}`)
       .set('Authorization', `Bearer ${leadToken}`);
     expect(del.status).toBe(200);

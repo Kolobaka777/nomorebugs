@@ -18,9 +18,11 @@ vi.mock('../src/telegram.js', () => ({
 
 const { default: app } = await import('../src/app.js');
 
+const { testServer } = await import('./helpers.js');
+const server = await testServer(app);
 describe('GET /api/health', () => {
   it('reports free and total space for a real on-disk database', async () => {
-    const res = await request(app).get('/api/health');
+    const res = await request(server).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.disk.freeMb).toBeGreaterThan(0);
@@ -30,7 +32,7 @@ describe('GET /api/health', () => {
   });
 
   it('still answers 200 ok — adding disk reporting must not change what "healthy" means', async () => {
-    const res = await request(app).get('/api/health');
+    const res = await request(server).get('/api/health');
     expect(res.status).toBe(200);
     expect(['ok', 'degraded']).toContain(res.body.status);
   });

@@ -6,19 +6,20 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let fixtures;
 let token;
 
 beforeAll(async () => {
   fixtures = seedTestData(db);
-  token = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  token = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 describe('lecture unlock progression (before any submission)', () => {
   it('only the first lecture is active, the rest are locked', async () => {
-    const res = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
+    const res = await request(server).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     const byId = Object.fromEntries(res.body.map(l => [l.id, l.status]));
     expect(byId[fixtures.lec1Id]).toBe('active');
@@ -29,7 +30,7 @@ describe('lecture unlock progression (before any submission)', () => {
 
 describe('POST /api/lectures/:id/submit-test — scoring', () => {
   it('rejects a request with no answers field as 400, not a raw 500 crash', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({});
@@ -37,7 +38,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   });
 
   it('rejects a non-object answers field (e.g. an array) as 400', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({ answers: ['b', 'a'] });
@@ -45,7 +46,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   });
 
   it('scores 100 and passes when every answer is correct', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({ answers: { [fixtures.q1Id]: 'b', [fixtures.q2Id]: 'a' } });
@@ -57,7 +58,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   });
 
   it('unlocks the next lecture only after the previous one is passed', async () => {
-    const res = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
+    const res = await request(server).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
     const byId = Object.fromEntries(res.body.map(l => [l.id, l.status]));
     expect(byId[fixtures.lec1Id]).toBe('passed');
     expect(byId[fixtures.lec2Id]).toBe('active');
@@ -71,7 +72,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   // even though the tester had already legitimately unlocked it. The best
   // score across attempts is now what's kept for gating purposes.
   it('retaking an already-passed lecture with a worse score keeps the lecture "passed" and does not re-lock what it unlocked', async () => {
-    const retake = await request(app)
+    const retake = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({ answers: { [fixtures.q1Id]: 'wrong', [fixtures.q2Id]: 'wrong' } });
@@ -81,14 +82,14 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
     expect(retake.body.score).toBe(0);
     expect(retake.body.passed).toBe(false);
 
-    const lecturesRes = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
+    const lecturesRes = await request(server).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
     const byId = Object.fromEntries(lecturesRes.body.map(l => [l.id, l.status]));
     expect(byId[fixtures.lec1Id]).toBe('passed');
     expect(byId[fixtures.lec2Id]).toBe('active');
 
     // Re-pass it for real, so the rest of this describe block's assumptions
     // (lecture 1 passed with score 100) hold for the tests that follow.
-    const rePass = await request(app)
+    const rePass = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({ answers: { [fixtures.q1Id]: 'b', [fixtures.q2Id]: 'a' } });
@@ -96,7 +97,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   });
 
   it('scores 0 (fail): stays "active" (not "passed"), and does not unlock the following lecture', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec2Id}/submit-test`)
       .set('Authorization', `Bearer ${token}`)
       .send({ answers: { [fixtures.q3Id]: 'a' } }); // correct is 'c'
@@ -105,7 +106,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
     expect(res.body.score).toBe(0);
     expect(res.body.passed).toBe(false);
 
-    const lecturesRes = await request(app).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
+    const lecturesRes = await request(server).get('/api/tester/lectures').set('Authorization', `Bearer ${token}`);
     const byId = Object.fromEntries(lecturesRes.body.map(l => [l.id, l.status]));
     // A failed attempt must not be labeled "passed" (regression test for a
     // fixed bug — see audit "New Findings"), and stays "active" so the
@@ -116,7 +117,7 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
   });
 
   it('rejects submission without a valid token', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec1Id}/submit-test`)
       .send({ answers: {} });
     expect(res.status).toBe(401);
@@ -131,9 +132,9 @@ describe('POST /api/lectures/:id/submit-test — scoring', () => {
     const freshId = insUser.run('skipper@test.local', '$2a$04$abcdefghijklmnopqrstuv', 'Skipper', 'tester', 'SK').lastInsertRowid;
     const bcryptjs = (await import('bcryptjs')).default;
     db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcryptjs.hashSync('skipperpass123', 4), freshId);
-    const freshToken = await loginAs(request, app, 'skipper@test.local', 'skipperpass123');
+    const freshToken = await loginAs(request, server, 'skipper@test.local', 'skipperpass123');
 
-    const res = await request(app)
+    const res = await request(server)
       .post(`/api/lectures/${fixtures.lec3Id}/submit-test`)
       .set('Authorization', `Bearer ${freshToken}`)
       .send({ answers: {} });

@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import bcryptjs from 'bcryptjs';
 
 // Low bcrypt cost factor — this data never needs to resist real attacks, it
@@ -53,4 +54,31 @@ export async function loginAs(request, app, email, password) {
     throw new Error(`Test login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
   }
   return res.body.token;
+}
+
+/**
+ * One HTTP server per test file, instead of supertest's default of standing
+ * one up and tearing it down for every single request.
+ *
+ * The suite makes several thousand requests; at one ephemeral listen/close
+ * cycle each, a run occasionally caught an ECONNRESET — surfacing as
+ * "Error: socket hang up" on a random assertion, or, when it landed in a
+ * beforeAll, as a whole file failing to load. It moved around between runs,
+ * never reproduced in isolation, and had nothing to do with the code under
+ * test. Handing supertest an already-listening server removes the churn
+ * entirely.
+ *
+ * unref() so the listener never keeps a worker alive after its tests finish,
+ * which is why no file needs an afterAll to close it.
+ */
+export async function testServer(app) {
+  const server = app.listen(0);
+  server.unref();
+  // listen() is asynchronous: the socket is not bound until the 'listening'
+  // event. Handing supertest a server that has not bound yet makes it read a
+  // null address and stand up a second listener of its own — which is both
+  // the churn this is here to remove and a race that surfaced as the same
+  // "socket hang up" during a loaded run.
+  if (!server.listening) await once(server, 'listening');
+  return server;
 }

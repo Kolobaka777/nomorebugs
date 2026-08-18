@@ -7,14 +7,15 @@ process.env.NODE_ENV = 'test';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let testerToken, leadToken;
 
 beforeAll(async () => {
   seedTestData(db);
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 });
 
 function courseBody(overrides = {}) {
@@ -40,13 +41,13 @@ function courseBody(overrides = {}) {
 }
 
 async function createCourse(body = courseBody()) {
-  const res = await request(app).post('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`).send(body);
+  const res = await request(server).post('/api/custom-courses').set('Authorization', `Bearer ${leadToken}`).send(body);
   expect(res.status).toBe(200);
   return res.body.id;
 }
 
 async function getCourse(courseId, token) {
-  const res = await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${token}`);
+  const res = await request(server).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${token}`);
   expect(res.status).toBe(200);
   return res.body;
 }
@@ -75,13 +76,13 @@ describe('lock computation for a tester', () => {
     expect(lesson2.locked).toBe(true);
 
     // Direct API attempt to complete lesson 2 while locked must be rejected.
-    const blocked = await request(app)
+    const blocked = await request(server)
       .post(`/api/custom-lessons/${lesson2.id}/complete`)
       .set('Authorization', `Bearer ${testerToken}`);
     expect(blocked.status).toBe(403);
 
     // Complete lesson 1 first.
-    const completeLesson1 = await request(app)
+    const completeLesson1 = await request(server)
       .post(`/api/custom-lessons/${lesson1.id}/complete`)
       .set('Authorization', `Bearer ${testerToken}`);
     expect(completeLesson1.status).toBe(200);
@@ -92,7 +93,7 @@ describe('lock computation for a tester', () => {
     expect(lessons.find(l => l.title === 'Lesson 2').locked).toBe(false);
 
     // Now lesson 2 can be completed.
-    const completeLesson2 = await request(app)
+    const completeLesson2 = await request(server)
       .post(`/api/custom-lessons/${lessons.find(l => l.title === 'Lesson 2').id}/complete`)
       .set('Authorization', `Bearer ${testerToken}`);
     expect(completeLesson2.status).toBe(200);
@@ -115,7 +116,7 @@ describe('editing a course preserves lesson identity and progress', () => {
     const modBefore = course.modules[0];
     const lesson1Before = modBefore.lessons.find((l) => l.title === 'Lesson 1');
 
-    await request(app)
+    await request(server)
       .post(`/api/custom-lessons/${lesson1Before.id}/complete`)
       .set('Authorization', `Bearer ${testerToken}`)
       .expect(200);
@@ -140,7 +141,7 @@ describe('editing a course preserves lesson identity and progress', () => {
       }],
     };
 
-    const putRes = await request(app)
+    const putRes = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send(editBody);
@@ -161,7 +162,7 @@ describe('editing a course preserves lesson identity and progress', () => {
     const lesson1 = mod.lessons.find((l) => l.title === 'Lesson 1');
     const lesson2 = mod.lessons.find((l) => l.title === 'Lesson 2');
 
-    await request(app).post(`/api/custom-lessons/${lesson1.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
+    await request(server).post(`/api/custom-lessons/${lesson1.id}/complete`).set('Authorization', `Bearer ${testerToken}`).expect(200);
 
     // Drop Lesson 2, keep Lesson 1, add a brand-new Lesson 4.
     const editBody = {
@@ -176,7 +177,7 @@ describe('editing a course preserves lesson identity and progress', () => {
         ],
       }],
     };
-    await request(app).put(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`).send(editBody).expect(200);
+    await request(server).put(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`).send(editBody).expect(200);
 
     course = await getCourse(courseId, testerToken);
     const titles = course.modules[0].lessons.map((l) => l.title);
@@ -198,7 +199,7 @@ describe('role guard', () => {
   // the server accepts it but forces it unpublished and pending review,
   // regardless of the is_published: true the body asks for.
   it('a tester creating a custom course gets a pending proposal, not a live course', async () => {
-    const res = await request(app).post('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`).send(courseBody());
+    const res = await request(server).post('/api/custom-courses').set('Authorization', `Bearer ${testerToken}`).send(courseBody());
     expect(res.status).toBe(200);
     const row = db.prepare('SELECT is_published, proposal_status FROM custom_courses WHERE id = ?').get(res.body.id);
     expect(row.is_published).toBe(0);

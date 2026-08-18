@@ -7,22 +7,23 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let leadId, testerId, adminId;
 let leadToken, testerToken, otherTesterToken, adminToken;
 
 beforeAll(async () => {
   const ids = seedTestData(db);
   leadId = ids.leadId; testerId = ids.testerId; adminId = ids.adminId;
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-  adminToken = await loginAs(request, app, 'admin@test.local', 'adminpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+  adminToken = await loginAs(request, server, 'admin@test.local', 'adminpass123');
 
   db.prepare(
     'INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)'
   ).run('other-tester@test.local', bcryptjs.hashSync('otherpass123', 4), 'Other Tester', 'tester', 'OT');
-  otherTesterToken = await loginAs(request, app, 'other-tester@test.local', 'otherpass123');
+  otherTesterToken = await loginAs(request, server, 'other-tester@test.local', 'otherpass123');
 });
 
 // Regression coverage for the two features added in commit f58e3f8 that
@@ -31,10 +32,10 @@ beforeAll(async () => {
 
 describe('scoped permissions — authorization boundary', () => {
   it('a plain tester cannot list, grant, or revoke permissions', async () => {
-    const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${testerToken}`);
+    const list = await request(server).get('/api/lead/permissions').set('Authorization', `Bearer ${testerToken}`);
     expect(list.status).toBe(403);
 
-    const grant = await request(app)
+    const grant = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ user_id: testerId, permission: 'manage_knowledge_base' });
@@ -42,7 +43,7 @@ describe('scoped permissions — authorization boundary', () => {
   });
 
   it('rejects a grant for an unknown permission name', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ user_id: testerId, permission: 'delete_everything' });
@@ -50,7 +51,7 @@ describe('scoped permissions — authorization boundary', () => {
   });
 
   it('rejects granting to a lead/admin target (no self- or peer-escalation path)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ user_id: leadId, permission: 'manage_knowledge_base' });
@@ -62,7 +63,7 @@ describe('scoped permissions — authorization boundary', () => {
   // routes/knowledge.js), same shape as the course/guide proposal flow.
   // manage_knowledge_base now gates *direct publish*, not submission itself.
   it('a tester with no grant proposing a bug example gets a pending, unpublished row instead of a 403', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
@@ -74,19 +75,19 @@ describe('scoped permissions — authorization boundary', () => {
 
   let grantId;
   it('a lead can grant manage_knowledge_base to a tester', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ user_id: testerId, permission: 'manage_knowledge_base' });
     expect(res.status).toBe(200);
     grantId = res.body.id;
 
-    const mine = await request(app).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
+    const mine = await request(server).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
     expect(mine.body).toContain('manage_knowledge_base');
   });
 
   it('the granted tester publishes directly; an ungranted tester\'s submission is still forced into a pending proposal', async () => {
-    const granted = await request(app)
+    const granted = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'Broken form', bad_text: 'bad example', good_text: 'good example' });
@@ -95,7 +96,7 @@ describe('scoped permissions — authorization boundary', () => {
     expect(grantedRow.is_published).toBe(1);
     expect(grantedRow.proposal_status).toBeNull();
 
-    const ungranted = await request(app)
+    const ungranted = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${otherTesterToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
@@ -106,7 +107,7 @@ describe('scoped permissions — authorization boundary', () => {
   });
 
   it('granting the same permission again replaces rather than stacks duplicate rows', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ user_id: testerId, permission: 'manage_knowledge_base' });
@@ -118,15 +119,15 @@ describe('scoped permissions — authorization boundary', () => {
   });
 
   it('a lead can revoke a grant, and the tester immediately drops back to proposing instead of publishing directly (no wait for JWT expiry)', async () => {
-    const revoke = await request(app)
+    const revoke = await request(server)
       .delete(`/api/lead/permissions/${grantId}`)
       .set('Authorization', `Bearer ${leadToken}`);
     expect(revoke.status).toBe(200);
 
-    const mine = await request(app).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
+    const mine = await request(server).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
     expect(mine.body).not.toContain('manage_knowledge_base');
 
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
@@ -142,10 +143,10 @@ describe('scoped permissions — authorization boundary', () => {
       'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
     ).run(testerId, 'manage_knowledge_base', leadId, past);
 
-    const mine = await request(app).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
+    const mine = await request(server).get('/api/me/permissions').set('Authorization', `Bearer ${testerToken}`);
     expect(mine.body).not.toContain('manage_knowledge_base');
 
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ problem: 'P', bad_text: 'bad', good_text: 'good' });
@@ -156,7 +157,7 @@ describe('scoped permissions — authorization boundary', () => {
   });
 
   it('leads and admins bypass the permission system entirely, without needing a grant', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/glossary')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ term: 'Flaky test', definition: 'A test that passes/fails nondeterministically.' });
@@ -171,26 +172,26 @@ describe('scoped permissions — authorization boundary', () => {
   // lead anymore" without manually cross-referencing. GET /api/lead/permissions
   // now returns granted_by_role so the client can flag it.
   it('demoting the granting lead does not revoke an already-issued grant, but the list now flags who issued it and their current role', async () => {
-    const grant = await request(app)
+    const grant = await request(server)
       .post('/api/lead/permissions')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ user_id: testerId, permission: 'manage_guides' });
     expect(grant.status).toBe(200);
 
-    const demote = await request(app)
+    const demote = await request(server)
       .patch(`/api/admin/users/${leadId}/role`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ role: 'tester' });
     expect(demote.status).toBe(200);
 
     // The grant is still active — checked against the holder's role, not the (now-demoted) granter's.
-    const list = await request(app).get('/api/lead/permissions').set('Authorization', `Bearer ${adminToken}`);
+    const list = await request(server).get('/api/lead/permissions').set('Authorization', `Bearer ${adminToken}`);
     expect(list.status).toBe(200);
     const row = list.body.find((r) => r.user_id === testerId && r.permission === 'manage_guides');
     expect(row).toBeTruthy();
     expect(row.granted_by_role).toBe('tester');
 
-    const stillWorks = await request(app)
+    const stillWorks = await request(server)
       .put('/api/guides/999999')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ title: 'x', category: 'x', content: 'x' });
@@ -207,11 +208,11 @@ describe('scoped permissions — authorization boundary', () => {
 
 describe('knowledge base — read access and validation', () => {
   it('any authenticated user (even with no grant) can read bug examples and glossary', async () => {
-    const bugs = await request(app).get('/api/bug-examples').set('Authorization', `Bearer ${otherTesterToken}`);
+    const bugs = await request(server).get('/api/bug-examples').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(bugs.status).toBe(200);
     expect(Array.isArray(bugs.body)).toBe(true);
 
-    const glossary = await request(app).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
+    const glossary = await request(server).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(glossary.status).toBe(200);
     expect(Array.isArray(glossary.body)).toBe(true);
   });
@@ -226,15 +227,15 @@ describe('knowledge base — read access and validation', () => {
     // ones (Bug/Console/DOM/DevTools/Viewport) on a fresh DB, so reusing
     // one of those would double up rather than testing anything new.
     for (const term of ['ZQLModule', 'Zebrafish', 'amoeba']) {
-      await request(app).post('/api/glossary').set('Authorization', `Bearer ${leadToken}`).send({ term, definition: 'x' });
+      await request(server).post('/api/glossary').set('Authorization', `Bearer ${leadToken}`).send({ term, definition: 'x' });
     }
-    const res = await request(app).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
+    const res = await request(server).get('/api/glossary').set('Authorization', `Bearer ${otherTesterToken}`);
     const order = res.body.map(t => t.term).filter(t => ['ZQLModule', 'Zebrafish', 'amoeba'].includes(t));
     expect(order).toEqual(['amoeba', 'Zebrafish', 'ZQLModule']);
   });
 
   it('rejects a bug example missing required fields', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ problem: '', bad_text: 'bad', good_text: 'good' });
@@ -242,13 +243,13 @@ describe('knowledge base — read access and validation', () => {
   });
 
   it('a lead can edit and delete a bug example', async () => {
-    const created = await request(app)
+    const created = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ problem: 'To edit', bad_text: 'bad', good_text: 'good' });
     const id = created.body.id;
 
-    const updated = await request(app)
+    const updated = await request(server)
       .put(`/api/bug-examples/${id}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ problem: 'Edited', bad_text: 'bad2', good_text: 'good2' });
@@ -257,10 +258,10 @@ describe('knowledge base — read access and validation', () => {
 
     // Delete is a soft-delete (see /api/admin/trash) — the row stays but
     // deleted_at gets set, and it disappears from the normal read route.
-    const deleted = await request(app).delete(`/api/bug-examples/${id}`).set('Authorization', `Bearer ${leadToken}`);
+    const deleted = await request(server).delete(`/api/bug-examples/${id}`).set('Authorization', `Bearer ${leadToken}`);
     expect(deleted.status).toBe(200);
     expect(db.prepare('SELECT deleted_at FROM bug_examples WHERE id = ?').get(id).deleted_at).not.toBeNull();
-    const list = await request(app).get('/api/bug-examples').set('Authorization', `Bearer ${leadToken}`);
+    const list = await request(server).get('/api/bug-examples').set('Authorization', `Bearer ${leadToken}`);
     expect(list.body.find((b) => b.id === id)).toBeUndefined();
   });
 });

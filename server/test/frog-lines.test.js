@@ -13,19 +13,20 @@ vi.mock('../src/telegram.js', () => ({
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let leadToken, testerToken;
 
 beforeAll(async () => {
   seedTestData(db);
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 describe('frog lines', () => {
   it('ships seeded copy for all three kinds, so nobody starts with a mute mascot', async () => {
-    const res = await request(app).get('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
     for (const kind of ['tip', 'loader', 'tour']) {
       expect(res.body.filter(l => l.kind === kind).length).toBeGreaterThan(0);
@@ -34,7 +35,7 @@ describe('frog lines', () => {
 
   it('gives every seeded tour step a title and a target that resolves to a real element', async () => {
     const { FROG_LINE_TARGETS } = await import('../src/routes/frogLines.js');
-    const res = await request(app).get('/api/frog-lines?kind=tour').set('Authorization', `Bearer ${testerToken}`);
+    const res = await request(server).get('/api/frog-lines?kind=tour').set('Authorization', `Bearer ${testerToken}`);
     expect(res.body.length).toBeGreaterThan(0);
     for (const step of res.body) {
       expect(step.title).toBeTruthy();
@@ -43,40 +44,40 @@ describe('frog lines', () => {
   });
 
   it('lets a lead add, edit and delete a line', async () => {
-    const created = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
+    const created = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
       .send({ kind: 'tip', text: 'Свежий совет' });
     expect(created.status).toBe(200);
     expect(created.body.text).toBe('Свежий совет');
 
-    const edited = await request(app).put(`/api/frog-lines/${created.body.id}`).set('Authorization', `Bearer ${leadToken}`)
+    const edited = await request(server).put(`/api/frog-lines/${created.body.id}`).set('Authorization', `Bearer ${leadToken}`)
       .send({ text: 'Совет получше' });
     expect(edited.body.text).toBe('Совет получше');
 
-    const removed = await request(app).delete(`/api/frog-lines/${created.body.id}`).set('Authorization', `Bearer ${leadToken}`);
+    const removed = await request(server).delete(`/api/frog-lines/${created.body.id}`).set('Authorization', `Bearer ${leadToken}`);
     expect(removed.status).toBe(200);
-    const after = await request(app).get('/api/frog-lines?kind=tip').set('Authorization', `Bearer ${leadToken}`);
+    const after = await request(server).get('/api/frog-lines?kind=tip').set('Authorization', `Bearer ${leadToken}`);
     expect(after.body.find(l => l.id === created.body.id)).toBeUndefined();
   });
 
   it('reads for everyone, writes for a lead only', async () => {
-    expect((await request(app).get('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`)).status).toBe(200);
-    const write = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`)
+    expect((await request(server).get('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`)).status).toBe(200);
+    const write = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${testerToken}`)
       .send({ kind: 'tip', text: 'От тестировщика' });
     expect(write.status).toBe(403);
   });
 
   it('refuses a tour step with no title or an unknown target — a step pointing at nothing silently skips itself', async () => {
-    const noTitle = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
+    const noTitle = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
       .send({ kind: 'tour', text: 'Текст', target: 'nav-home' });
     expect(noTitle.status).toBe(400);
 
-    const badTarget = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
+    const badTarget = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
       .send({ kind: 'tour', text: 'Текст', title: 'Шаг', target: '.some-css-selector' });
     expect(badTarget.status).toBe(400);
   });
 
   it('drops title/target when they are set on a kind that has no use for them', async () => {
-    const res = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
+    const res = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
       .send({ kind: 'loader', text: 'гружусь', title: 'Заголовок', target: 'nav-home' });
     expect(res.body.title).toBeNull();
     expect(res.body.target).toBeNull();
@@ -84,16 +85,16 @@ describe('frog lines', () => {
 
   it('will not let the last tip or loader phrase be deleted', async () => {
     db.prepare("DELETE FROM frog_lines WHERE kind = 'loader'").run();
-    const only = await request(app).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
+    const only = await request(server).post('/api/frog-lines').set('Authorization', `Bearer ${leadToken}`)
       .send({ kind: 'loader', text: 'единственная' });
-    const res = await request(app).delete(`/api/frog-lines/${only.body.id}`).set('Authorization', `Bearer ${leadToken}`);
+    const res = await request(server).delete(`/api/frog-lines/${only.body.id}`).set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(400);
 
     // Tour steps have no such floor — a team should be able to turn the
     // first-run tour off entirely by emptying it.
-    const steps = await request(app).get('/api/frog-lines?kind=tour').set('Authorization', `Bearer ${leadToken}`);
+    const steps = await request(server).get('/api/frog-lines?kind=tour').set('Authorization', `Bearer ${leadToken}`);
     for (const s of steps.body) {
-      expect((await request(app).delete(`/api/frog-lines/${s.id}`).set('Authorization', `Bearer ${leadToken}`)).status).toBe(200);
+      expect((await request(server).delete(`/api/frog-lines/${s.id}`).set('Authorization', `Bearer ${leadToken}`)).status).toBe(200);
     }
   });
 });

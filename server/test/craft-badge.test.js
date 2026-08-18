@@ -6,14 +6,15 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let testerToken, testerId;
 
 beforeAll(async () => {
   const fixtures = seedTestData(db);
   testerId = fixtures.testerId;
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 // Production-readiness audit: total(0) < collected(0) is false, so a
@@ -22,7 +23,7 @@ beforeAll(async () => {
 // skill_area values.
 describe('POST /api/tester/craft-badge', () => {
   it('rejects a skill_area that matches no real lecture block (would have been a free badge)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/tester/craft-badge')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ skill_area: 'Totally Made Up Skill' });
@@ -32,7 +33,7 @@ describe('POST /api/tester/craft-badge', () => {
 
   it('rejects a real skill_area when the tester has not actually collected all its cards', async () => {
     // Fixtures seed 3 lectures under 'Skill A' — tester has 0 cards.
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/tester/craft-badge')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ skill_area: 'Skill A' });
@@ -45,7 +46,7 @@ describe('POST /api/tester/craft-badge', () => {
       db.prepare('INSERT INTO user_cards (user_id, lecture_id, skill_area) VALUES (?, ?, ?)').run(testerId, l.id, 'Skill A');
     }
 
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/tester/craft-badge')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ skill_area: 'Skill A' });

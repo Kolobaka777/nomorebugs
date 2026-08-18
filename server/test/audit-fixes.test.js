@@ -7,24 +7,25 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let adminId, leadId, testerId;
 let adminToken, leadToken, testerToken;
 
 beforeAll(async () => {
   const ids = seedTestData(db);
   adminId = ids.adminId; leadId = ids.leadId; testerId = ids.testerId;
-  adminToken = await loginAs(request, app, 'admin@test.local', 'adminpass123');
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
+  adminToken = await loginAs(request, server, 'admin@test.local', 'adminpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
 });
 
 // Regression coverage for the pre-flight security/RBAC audit findings.
 
 describe('trust proxy — express-rate-limit must not choke on a forwarded-for header', () => {
   it('handles a request carrying X-Forwarded-For without throwing (the exact Railway-proxy failure mode)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .get('/api/health')
       .set('X-Forwarded-For', '203.0.113.7');
     expect(res.status).toBe(200);
@@ -53,21 +54,21 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
   });
 
   it('admin can view an unpublished course they did not author', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .get(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
   });
 
   it('a tester still cannot view that unpublished course (no over-permission introduced)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .get(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(403);
   });
 
   it('admin can edit a course they did not author', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ title: 'Edited By Admin' });
@@ -76,7 +77,7 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
   });
 
   it('admin can toggle publish on a course they did not author', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch(`/api/custom-courses/${courseId}/publish`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
@@ -87,9 +88,9 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
     db.prepare(
       'INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)'
     ).run('otherlead@test.local', bcryptjs.hashSync('otherleadpass123', 4), 'Other Lead', 'lead', 'OL');
-    const otherLeadToken = await loginAs(request, app, 'otherlead@test.local', 'otherleadpass123');
+    const otherLeadToken = await loginAs(request, server, 'otherlead@test.local', 'otherleadpass123');
 
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${otherLeadToken}`)
       .send({ title: 'Should Be Rejected' });
@@ -97,7 +98,7 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
   });
 
   it('admin can delete a course they did not author (soft-delete — see trash)', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .delete(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
@@ -105,7 +106,7 @@ describe('admin bypasses manual ownership checks (matching requireRole\'s docume
     // just marked deleted_at, and disappears from the normal list/detail routes.
     const row = db.prepare('SELECT deleted_at FROM custom_courses WHERE id = ?').get(courseId);
     expect(row.deleted_at).not.toBeNull();
-    const listed = await request(app).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${adminToken}`);
+    const listed = await request(server).get(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${adminToken}`);
     expect(listed.status).toBe(404);
   });
 });

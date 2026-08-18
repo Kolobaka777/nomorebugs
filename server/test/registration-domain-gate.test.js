@@ -15,11 +15,12 @@ vi.mock('../src/telegram.js', () => ({
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData } = await import('./helpers.js');
+const { seedTestData, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 beforeAll(() => seedTestData(db));
 
-const signup = (email) => request(app).post('/api/auth/register')
+const signup = (email) => request(server).post('/api/auth/register')
   .send({ email, password: 'goodpassword1', name: 'Новичок' });
 
 describe('registration domain allowlist', () => {

@@ -6,15 +6,16 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData } = await import('./helpers.js');
+const { seedTestData, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 beforeAll(() => {
   seedTestData(db);
 });
 
 describe('POST /api/auth/login', () => {
   it('returns a token and user info for valid tester credentials', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/auth/login')
       .send({ email: 'tester@test.local', password: 'testerpass123' });
 
@@ -27,40 +28,40 @@ describe('POST /api/auth/login', () => {
 
   it('reports needsBaselineSurvey correctly based on existing survey data', async () => {
     // The tester fixture already has a baseline_survey row.
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/auth/login')
       .send({ email: 'tester@test.local', password: 'testerpass123' });
     expect(res.body.needsBaselineSurvey).toBe(false);
   });
 
   it('rejects an invalid password', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/auth/login')
       .send({ email: 'tester@test.local', password: 'wrong-password' });
     expect(res.status).toBe(401);
   });
 
   it('rejects an unknown email', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/auth/login')
       .send({ email: 'nobody@test.local', password: 'whatever123' });
     expect(res.status).toBe(401);
   });
 
   it('requires both email and password', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'tester@test.local' });
+    const res = await request(server).post('/api/auth/login').send({ email: 'tester@test.local' });
     expect(res.status).toBe(400);
   });
 });
 
 describe('authMiddleware', () => {
   it('rejects requests with no Authorization header', async () => {
-    const res = await request(app).get('/api/tester/lectures');
+    const res = await request(server).get('/api/tester/lectures');
     expect(res.status).toBe(401);
   });
 
   it('rejects requests with a garbage token', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .get('/api/tester/lectures')
       .set('Authorization', 'Bearer this-is-not-a-valid-jwt');
     expect(res.status).toBe(401);
@@ -76,7 +77,7 @@ describe('login rate limiting', () => {
     // 5 requests already happened in the describe block above; keep going
     // well past the limit (20) to be sure we trip it regardless.
     for (let i = 0; i < 20; i++) {
-      const res = await request(app)
+      const res = await request(server)
         .post('/api/auth/login')
         .send({ email: 'nobody@test.local', password: 'x' });
       lastStatus = res.status;

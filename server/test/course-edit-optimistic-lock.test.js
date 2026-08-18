@@ -6,16 +6,17 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let leadToken, testerId, courseId, moduleId, lessonId;
 
 beforeAll(async () => {
   const ids = seedTestData(db);
   testerId = ids.testerId;
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 
-  const create = await request(app)
+  const create = await request(server)
     .post('/api/custom-courses')
     .set('Authorization', `Bearer ${leadToken}`)
     .send({
@@ -35,7 +36,7 @@ beforeAll(async () => {
 // 409s instead of applying the diff if it's stale.
 describe('course module-tree edits — optimistic locking', () => {
   it('a metadata-only save (no modules array) is not gated on expected_updated_at', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ title: 'Race Course (renamed)' });
@@ -49,7 +50,7 @@ describe('course module-tree edits — optimistic locking', () => {
     db.prepare('INSERT INTO custom_lesson_progress (user_id, lesson_id, completed_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
       .run(testerId, lessonId);
 
-    const first = await request(app)
+    const first = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({
@@ -64,7 +65,7 @@ describe('course module-tree edits — optimistic locking', () => {
     // Second save was built against the same stale `loaded` stamp, and its
     // module tree has no idea L2 now exists — this is exactly the payload
     // that would otherwise silently delete L2 and the tester's progress on L1.
-    const second = await request(app)
+    const second = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({
@@ -84,7 +85,7 @@ describe('course module-tree edits — optimistic locking', () => {
   });
 
   it('omitting expected_updated_at entirely (e.g. an old client) still saves — the lock only engages when the field is sent', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ modules: [{ _id: String(moduleId), title: 'M1', lessons: [{ _id: String(lessonId), title: 'L1', type: 'lesson', content: 'hi' }] }] });

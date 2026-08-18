@@ -7,14 +7,15 @@ process.env.NODE_ENV = 'test';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let testerToken, leadToken;
 
 beforeAll(async () => {
   seedTestData(db);
-  testerToken = await loginAs(request, app, 'tester@test.local', 'testerpass123');
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  testerToken = await loginAs(request, server, 'tester@test.local', 'testerpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 });
 
 const surveyBody = { html_structure: 3, css_reading: 3, devtools: 3, console_errors: 3, bug_report_quality: 3 };
@@ -24,7 +25,7 @@ describe('baseline survey — one-time by design', () => {
   // this test exercises exactly the scenario that used to hit the UNIQUE
   // constraint and surface as a raw 500.
   it('a duplicate submission returns a clean 409, not a raw 500', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post('/api/tester/baseline-survey')
       .set('Authorization', `Bearer ${testerToken}`)
       .send(surveyBody);
@@ -37,7 +38,7 @@ describe('baseline survey — one-time by design', () => {
 describe('avatar size cap — server-side, not just client-side', () => {
   it('rejects an oversized custom_avatar even via a direct API call (bypassing the client check)', async () => {
     const oversized = 'a'.repeat(2.9 * 1024 * 1024); // between the 2.8MB validation cap and the 3mb body-parser limit
-    const res = await request(app)
+    const res = await request(server)
       .put('/api/tester/profile')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ custom_avatar: oversized });
@@ -52,7 +53,7 @@ describe('avatar size cap — server-side, not just client-side', () => {
     // regardless of the client's advertised 2MB cap. 500KB here is
     // comfortably within the intended cap and comfortably above 100kb.
     const reasonable = 'data:image/png;base64,' + 'a'.repeat(500 * 1024);
-    const res = await request(app)
+    const res = await request(server)
       .put('/api/tester/profile')
       .set('Authorization', `Bearer ${testerToken}`)
       .send({ custom_avatar: reasonable });
@@ -62,7 +63,7 @@ describe('avatar size cap — server-side, not just client-side', () => {
 
 describe('lead/team skillGrowth (N+1 fix regression check)', () => {
   it('still computes a numeric skillGrowth per member after folding the per-member loop into one query', async () => {
-    const res = await request(app).get('/api/lead/team').set('Authorization', `Bearer ${leadToken}`);
+    const res = await request(server).get('/api/lead/team').set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(200);
     for (const member of res.body) {
       expect(typeof member.skillGrowth).toBe('number');

@@ -14,29 +14,30 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
-const { seedTestData, loginAs } = await import('./helpers.js');
+const { seedTestData, loginAs, testServer } = await import('./helpers.js');
 
+const server = await testServer(app);
 let leadToken;
 
 beforeAll(async () => {
   seedTestData(db);
-  leadToken = await loginAs(request, app, 'lead@test.local', 'leadpass123');
+  leadToken = await loginAs(request, server, 'lead@test.local', 'leadpass123');
 });
 
 describe('a trashed course can no longer be edited or republished', () => {
   let courseId;
 
   beforeAll(async () => {
-    const created = await request(app)
+    const created = await request(server)
       .post('/api/custom-courses')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ title: 'Trash Immutability Course', is_published: false, modules: [{ title: 'M1', lessons: [{ title: 'L1', type: 'lesson' }] }] });
     courseId = created.body.id;
-    await request(app).delete(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
+    await request(server).delete(`/api/custom-courses/${courseId}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
   });
 
   it('PUT 404s instead of silently editing the trashed course', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/custom-courses/${courseId}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ title: 'Edited while trashed' });
@@ -45,7 +46,7 @@ describe('a trashed course can no longer be edited or republished', () => {
   });
 
   it('PATCH .../publish 404s instead of silently republishing the trashed course', async () => {
-    const res = await request(app)
+    const res = await request(server)
       .patch(`/api/custom-courses/${courseId}/publish`)
       .set('Authorization', `Bearer ${leadToken}`);
     expect(res.status).toBe(404);
@@ -55,14 +56,14 @@ describe('a trashed course can no longer be edited or republished', () => {
 
 describe('trashed knowledge-base content can no longer be edited', () => {
   it('PUT /api/guides/:id 404s on a trashed guide', async () => {
-    const created = await request(app)
+    const created = await request(server)
       .post('/api/guides')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ title: 'Trash Immutability Guide', category: 'Общее', content: 'x' });
     const id = created.body.id;
-    await request(app).delete(`/api/guides/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
+    await request(server).delete(`/api/guides/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
 
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/guides/${id}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ title: 'Edited while trashed', category: 'Общее', content: 'x' });
@@ -70,14 +71,14 @@ describe('trashed knowledge-base content can no longer be edited', () => {
   });
 
   it('PUT /api/bug-examples/:id 404s on a trashed bug example', async () => {
-    const created = await request(app)
+    const created = await request(server)
       .post('/api/bug-examples')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ problem: 'Trash Immutability Example', bad_text: 'bad', good_text: 'good' });
     const id = created.body.id;
-    await request(app).delete(`/api/bug-examples/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
+    await request(server).delete(`/api/bug-examples/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
 
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/bug-examples/${id}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ problem: 'Edited while trashed', bad_text: 'bad', good_text: 'good' });
@@ -85,14 +86,14 @@ describe('trashed knowledge-base content can no longer be edited', () => {
   });
 
   it('PUT /api/glossary/:id 404s on a trashed glossary term', async () => {
-    const created = await request(app)
+    const created = await request(server)
       .post('/api/glossary')
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ term: 'Trash Immutability Term', definition: 'x' });
     const id = created.body.id;
-    await request(app).delete(`/api/glossary/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
+    await request(server).delete(`/api/glossary/${id}`).set('Authorization', `Bearer ${leadToken}`).expect(200);
 
-    const res = await request(app)
+    const res = await request(server)
       .put(`/api/glossary/${id}`)
       .set('Authorization', `Bearer ${leadToken}`)
       .send({ term: 'Edited while trashed', definition: 'x' });
