@@ -30,9 +30,8 @@ function fullProfile(overrides: Partial<Record<string, any>> = {}) {
     nickname: 'BugHunter', status_quote: 'Ищу баги днём и ночью', specialization: 'Frontend QA',
     info_box: 'Люблю чай', snail_joke: '', avatar_id: 'bug1', avatar_frame: 'default', profile_bg: 'default',
     showcase_badges: [], favorite_lecture_id: null, is_public: true, custom_avatar: null, gender: null,
-    bug_coins: 100, purchased_items: [], streak: 3, craftable: [],
+    craftable: [],
     favLecture: null,
-    stats: { int: 5, per: 4, spd: 6, def: 3, bug_pwr: 12 },
     cards: [{ id: 1, user_id: 5, lecture_id: 1, skill_area: 'HTML', rarity: 'common', earned_at: '2026-01-01' }],
     badges: [{ id: 1, user_id: 5, badge_id: 'html', earned_at: '2026-01-01' }],
     workStart: '09:00', workEnd: '18:00', workDays: '1,2,3,4,5', timezone: 'Europe/Moscow',
@@ -60,6 +59,50 @@ describe('PublicProfilePage', () => {
     expect(screen.getByText(/Карточек: 1/)).toBeInTheDocument();
     expect(screen.getByText('Люблю чай')).toBeInTheDocument();
     expect(usersApi.getProfile).toHaveBeenCalledWith(5);
+  });
+
+  // A colleague's page answers "who is this person", not "how are they
+  // scoring". The server strips these fields for a non-owner, non-lead
+  // viewer (see server/test/public-profile.test.js) — this asserts the page
+  // doesn't put them back if some other caller hands them over anyway.
+  it('shows no level, RPG stats or course progress, even when handed them', async () => {
+    vi.mocked(usersApi.getProfile).mockResolvedValue({
+      data: fullProfile({
+        stats: { int: 5, per: 4, spd: 6, def: 3, bug_pwr: 12 },
+        lecturesCompleted: 7, averageScore: 84, streak: 3,
+      }),
+    } as any);
+
+    renderPage();
+
+    expect(await screen.findByText('BugHunter')).toBeInTheDocument();
+    for (const label of ['ИНТ', 'ВНИМ', 'СКОР', 'ЗАЩ', 'МОЩЬ', 'КУРСОВ', 'СР. БАЛЛ', 'ДНЕЙ ПОДРЯД']) {
+      expect(screen.queryByText(label)).toBeNull();
+    }
+    // The frog level ladder (types.ts's getLevel) went with them.
+    for (const level of ['Икринка', 'Головастик', 'Лягушонок', 'Лягушка', 'Царь-лягушка']) {
+      expect(screen.queryByText(level)).toBeNull();
+    }
+    expect(screen.queryByText(/84/)).toBeNull();
+    expect(screen.queryByText(/7\/10/)).toBeNull();
+  });
+
+  // Everything the owner asked to keep on a colleague's page, in one place,
+  // so removing a field can't pass unnoticed.
+  it('keeps nickname, position, status, badges, working hours, birthday and start date', async () => {
+    vi.mocked(usersApi.getProfile).mockResolvedValue({
+      data: fullProfile({ birthday: '03-14' }),
+    } as any);
+
+    renderPage();
+
+    expect(await screen.findByText('BugHunter')).toBeInTheDocument();        // ник
+    expect(screen.getByText('Frontend QA')).toBeInTheDocument();             // позиция
+    expect(screen.getByText('«Ищу баги днём и ночью»')).toBeInTheDocument(); // статус
+    expect(screen.getByText(/Значков: 1/)).toBeInTheDocument();              // ачивки
+    expect(screen.getByText(/09:00–18:00/)).toBeInTheDocument();             // время работы
+    expect(screen.getByText(/14 марта/)).toBeInTheDocument();                // день рождения
+    expect(screen.getByText(/В команде с/)).toBeInTheDocument();             // трудоустройство
   });
 
   it('renders only avatar/name and "Профиль скрыт" for a private profile, hiding stats/quote/hours', async () => {

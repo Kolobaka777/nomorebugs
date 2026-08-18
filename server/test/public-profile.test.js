@@ -24,13 +24,26 @@ beforeAll(async () => {
 });
 
 describe('GET /api/users/:id/profile', () => {
-  it('a public profile (default) shows the full read-only view to anyone', async () => {
+  it('a public profile (default) shows the read-only view to anyone', async () => {
     const res = await request(server).get(`/api/users/${otherTesterId}/profile`).set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('Other Profile');
-    expect(res.body).toHaveProperty('stats');
+    expect(res.body).toHaveProperty('badges');
     expect(res.body).toHaveProperty('cards');
     expect(res.body.is_public).not.toBe(false);
+  });
+
+  // A teammate's page is who they are, not how they're scoring. The owner
+  // keeps all of this in МояНора and a lead keeps it in the team view.
+  it('never sends a colleague the course-progress numbers, even on a public profile', async () => {
+    const res = await request(server).get(`/api/users/${otherTesterId}/profile`).set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    for (const field of ['stats', 'lecturesCompleted', 'averageScore', 'streak']) {
+      expect(res.body).not.toHaveProperty(field);
+    }
+    // Not an empty response — the identity half is still all there.
+    expect(res.body.nickname || res.body.name).toBeTruthy();
+    expect(res.body).toHaveProperty('badges');
   });
 
   it('a private profile only shows avatar/name + is_public:false to a stranger', async () => {
@@ -40,7 +53,7 @@ describe('GET /api/users/:id/profile', () => {
     expect(res.status).toBe(200);
     expect(res.body.is_public).toBe(false);
     expect(res.body.name).toBe('Other Profile');
-    expect(res.body).not.toHaveProperty('stats');
+    expect(res.body).not.toHaveProperty('badges');
     expect(res.body).not.toHaveProperty('cards');
   });
 

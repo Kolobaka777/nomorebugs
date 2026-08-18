@@ -184,9 +184,21 @@ router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
     // previously sent to every teammate viewer regardless (just never
     // rendered client-side, which isn't the same as actually private) —
     // stripped here instead.
+    //
+    // How far along someone is joins that list: stats (the int/per/spd/def/
+    // bug_pwr bars), lecturesCompleted, averageScore and streak are their
+    // own progress through the courses, and a teammate's page is not a
+    // scoreboard. They stay in the owner's own cabinet (МояНора, via
+    // /api/tester/profile-full) and in the lead's team view, which is what
+    // the "how's this person doing" question actually exists for.
     const payload = isSelf || isLead
       ? full
-      : (({ email, phone, gender, bug_coins, purchased_items, coursesProposed, coursesApproved, guidesProposed, guidesApproved, ...rest }) => rest)(full);
+      : (({
+          email, phone, gender, bug_coins, purchased_items,
+          coursesProposed, coursesApproved, guidesProposed, guidesApproved,
+          stats, streak, lecturesCompleted, averageScore,
+          ...rest
+        }) => rest)(full);
 
     res.json({
       ...payload,

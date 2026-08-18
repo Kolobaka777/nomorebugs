@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import PixelAvatar, { type FrameId } from '../components/PixelAvatar';
-import Icon, { IconName } from '../components/Icon';
-import LevelBadge from '../components/LevelBadge';
+import Icon from '../components/Icon';
 import { usersApi } from '../api';
 import { PublicProfile } from '../types';
 import { BADGE_META } from '../utils/badges';
@@ -31,33 +30,6 @@ function formatBirthday(mmdd: string): string {
   const [mm, dd] = mmdd.split('-').map(Number);
   const month = MONTHS_GENITIVE[mm - 1];
   return month ? `${dd} ${month}` : mmdd;
-}
-
-function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-geist font-semibold shrink-0" style={{ fontSize: 11, color, width: 58, letterSpacing: TRACK_WIDE }}>{label}</span>
-      <div className="stat-bar-track flex-1 rounded" style={{ borderLeft: `2px solid ${color}30` }}>
-        <div className="stat-bar-fill" style={{ width: `${(value / max) * 100}%`, background: color }} />
-      </div>
-      <span className="font-geist font-semibold shrink-0" style={{ fontSize: 12, color, width: 22, textAlign: 'right' }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// A small labeled number tile — reused for lectures/score/streak so the
-// "general info visible to everyone" part of the profile reads like a
-// summary dashboard (Steam-profile-ish) rather than a wall of text.
-function MiniStat({ icon, value, label, color }: { icon: IconName; value: string | number; label: string; color: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg" style={{ background: 'rgba(197, 198, 199,0.04)', minWidth: 84 }}>
-      <Icon name={icon} size={16} color={color} />
-      <span className="font-montserrat font-bold" style={{ fontSize: 17, color }}>{value}</span>
-      <span className="font-geist text-center" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{label}</span>
-    </div>
-  );
 }
 
 export default function PublicProfilePage({ user, onLogout }: Props) {
@@ -100,7 +72,11 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
     );
   }
 
-  const isHidden = profile.is_public === false && !('stats' in profile);
+  // Keyed off `badges` rather than `stats`: a colleague's view no longer
+  // carries stats at all (stripped server-side), so it stopped being a
+  // "is this the full shape?" marker. `badges` is present on every visible
+  // profile and absent from the hidden one.
+  const isHidden = profile.is_public === false && !('badges' in profile);
 
   return (
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
@@ -135,11 +111,6 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
                 <p className="font-geist text-sm break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
               )}
             </div>
-            {!isHidden && 'lecturesCompleted' in profile && (
-              <div className="ml-auto shrink-0">
-                <LevelBadge lecturesCompleted={profile.lecturesCompleted} size="sm" />
-              </div>
-            )}
           </div>
 
           {isHidden ? (
@@ -171,30 +142,6 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
                       )}
                     </p>
                   )}
-                </div>
-              )}
-
-              {/* Summary dashboard — courses/score/streak, all "general
-                  info" per the owner's own call: visible to any viewer,
-                  unlike bookmarks/premium points/proposals which stay
-                  cabinet-only (see profile.js's payload-stripping comment). */}
-              {'lecturesCompleted' in profile && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <MiniStat icon="graduation" value={`${profile.lecturesCompleted}/10`} label="КУРСОВ" color={ACCENT} />
-                  <MiniStat icon="chartup" value={`${profile.averageScore}%`} label="СР. БАЛЛ" color={BADGE_NOTIFY} />
-                  {'streak' in profile && profile.streak > 0 && (
-                    <MiniStat icon="lightning" value={profile.streak} label="ДНЕЙ ПОДРЯД" color="#EF9F27" />
-                  )}
-                </div>
-              )}
-
-              {'stats' in profile && (
-                <div className="space-y-2 mb-4">
-                  <StatRow label="ИНТ"  value={profile.stats.int}     max={10} color="#7F77DD" />
-                  <StatRow label="ВНИМ" value={profile.stats.per}     max={10} color={BADGE_NOTIFY} />
-                  <StatRow label="СКОР" value={profile.stats.spd}     max={10} color={ACCENT} />
-                  <StatRow label="ЗАЩ"  value={profile.stats.def}     max={10} color="#e05252" />
-                  <StatRow label="МОЩЬ" value={profile.stats.bug_pwr} max={20} color={BADGE_NOTIFY} />
                 </div>
               )}
 
@@ -247,9 +194,6 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
                 <p className="font-geist text-xs mb-2 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
                   <Icon name="star" size={14} color={TEXT_MUTED} />
                   Любимая лекция: <span className="break-words min-w-0" style={{ color: TEXT_PRIMARY }}>{profile.favLecture.title}</span>
-                  {typeof profile.favLecture.score === 'number' && (
-                    <span style={{ color: 'rgba(197, 198, 199,0.5)' }}>({profile.favLecture.score}%)</span>
-                  )}
                 </p>
               )}
 

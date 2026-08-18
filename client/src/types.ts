@@ -312,16 +312,20 @@ export interface PublicProfileHidden {
   is_public: false;
 }
 
-// email/phone/gender/bug_coins/purchased_items and the course/guide
-// proposal counts ("Мои предложения" — an owner-only panel in MoyaNora
-// too) are stripped server-side (GET /api/users/:id/profile) for any
-// viewer who isn't the profile owner or a lead — contact/personal details,
-// someone else's shop balance, and what they've proposed have no business
+// email/phone/gender/bug_coins/purchased_items, the course/guide proposal
+// counts ("Мои предложения" — an owner-only panel in MoyaNora too) and the
+// course-progress numbers (stats/lecturesCompleted/averageScore/streak) are
+// stripped server-side (GET /api/users/:id/profile) for any viewer who isn't
+// the profile owner or a lead — contact/personal details, someone else's shop
+// balance, what they've proposed and how far along they are have no business
 // being visible on a teammate's public profile. Optional here rather than
 // a second near-duplicate interface, since every other field is identical
 // to FullProfile. role/birthday are new fields the public route adds that
 // FullProfile itself doesn't carry.
-type PublicOnlyOmittedFields = 'email' | 'phone' | 'gender' | 'bug_coins' | 'purchased_items' | 'coursesProposed' | 'coursesApproved' | 'guidesProposed' | 'guidesApproved';
+type PublicOnlyOmittedFields =
+  | 'email' | 'phone' | 'gender' | 'bug_coins' | 'purchased_items'
+  | 'coursesProposed' | 'coursesApproved' | 'guidesProposed' | 'guidesApproved'
+  | 'stats' | 'streak' | 'lecturesCompleted' | 'averageScore';
 export type PublicProfile =
   | (Omit<FullProfile, PublicOnlyOmittedFields> &
       Partial<Pick<FullProfile, PublicOnlyOmittedFields>> &
