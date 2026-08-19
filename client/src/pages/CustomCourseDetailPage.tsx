@@ -4,13 +4,11 @@ import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { BookOpenIcon, PagesIcon, CapIcon, PencilLineIcon, SearchIcon, TrashLineIcon } from '../components/CatalogIcons';
-import { API_BASE_URL as API } from '../config';
-import { authFetch } from '../auth';
-import { leadApi } from '../api';
+import { leadApi, coursesApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { pickByGender } from '../utils/gender';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
 // need the full Tiptap chunk to render, so it stays out of this page's own
@@ -39,7 +37,7 @@ function deadlineInfo(deadline: string | null): { label: string; color: string }
   const due = parseServerDate(deadline).getTime();
   const diffDays = Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000));
   const dateStr = parseServerDate(deadline).toLocaleDateString('ru-RU');
-  if (diffDays < 0) return { label: `Дедлайн просрочен (${dateStr})`, color: '#e05252' };
+  if (diffDays < 0) return { label: `Дедлайн просрочен (${dateStr})`, color: ERROR };
   if (diffDays === 0) return { label: 'Дедлайн сегодня', color: '#EF9F27' };
   if (diffDays <= 3) return { label: `Дедлайн через ${diffDays} дн.`, color: '#EF9F27' };
   return { label: `Дедлайн: ${dateStr}`, color: 'rgba(197, 198, 199,0.6)' };
@@ -103,10 +101,17 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
   const load = () => {
     setLoading(true);
     setLoadError(false);
-    authFetch(`${API}/custom-courses/${id}`)
-      .then(r => r.json())
-      .then(data => { if (!data.error) setCourse(data); })
-      .catch(() => setLoadError(true))
+    coursesApi.get(id!)
+      .then(r => setCourse(r.data))
+      .catch((err: any) => {
+        // "The course isn't there" and "the request never arrived" want
+        // different screens: one offers a way back, the other a retry.
+        // Through fetch these were indistinguishable — the old code read a
+        // 200 body for an `error` field and treated every real failure the
+        // same. A status code says which is which.
+        const status = err?.response?.status;
+        if (status !== 404 && status !== 403) setLoadError(true);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -158,8 +163,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
     setActionError('');
     setPublishing(true);
     try {
-      const res = await authFetch(`${API}/custom-courses/${id}/publish`, { method: 'PATCH' });
-      if (!res.ok) throw new Error();
+      await coursesApi.togglePublish(id!);
       setCourse((c: any) => ({ ...c, is_published: c.is_published ? 0 : 1 }));
     } catch {
       setActionError('Не удалось изменить статус публикации. Попробуйте ещё раз.');
@@ -173,8 +177,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
     setActionError('');
     setDeleting(true);
     try {
-      const res = await authFetch(`${API}/custom-courses/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      await coursesApi.remove(id!);
       navigate('/zhukademia');
     } catch {
       setActionError('Не удалось удалить курс. Попробуйте ещё раз.');
@@ -384,7 +387,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             {user.role === 'lead' && (
               <div className="space-y-2">
                 {actionError && (
-                  <p className="text-xs font-geist mb-1" style={{ color: '#e05252' }}>{actionError}</p>
+                  <p className="text-xs font-geist mb-1" style={{ color: ERROR }}>{actionError}</p>
                 )}
                 {course.proposal_status === 'pending' && (
                   <p className="font-geist text-xs mb-1" style={{ color: TEXT_MUTED }}>
@@ -432,7 +435,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                       className="w-full py-2.5 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
                       style={{
                         background: course.is_published ? 'rgba(224,82,82,0.1)' : 'rgba(102, 252, 241,0.1)',
-                        color: course.is_published ? '#e05252' : ACCENT,
+                        color: course.is_published ? ERROR : ACCENT,
                       }}
                     >
                       {publishing ? '...' : course.is_published ? 'Снять с публикации' : 'Опубликовать'}

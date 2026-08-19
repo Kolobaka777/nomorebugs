@@ -40,7 +40,15 @@ router.get('/api/lead/team', authMiddleware, requireRole('lead'), (req, res) => 
         u.id, ${displayName('u')} as name, u.avatar_initials, u.lead_note,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
         (SELECT COUNT(*) FROM test_results WHERE user_id = u.id AND score >= 60) as lecturesCompleted,
-        (SELECT AVG(score) FROM test_results WHERE user_id = u.id) as avgScore,
+        -- Averaged across both tracks. It used to read test_results only,
+        -- which covers the seeded lectures and nothing a lead builds in the
+        -- course builder — so a team working entirely out of custom courses
+        -- showed a blank dashboard.
+        (SELECT AVG(score) FROM (
+           SELECT score FROM test_results WHERE user_id = u.id
+           UNION ALL
+           SELECT score FROM custom_quiz_results WHERE user_id = u.id
+         )) as avgScore,
         (SELECT MAX(created_at) FROM activity_log WHERE user_id = u.id) as lastActive,
         (SELECT (html_structure + css_reading + devtools + console_errors + bug_report_quality) / 5.0
          FROM baseline_survey WHERE user_id = u.id) as baselineAvg
@@ -281,15 +289,12 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
         c.title as course_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
-      -- 'course_completed' reuses the lecture_id column to stash a
-      -- custom_courses id instead — a separate id space from lectures (see
-      -- POST /api/courses/time-track) — so each join is scoped to the
-      -- actions that actually populate it that way; without the a.action
-      -- guard here too, a course_completed row could coincidentally join a
-      -- same-numbered lecture and show the wrong title alongside the right
-      -- course_title.
-      LEFT JOIN lectures l ON a.lecture_id = l.id AND a.action != 'course_completed'
-      LEFT JOIN custom_courses c ON a.action = 'course_completed' AND a.lecture_id = c.id
+      -- Two id spaces, two columns. 'course_completed' used to overload
+      -- lecture_id for a custom_courses id, which needed an a.action guard
+      -- on both joins to stop a same-numbered lecture showing the wrong
+      -- title — and violated lecture_id's foreign key besides.
+      LEFT JOIN lectures l ON a.lecture_id = l.id
+      LEFT JOIN custom_courses c ON a.course_id = c.id
       ${where}
       ORDER BY a.created_at DESC
       LIMIT ? OFFSET ?
@@ -319,8 +324,8 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
         c.title as course_title
       FROM activity_log a
       JOIN users u ON a.user_id = u.id
-      LEFT JOIN lectures l ON a.lecture_id = l.id AND a.action != 'course_completed'
-      LEFT JOIN custom_courses c ON a.action = 'course_completed' AND a.lecture_id = c.id
+      LEFT JOIN lectures l ON a.lecture_id = l.id
+      LEFT JOIN custom_courses c ON a.course_id = c.id
       WHERE a.user_id = ?
       ORDER BY a.created_at DESC
       LIMIT ? OFFSET ?

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { authApi } from '../api';
 import { setAccessToken } from '../auth';
 import Modal from './Modal';
+import { ERROR } from '../utils/theme';
 
 interface Props {
   forced?: boolean;
@@ -90,7 +91,7 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
               minLength={8}
             />
           </div>
-          {error && <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{error}</p>}
+          {error && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{error}</p>}
           <div className="flex items-center gap-2 pt-2">
             <button
               type="submit"

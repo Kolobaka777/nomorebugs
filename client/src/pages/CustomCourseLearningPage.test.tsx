@@ -1,11 +1,9 @@
 // Where a custom course is actually consumed: lessons, notes, and the
-// completion write-up. It fetches the course through authFetch and the notes
-// through the api module, so both are stubbed.
+// completion write-up.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import CustomCourseLearningPage from './CustomCourseLearningPage';
-import { authFetch } from '../auth';
-import { testerApi } from '../api';
+import { testerApi, coursesApi } from '../api';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -13,13 +11,15 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate, useParams: () => ({ id: '3' }) };
 });
 vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="nav" /> }));
-vi.mock('../auth', () => ({ authFetch: vi.fn() }));
 vi.mock('../api', () => ({
   testerApi: { getNotes: vi.fn(), addNote: vi.fn(), deleteNote: vi.fn() },
+  coursesApi: {
+    get: vi.fn(), completeLesson: vi.fn(), trackTime: vi.fn(),
+    submitQuiz: vi.fn(), getExplanation: vi.fn(), myResult: vi.fn(),
+  },
 }));
 
 const user = { id: 2, name: 'Nazariy', role: 'tester' };
-const respond = (body: any) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as any);
 
 const course = (o = {}) => ({
   id: 3, title: 'Основы вёрстки', description: '', tag: 'Custom', color: '#66FCF1',
@@ -33,7 +33,7 @@ const course = (o = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(testerApi.getNotes).mockResolvedValue({ data: [] } as any);
-  vi.mocked(authFetch).mockImplementation(() => respond(course()));
+  vi.mocked(coursesApi.get).mockResolvedValue({ data: course() } as any);
 });
 
 const renderPage = () => render(<CustomCourseLearningPage user={user} onLogout={vi.fn()} />);
@@ -45,13 +45,13 @@ describe('CustomCourseLearningPage', () => {
   });
 
   it('offers a retry when the course could not be fetched', async () => {
-    vi.mocked(authFetch).mockRejectedValue(new Error('offline'));
+    vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderPage();
     expect(await screen.findByText(/Не удалось загрузить курс/)).toBeInTheDocument();
   });
 
-  it('says the course is missing when the server answers with an error, without offering a pointless retry', async () => {
-    vi.mocked(authFetch).mockImplementation(() => respond({ error: 'Не найдено' }));
+  it('says the course is missing when the server answers 404, without offering a pointless retry', async () => {
+    vi.mocked(coursesApi.get).mockRejectedValue({ response: { status: 404, data: { error: 'Не найдено' } } });
     renderPage();
     expect(await screen.findByText('Курс не найден')).toBeInTheDocument();
   });
@@ -63,14 +63,14 @@ describe('CustomCourseLearningPage', () => {
   });
 
   it('marks a lesson that is already done as done', async () => {
-    vi.mocked(authFetch).mockImplementation(() => respond(course({
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
       modules: [{
         id: 1, title: 'Модуль 1', order_num: 0,
         lessons: [{ id: 10, title: 'Пройденный урок', type: 'lesson', content: 'x', completed: true, locked: false, prerequisite_type: 'none' }],
       }],
-    })));
+    }) } as any);
     renderPage();
     await screen.findAllByText('Пройденный урок');
-    await waitFor(() => expect(authFetch).toHaveBeenCalled());
+    await waitFor(() => expect(coursesApi.get).toHaveBeenCalled());
   });
 });

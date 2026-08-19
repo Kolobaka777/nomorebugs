@@ -13,7 +13,16 @@ import { PREMIUM_POINT_MAX } from './coins';
 export interface HowToItem {
   id: string;
   icon: IconName;
+  // Two forms of the same thing, for two different places. `title` heads a
+  // card on the Help page's "что тут можно делать" list, where an imperative
+  // is right — it's a list of capabilities. `question` is what the mascot's
+  // chat shows on a button, and there the label is posted as the person's
+  // own line in the conversation: a button reading «Начисляй премии» made
+  // them order the frog about instead of asking it something. Everything the
+  // chat offers is phrased as a question, whether it came from here or from
+  // the FAQ, so one list doesn't read in two grammatical moods.
   title: string;
+  question: string;
   body: string;
 }
 
@@ -34,54 +43,63 @@ export const TESTER_HOW_TO: HowToItem[] = [
     id: 'courses',
     icon: 'graduation',
     title: 'Проходи курсы',
+    question: 'Как устроено обучение?',
     body: 'Лекции идут по порядку, следующая открывается после сданного теста (60% и выше). Пересдавать можно сколько угодно: сохраняется лучший результат, прогресс по остальным урокам не сбрасывается.',
   },
   {
     id: 'propose-course',
     icon: 'sparkle',
     title: 'Предложи свой курс',
+    question: 'Как предложить свой курс?',
     body: '«Курсы» → «Создать курс». Курс уйдёт лиду на проверку и после одобрения опубликуется под твоим именем — как и любой курс от лида.',
   },
   {
     id: 'bagodelnya',
     icon: 'bug',
     title: 'Пополняй Багодельню',
+    question: 'Как добавить пример бага или термин?',
     body: 'Свой пример бага «как плохо / как хорошо» или термин в глоссарий. Тоже через проверку лида, после неё материал видит вся команда.',
   },
   {
     id: 'guides',
     icon: 'books',
     title: 'Пиши гайды',
+    question: 'Как написать гайд?',
     body: 'Раздел «Гайды» — редактор с заголовками, списками, блоками кода и картинками. Свой гайд предлагается на проверку так же, как курс.',
   },
   {
     id: 'coins',
     icon: 'card',
     title: 'Зарабатывай баг-коины',
+    question: 'Как заработать баг-коины?',
     body: 'Копятся сами: за сданные тесты, пройденные целиком курсы и за каждый одобренный материал. Тратятся в Багодельне на рамки, фоны и аватарки — на обучение не влияют никак.',
   },
   {
     id: 'cards',
     icon: 'trophy',
     title: 'Собирай карточки и бейджи',
+    question: 'Откуда берутся карточки и бейджи?',
     body: 'За сданную лекцию падает карточка, редкость зависит от балла. Собрал все карточки по теме — из них крафтится бейдж. Отдельно есть ачивки за поступки вроде первого одобренного материала.',
   },
   {
     id: 'profile',
     icon: 'user',
     title: 'Обустрой профиль',
+    question: 'Что можно настроить в профиле?',
     body: 'Ник, статус-цитата, специализация, инфобокс, лягушачья шутка. Аватар можно загрузить свой и выложить в общую галерею, а рамку, фон и акцентный цвет — купить в Багодельне. Профиль можно открыть для всех или держать закрытым.',
   },
   {
     id: 'suggestions',
     icon: 'memo',
     title: 'Кидай идеи и жалобы',
+    question: 'Куда писать идеи и жалобы?',
     body: 'Доска «Идеи»: своё предложение, лайк чужому. Лид правда читает — это не ящик в никуда.',
   },
   {
     id: 'premium',
     icon: 'star',
     title: 'Премиальные баллы',
+    question: 'Что такое премиальные баллы?',
     body: 'Отдельная от баг-коинов история: их начисляет лид вручную за заметный вклад, с причиной, и видно их в профиле. Косметику на них не купить — они про признание.',
   },
 ];
@@ -91,36 +109,42 @@ export const LEAD_HOW_TO: HowToItem[] = [
     id: 'build-courses',
     icon: 'sparkle',
     title: 'Собирай курсы',
+    question: 'Как устроены модули, уроки и пререквизиты?',
     body: 'Модули, уроки и тесты, у каждого урока — тип и пререквизит: нет / рекомендация (не блокирует) / обязательно (блокирует до прохождения). Правки не сбрасывают чужой прогресс.',
   },
   {
     id: 'review-queue',
     icon: 'clipboard',
     title: 'Разбирай очередь предложений',
+    question: 'Как разбирать заявки от команды?',
     body: 'Курсы, гайды, примеры багов и термины от команды приходят на проверку. Одобрение публикует материал под именем автора, шлёт ему уведомление и начисляет баг-коины — суммы в блоке ниже.',
   },
   {
     id: 'team',
     icon: 'barchart',
     title: 'Следи за командой',
+    question: 'Что видно на странице «Команда»?',
     body: '«Команда»: прогресс по курсам у каждого, аналитика по лекциям (средний балл и процент сдачи — видно, где команде тяжелее всего), рейтинг и лента активности.',
   },
   {
     id: 'bonuses',
     icon: 'star',
     title: 'Начисляй премии',
+    question: 'Как начислить премию?',
     body: `«Команда» → карточка человека → «Премия». От 1 до ${PREMIUM_POINT_MAX} баллов с обязательной причиной; человек увидит и сумму, и текст. Рекомендуемая шкала — в блоке ниже.`,
   },
   {
     id: 'permissions',
     icon: 'key',
     title: 'Выдавай права',
+    question: 'Как выдать права без смены роли?',
     body: 'Багодельня, Курсы, Гайды — точечные права, которые можно дать тестировщику без смены роли. Он получит и редактирование нужного раздела, и очередь заявок по нему.',
   },
   {
     id: 'deadlines',
     icon: 'calendar',
     title: 'Ставь персональные дедлайны',
+    question: 'Как продлить дедлайн одному человеку?',
     body: 'Если человек был в отпуске — индивидуальное продление по конкретному курсу, вместо сдвига дедлайна для всей команды.',
   },
 ];
@@ -271,7 +295,7 @@ export function chatTopicsFor(role: string): ChatTopic[] {
       .map((ref): ChatAnswer | null => {
         if ('how' in ref) {
           const item = how.find(h => h.id === ref.how);
-          return item ? { id: item.id, label: item.title, text: item.body } : null;
+          return item ? { id: item.id, label: item.question, text: item.body } : null;
         }
         const item = faq.find(f => f.id === ref.faq);
         return item ? { id: item.id, label: item.q, text: item.a } : null;

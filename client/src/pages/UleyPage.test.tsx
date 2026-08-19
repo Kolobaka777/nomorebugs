@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import UleyPage from './UleyPage';
-import { leadApi, permissionsApi, presenceApi, adminApi } from '../api';
+import { leadApi, permissionsApi, presenceApi } from '../api';
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();

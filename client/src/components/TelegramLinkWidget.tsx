@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
 import { showApiError } from '../utils/toast';
 import Icon from './Icon';
+import { ERROR } from '../utils/theme';
 
 type Status =
   | { phase: 'loading' }
@@ -111,7 +112,7 @@ export default function TelegramLinkWidget() {
       )}
 
       {(status.phase === 'expired' || status.phase === 'error') && (
-        <button onClick={startLink} className="cursor-pointer" style={{ color: '#e05252' }}>
+        <button onClick={startLink} className="cursor-pointer" style={{ color: ERROR }}>
           {status.phase === 'expired' ? 'Ссылка устарела — попробовать снова' : 'Ошибка — попробовать снова'}
         </button>
       )}

@@ -113,9 +113,31 @@ router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
       questionsByLesson.get(q.lesson_id).push(q);
     }
 
+    // Someone taking the course must not be handed the answer key. Only a
+    // person who can edit this course keeps correct_idx/explanation in the
+    // payload — everyone else gets them one question at a time, after
+    // answering, from the explanation route below. Mirrors how the seeded
+    // lecture track has always done it (GET /api/lectures/:id/questions).
+    const canSeeAnswers = canManageCourse(course, req.user);
+
+    // Their own best attempt per quiz lesson, so the page can show a score
+    // it did not invent and the result screen can agree with the database.
+    const myResults = lessonIds.length
+      ? db.prepare(
+          `SELECT lesson_id, score, correct_count, total_count, attempts FROM custom_quiz_results
+           WHERE user_id = ? AND lesson_id IN (${lessonIds.map(() => '?').join(',')})`
+        ).all(req.user.id, ...lessonIds)
+      : [];
+    const resultByLesson = new Map(myResults.map(r => [r.lesson_id, r]));
+
     const lessonsByModule = new Map();
     for (const lesson of allLessons) {
-      if (lesson.type === 'quiz') lesson.questions = questionsByLesson.get(lesson.id) || [];
+      if (lesson.type === 'quiz') {
+        lesson.questions = (questionsByLesson.get(lesson.id) || []).map(q =>
+          canSeeAnswers ? q : (({ correct_idx, explanation, ...rest }) => rest)(q)
+        );
+        lesson.myResult = resultByLesson.get(lesson.id) || null;
+      }
       lesson.completed = completedIds.has(lesson.id);
       // Only a 'mandatory' prerequisite can lock access — 'optional' is a
       // non-blocking recommendation (e.g. unverifiable external reading),
@@ -193,6 +215,22 @@ router.post('/api/custom-lessons/:id/complete', authMiddleware, (req, res) => {
       }
     }
 
+    // A quiz lesson is finished by answering it, not by saying so. Without
+    // this, a single POST marked any test complete — which then counted
+    // towards the whole course being finished, and towards its coins.
+    //
+    // Passing is deliberately still not required (a failed attempt lets you
+    // move on and retake later, same as the lecture track); having actually
+    // attempted it is.
+    if (lesson.type === 'quiz') {
+      const questionCount = db.prepare('SELECT COUNT(*) c FROM custom_quiz_questions WHERE lesson_id = ?').get(lesson.id).c;
+      if (questionCount > 0) {
+        const attempted = db.prepare('SELECT 1 FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
+          .get(req.user.id, lesson.id);
+        if (!attempted) return res.status(400).json({ error: 'Сначала нужно пройти тест' });
+      }
+    }
+
     db.prepare(
       'INSERT OR IGNORE INTO custom_lesson_progress (user_id, lesson_id) VALUES (?, ?)'
     ).run(req.user.id, lesson.id);
@@ -203,6 +241,135 @@ router.post('/api/custom-lessons/:id/complete', authMiddleware, (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Grading, on the server, from the server's own copy of the answers.
+//
+// The score used to be computed in the browser and never sent anywhere: the
+// completion coins, the pass/fail screen and the lead's analytics all rested
+// on a number nobody had checked, and a course built in the builder produced
+// no data at all. This is the same shape the seeded lecture track has always
+// used (POST /api/lectures/:id/submit-test).
+//
+// `answers` is { questionId: optionIndex }. Keyed by id rather than by
+// position so a course edited between loading and submitting can't silently
+// grade someone against a different question than the one they read.
+router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) => {
+  try {
+    const lesson = db.prepare('SELECT * FROM custom_lessons WHERE id = ?').get(req.params.id);
+    if (!lesson) return res.status(404).json({ error: 'Урок не найден' });
+    if (lesson.type !== 'quiz') return res.status(400).json({ error: 'Это не тест' });
+
+    const { answers } = req.body;
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'Нужны ответы' });
+    }
+
+    const questions = db.prepare(
+      'SELECT id, correct_idx, explanation FROM custom_quiz_questions WHERE lesson_id = ? ORDER BY order_num'
+    ).all(lesson.id);
+    if (questions.length === 0) return res.status(400).json({ error: 'В тесте нет вопросов' });
+
+    let correct = 0;
+    const breakdown = questions.map(q => {
+      const given = answers[String(q.id)];
+      const isCorrect = Number.isInteger(given) && given === q.correct_idx;
+      if (isCorrect) correct++;
+      return { id: q.id, chosen: Number.isInteger(given) ? given : null, correct_idx: q.correct_idx, isCorrect, explanation: q.explanation || '' };
+    });
+    const score = Math.round((correct / questions.length) * 100);
+
+    // Best attempt wins, and the attempt counter keeps climbing — same rule
+    // the courses page promises ("пересдавать можно сколько угодно,
+    // сохраняется лучший результат").
+    db.prepare(`
+      INSERT INTO custom_quiz_results (user_id, lesson_id, score, correct_count, total_count, attempts)
+      VALUES (?, ?, ?, ?, ?, 1)
+      ON CONFLICT(user_id, lesson_id) DO UPDATE SET
+        attempts = attempts + 1,
+        score = MAX(score, excluded.score),
+        correct_count = CASE WHEN excluded.score > score THEN excluded.correct_count ELSE correct_count END,
+        total_count = excluded.total_count,
+        completed_at = CURRENT_TIMESTAMP
+    `).run(req.user.id, lesson.id, score, correct, questions.length);
+
+    const stored = db.prepare('SELECT score, correct_count, total_count, attempts FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
+      .get(req.user.id, lesson.id);
+
+    res.json({ score, correct, total: questions.length, breakdown, best: stored });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// The per-question reveal, fetched only after an answer is picked — the
+// counterpart of the seeded track's
+// GET /api/lectures/:id/question/:qid/explanation. It exists so the taker
+// gets immediate feedback without the whole answer key being sitting in the
+// page source from the moment the course loads.
+router.get('/api/custom-lessons/:lessonId/question/:questionId/explanation', authMiddleware, (req, res) => {
+  try {
+    const q = db.prepare(
+      'SELECT * FROM custom_quiz_questions WHERE id = ? AND lesson_id = ?'
+    ).get(req.params.questionId, req.params.lessonId);
+    if (!q) return res.status(404).json({ error: 'Вопрос не найден' });
+
+    const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+    res.json({
+      correct_idx: q.correct_idx,
+      correctOption: options[q.correct_idx] ?? '',
+      explanation: q.explanation || '',
+    });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Everything the result screen needs, computed from stored attempts rather
+// than from whatever the browser happens to remember. `score` is null for a
+// course with nothing gradable in it, which the client renders as a plain
+// "finished" rather than as a fabricated 0% or 100%.
+router.get('/api/custom-courses/:id/my-result', authMiddleware, (req, res) => {
+  try {
+    const course = db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Не найдено' });
+    res.json(courseResultFor(req.user.id, course.id));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Shared by the route above and by the coin award in time-track below, so
+// "did they pass" can never mean two different things in two places.
+export const COURSE_PASS_SCORE = 60;
+
+function courseResultFor(userId, courseId) {
+  const rows = db.prepare(`
+    SELECT l.id, m.title as module_title, r.score
+    FROM custom_lessons l
+    JOIN custom_modules m ON m.id = l.module_id
+    LEFT JOIN custom_quiz_results r ON r.lesson_id = l.id AND r.user_id = ?
+    WHERE m.course_id = ? AND l.type = 'quiz'
+      AND EXISTS (SELECT 1 FROM custom_quiz_questions q WHERE q.lesson_id = l.id)
+  `).all(userId, courseId);
+
+  const graded = rows.filter(r => r.score !== null);
+  const score = graded.length
+    ? Math.round(graded.reduce((a, r) => a + r.score, 0) / graded.length)
+    : null;
+
+  return {
+    score,
+    passed: score === null ? true : score >= COURSE_PASS_SCORE,
+    gradedCount: graded.length,
+    quizCount: rows.length,
+    // Modules whose quiz was failed — what the result screen offers to
+    // re-read. Deduplicated, since a module can hold more than one quiz.
+    weakModules: [...new Set(graded.filter(r => r.score < COURSE_PASS_SCORE).map(r => r.module_title))],
+  };
+}
 
 // Inserts modules/lessons/questions for a course and resolves 'mandatory'
 // prerequisite references. The client can only know a lesson's real DB id
@@ -725,6 +892,12 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
       ).get(userId, ...lessonIds).c
       : 0;
     const reallyFinished = lessonIds.length > 0 && doneCount === lessonIds.length;
+    // ...and finishing it means passing it. The result screen already says
+    // «Результат не засчитан» on a failed course; it used to pay the 50
+    // coins anyway. A course with nothing gradable in it passes by default
+    // (courseResultFor returns passed: true for score === null), so a
+    // reading-only course still rewards finishing it.
+    const passed = courseResultFor(userId, course_id).passed;
 
     db.transaction(() => {
       db.prepare(`
@@ -734,9 +907,9 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
           seconds_spent = excluded.seconds_spent,
           completed_at = excluded.completed_at
       `).run(userId, course_id, clampedSeconds);
-      db.prepare('INSERT INTO activity_log (user_id, action, lecture_id) VALUES (?, ?, ?)')
+      db.prepare('INSERT INTO activity_log (user_id, action, course_id) VALUES (?, ?, ?)')
         .run(userId, 'course_completed', course_id);
-      if (!alreadyTracked && reallyFinished) awardCoins(userId, COIN_REWARDS.courseCompleted);
+      if (!alreadyTracked && reallyFinished && passed) awardCoins(userId, COIN_REWARDS.courseCompleted);
     })();
     res.json({ ok: true });
   } catch (err) {

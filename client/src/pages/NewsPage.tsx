@@ -9,7 +9,7 @@ import { formatTeamEvent } from '../utils/activity';
 import { timeAgo } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { EVENT_ICON } from '../utils/newsIcons';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, ACCENT, TEXT_PRIMARY, TEXT_MUTED, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, ACCENT, TEXT_PRIMARY, TEXT_MUTED, CARD_SHADOW, TRACK_WIDE, ERROR } from '../utils/theme';
 
 const MAX_ANNOUNCEMENT_LENGTH = 1000;
 
@@ -128,12 +128,12 @@ export default function NewsPage({ user, onLogout }: Props) {
                     {posting ? '...' : 'Опубликовать'}
                   </button>
                 </div>
-                {postError && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{postError}</p>}
+                {postError && <p className="text-xs font-geist mt-2 break-words" style={{ color: ERROR }}>{postError}</p>}
               </div>
             )}
 
             {loading && <FrogLoader />}
-            {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
+            {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: ERROR }}>{loadError}</p>}
             {!loading && !loadError && news.length === 0 && (
               <p className="font-geist text-sm text-center py-10" style={{ color: TEXT_MUTED }}>Пока новостей нет.</p>
             )}

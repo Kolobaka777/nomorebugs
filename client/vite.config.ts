@@ -30,5 +30,32 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Until this existed, "669 tests" was a count of tests and told nobody
+    // what fraction of the code ever runs. The thresholds are set at
+    // roughly where the suite already stands, so they hold the line rather
+    // than failing the build on day one — raise them as coverage grows.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        // Hand-authored pixel-art and icon path data: thousands of lines of
+        // static shapes with no branches to exercise.
+        'src/components/Pixel*.tsx',
+        'src/components/Icon.tsx',
+        'src/assets/**',
+      ],
+      // A ratchet, not an aspiration: set just under where the suite
+      // actually stands (measured 48.4 / 35.2 / 44.4 / 45.6), so a change
+      // that drops coverage fails the build while today's number passes. A
+      // threshold that fails on the day it lands gets deleted instead of
+      // met. Raise these as coverage climbs — the client is the weak half;
+      // the server sits near 80%.
+      thresholds: { lines: 47, functions: 34, branches: 43, statements: 44 },
+    },
   },
 })

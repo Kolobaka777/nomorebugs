@@ -5,15 +5,13 @@ import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { resultText } from '../utils/courseResult';
 import { LockIcon, CheckCircleIcon, PagesIcon, BookOpenIcon } from '../components/CatalogIcons';
-import { API_BASE_URL as API } from '../config';
-import { authFetch } from '../auth';
-import { testerApi } from '../api';
+import { testerApi, coursesApi } from '../api';
 import { CourseNote } from '../types';
 import { useEscapeKey } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
@@ -34,7 +32,7 @@ function LessonContentFallback() {
 // elsewhere for "fresh/positive" state (ZhukademiPage's NEW_BADGE_COLOR) and
 // the red already used throughout this file for wrong-answer states.
 const RESULT_PASS_COLOR = '#4ADE80';
-const RESULT_FAIL_COLOR = '#e05252';
+const RESULT_FAIL_COLOR = ERROR;
 
 interface Props {
   user: any;
@@ -68,16 +66,30 @@ function LessonContent({ content }: { content: string }) {
 
 // ─── Quiz view ────────────────────────────────────────────────────────────────
 
+// `answers` is what the person picked, by question index — the UI's own
+// bookkeeping. Everything about *correctness* comes from the server:
+// `reveal` is filled one question at a time as they answer, `breakdown`
+// arrives with the graded submission. The questions themselves no longer
+// carry correct_idx/explanation at all (see routes/courses.js), so there is
+// nothing here to read the answer key out of.
+interface Reveal { correct_idx: number; explanation: string }
+
 interface QuizState {
   answers: Record<number, number>;
+  reveal: Record<number, Reveal>;
   submitted: boolean;
   score: number;
+  breakdown: Record<number, { correct_idx: number; isCorrect: boolean; explanation: string }>;
+  error: string;
 }
+
+const emptyQuizState = (): QuizState => ({ answers: {}, reveal: {}, submitted: false, score: 0, breakdown: {}, error: '' });
 
 function CustomQuizView({
   lesson,
   quizState,
   onAnswer,
+  onCheck,
   onSubmit,
   onNext,
   isLastLesson,
@@ -86,7 +98,8 @@ function CustomQuizView({
   lesson: any;
   quizState: QuizState;
   onAnswer: (qi: number, oi: number) => void;
-  onSubmit: () => void;
+  onCheck: (qi: number) => Promise<void>;
+  onSubmit: () => Promise<boolean>;
   onNext: () => void;
   isLastLesson: boolean;
   color: string;
@@ -97,7 +110,7 @@ function CustomQuizView({
   // for free whenever the parent remounts this component via `key={lesson.id}`,
   // so switching quiz lessons never leaks state from the previous one.
   const [qIdx, setQIdx] = useState(0);
-  const [checkedIdxs, setCheckedIdxs] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
 
   if (questions.length === 0) {
     return (
@@ -111,7 +124,7 @@ function CustomQuizView({
     );
   }
 
-  const { submitted, score } = quizState;
+  const { submitted, score, breakdown } = quizState;
 
   // ── After the whole quiz is submitted: full recap, every question at
   // once with its result — this is a review of a finished attempt, not the
@@ -128,13 +141,14 @@ function CustomQuizView({
     return (
       <div>
         <p className="font-sans text-sm mb-8" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
-          Результат: {Math.round((score / 100) * questions.length)} из {questions.length} ({score}%)
+          Результат: {Object.values(breakdown).filter(b => b.isCorrect).length} из {questions.length} ({score}%)
         </p>
 
         <div className="space-y-8">
           {questions.map((q: any, qi: number) => {
             const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
             const chosen = quizState.answers[qi];
+            const verdict = breakdown[q.id];
 
             return (
               <div key={q.id ?? qi}>
@@ -145,8 +159,8 @@ function CustomQuizView({
                 <div className="space-y-2">
                   {opts.map((opt: string, oi: number) => {
                     const isChosen = chosen === oi;
-                    const isCorrectOpt = oi === q.correct_idx;
-                    const isWrongChosen = isChosen && oi !== q.correct_idx;
+                    const isCorrectOpt = oi === verdict?.correct_idx;
+                    const isWrongChosen = isChosen && oi !== verdict?.correct_idx;
 
                     let bg = 'rgba(197, 198, 199,0.04)';
                     let border = 'rgba(197, 198, 199,0.1)';
@@ -161,7 +175,7 @@ function CustomQuizView({
                         className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3"
                         style={{ background: bg, border: `1px solid ${border}`, color: textColor }}
                       >
-                        <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? '#e05252' : textColor }}>
+                        <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? ERROR : textColor }}>
                           {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
                         </span>
                         <span className="break-words min-w-0">{opt}</span>
@@ -169,9 +183,9 @@ function CustomQuizView({
                     );
                   })}
                 </div>
-                {q.explanation && (
+                {verdict?.explanation && (
                   <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
-                    💬 {q.explanation}
+                    💬 {verdict.explanation}
                   </div>
                 )}
               </div>
@@ -194,9 +208,10 @@ function CustomQuizView({
   const q = questions[qIdx];
   const opts = [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean);
   const chosen = quizState.answers[qIdx];
-  const checked = checkedIdxs.has(qIdx);
+  const reveal = quizState.reveal[qIdx];
+  const checked = !!reveal;
   const isLastQuestion = qIdx === questions.length - 1;
-  const isCorrect = checked && chosen === q.correct_idx;
+  const isCorrect = checked && chosen === reveal.correct_idx;
 
   return (
     <div>
@@ -219,8 +234,8 @@ function CustomQuizView({
         <div className="space-y-3">
           {opts.map((opt: string, oi: number) => {
             const isChosen = chosen === oi;
-            const isCorrectOpt = checked && oi === q.correct_idx;
-            const isWrongChosen = checked && isChosen && oi !== q.correct_idx;
+            const isCorrectOpt = checked && oi === reveal.correct_idx;
+            const isWrongChosen = checked && isChosen && oi !== reveal.correct_idx;
 
             let bg = 'rgba(197, 198, 199,0.04)';
             let border = 'rgba(197, 198, 199,0.1)';
@@ -238,7 +253,7 @@ function CustomQuizView({
                 className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3 transition-all"
                 style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: checked ? 'default' : 'pointer' }}
               >
-                <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? '#e05252' : textColor }}>
+                <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? ERROR : textColor }}>
                   {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
                 </span>
                 <span className="break-words min-w-0">{opt}</span>
@@ -247,7 +262,7 @@ function CustomQuizView({
           })}
         </div>
 
-        {checked && q.explanation && (
+        {checked && reveal.explanation && (
           <div
             className="mt-6 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words"
             style={{
@@ -256,36 +271,43 @@ function CustomQuizView({
               color: 'rgba(197, 198, 199,0.75)',
             }}
           >
-            💬 {q.explanation}
+            💬 {reveal.explanation}
           </div>
+        )}
+
+        {quizState.error && (
+          <p role="alert" className="mt-6 text-xs font-geist break-words" style={{ color: ERROR }}>{quizState.error}</p>
         )}
 
         <div className="mt-8 flex justify-end">
           {!checked ? (
             <button
-              onClick={() => setCheckedIdxs(prev => new Set(prev).add(qIdx))}
-              disabled={chosen === undefined}
+              onClick={async () => { setBusy(true); await onCheck(qIdx); setBusy(false); }}
+              disabled={chosen === undefined || busy}
               className="px-8 py-3 rounded font-sans font-bold text-sm transition-all"
-              style={{ background: chosen !== undefined ? color : 'rgba(197, 198, 199,0.1)', color: chosen !== undefined ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: chosen !== undefined ? 'pointer' : 'not-allowed' }}
+              style={{ background: chosen !== undefined && !busy ? color : 'rgba(197, 198, 199,0.1)', color: chosen !== undefined && !busy ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: chosen !== undefined && !busy ? 'pointer' : 'not-allowed' }}
             >
-              Ответить
+              {busy ? '...' : 'Ответить'}
             </button>
           ) : (
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!isLastQuestion) { setQIdx(i => i + 1); return; }
-                onSubmit();
-                // This quiz is also the course's very last lesson — submitting
+                setBusy(true);
+                const ok = await onSubmit();
+                setBusy(false);
+                // This quiz is also the course's very last lesson — grading
                 // it already produces the course's final score, so there's
                 // nothing left to review here. Advance straight through to
                 // the pass/fail screen instead of stopping on an intermediate
                 // recap the user would just have to click past anyway.
-                if (isLastLesson) onNext();
+                if (ok && isLastLesson) onNext();
               }}
-              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110"
+              disabled={busy}
+              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110 disabled:opacity-60"
               style={{ background: color, color: '#0B0C10' }}
             >
-              {isLastQuestion ? 'Завершить тест' : <>Следующий вопрос <Icon name="arrowRight" size={22} color="currentColor" /></>}
+              {busy ? '...' : isLastQuestion ? 'Завершить тест' : <>Следующий вопрос <Icon name="arrowRight" size={22} color="currentColor" /></>}
             </button>
           )}
         </div>
@@ -549,10 +571,14 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const loadCourse = () => {
     setLoading(true);
     setLoadError(false);
-    authFetch(`${API}/custom-courses/${id}`)
-      .then(r => r.json())
-      .then(data => { if (!data.error) setCourse(data); })
-      .catch(() => setLoadError(true))
+    coursesApi.get(id!)
+      .then(r => setCourse(r.data))
+      .catch((err: any) => {
+        // Same distinction as the course's landing page: "not there" wants
+        // a way back, "did not arrive" wants a retry.
+        const status = err?.response?.status;
+        if (status !== 404 && status !== 403) setLoadError(true);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -589,16 +615,18 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showCompleted, setShowCompleted] = useState(false);
+  // The graded result, straight from the server. Refetched every time the
+  // finish screen opens, so a retake shows the new number rather than a
+  // stale one from the first pass through.
+  const [serverResult, setServerResult] = useState<{ score: number | null; passed: boolean; weakModules: string[] } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState<CourseNote[]>([]);
   const [quizStates, setQuizStates] = useState<Record<number, any>>({});
-  // Keyed the same way as quizStates (global lesson index, not lesson id) —
-  // feeds the course-result screen's aggregate percentage once the course
-  // is finished. A quiz lesson can only ever be marked complete *after*
-  // it's been submitted (see CustomQuizView: markComplete is only reachable
-  // once submitted is true), so every quiz-type lesson that ends up in
-  // completedLessons is guaranteed to have a matching entry here.
-  const [quizScores, setQuizScores] = useState<Record<number, number>>({});
+  // submitQuiz needs whatever the answers are *at the moment it fires*, and
+  // it must not be re-created every time one changes (it is passed down as a
+  // callback). A ref mirror is the smallest thing that gives it both.
+  const quizStatesRef = useRef<Record<number, any>>({});
+  quizStatesRef.current = quizStates;
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   // Below the lg breakpoint the module/lesson list collapses into this
   // toggle instead of eating a fixed-width column — on a phone a 256px
@@ -626,11 +654,60 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   // after them on the first (loading) render but not on later renders, which
   // previously crashed the component with "Rendered more hooks than during
   // the previous render."
+  const patchQuiz = useCallback((idx: number, patch: (st: QuizState) => Partial<QuizState>) => {
+    setQuizStates(prev => {
+      const st: QuizState = prev[idx] || emptyQuizState();
+      return { ...prev, [idx]: { ...st, ...patch(st) } };
+    });
+  }, []);
+
+  // Reveals one question's answer, from the server. The questions in the
+  // payload deliberately no longer carry correct_idx, so this round trip is
+  // what makes immediate feedback possible without shipping the answer key
+  // to the browser — the same trade the seeded lecture track already makes.
+  const checkAnswer = useCallback(async (idx: number, lesson: any, qi: number) => {
+    const question = (lesson.questions || [])[qi];
+    if (!question) return;
+    try {
+      const res = await coursesApi.getExplanation(lesson.id, question.id);
+      patchQuiz(idx, st => ({
+        reveal: { ...st.reveal, [qi]: { correct_idx: res.data.correct_idx, explanation: res.data.explanation || '' } },
+        error: '',
+      }));
+    } catch (e: any) {
+      patchQuiz(idx, () => ({ error: e?.response?.data?.error || 'Не удалось проверить ответ. Попробуй ещё раз.' }));
+    }
+  }, [patchQuiz]);
+
+  // Grades the whole attempt server-side and keeps what comes back. Returns
+  // whether it landed, so the caller knows not to advance on a failure.
+  const submitQuiz = useCallback(async (idx: number, lesson: any): Promise<boolean> => {
+    const questions = lesson.questions || [];
+    const state: QuizState = quizStatesRef.current[idx] || emptyQuizState();
+    // Keyed by question id, not position — the server grades by id so a
+    // course edited mid-attempt can't mark someone against another question.
+    const byId: Record<number, number> = {};
+    questions.forEach((q: any, qi: number) => {
+      if (state.answers[qi] !== undefined) byId[q.id] = state.answers[qi];
+    });
+    try {
+      const res = await coursesApi.submitQuiz(lesson.id, byId);
+      const breakdown: QuizState['breakdown'] = {};
+      for (const b of res.data.breakdown) {
+        breakdown[b.id] = { correct_idx: b.correct_idx, isCorrect: b.isCorrect, explanation: b.explanation || '' };
+      }
+      patchQuiz(idx, () => ({ submitted: true, score: res.data.score, breakdown, error: '' }));
+      return true;
+    } catch (e: any) {
+      patchQuiz(idx, () => ({ error: e?.response?.data?.error || 'Не удалось отправить ответы. Попробуй ещё раз.' }));
+      return false;
+    }
+  }, [patchQuiz]);
+
   const markComplete = useCallback(async (lessonId: number) => {
     setCompleteError(false);
     try {
-      const res = await authFetch(`${API}/custom-lessons/${lessonId}/complete`, { method: 'POST' });
-      if (!res.ok) { setCompleteError(true); return; }
+      await coursesApi.completeLesson(lessonId);
     } catch {
       setCompleteError(true);
       return;
@@ -640,7 +717,20 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     setCompletedLessons(next);
     if (currentIdx === allLessons.length - 1) {
       const totalSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
-      authFetch(`${API}/courses/time-track`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: parseInt(id || '0'), seconds_spent: totalSeconds }) }).catch(() => {});
+      // Time-tracking is also what awards the course's coins server-side, so
+      // the graded result is only read *after* it lands — otherwise the
+      // screen could show a pass while the award had not been decided yet.
+      try {
+        await coursesApi.trackTime(parseInt(id || '0'), totalSeconds);
+      } catch { /* the engagement metric is not worth blocking the screen */ }
+      try {
+        const res = await coursesApi.myResult(id || '');
+        setServerResult(res.data);
+      } catch {
+        // No result means no verdict to show — the screen falls back to the
+        // "finished, nothing graded" rendering rather than inventing a score.
+        setServerResult(null);
+      }
       setShowCompleted(true);
     } else {
       setCurrentIdx(i => i + 1);
@@ -691,41 +781,20 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     return completedLessons.has(lesson.prerequisite_lesson_id);
   };
 
-  // Course-level result (drives the pass/fail screen once showCompleted is
-  // true) — average of every completed quiz-type lesson's score. Only
-  // *completed* quizzes count, so a quiz that was reachable but skipped via
-  // an optional prerequisite doesn't drag the average down for a lesson the
-  // user never actually took. `null` means the course had no gradable
-  // quizzes at all (pure reading material), which keeps the plain "Курс
-  // завершён!" screen instead of fabricating a percentage.
+  // Course-level result. This used to be averaged in the browser out of
+  // quiz scores the browser had also computed for itself, which meant the
+  // pass/fail screen, the completion coins and the lead's dashboard could
+  // all disagree with each other and with the truth. The server now grades
+  // every attempt and stores it (custom_quiz_results), so this is a read of
+  // that, not a second opinion — see GET /api/custom-courses/:id/my-result.
+  //
+  // `null` score means the course has nothing gradable in it (pure reading
+  // material), which the result screen renders as a plain pass rather than
+  // fabricating a percentage.
   const modules = course.modules || [];
-  const quizLessonEntries = allLessons
-    .map((l, i) => ({ lesson: l, idx: i }))
-    .filter(({ lesson }) => lesson.type === 'quiz');
-  const completedQuizScores = quizLessonEntries
-    .filter(({ lesson }) => completedLessons.has(lesson.id))
-    .map(({ idx }) => quizScores[idx])
-    .filter((s): s is number => typeof s === 'number');
-  const courseScore = completedQuizScores.length > 0
-    ? Math.round(completedQuizScores.reduce((a, b) => a + b, 0) / completedQuizScores.length)
-    : null;
-  const coursePassed = courseScore === null ? true : courseScore >= 60;
-
-  // Modules containing a completed quiz scored below the pass threshold —
-  // what the fail screen recommends revisiting. Deduped, in course order.
-  const weakModuleTitles: string[] = [];
-  if (courseScore !== null && !coursePassed) {
-    let gi = 0;
-    for (const mod of modules) {
-      const modLessons = mod.lessons || [];
-      const hasWeakQuiz = modLessons.some((lesson: any, li: number) => {
-        const globalIdx = gi + li;
-        return lesson.type === 'quiz' && completedLessons.has(lesson.id) && (quizScores[globalIdx] ?? 100) < 60;
-      });
-      if (hasWeakQuiz && mod.title) weakModuleTitles.push(mod.title);
-      gi += modLessons.length;
-    }
-  }
+  const courseScore = serverResult?.score ?? null;
+  const coursePassed = serverResult?.passed ?? true;
+  const weakModuleTitles: string[] = serverResult?.weakModules || [];
 
   const jumpToModule = (moduleTitle: string) => {
     let gi = 0;
@@ -736,22 +805,21 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     }
   };
 
-  // "Пройти тест снова" — clears every recorded quiz answer/score for this
-  // session (not just the failed one) and drops the user back at the first
-  // quiz in the course. Lesson *completion* itself is left alone (it's the
-  // server-tracked progress gate — see markComplete — and passing was never
-  // required to advance past a quiz), so this only resets grading, not
-  // access.
+  // "Пройти тест снова" — clears this session's answers and drops the user
+  // back at the first quiz. Lesson *completion* is left alone: it is the
+  // server-tracked access gate, and passing has never been required to move
+  // past a quiz. The stored score is left alone too — the server keeps the
+  // best attempt, so a worse retake can't cost someone a result they already
+  // earned (same rule as the lecture track).
   const retryQuizzes = () => {
     setQuizStates({});
-    setQuizScores({});
-    const firstQuizIdx = quizLessonEntries[0]?.idx;
-    setCurrentIdx(firstQuizIdx ?? 0);
+    setServerResult(null);
+    const firstQuizIdx = allLessons.findIndex((l: any) => l.type === 'quiz');
+    setCurrentIdx(firstQuizIdx >= 0 ? firstQuizIdx : 0);
     setShowCompleted(false);
   };
 
   // Find module index for current lesson
-  let lessonGlobalIdx = 0;
   const currentModuleIdx = (() => {
     let gi = 0;
     for (let mi = 0; mi < (course.modules || []).length; mi++) {
@@ -811,7 +879,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
               return (
                 <div key={mod.id ?? mi} className="mb-1">
                   <button
-                    onClick={() => setExpandedModules(s => { const n = new Set(s); n.has(mi) ? n.delete(mi) : n.add(mi); return n; })}
+                    onClick={() => setExpandedModules(s => { const n = new Set(s); if (n.has(mi)) n.delete(mi); else n.add(mi); return n; })}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
                     style={{ background: isCurMod ? 'rgba(197, 198, 199,0.05)' : 'transparent' }}
                   >
@@ -861,7 +929,9 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
         )}
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* A section, not a <main>: App.tsx marks the routed view as
+            the page's main content, and there is only ever one of those. */}
+        <section className="flex-1 overflow-y-auto">
           {showCompleted ? (
             <CourseResultScreen
               course={course}
@@ -900,7 +970,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                   <LessonContent content={currentLesson.content} />
 
                   {completeError && (
-                    <p className="font-geist text-xs mt-4" style={{ color: '#e05252' }}>
+                    <p className="font-geist text-xs mt-4" style={{ color: ERROR }}>
                       Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
                     </p>
                   )}
@@ -926,16 +996,10 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                 <CustomQuizView
                   key={currentLesson.id}
                   lesson={currentLesson}
-                  quizState={quizStates[currentIdx] || { answers: {}, submitted: false, score: 0 }}
-                  onAnswer={(qi, oi) => setQuizStates(prev => ({ ...prev, [currentIdx]: { ...(prev[currentIdx] || { answers: {}, submitted: false, score: 0 }), answers: { ...(prev[currentIdx]?.answers || {}), [qi]: oi } } }))}
-                  onSubmit={() => {
-                    const qs = currentLesson.questions || [];
-                    const state = quizStates[currentIdx] || { answers: {}, submitted: false, score: 0 };
-                    const correct = qs.filter((q: any, qi: number) => state.answers[qi] === q.correct_idx).length;
-                    const score = qs.length ? Math.round((correct / qs.length) * 100) : 100;
-                    setQuizStates(prev => ({ ...prev, [currentIdx]: { ...state, submitted: true, score } }));
-                    setQuizScores(prev => ({ ...prev, [currentIdx]: score }));
-                  }}
+                  quizState={quizStates[currentIdx] || emptyQuizState()}
+                  onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}
+                  onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
+                  onSubmit={() => submitQuiz(currentIdx, currentLesson)}
                   onNext={() => markComplete(currentLesson.id)}
                   isLastLesson={isLastLesson}
                   color={color}
@@ -947,7 +1011,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
               <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок слева</p>
             </div>
           )}
-        </main>
+        </section>
 
         {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
         {user.role === 'lead' && (

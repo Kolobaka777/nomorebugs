@@ -32,6 +32,28 @@ export const NUM_DIM = 'rgba(138, 255, 245, 0.6)';
 export const ACCENT_DIM = 'rgba(102, 252, 241, 0.12)';
 export const ACCENT_BORDER = 'rgba(102, 252, 241, 0.4)';
 
+// ── Semantic colors ───────────────────────────────────────────────────────
+// These were the palette's biggest hole: the app has spoken in exactly these
+// four colors from the start, and not one of them lived here. `#e05252`
+// alone appeared 91 times across the components — the single most-repeated
+// literal in the codebase, and the one you would most want to change in one
+// place, since it is what every error in the product looks like.
+//
+// Semantic, not decorative: ERROR means "this went wrong", not "red". Keep
+// them distinct from ACCENT, which is identity rather than meaning.
+export const ERROR = '#e05252';
+export const ERROR_DIM = 'rgba(224, 82, 82, 0.1)';
+export const ERROR_BORDER = 'rgba(224, 82, 82, 0.4)';
+export const SUCCESS = '#4ADE80';
+export const WARNING = BADGE_NOTIFY;
+export const INFO = '#7F77DD';   // the "rare"/epic tier and the idea-board's own hue
+export const TELEGRAM = '#229ED9';
+
+// The muted-text color as an alpha wash over the page, for the several
+// places that want "primary text, dimmed" rather than the flat TEXT_MUTED.
+// Spelled out as rgba(197, 198, 199, …) in 283 places before this existed.
+export const softText = (alpha: number) => `rgba(197, 198, 199, ${alpha})`;
+
 // Surfaces.
 export const PAGE_GRADIENT = 'linear-gradient(180deg, #0B0C10 0%, rgba(31, 40, 51, 0.90) 100%)';
 export const CARD_SHADOW = '0 6px 12px 0 rgba(0, 0, 0, 0.25)';

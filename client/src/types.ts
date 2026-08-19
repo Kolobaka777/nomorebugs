@@ -122,9 +122,11 @@ export interface BlockProgress {
 // GET /api/avatars/gallery) — anyone can pick one as their own avatar_id:
 // 'custom' + custom_avatar. Distinct from a private upload, which never
 // appears here.
+// No `image` field: the listing carries ids only, and the bytes are fetched
+// per avatar (see utils/galleryImages.ts). Sending them inline meant up to
+// 2.8 MB per row in a single unpaginated response.
 export interface GalleryAvatar {
   id: number;
-  image: string;
   user_id: number;
   uploader_name: string;
 }

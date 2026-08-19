@@ -5,7 +5,7 @@ import { TIMEZONES, HOUR_OPTIONS } from '../../utils/timezones';
 import { PresenceEntry, LeaveType } from '../../types';
 import { WEEKDAY_LABELS, LEAVE_LABELS } from './constants';
 import Modal from '../Modal';
-import { ACCENT, TEXT_MUTED, BADGE_NOTIFY } from '../../utils/theme';
+import { ACCENT, TEXT_MUTED, BADGE_NOTIFY, ERROR } from '../../utils/theme';
 
 // Lets a lead configure a tester's working hours/status and schedule leave
 // — powers both the "работают сейчас" dots below and the team news feed's
@@ -134,7 +134,7 @@ export default function PresenceEditModal({
           </select>
         </div>
 
-        {error && <p className="font-geist text-xs break-words" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="font-geist text-xs break-words" style={{ color: ERROR }}>{error}</p>}
 
         <button onClick={saveHours} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
           {saving ? '...' : 'Сохранить'}
@@ -148,7 +148,7 @@ export default function PresenceEditModal({
               <p className="font-geist text-xs" style={{ color: BADGE_NOTIFY }}>
                 {LEAVE_LABELS[entry.currentLeave.type]}{entry.currentLeave.end_date ? ` до ${entry.currentLeave.end_date}` : ' (без даты окончания)'}
               </p>
-              <button onClick={cancelCurrentLeave} disabled={savingLeave} className="font-geist text-xs cursor-pointer shrink-0" style={{ color: '#e05252' }}>
+              <button onClick={cancelCurrentLeave} disabled={savingLeave} className="font-geist text-xs cursor-pointer shrink-0" style={{ color: ERROR }}>
                 Отменить
               </button>
             </div>

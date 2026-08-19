@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ZhukademiPage from './ZhukademiPage';
-import { testerApi, leadApi } from '../api';
-import { authFetch } from '../auth';
+import { testerApi, leadApi, coursesApi } from '../api';
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
@@ -16,9 +15,11 @@ vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="na
 vi.mock('../api', () => ({
   testerApi: { getLectures: vi.fn(), getFavorites: vi.fn(), addFavorite: vi.fn(), removeFavorite: vi.fn() },
   leadApi: { getLectureStats: vi.fn() },
+  coursesApi: {
+    list: vi.fn(), remove: vi.fn(), update: vi.fn(),
+    getSections: vi.fn(), createSection: vi.fn(), renameSection: vi.fn(), removeSection: vi.fn(),
+  },
 }));
-
-vi.mock('../auth', () => ({ authFetch: vi.fn() }));
 
 const tester = { id: 1, name: 'Tester', role: 'tester' };
 const lead = { id: 9, name: 'Lead', role: 'lead' };
@@ -33,18 +34,14 @@ function customCourse(overrides: Partial<Record<string, any>> = {}) {
   };
 }
 
-// Course-section grouping needs authFetch to answer /custom-courses and
-// /course-sections differently — a single blanket mockResolvedValue (as
-// the "Для новичков" tests above use) would hand the courses array back as
-// if it were the sections list. Everything else (create/rename/delete
-// section, PUT to reassign) just needs { ok: true }.
+// The courses list and the sections list are separate calls now, so they
+// are stubbed separately instead of being told apart by URL.
 function mockRoutes({ courses = [], sections = [] }: { courses?: any[]; sections?: any[] }) {
-  vi.mocked(authFetch).mockImplementation((url: any) => {
-    const u = String(url);
-    if (u.includes('/course-sections')) return Promise.resolve({ ok: true, json: async () => sections } as any);
-    if (u.includes('/custom-courses')) return Promise.resolve({ ok: true, json: async () => courses } as any);
-    return Promise.resolve({ ok: true, json: async () => ({}) } as any);
-  });
+  vi.mocked(coursesApi.list).mockResolvedValue({ data: courses } as any);
+  vi.mocked(coursesApi.getSections).mockResolvedValue({ data: sections } as any);
+  for (const fn of [coursesApi.remove, coursesApi.update, coursesApi.createSection, coursesApi.renameSection, coursesApi.removeSection]) {
+    vi.mocked(fn).mockResolvedValue({ data: { ok: true } } as any);
+  }
 }
 
 function mockCustomCourses(rows: any[]) {
@@ -161,10 +158,7 @@ describe('ZhukademiPage — course sections (public catalog grouping)', () => {
     fireEvent.change(input, { target: { value: 'Новый раздел' } });
     fireEvent.click(screen.getByText('+ Раздел'));
 
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/course-sections'),
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'Новый раздел' }) })
-    ));
+    await waitFor(() => expect(coursesApi.createSection).toHaveBeenCalledWith('Новый раздел'));
   });
 
   it('a lead can reassign a course to a section from its card', async () => {
@@ -177,9 +171,8 @@ describe('ZhukademiPage — course sections (public catalog grouping)', () => {
     const select = await screen.findByLabelText('Раздел для курса Курс для переноса');
     fireEvent.change(select, { target: { value: '1' } });
 
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/custom-courses/5'),
-      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ section_id: 1 }) })
-    ));
+    // Only section_id goes in the body — the route treats every field as
+    // optional, so the course's modules are never at risk from this.
+    await waitFor(() => expect(coursesApi.update).toHaveBeenCalledWith(5, { section_id: 1 }));
   });
 });

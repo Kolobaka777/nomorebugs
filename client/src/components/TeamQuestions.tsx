@@ -6,7 +6,7 @@ import { suggestionsApi } from '../api';
 import { Suggestion } from '../types';
 import { showApiError } from '../utils/toast';
 import { timeAgo, parseServerDate } from '../utils/date';
-import { CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, BADGE_NOTIFY } from '../utils/theme';
+import { CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
 // Questions to the team, moved here from the Идеи board. They were always a
 // poor fit there — an idea is something you vote on and a lead triages into
@@ -103,7 +103,7 @@ function QuestionCard({ q, isLead, userId, onAnswer, onDelete, onLike, isLiking 
               </button>
               <button onClick={() => setAnswering(false)} className="text-xs font-geist px-3 py-1.5 rounded-lg cursor-pointer" style={{ color: TEXT_MUTED }}>Отмена</button>
             </div>
-            {error && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{error}</p>}
+            {error && <p className="text-xs font-geist mt-2 break-words" style={{ color: ERROR }}>{error}</p>}
           </div>
         ) : (
           <button onClick={() => setAnswering(true)} className="btn-secondary text-xs px-3 py-1.5 mb-3 flex items-center gap-1.5" style={{ color: ACCENT }}>
@@ -265,7 +265,7 @@ export default function TeamQuestions({ user }: { user: any }) {
             {submitting ? '...' : 'Спросить'}
           </button>
         </div>
-        {submitError && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{submitError}</p>}
+        {submitError && <p className="text-xs font-geist mt-2 break-words" style={{ color: ERROR }}>{submitError}</p>}
         {sent && !submitError && (
           <p className="text-xs font-geist mt-2 flex items-center gap-1.5" style={{ color: ACCENT }}>
             <Icon name="check" size={13} color="currentColor" /> Отправлено — ответ появится тут же.
@@ -275,7 +275,7 @@ export default function TeamQuestions({ user }: { user: any }) {
 
       {loadError && (
         <div className="text-center py-6">
-          <p className="text-sm font-geist mb-3 break-words" style={{ color: '#e05252' }}>{loadError}</p>
+          <p className="text-sm font-geist mb-3 break-words" style={{ color: ERROR }}>{loadError}</p>
           <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
         </div>
       )}

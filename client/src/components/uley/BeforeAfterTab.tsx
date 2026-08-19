@@ -1,6 +1,6 @@
 import FrogLoader from '../FrogLoader';
 import { SKillChart, TesterSkillBreakdown } from '../../types';
-import { ACCENT, BADGE_NOTIFY, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
+import { ACCENT, BADGE_NOTIFY, TEXT_PRIMARY, TEXT_MUTED, ERROR } from '../../utils/theme';
 
 export default function BeforeAfterTab({
   skillChart,
@@ -65,7 +65,7 @@ export default function BeforeAfterTab({
         <p className="font-geist text-xs mb-3" style={{ color: TEXT_MUTED }}>По сотрудникам — самооценка «до» против реального результата тестов «после» по той же теме</p>
         {byTesterError ? (
           <div className="card text-center py-6">
-            <p className="font-geist text-sm mb-3 break-words" style={{ color: '#e05252' }}>{byTesterError}</p>
+            <p className="font-geist text-sm mb-3 break-words" style={{ color: ERROR }}>{byTesterError}</p>
             <button onClick={loadByTester} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         ) : byTester ? (

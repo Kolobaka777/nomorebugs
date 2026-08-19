@@ -4,19 +4,15 @@ import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
-import { testerApi, leadApi } from '../api';
+import { testerApi, leadApi, coursesApi } from '../api';
 import { Lecture } from '../types';
-import { API_BASE_URL as API_BASE } from '../config';
-import { authFetch } from '../auth';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE, ERROR } from '../utils/theme';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
@@ -31,7 +27,7 @@ const NEW_BADGE_COLOR = '#4ADE80';
 function deadlineChip(deadline: string | null | undefined): { label: string; color: string } | null {
   if (!deadline) return null;
   const diffDays = Math.ceil((parseServerDate(deadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-  if (diffDays < 0) return { label: 'Дедлайн прошёл', color: '#e05252' };
+  if (diffDays < 0) return { label: 'Дедлайн прошёл', color: ERROR };
   if (diffDays <= 3) return { label: `Дедлайн через ${diffDays} дн.`, color: '#EF9F27' };
   return { label: `До ${parseServerDate(deadline).toLocaleDateString('ru-RU')}`, color: 'rgba(197, 198, 199,0.5)' };
 }
@@ -48,7 +44,7 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
 // sections read as one design language, not two.
 function CourseCard({
   modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
-  statsLabel, onClick, clickable, editHref, onEdit, onDelete, teamCount, isFavorited, onToggleFavorite,
+  statsLabel, onClick, clickable, onEdit, onDelete, teamCount, isFavorited, onToggleFavorite,
 }: {
   modulesLabel: string;
   tag: string;
@@ -105,7 +101,7 @@ function CourseCard({
                 className="flex items-center justify-center rounded cursor-pointer"
                 style={{ width: 22, height: 22, background: CARD_BG, border: '1px solid rgba(224,82,82,0.5)' }}
               >
-                <TrashLineIcon size={12} color="#e05252" />
+                <TrashLineIcon size={12} color={ERROR} />
               </button>
             )}
           </span>
@@ -227,7 +223,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     const wasFavorited = favoriteKeys.has(key);
     setFavoriteKeys(prev => {
       const next = new Set(prev);
-      wasFavorited ? next.delete(key) : next.add(key);
+      if (wasFavorited) next.delete(key); else next.add(key);
       return next;
     });
     const call = wasFavorited ? testerApi.removeFavorite(courseType, courseId) : testerApi.addFavorite(courseType, courseId);
@@ -235,7 +231,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       showApiError(err, wasFavorited ? 'Не удалось убрать из избранного' : 'Не удалось добавить в избранное');
       setFavoriteKeys(prev => {
         const next = new Set(prev);
-        wasFavorited ? next.add(key) : next.delete(key);
+        if (wasFavorited) next.add(key); else next.delete(key);
         return next;
       });
     });
@@ -247,12 +243,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     // Fetch custom courses for all roles — a secondary section on this
     // page, so a failure here just shows a toast rather than blocking the
     // whole catalog.
-    authFetch(`${API_BASE}/custom-courses`)
-      .then(async r => {
-        const data = await r.json().catch(() => null);
-        if (!r.ok) throw new Error(data?.error || 'Не удалось загрузить дополнительные курсы');
-        if (Array.isArray(data)) setCustomCourses(data);
-      })
+    coursesApi.list()
+      .then(r => { if (Array.isArray(r.data)) setCustomCourses(r.data); })
       .catch((err: any) => showApiError(err, 'Не удалось загрузить дополнительные курсы'));
 
     // Fetched for every role, not just testers — leads/admins get a
@@ -284,9 +276,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   // Course sections — a public catalog-organization layer (unlike suggestion
   // folders, every role sees these, not just the lead who manages them).
   const loadSections = () => {
-    authFetch(`${API_BASE}/course-sections`)
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setSections(data); })
+    coursesApi.getSections()
+      .then(r => { if (Array.isArray(r.data)) setSections(r.data); })
       .catch(() => {});
   };
   useEffect(() => { loadSections(); }, []);
@@ -294,13 +285,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const createSection = () => {
     const name = newSectionName.trim();
     if (!name) return;
-    authFetch(`${API_BASE}/course-sections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-      .then(async r => {
-        const data = await r.json().catch(() => null);
-        if (!r.ok) throw new Error(data?.error || 'Не удалось создать раздел');
-        setNewSectionName('');
-        loadSections();
-      })
+    coursesApi.createSection(name)
+      .then(() => { setNewSectionName(''); loadSections(); })
       .catch((err: any) => showApiError(err, 'Не удалось создать раздел'));
   };
 
@@ -312,20 +298,14 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const saveRenameSection = () => {
     const name = renameValue.trim();
     if (!name || renamingSectionId == null) { setRenamingSectionId(null); return; }
-    authFetch(`${API_BASE}/course-sections/${renamingSectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-      .then(async r => {
-        const data = await r.json().catch(() => null);
-        if (!r.ok) throw new Error(data?.error || 'Не удалось переименовать раздел');
-        setRenamingSectionId(null);
-        loadSections();
-        loadLectures();
-      })
+    coursesApi.renameSection(renamingSectionId, name)
+      .then(() => { setRenamingSectionId(null); loadSections(); loadLectures(); })
       .catch((err: any) => { showApiError(err, 'Не удалось переименовать раздел'); setRenamingSectionId(null); });
   };
 
   const deleteSection = (id: number) => {
     if (!window.confirm('Удалить раздел? Курсы из него не удалятся — просто станут «Без раздела».')) return;
-    authFetch(`${API_BASE}/course-sections/${id}`, { method: 'DELETE' })
+    coursesApi.removeSection(id)
       .then(() => { loadSections(); loadLectures(); })
       .catch((err: any) => showApiError(err, 'Не удалось удалить раздел'));
   };
@@ -336,9 +316,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   // { section_id } is a safe, minimal update — no risk to the course's
   // modules/lessons since `modules` is never included here.
   const assignSection = (courseId: number, sectionId: number | null) => {
-    authFetch(`${API_BASE}/custom-courses/${courseId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section_id: sectionId }),
-    })
+    coursesApi.update(courseId, { section_id: sectionId })
       .then(() => loadLectures())
       .catch((err: any) => showApiError(err, 'Не удалось перенести курс в раздел'));
   };
@@ -348,8 +326,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   // курс" button, just reachable without opening the course first.
   const deleteCourse = (courseId: number, title: string) => {
     if (!window.confirm(`Удалить курс «${title}»? Это действие нельзя отменить.`)) return;
-    authFetch(`${API_BASE}/custom-courses/${courseId}`, { method: 'DELETE' })
-      .then(async r => { if (!r.ok) throw new Error(); loadLectures(); })
+    coursesApi.remove(courseId)
+      .then(() => loadLectures())
       .catch((err: any) => showApiError(err, 'Не удалось удалить курс'));
   };
 
@@ -426,7 +404,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-7xl mx-auto px-8 pt-16 pb-8">
           <div className="rounded-lg p-10 text-center" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
-            <p className="font-geist text-sm mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="font-geist text-sm mb-4 break-words" style={{ color: ERROR }}>{loadError}</p>
             <button onClick={loadLectures} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         </div>
@@ -712,7 +690,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       <button onClick={() => startRenameSection(s)} aria-label={`Переименовать раздел ${s.name}`} style={{ color: TEXT_MUTED }}>
                         <Icon name="pencil" size={11} color="currentColor" />
                       </button>
-                      <button onClick={() => deleteSection(s.id)} aria-label={`Удалить раздел ${s.name}`} style={{ color: '#e05252' }}>
+                      <button onClick={() => deleteSection(s.id)} aria-label={`Удалить раздел ${s.name}`} style={{ color: ERROR }}>
                         <Icon name="close" size={12} color="currentColor" />
                       </button>
                     </span>

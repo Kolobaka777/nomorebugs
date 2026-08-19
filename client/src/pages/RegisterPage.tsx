@@ -4,6 +4,7 @@ import { authApi } from '../api';
 import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
+import { ERROR } from '../utils/theme';
 
 interface RegisterPageProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -106,8 +107,8 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
                 className="px-4 py-3 rounded-lg text-sm font-sans break-words"
                 style={{
                   background: 'rgba(224,82,82,0.1)',
-                  color: '#e05252',
-                  border: '1px solid #e05252',
+                  color: ERROR,
+                  border: `1px solid ${ERROR}`,
                   boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
                 }}
               >

@@ -2,7 +2,7 @@ import Icon from '../Icon';
 import { ActivityItem } from '../../types';
 import { parseServerDate } from '../../utils/date';
 import { formatActivityAction } from '../../utils/activity';
-import { ACCENT, BADGE_NOTIFY, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../../utils/theme';
+import { ACCENT, BADGE_NOTIFY, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, ERROR } from '../../utils/theme';
 
 export default function ActivityTab({
   activity,
@@ -38,7 +38,7 @@ export default function ActivityTab({
                 background: CARD_BG,
                 borderLeft: `3px solid ${
                   item.action === 'passed_lecture' ? ACCENT :
-                  item.action === 'failed_lecture' ? '#e05252' :
+                  item.action === 'failed_lecture' ? ERROR :
                   BADGE_NOTIFY
                 }`,
               }}

@@ -26,7 +26,54 @@ db.pragma('synchronous = NORMAL');
 // INSERT below always sees enforcement in its final, intended state.
 db.pragma('foreign_keys = ON');
 
+// What has run against this database, and when.
+//
+// Migrations here are a long list of individually-guarded statements
+// ("create it if it isn't there", "add the column if the column is
+// missing"), re-executed from the top on every boot. That is robust — it
+// converges on the right shape from any starting point — but it answers no
+// questions: nobody can say what state a given database is in without
+// reading PRAGMA table_info for every table, nothing records when a change
+// landed, and a failure halfway through leaves no trace of how far it got.
+//
+// This does not replace the guards. It records them: each named step is
+// wrapped, its outcome written down, and — the part the guards never gave
+// us — a step that throws now says which step, loudly, instead of taking
+// the rest of initDb() down with an anonymous stack trace.
+function ensureMigrationsTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+export function appliedMigrations() {
+  ensureMigrationsTable();
+  return db.prepare('SELECT name, applied_at FROM schema_migrations ORDER BY applied_at, name').all();
+}
+
+// Runs `fn` once and remembers it. Idempotent twice over: the step itself
+// is still written to be safe to repeat, and this skips it once recorded.
+export function migrationStep(name, fn) {
+  ensureMigrationsTable();
+  const done = db.prepare('SELECT 1 FROM schema_migrations WHERE name = ?').get(name);
+  if (done) return false;
+  try {
+    fn();
+  } catch (err) {
+    // Which step, by name. Previously a failing ALTER surfaced as a bare
+    // stack trace from a 1500-line file.
+    err.message = `Миграция "${name}" не выполнена: ${err.message}`;
+    throw err;
+  }
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)').run(name);
+  return true;
+}
+
 export function initDb() {
+  ensureMigrationsTable();
   db.exec(`
     -- role is deliberately NOT constrained to a fixed CHECK(...) list here —
     -- the valid-roles list lives in src/roles.js instead, so adding a role
@@ -394,9 +441,11 @@ export function initDb() {
   // exists"), letting the server boot on a silently broken schema instead
   // of failing loudly the way every other migration below does.
   const userProfileCols = db.prepare("PRAGMA table_info(user_profiles)").all().map(c => c.name);
-  if (!userProfileCols.includes('bug_coins')) {
-    db.exec('ALTER TABLE user_profiles ADD COLUMN bug_coins INTEGER DEFAULT 0');
-  }
+  migrationStep('user_profiles.bug_coins', () => {
+    if (!userProfileCols.includes('bug_coins')) {
+      db.exec('ALTER TABLE user_profiles ADD COLUMN bug_coins INTEGER DEFAULT 0');
+    }
+  });
   if (!userProfileCols.includes('purchased_items')) {
     db.exec('ALTER TABLE user_profiles ADD COLUMN purchased_items TEXT DEFAULT \'[]\'');
   }
@@ -465,6 +514,51 @@ export function initDb() {
     );
   `);
 
+  // 'course_completed' rows used to stash a custom_courses id in
+  // activity_log.lecture_id — a column with a FOREIGN KEY to lectures(id),
+  // and foreign_keys is ON. That only worked while a lecture happened to
+  // exist with the same number; on a database whose lectures table is empty
+  // (any install that never seeded the original track) finishing a course
+  // raised SQLITE_CONSTRAINT_FOREIGNKEY, so POST /api/courses/time-track
+  // returned 500 and the completion coins were never awarded. It failed
+  // silently because the client fires that request and ignores the result.
+  //
+  // Its own column, and the old rows moved across.
+  const activityCols = db.prepare("PRAGMA table_info(activity_log)").all().map(c => c.name);
+  migrationStep('activity_log.course_id', () => {
+    if (!activityCols.includes('course_id')) {
+      db.exec('ALTER TABLE activity_log ADD COLUMN course_id INTEGER DEFAULT NULL');
+      db.exec("UPDATE activity_log SET course_id = lecture_id, lecture_id = NULL WHERE action = 'course_completed'");
+    }
+  });
+
+  // Where a custom course's quiz result actually lives.
+  //
+  // It used to live nowhere: the score was computed in the browser, kept in
+  // React state, and thrown away on navigation. The server only ever heard
+  // "this lesson is done" — with no answers attached — so the completion
+  // coins, the pass/fail screen and the lead's analytics all rested on a
+  // number nobody had checked. The seeded lecture track (test_results) never
+  // had that problem; this is the same shape, for the newer track.
+  //
+  // Best attempt wins, matching test_results and the "пересдавать можно
+  // сколько угодно" rule the courses page promises.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS custom_quiz_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lesson_id INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      correct_count INTEGER NOT NULL,
+      total_count INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 1,
+      completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (lesson_id) REFERENCES custom_lessons(id),
+      UNIQUE(user_id, lesson_id)
+    );
+  `);
+
   // What the frog says on the result screen when someone finishes this
   // course — one line for passing, one for not. Per-course because the
   // point is that it matches the course: a quiz about prison etiquette and
@@ -485,16 +579,20 @@ export function initDb() {
   // announcement has no underlying action to describe, so its body is the
   // row. NULL for every other type.
   const teamEventCols = db.prepare("PRAGMA table_info(team_events)").all().map(c => c.name);
-  if (!teamEventCols.includes('text')) {
-    db.exec("ALTER TABLE team_events ADD COLUMN text TEXT DEFAULT NULL");
-  }
+  migrationStep('team_events.text', () => {
+    if (!teamEventCols.includes('text')) {
+      db.exec("ALTER TABLE team_events ADD COLUMN text TEXT DEFAULT NULL");
+    }
+  });
 
   // Course deadlines (Жукадеми / custom_courses only — the older seeded
   // lecture track has no per-course structure to hang a deadline off).
   const customCourseColsForDeadline = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
-  if (!customCourseColsForDeadline.includes('deadline_at')) {
-    db.exec("ALTER TABLE custom_courses ADD COLUMN deadline_at DATETIME DEFAULT NULL");
-  }
+  migrationStep('custom_courses.deadline_at', () => {
+    if (!customCourseColsForDeadline.includes('deadline_at')) {
+      db.exec("ALTER TABLE custom_courses ADD COLUMN deadline_at DATETIME DEFAULT NULL");
+    }
+  });
   db.exec(`
     CREATE TABLE IF NOT EXISTS course_deadline_overrides (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -515,9 +613,11 @@ export function initDb() {
   // never a raw file upload: Railway's disk is ephemeral and would lose an
   // uploaded video on the next deploy.
   const lectureColsForVideo = db.prepare("PRAGMA table_info(lectures)").all().map(c => c.name);
-  if (!lectureColsForVideo.includes('video_url')) {
-    db.exec("ALTER TABLE lectures ADD COLUMN video_url TEXT DEFAULT NULL");
-  }
+  migrationStep('lectures.video_url', () => {
+    if (!lectureColsForVideo.includes('video_url')) {
+      db.exec("ALTER TABLE lectures ADD COLUMN video_url TEXT DEFAULT NULL");
+    }
+  });
 
   // Suggestion / ideas board. The real author (user_id) is always stored —
   // is_anonymous only controls what OTHER testers see (GET /api/suggestions
@@ -562,9 +662,11 @@ export function initDb() {
     );
   `);
   const suggestionCols = db.prepare("PRAGMA table_info(suggestions)").all().map(c => c.name);
-  if (!suggestionCols.includes('folder_id')) {
-    db.exec("ALTER TABLE suggestions ADD COLUMN folder_id INTEGER DEFAULT NULL REFERENCES suggestion_folders(id)");
-  }
+  migrationStep('suggestions.folder_id', () => {
+    if (!suggestionCols.includes('folder_id')) {
+      db.exec("ALTER TABLE suggestions ADD COLUMN folder_id INTEGER DEFAULT NULL REFERENCES suggestion_folders(id)");
+    }
+  });
 
   // 'idea' and 'suggestion' were merged into one type (see suggestions.js) —
   // a plain data fix, not a schema change, so it's safe to just re-run
@@ -612,9 +714,11 @@ export function initDb() {
   // auto-block — see the submit-test route for why). JSON blob rather than
   // separate columns since its shape is purely for display, never queried.
   const testResultCols = db.prepare("PRAGMA table_info(test_results)").all().map(c => c.name);
-  if (!testResultCols.includes('meta')) {
-    db.exec("ALTER TABLE test_results ADD COLUMN meta TEXT DEFAULT '{}'");
-  }
+  migrationStep('test_results.meta', () => {
+    if (!testResultCols.includes('meta')) {
+      db.exec("ALTER TABLE test_results ADD COLUMN meta TEXT DEFAULT '{}'");
+    }
+  });
 
   // Knowledge base (Багодельня) — bug-report examples and glossary terms,
   // previously hardcoded in the client with no way to add/edit/delete.
@@ -738,9 +842,11 @@ export function initDb() {
   // real-world (e.g. an отгул) — mixing them would make that conversion
   // ambiguous ("how many of my coins are real vs. just shop currency?").
   const profileCols = db.prepare("PRAGMA table_info(user_profiles)").all().map(c => c.name);
-  if (!profileCols.includes('premium_points')) {
-    db.exec("ALTER TABLE user_profiles ADD COLUMN premium_points INTEGER DEFAULT 0");
-  }
+  migrationStep('user_profiles.premium_points', () => {
+    if (!profileCols.includes('premium_points')) {
+      db.exec("ALTER TABLE user_profiles ADD COLUMN premium_points INTEGER DEFAULT 0");
+    }
+  });
 
   // Soft-delete (trash/recycle bin) for the content types most likely to
   // suffer an "oops, deleted the wrong one" — see /api/admin/trash. A NULL
@@ -793,130 +899,148 @@ export function initDb() {
   // only runs the first time these columns are added (gated on the column
   // not existing yet) so it never overwrites a lead's later manual edits.
   const customLessonCols = db.prepare("PRAGMA table_info(custom_lessons)").all().map(c => c.name);
-  if (!customLessonCols.includes('prerequisite_type')) {
-    db.exec(`
-      ALTER TABLE custom_lessons ADD COLUMN prerequisite_type TEXT DEFAULT 'none';
-      ALTER TABLE custom_lessons ADD COLUMN prerequisite_lesson_id INTEGER;
-      ALTER TABLE custom_lessons ADD COLUMN prerequisite_note TEXT DEFAULT '';
-    `);
-    backfillSequentialPrerequisites();
-  }
+  migrationStep('custom_lessons.prerequisite_type', () => {
+    if (!customLessonCols.includes('prerequisite_type')) {
+      db.exec(`
+        ALTER TABLE custom_lessons ADD COLUMN prerequisite_type TEXT DEFAULT 'none';
+        ALTER TABLE custom_lessons ADD COLUMN prerequisite_lesson_id INTEGER;
+        ALTER TABLE custom_lessons ADD COLUMN prerequisite_note TEXT DEFAULT '';
+      `);
+      backfillSequentialPrerequisites();
+    }
+  });
 
   // Checklist schema migration: check if new columns exist
   const checklistItemCols = db.prepare("PRAGMA table_info(checklist_items)").all().map(c => c.name);
-  if (!checklistItemCols.includes('category')) {
-    // Drop old checklist tables and recreate with v2 schema
-    db.exec(`
-      DROP TABLE IF EXISTS checklist_item_results;
-      DROP TABLE IF EXISTS checklist_submissions;
-      DROP TABLE IF EXISTS checklist_items;
-      DROP TABLE IF EXISTS checklist_templates;
-
-      CREATE TABLE checklist_templates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        task_type TEXT NOT NULL,
-        color TEXT DEFAULT '#1D9E75',
-        order_num INTEGER DEFAULT 0,
-        mvt_updated_at TEXT DEFAULT NULL
-      );
-
-      CREATE TABLE checklist_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        template_id INTEGER NOT NULL,
-        category TEXT DEFAULT '',
-        text TEXT NOT NULL,
-        order_num INTEGER DEFAULT 0,
-        in_mvt INTEGER DEFAULT 1,
-        FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-      );
-
-      CREATE TABLE checklist_submissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        template_id INTEGER NOT NULL,
-        task_name TEXT NOT NULL,
-        content_author TEXT DEFAULT '',
-        verska_author TEXT DEFAULT '',
-        task_type TEXT DEFAULT '',
-        check_date TEXT DEFAULT '',
-        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-      );
-
-      CREATE TABLE checklist_item_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        submission_id INTEGER NOT NULL,
-        item_id INTEGER NOT NULL,
-        status TEXT NOT NULL CHECK(status IN ('ok', 'fail', 'na')),
-        note TEXT DEFAULT '',
-        FOREIGN KEY (submission_id) REFERENCES checklist_submissions(id),
-        FOREIGN KEY (item_id) REFERENCES checklist_items(id)
-      );
-    `);
-    // note: checklist_item_results.note was already listed above — this
-    // CREATE TABLE block already has every column the migration path below
-    // would otherwise backfill, so a genuinely fresh install (which always
-    // takes this branch, never the else/ALTER migration path below, since
-    // a brand-new checklist_items table never has a 'category' column yet)
-    // doesn't end up missing columns that only "table already existed"
-    // upgrades would get.
-    seedChecklistTemplates();
-  } else {
-    // Ensure submissions has new columns (safe migration — the column-check
-    // guard is what makes this safe to re-run, not a try/catch swallowing
-    // whatever error comes back; a bare catch{} here would hide a genuine
-    // migration failure instead of failing loudly, same reasoning as the
-    // user_profiles migration above).
-    const subCols = db.prepare("PRAGMA table_info(checklist_submissions)").all().map(c => c.name);
-    if (!subCols.includes('content_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN content_author TEXT DEFAULT ''");
-    if (!subCols.includes('verska_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN verska_author TEXT DEFAULT ''");
-    if (!subCols.includes('task_type')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN task_type TEXT DEFAULT ''");
-    if (!subCols.includes('check_date')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN check_date TEXT DEFAULT ''");
-
-    // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
-    if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1');
-
-    // Migration: optimistic-locking stamp for the MVT editor — without it,
-    // two leads opening the same template's MVT editor at once silently
-    // lose whichever save happened first (last write wins on the whole
-    // items array). The PATCH route now requires the caller to echo back
-    // the stamp it loaded and 409s if it's stale.
-    const checklistTemplateCols = db.prepare("PRAGMA table_info(checklist_templates)").all().map(c => c.name);
-    if (!checklistTemplateCols.includes('mvt_updated_at')) db.exec('ALTER TABLE checklist_templates ADD COLUMN mvt_updated_at TEXT DEFAULT NULL');
-
-    // Migration: optional free-text note per failed item — lets a tester
-    // describe what actually went wrong instead of just a bare fail flag,
-    // so reporting can show more than "this item failed N times".
-    const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
-    if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''");
-
-    // Check if preland template has full items (75 items) — if still old (9 items), reseed.
-    // Deleting checklist_items outright used to be able to fail with a
-    // FOREIGN KEY constraint error (foreign_keys is ON — see the users
-    // rebuild comment above) if any real submission had already recorded a
-    // checklist_item_results row against one of the old items, e.g. after
-    // restoring an old backup that predates this reseed. Clearing those
-    // results first (they belong to the stale 9-item version anyway — no
-    // longer meaningful once the items they reference are replaced) makes
-    // this safe regardless of what data exists.
-    const prelandTpl = db.prepare("SELECT id FROM checklist_templates WHERE task_type = 'prelending'").get();
-    if (prelandTpl) {
-      const itemCount = db.prepare('SELECT COUNT(*) as c FROM checklist_items WHERE template_id = ?').get(prelandTpl.id);
-      if (itemCount.c < 20) {
-        db.transaction(() => {
-          db.prepare(`
-            DELETE FROM checklist_item_results WHERE item_id IN (
-              SELECT id FROM checklist_items WHERE template_id = ?
-            )
-          `).run(prelandTpl.id);
-          db.prepare('DELETE FROM checklist_items WHERE template_id = ?').run(prelandTpl.id);
-          seedPrelandItems(prelandTpl.id);
-        })();
+  migrationStep('checklist_items.category', () => {
+    if (!checklistItemCols.includes('category')) {
+      // Drop old checklist tables and recreate with v2 schema
+      db.exec(`
+        DROP TABLE IF EXISTS checklist_item_results;
+        DROP TABLE IF EXISTS checklist_submissions;
+        DROP TABLE IF EXISTS checklist_items;
+        DROP TABLE IF EXISTS checklist_templates;
+  
+        CREATE TABLE checklist_templates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          task_type TEXT NOT NULL,
+          color TEXT DEFAULT '#1D9E75',
+          order_num INTEGER DEFAULT 0,
+          mvt_updated_at TEXT DEFAULT NULL
+        );
+  
+        CREATE TABLE checklist_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          template_id INTEGER NOT NULL,
+          category TEXT DEFAULT '',
+          text TEXT NOT NULL,
+          order_num INTEGER DEFAULT 0,
+          in_mvt INTEGER DEFAULT 1,
+          FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
+        );
+  
+        CREATE TABLE checklist_submissions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          template_id INTEGER NOT NULL,
+          task_name TEXT NOT NULL,
+          content_author TEXT DEFAULT '',
+          verska_author TEXT DEFAULT '',
+          task_type TEXT DEFAULT '',
+          check_date TEXT DEFAULT '',
+          submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
+        );
+  
+        CREATE TABLE checklist_item_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          submission_id INTEGER NOT NULL,
+          item_id INTEGER NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('ok', 'fail', 'na')),
+          note TEXT DEFAULT '',
+          FOREIGN KEY (submission_id) REFERENCES checklist_submissions(id),
+          FOREIGN KEY (item_id) REFERENCES checklist_items(id)
+        );
+      `);
+      // note: checklist_item_results.note was already listed above — this
+      // CREATE TABLE block already has every column the migration path below
+      // would otherwise backfill, so a genuinely fresh install (which always
+      // takes this branch, never the else/ALTER migration path below, since
+      // a brand-new checklist_items table never has a 'category' column yet)
+      // doesn't end up missing columns that only "table already existed"
+      // upgrades would get.
+      seedChecklistTemplates();
+    } else {
+      // Ensure submissions has new columns (safe migration — the column-check
+      // guard is what makes this safe to re-run, not a try/catch swallowing
+      // whatever error comes back; a bare catch{} here would hide a genuine
+      // migration failure instead of failing loudly, same reasoning as the
+      // user_profiles migration above).
+      const subCols = db.prepare("PRAGMA table_info(checklist_submissions)").all().map(c => c.name);
+      migrationStep('checklist_submissions.content_author', () => {
+      if (!subCols.includes('content_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN content_author TEXT DEFAULT ''");
+    });
+      migrationStep('checklist_submissions.verska_author', () => {
+      if (!subCols.includes('verska_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN verska_author TEXT DEFAULT ''");
+    });
+      migrationStep('checklist_submissions.task_type', () => {
+      if (!subCols.includes('task_type')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN task_type TEXT DEFAULT ''");
+    });
+      migrationStep('checklist_submissions.check_date', () => {
+      if (!subCols.includes('check_date')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN check_date TEXT DEFAULT ''");
+    });
+  
+      // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
+      migrationStep('checklist_items.in_mvt', () => {
+      if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1');
+    });
+  
+      // Migration: optimistic-locking stamp for the MVT editor — without it,
+      // two leads opening the same template's MVT editor at once silently
+      // lose whichever save happened first (last write wins on the whole
+      // items array). The PATCH route now requires the caller to echo back
+      // the stamp it loaded and 409s if it's stale.
+      const checklistTemplateCols = db.prepare("PRAGMA table_info(checklist_templates)").all().map(c => c.name);
+      migrationStep('checklist_templates.mvt_updated_at', () => {
+      if (!checklistTemplateCols.includes('mvt_updated_at')) db.exec('ALTER TABLE checklist_templates ADD COLUMN mvt_updated_at TEXT DEFAULT NULL');
+    });
+  
+      // Migration: optional free-text note per failed item — lets a tester
+      // describe what actually went wrong instead of just a bare fail flag,
+      // so reporting can show more than "this item failed N times".
+      const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
+      migrationStep('checklist_item_results.note', () => {
+      if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''");
+    });
+  
+      // Check if preland template has full items (75 items) — if still old (9 items), reseed.
+      // Deleting checklist_items outright used to be able to fail with a
+      // FOREIGN KEY constraint error (foreign_keys is ON — see the users
+      // rebuild comment above) if any real submission had already recorded a
+      // checklist_item_results row against one of the old items, e.g. after
+      // restoring an old backup that predates this reseed. Clearing those
+      // results first (they belong to the stale 9-item version anyway — no
+      // longer meaningful once the items they reference are replaced) makes
+      // this safe regardless of what data exists.
+      const prelandTpl = db.prepare("SELECT id FROM checklist_templates WHERE task_type = 'prelending'").get();
+      if (prelandTpl) {
+        const itemCount = db.prepare('SELECT COUNT(*) as c FROM checklist_items WHERE template_id = ?').get(prelandTpl.id);
+        if (itemCount.c < 20) {
+          db.transaction(() => {
+            db.prepare(`
+              DELETE FROM checklist_item_results WHERE item_id IN (
+                SELECT id FROM checklist_items WHERE template_id = ?
+              )
+            `).run(prelandTpl.id);
+            db.prepare('DELETE FROM checklist_items WHERE template_id = ?').run(prelandTpl.id);
+            seedPrelandItems(prelandTpl.id);
+          })();
+        }
       }
     }
-  }
+  });
 
   // One-time: seed the curated task_types list from whatever distinct
   // values are already in use, so existing free-typed types don't vanish
@@ -942,14 +1066,18 @@ export function initDb() {
   // gets soft-deleted, so "how many courses has this person proposed" can
   // still be counted later regardless of outcome.
   const customCoursesCols = db.prepare("PRAGMA table_info(custom_courses)").all().map(c => c.name);
-  if (!customCoursesCols.includes('proposal_status')) db.exec('ALTER TABLE custom_courses ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  migrationStep('custom_courses.proposal_status', () => {
+    if (!customCoursesCols.includes('proposal_status')) db.exec('ALTER TABLE custom_courses ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  });
 
   // Marks a course as the (or one of the) new-hire onboarding track — a
   // permanent, always-in-the-catalog reference course rather than a
   // topic-of-the-week one. Settable only by a lead/admin (see courses.js);
   // a proposing tester's submission ignores it. Default 0 so every existing
   // course is unaffected.
-  if (!customCoursesCols.includes('is_onboarding')) db.exec('ALTER TABLE custom_courses ADD COLUMN is_onboarding INTEGER DEFAULT 0');
+  migrationStep('custom_courses.is_onboarding', () => {
+    if (!customCoursesCols.includes('is_onboarding')) db.exec('ALTER TABLE custom_courses ADD COLUMN is_onboarding INTEGER DEFAULT 0');
+  });
 
   // Course sections — lead-managed groups for organizing the catalog
   // (e.g. "Основы", "Продвинутое"). Unlike suggestion_folders (private to
@@ -975,13 +1103,19 @@ export function initDb() {
   // stays visible exactly as before. A tester-submitted proposal is
   // inserted with is_published=0 instead.
   const guidesCols = db.prepare("PRAGMA table_info(guides)").all().map(c => c.name);
-  if (!guidesCols.includes('is_published')) db.exec('ALTER TABLE guides ADD COLUMN is_published INTEGER DEFAULT 1');
-  if (!guidesCols.includes('proposal_status')) db.exec('ALTER TABLE guides ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  migrationStep('guides.is_published', () => {
+    if (!guidesCols.includes('is_published')) db.exec('ALTER TABLE guides ADD COLUMN is_published INTEGER DEFAULT 1');
+  });
+  migrationStep('guides.proposal_status', () => {
+    if (!guidesCols.includes('proposal_status')) db.exec('ALTER TABLE guides ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  });
 
   // A single emoji character shown next to the guide's title in the list
   // (picked from a curated set or typed in freely) — purely decorative,
   // no validation on the string's shape/length beyond a generous cap.
-  if (!guidesCols.includes('icon')) db.exec('ALTER TABLE guides ADD COLUMN icon TEXT DEFAULT NULL');
+  migrationStep('guides.icon', () => {
+    if (!guidesCols.includes('icon')) db.exec('ALTER TABLE guides ADD COLUMN icon TEXT DEFAULT NULL');
+  });
 
   // Migration: bug-example and glossary proposals — same shape as the
   // course/guide proposal flow above. A plain tester can submit a bug
@@ -991,12 +1125,20 @@ export function initDb() {
   // lead/admin-authored, so is_published defaults to 1 — every existing
   // row stays visible exactly as before.
   const bugExamplesCols = db.prepare("PRAGMA table_info(bug_examples)").all().map(c => c.name);
-  if (!bugExamplesCols.includes('is_published')) db.exec('ALTER TABLE bug_examples ADD COLUMN is_published INTEGER DEFAULT 1');
-  if (!bugExamplesCols.includes('proposal_status')) db.exec('ALTER TABLE bug_examples ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  migrationStep('bug_examples.is_published', () => {
+    if (!bugExamplesCols.includes('is_published')) db.exec('ALTER TABLE bug_examples ADD COLUMN is_published INTEGER DEFAULT 1');
+  });
+  migrationStep('bug_examples.proposal_status', () => {
+    if (!bugExamplesCols.includes('proposal_status')) db.exec('ALTER TABLE bug_examples ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  });
 
   const glossaryCols = db.prepare("PRAGMA table_info(glossary_terms)").all().map(c => c.name);
-  if (!glossaryCols.includes('is_published')) db.exec('ALTER TABLE glossary_terms ADD COLUMN is_published INTEGER DEFAULT 1');
-  if (!glossaryCols.includes('proposal_status')) db.exec('ALTER TABLE glossary_terms ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  migrationStep('glossary_terms.is_published', () => {
+    if (!glossaryCols.includes('is_published')) db.exec('ALTER TABLE glossary_terms ADD COLUMN is_published INTEGER DEFAULT 1');
+  });
+  migrationStep('glossary_terms.proposal_status', () => {
+    if (!glossaryCols.includes('proposal_status')) db.exec('ALTER TABLE glossary_terms ADD COLUMN proposal_status TEXT DEFAULT NULL');
+  });
 
   // Migration: questions on the suggestions board. A tester can post a
   // 'question' suggestion (same table, new type — see suggestions.js);
@@ -1004,15 +1146,23 @@ export function initDb() {
   // (and everyone else browsing, since the board is shared) can see it
   // without a separate Q&A table or thread model.
   const suggestionsCols = db.prepare("PRAGMA table_info(suggestions)").all().map(c => c.name);
-  if (!suggestionsCols.includes('answer')) db.exec('ALTER TABLE suggestions ADD COLUMN answer TEXT DEFAULT NULL');
-  if (!suggestionsCols.includes('answered_at')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_at DATETIME DEFAULT NULL');
-  if (!suggestionsCols.includes('answered_by')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_by INTEGER DEFAULT NULL REFERENCES users(id)');
+  migrationStep('suggestions.answer', () => {
+    if (!suggestionsCols.includes('answer')) db.exec('ALTER TABLE suggestions ADD COLUMN answer TEXT DEFAULT NULL');
+  });
+  migrationStep('suggestions.answered_at', () => {
+    if (!suggestionsCols.includes('answered_at')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_at DATETIME DEFAULT NULL');
+  });
+  migrationStep('suggestions.answered_by', () => {
+    if (!suggestionsCols.includes('answered_by')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_by INTEGER DEFAULT NULL REFERENCES users(id)');
+  });
 
   // Self-service contact-info change (Аккаунт tab of the profile editor) —
   // no phone column existed anywhere before. Nullable, no format
   // enforcement at the DB layer (validated lightly in routes/auth.js).
   const usersColsForPhone = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
-  if (!usersColsForPhone.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL');
+  migrationStep('users.phone', () => {
+    if (!usersColsForPhone.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL');
+  });
 
   // Personal profile accent color — a small self-expression touch alongside
   // avatar/frame/background, used to tint the cabinet hero card border and
@@ -1254,6 +1404,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_custom_lesson_progress_user_id ON custom_lesson_progress(user_id);
     CREATE INDEX IF NOT EXISTS idx_custom_lesson_progress_lesson_id ON custom_lesson_progress(lesson_id);
     CREATE INDEX IF NOT EXISTS idx_custom_quiz_questions_lesson_id ON custom_quiz_questions(lesson_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_quiz_results_user_id ON custom_quiz_results(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_quiz_results_lesson_id ON custom_quiz_results(lesson_id);
     CREATE INDEX IF NOT EXISTS idx_custom_courses_created_by ON custom_courses(created_by);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);

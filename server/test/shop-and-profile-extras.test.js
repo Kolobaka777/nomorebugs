@@ -177,7 +177,7 @@ describe('avatar gallery', () => {
   it('starts empty', async () => {
     const res = await request(server).get('/api/avatars/gallery').set('Authorization', `Bearer ${testerToken}`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({ rows: [], hasMore: false });
   });
 
   it('rejects a non-string/missing image', async () => {
@@ -199,9 +199,13 @@ describe('avatar gallery', () => {
 
     const list = await request(server).get('/api/avatars/gallery').set('Authorization', `Bearer ${otherTesterToken}`);
     expect(list.status).toBe(200);
-    const row = list.body.find(g => g.id === galleryId);
+    const row = list.body.rows.find(g => g.id === galleryId);
     expect(row).toBeDefined();
-    expect(row.image).toBe(TINY_IMAGE);
+    // The listing deliberately carries no image data — it used to send every
+    // avatar's full base64 inline, unpaginated, so twenty of them meant tens
+    // of megabytes in one response every time the picker opened.
+    expect(row).not.toHaveProperty('image');
+    expect(row.uploader_name).toBeTruthy();
     expect(row.uploader_name).toBe('Test Tester');
   });
 
@@ -220,5 +224,49 @@ describe('avatar gallery', () => {
     const del = await request(server).delete(`/api/tester/avatar/gallery/${galleryId}`).set('Authorization', `Bearer ${testerToken}`);
     expect(del.status).toBe(200);
     expect(db.prepare('SELECT id FROM custom_avatars WHERE id = ?').get(galleryId)).toBeUndefined();
+  });
+});
+// The bytes, served one at a time so the browser can cache them, and worn
+// by id so the picker never has to hold them at all.
+describe('gallery images are fetched per avatar', () => {
+  const TINY_PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  let imageId;
+
+  beforeAll(async () => {
+    const add = await request(server).post('/api/tester/avatar/gallery')
+      .set('Authorization', `Bearer ${testerToken}`).send({ image: TINY_PNG });
+    imageId = add.body.id;
+  });
+
+  it('serves one avatar as a real image, cacheable', async () => {
+    const res = await request(server).get(`/api/avatars/gallery/${imageId}/image`)
+      .set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^image\/png/);
+    expect(res.headers['cache-control']).toMatch(/immutable/);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it('404s for an avatar that is not there', async () => {
+    const res = await request(server).get('/api/avatars/gallery/999999/image')
+      .set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('wears one by id, copying the bytes server-side', async () => {
+    const res = await request(server).post(`/api/tester/avatar/gallery/${imageId}/equip`)
+      .set('Authorization', `Bearer ${otherTesterToken}`);
+    expect(res.status).toBe(200);
+
+    const profile = await request(server).get('/api/tester/profile-full')
+      .set('Authorization', `Bearer ${otherTesterToken}`);
+    expect(profile.body.avatar_id).toBe('custom');
+    expect(profile.body.custom_avatar).toBe(TINY_PNG);
+  });
+
+  it('404s when equipping something that no longer exists', async () => {
+    const res = await request(server).post('/api/tester/avatar/gallery/999999/equip')
+      .set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(404);
   });
 });

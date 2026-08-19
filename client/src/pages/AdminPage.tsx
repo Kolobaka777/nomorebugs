@@ -6,10 +6,7 @@ import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT,
-  BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
 
 interface AdminPageProps {
   user: any;
@@ -417,7 +414,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
             className="px-4 py-3 rounded-lg text-sm font-geist mb-4"
             style={{
               background: 'rgba(224,82,82,0.1)',
-              color: '#e05252',
+              color: ERROR,
               border: '1px solid rgba(224,82,82,0.4)',
               boxShadow: CARD_SHADOW,
             }}
@@ -500,7 +497,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                         onClick={() => archiveUser(row.id, row.name)}
                         disabled={archivingId === row.id || row.id === user.id}
                         className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
-                        style={{ color: '#e05252' }}
+                        style={{ color: ERROR }}
                       >
                         <Icon name="archive" size={14} color="currentColor" />
                         {archivingId === row.id ? '...' : 'Архивировать'}
@@ -613,7 +610,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                   {taskTypes.map(t => (
                     <span key={t.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.8)' }}>
                       <span className="break-words min-w-0">{t.name}</span>
-                      <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} className="flex items-center" style={{ color: '#e05252' }}>
+                      <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} className="flex items-center" style={{ color: ERROR }}>
                         <Icon name="close" size={13} color="currentColor" />
                       </button>
                     </span>
@@ -691,7 +688,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
                       </div>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => restoreTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"><Icon name="undo" size={14} color="currentColor" /> Вернуть</button>
-                        <button onClick={() => purgeTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5" style={{ color: '#e05252' }}>Удалить навсегда</button>
+                        <button onClick={() => purgeTrashItem(item)} className="btn-secondary text-xs px-3 py-1.5" style={{ color: ERROR }}>Удалить навсегда</button>
                       </div>
                     </div>
                   ))}

@@ -3,7 +3,7 @@ import Icon from './Icon';
 import FrogLoader from './FrogLoader';
 import { frogLinesApi } from '../api';
 import { FrogLine, invalidateFrogLines } from '../utils/frogLines';
-import { ACCENT, CARD_BG, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, BADGE_NOTIFY } from '../utils/theme';
+import { ACCENT, CARD_BG, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
 // Lead-facing editor for everything the mascot says. Lives inside Багодельня
 // rather than getting a page of its own because that page is already the
@@ -107,7 +107,7 @@ function LineForm({ kind, draft, setDraft, onSave, onCancel, saving, error }: {
           {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
       </div>
-      {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist break-words" style={{ color: ERROR }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={onSave} disabled={saving} className="btn-primary text-xs px-4 py-2">
           {saving ? 'Сохраняю...' : 'Сохранить'}
@@ -174,7 +174,7 @@ export default function FrogLinesEditor() {
   if (loadError && !lines) {
     return (
       <div className="rounded-lg text-center py-8" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
-        <p className="text-sm font-geist mb-3" style={{ color: '#e05252' }}>{loadError}</p>
+        <p className="text-sm font-geist mb-3" style={{ color: ERROR }}>{loadError}</p>
         <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
       </div>
     );
@@ -227,7 +227,7 @@ export default function FrogLinesEditor() {
       </div>
       <p className="font-geist text-xs mb-4" style={{ color: TEXT_MUTED }}>{meta.hint}</p>
 
-      {loadError && <p className="text-xs font-geist mb-3" style={{ color: '#e05252' }}>{loadError}</p>}
+      {loadError && <p className="text-xs font-geist mb-3" style={{ color: ERROR }}>{loadError}</p>}
 
       {adding && (
         <div className="mb-4">
@@ -286,7 +286,7 @@ export default function FrogLinesEditor() {
                   onClick={() => remove(l)}
                   aria-label="Удалить фразу"
                   className="btn-secondary text-xs px-2 py-0.5"
-                  style={{ color: '#e05252' }}
+                  style={{ color: ERROR }}
                 >
                   <Icon name="close" size={13} color="currentColor" />
                 </button>

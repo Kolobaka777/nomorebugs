@@ -5,7 +5,16 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { common, createLowlight } from 'lowlight';
+import { createLowlight } from 'lowlight';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import json from 'highlight.js/lib/languages/json';
+import sql from 'highlight.js/lib/languages/sql';
+import bash from 'highlight.js/lib/languages/bash';
+import python from 'highlight.js/lib/languages/python';
+import diff from 'highlight.js/lib/languages/diff';
 // All three live in the one package in Tiptap v3 (the old 3-package split
 // — extension-details-summary/-content as separate installs — never got a
 // v3 release; @tiptap/extension-details now bundles them itself).
@@ -27,10 +36,15 @@ import { CARD_BG, TEXT_MUTED, ACCENT } from '../utils/theme';
 // than a separate file-upload endpoint, since none exists in this app.
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
-// `common` covers the languages a QA tester actually pastes — JS/TS, JSON,
-// HTML/XML, CSS, Python, bash/shell, SQL, Java, etc. — without pulling in
-// highlight.js's full ~190-language grammar set into the bundle.
-const lowlight = createLowlight(common);
+// Nine languages, named one at a time, instead of lowlight's `common`
+// bundle. `common` is about 37 grammars — Fortran, Objective-C, Lua — and
+// it made this the largest chunk in the build by a wide margin, bigger than
+// the rest of the application put together. Every one below is something a
+// QA engineer actually pastes here; `xml` is highlight.js's name for the
+// grammar that covers HTML.
+const lowlight = createLowlight({
+  javascript, typescript, xml, css, json, sql, bash, python, diff,
+});
 
 // One uniform break rule across every block type, code blocks included:
 //   Enter       → close this block, start a new one

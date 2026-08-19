@@ -4,16 +4,12 @@ import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { DEFAULT_SUCCESS_TEXT, DEFAULT_FAIL_TEXT, RESULT_TEXT_MAX } from '../utils/courseResult';
-import { API_BASE_URL as API } from '../config';
-import { authFetch } from '../auth';
-import { knowledgeApi } from '../api';
+import { knowledgeApi, coursesApi } from '../api';
 import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
 import { parseRichContent } from '../utils/richContent';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx — Tiptap is the app's single
 // heaviest dependency, no reason to pay for it before this form is open.
@@ -66,7 +62,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<{ id: number; name: string }[]>([]);
   useEffect(() => {
-    authFetch(`${API}/course-sections`).then(r => r.json()).then(data => { if (Array.isArray(data)) setSections(data); }).catch(() => {});
+    coursesApi.getSections().then(r => { if (Array.isArray(r.data)) setSections(r.data); }).catch(() => {});
   }, []);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const [error, setError] = useState('');
@@ -79,10 +75,9 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
   // Load existing course if editing
   useEffect(() => {
     if (!isEdit) return;
-    authFetch(`${API}/custom-courses/${id}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) { setError(data.error); return; }
+    coursesApi.get(id!)
+      .then(r => {
+        const data = r.data;
         setLoadedUpdatedAt(data.updated_at || null);
         setForm({
           title: data.title,
@@ -148,8 +143,8 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
         // direct API call, or a save landing in the gap right after this
         // check, would otherwise still be able to silently delete whatever
         // the other editor added).
-        const current = await authFetch(`${API}/custom-courses/${id}`).then(r => r.json()).catch(() => null);
-        if (current && !current.error && loadedUpdatedAt && current.updated_at !== loadedUpdatedAt) {
+        const current = await coursesApi.get(id!).then(r => r.data).catch(() => null);
+        if (current && loadedUpdatedAt && current.updated_at !== loadedUpdatedAt) {
           const proceed = window.confirm(
             'Курс был изменён с момента открытия тобой этой страницы (кто-то ещё сохранил изменения). ' +
             'Сохранить твою версию поверх текущей?'
@@ -188,16 +183,15 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
         })),
       };
 
-      const url = isEdit ? `${API}/custom-courses/${id}` : `${API}/custom-courses`;
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const r = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await r.json();
-      if (data.error) { setError(data.error); return; }
+      if (isEdit) await coursesApi.update(id!, body);
+      else await coursesApi.create(body);
 
       navigate('/zhukademia');
-    } catch {
-      setError('Ошибка сохранения');
+    } catch (e: any) {
+      // axios rejects on a non-2xx, so the server's own explanation (a
+      // validation message, a 409 from the conflict check) arrives here
+      // instead of having to be sniffed out of a 200 body.
+      setError(e?.response?.data?.error || 'Ошибка сохранения');
     } finally {
       setSaving(false);
     }
@@ -473,7 +467,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
             {error && (
               <div
                 className="rounded-lg p-3 mb-4 font-geist text-sm text-center"
-                style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252', border: '1px solid rgba(224,82,82,0.4)' }}
+                style={{ background: 'rgba(224,82,82,0.1)', color: ERROR, border: '1px solid rgba(224,82,82,0.4)' }}
               >
                 {error}
               </div>

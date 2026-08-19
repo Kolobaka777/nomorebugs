@@ -51,9 +51,11 @@ export function hashToken(token) {
 }
 
 export function authMiddleware(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  // Scheme checked, not just skipped past: `authorization.split(' ')[1]`
+  // accepted `Basic <jwt>` and anything else with a space in it.
+  const [scheme, token] = (req.headers.authorization || '').split(' ');
 
-  if (!token) {
+  if (scheme !== 'Bearer' || !token) {
     return res.status(401).json({ error: 'No token provided' });
   }
 

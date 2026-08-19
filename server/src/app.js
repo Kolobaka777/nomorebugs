@@ -79,6 +79,22 @@ if (process.env.NODE_ENV !== 'test') {
 // ADMIN_PASSWORD env vars instead (see below).
 (function seedUsersIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) as count FROM users').get();
+
+  // NODE_ENV was the only thing standing between a real deployment and five
+  // accounts whose passwords are published in this repository — and an
+  // unset variable is not a decision, it is an omission. A deployment looks
+  // nothing like a laptop: it binds a public PORT and has been told which
+  // origins to serve. If those are set and NODE_ENV is not, refuse to start
+  // rather than quietly seeding lead123 onto the internet.
+  const looksDeployed = Boolean(process.env.CORS_ORIGIN || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER || process.env.FLY_APP_NAME);
+  if (count === 0 && looksDeployed && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
+    throw new Error(
+      'Отказ запуска: база пуста, окружение похоже на боевое (задан CORS_ORIGIN или переменная хостинга), ' +
+      'а NODE_ENV не равен "production". Так были бы созданы демо-аккаунты с паролями из репозитория. ' +
+      'Задайте NODE_ENV=production и ADMIN_EMAIL/ADMIN_PASSWORD.'
+    );
+  }
+
   if (count === 0 && process.env.NODE_ENV !== 'production') {
     const ins = db.prepare('INSERT INTO users (email, password, name, role, avatar_initials) VALUES (?, ?, ?, ?, ?)');
     ins.run('lead@qa.com',  bcryptjs.hashSync('lead123', 10), 'Alex Lead',      'lead',   'AL');
@@ -239,7 +255,9 @@ if (process.env.NODE_ENV !== 'test') {
 // limiters.
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  // Overridable for the same reasons as the auth limiters — see the note
+  // above limitFromEnv in routes/auth.js.
+  limit: Number(process.env.RATE_LIMIT_WRITE) > 0 ? Number(process.env.RATE_LIMIT_WRITE) : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов. Попробуйте снова через несколько минут.' },

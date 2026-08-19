@@ -8,7 +8,9 @@ import Modal from './Modal';
 import { useEscapeKey } from '../utils/a11y';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { shopItemFor, ACCENT_PALETTE } from '../utils/shop';
-import { ACCENT } from '../utils/theme';
+import { ACCENT, ERROR } from '../utils/theme';
+import GalleryAvatarImage from './GalleryAvatarImage';
+import { loadGalleryImage, forgetGalleryImage } from '../utils/galleryImages';
 
 const SPECIALIZATIONS = [
   { value: '',                    label: '— Не выбрано —' },
@@ -68,6 +70,11 @@ export default function ProfileEditModal({
   const [showcase, setShowcase]             = useState<string[]>(profile.showcase_badges || []);
   const [favLectureId]                      = useState<number | null>(profile.favorite_lecture_id);
   const [customAvatar, setCustomAvatar]     = useState<string | null>(profile.custom_avatar);
+  // Which gallery entry is currently worn, if any. Tracked by id because
+  // the picker no longer holds anybody's image bytes to compare against —
+  // equipping copies them server-side (POST .../gallery/:id/equip).
+  const [equippedGalleryId, setEquippedGalleryId] = useState<number | null>(null);
+  const [equipError, setEquipError] = useState('');
   // Whether a *just-uploaded* file (this session) should also be published
   // to the shared gallery on save — a one-shot action tied to this upload,
   // not a persistent flag on the avatar itself (see the server route
@@ -75,10 +82,26 @@ export default function ProfileEditModal({
   // retroactive; only a fresh upload triggers a new gallery entry).
   const [publishPublicly, setPublishPublicly] = useState(false);
   const [galleryAvatars, setGalleryAvatars] = useState<GalleryAvatar[]>([]);
+
+  const equipFromGallery = async (id: number) => {
+    setEquipError('');
+    const previous = equippedGalleryId;
+    setEquippedGalleryId(id);
+    try {
+      await testerApi.equipGalleryAvatar(id);
+      setAvatarId('custom');
+      setPublishPublicly(false);
+      const url = await loadGalleryImage(id);
+      if (url) setCustomAvatar(url);
+    } catch {
+      setEquippedGalleryId(previous);
+      setEquipError('Не удалось надеть аватар. Попробуй ещё раз.');
+    }
+  };
   const [deletingGalleryId, setDeletingGalleryId] = useState<number | null>(null);
 
   useEffect(() => {
-    testerApi.getAvatarGallery().then(r => setGalleryAvatars(r.data)).catch(() => {});
+    testerApi.getAvatarGallery().then(r => setGalleryAvatars(r.data.rows)).catch(() => {});
   }, []);
   // Purely for correctly-gendered verb endings elsewhere (activity feeds,
   // "Ты прошёл/прошла..." on the home page) — never shown to anyone else as
@@ -529,10 +552,13 @@ export default function ProfileEditModal({
               {galleryAvatars.length > 0 && (
                 <div>
                   <label style={labelStyle}>ОБЩАЯ ГАЛЕРЕЯ</label>
+                  {equipError && (
+                    <p role="alert" className="font-geist text-xs mb-2" style={{ color: ERROR }}>{equipError}</p>
+                  )}
                   <div className="grid grid-cols-5 gap-2">
                     {galleryAvatars.map(g => {
                       const isMine = g.user_id === profile.id;
-                      const equipped = avatarId === 'custom' && customAvatar === g.image;
+                      const equipped = equippedGalleryId === g.id;
                       return (
                         <div
                           key={g.id}
@@ -545,11 +571,12 @@ export default function ProfileEditModal({
                           }}
                         >
                           <button
-                            onClick={() => { setAvatarId('custom'); setCustomAvatar(g.image); setPublishPublicly(false); }}
+                            onClick={() => equipFromGallery(g.id)}
                             title={`Загрузил(а): ${g.uploader_name}`}
+                            aria-label={`Надеть аватар из галереи, загрузил(а) ${g.uploader_name}`}
                             className="cursor-pointer flex items-center justify-center"
                           >
-                            <PixelAvatar id="frog1" customSrc={g.image} size={44} />
+                            <GalleryAvatarImage id={g.id} />
                           </button>
                           {isMine && (
                             <button
@@ -557,6 +584,7 @@ export default function ProfileEditModal({
                                 setDeletingGalleryId(g.id);
                                 try {
                                   await testerApi.deleteGalleryAvatar(g.id);
+                                  forgetGalleryImage(g.id);
                                   setGalleryAvatars(prev => prev.filter(x => x.id !== g.id));
                                 } catch { /* toast not critical here — the tile just stays */ }
                                 finally { setDeletingGalleryId(null); }
@@ -567,7 +595,7 @@ export default function ProfileEditModal({
                               className="absolute top-0.5 right-0.5 rounded flex items-center justify-center cursor-pointer"
                               style={{ width: 16, height: 16, background: 'rgba(0, 0, 0, 0.7)' }}
                             >
-                              <Icon name="close" size={10} color="#e05252" />
+                              <Icon name="close" size={10} color={ERROR} />
                             </button>
                           )}
                         </div>
@@ -661,7 +689,7 @@ export default function ProfileEditModal({
                 <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
                   Баланс: <span style={{ color: '#EF9F27' }} className="font-semibold flex items-center gap-1">{coins}<Icon name="lightning" size={12} color="currentColor" /></span>
                 </span>
-                {buyError && <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{buyError}</p>}
+                {buyError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{buyError}</p>}
               </div>
             </>
           )}
@@ -685,7 +713,7 @@ export default function ProfileEditModal({
                       <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Введите новый пароль" style={inputStyle} />
                       <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повторите новый пароль" style={inputStyle} />
                     </div>
-                    {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: '#e05252' }}>{pwError}</p>}
+                    {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: ERROR }}>{pwError}</p>}
                     {pwSuccess && <p className="text-xs font-sans mt-1" style={{ color: '#4ADE80' }}>Пароль изменён</p>}
                     <button
                       onClick={changePassword}
@@ -709,7 +737,7 @@ export default function ProfileEditModal({
                   <div className="space-y-2">
                     <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder={currentEmail} style={inputStyle} />
                     <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
-                    {emailError && <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{emailError}</p>}
+                    {emailError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{emailError}</p>}
                     <button
                       onClick={changeEmail}
                       disabled={emailSaving || !newEmail || !emailPw}
@@ -732,7 +760,7 @@ export default function ProfileEditModal({
                   <div className="space-y-2">
                     <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+7 900 000-00-00" style={inputStyle} />
                     <input type="password" value={phonePw} onChange={e => setPhonePw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
-                    {phoneError && <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{phoneError}</p>}
+                    {phoneError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{phoneError}</p>}
                     {phoneSuccess && <p className="text-xs font-sans" style={{ color: '#4ADE80' }}>Номер изменён</p>}
                     <button
                       onClick={changePhone}
@@ -750,7 +778,7 @@ export default function ProfileEditModal({
 
           {/* Error */}
           {error && (
-            <p className="text-xs font-sans break-words" style={{ color: '#e05252' }}>{error}</p>
+            <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{error}</p>
           )}
 
           {/* Save — hidden on the Account tab, which saves each of its own

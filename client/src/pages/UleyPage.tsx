@@ -13,9 +13,7 @@ import LecturesTab from '../components/uley/LecturesTab';
 import RatingsTab from '../components/uley/RatingsTab';
 import ActivityTab from '../components/uley/ActivityTab';
 import { Tab } from '../components/uley/constants';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
 
 interface UleyPageProps {
   user: any;
@@ -255,7 +253,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-8">
           <div className="card text-center py-10">
-            <p className="font-geist text-sm mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="font-geist text-sm mb-4 break-words" style={{ color: ERROR }}>{loadError}</p>
             <button onClick={() => { setLoading(true); loadData(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         </div>

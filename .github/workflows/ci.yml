@@ -6,9 +6,12 @@ on:
   pull_request:
     branches: [master]
 
+# Every job installs with `npm ci` against the committed lockfile, so a
+# green run means these exact dependency versions pass — not "whatever
+# resolved today".
 jobs:
   server-tests:
-    name: Server tests
+    name: Server tests + coverage
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,10 +24,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - run: npm test
+      # Coverage thresholds live in vitest.config.js and fail the run if
+      # they drop — the suite used to report a count of tests and nothing
+      # about how much of the code they touch.
+      - run: npm run test:coverage
 
   client-tests:
-    name: Client tests
+    name: Client tests + coverage
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,7 +43,26 @@ jobs:
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
       - run: npm ci
-      - run: npm test
+      - run: npm run test:coverage
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      # Warnings are allowed through on purpose: the React-Compiler-readiness
+      # rules are a migration to-do list, not a list of defects. Errors are
+      # not — see client/eslint.config.js.
+      - run: npm run lint
 
   client-build:
     name: Client typecheck + build
@@ -54,3 +79,22 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    strategy:
+      # Both halves get checked even when one of them fails, so a single
+      # advisory doesn't hide a second one in the other package.
+      fail-fast: false
+      matrix:
+        package: [client, server]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Production dependencies only: a dev-only advisory is worth knowing
+      # about but should not block a deploy of code that never ships it.
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: ${{ matrix.package }}

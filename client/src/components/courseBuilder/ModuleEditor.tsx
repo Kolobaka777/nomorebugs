@@ -4,7 +4,7 @@ import Icon from '../Icon';
 import LessonEditor from './LessonEditor';
 import { emptyLesson } from './types';
 import type { BLesson, BModule } from './types';
-import { CARD_BG, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
+import { CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ERROR } from '../../utils/theme';
 
 export default function ModuleEditor({
   mod,
@@ -67,7 +67,7 @@ export default function ModuleEditor({
           aria-label="Удалить модуль"
           className="flex-shrink-0 transition-colors cursor-pointer"
           style={{ color: TEXT_MUTED }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#e05252')}
+          onMouseEnter={e => (e.currentTarget.style.color = ERROR)}
           onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
         >
           <Icon name="close" size={16} color="currentColor" />

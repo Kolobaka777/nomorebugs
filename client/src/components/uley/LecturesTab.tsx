@@ -1,5 +1,5 @@
 import { LectureStat } from '../../types';
-import { ACCENT, BADGE_NOTIFY, TEXT_PRIMARY, TEXT_MUTED } from '../../utils/theme';
+import { ACCENT, BADGE_NOTIFY, TEXT_PRIMARY, TEXT_MUTED, ERROR } from '../../utils/theme';
 
 export default function LecturesTab({ lectureStats }: { lectureStats: LectureStat[] }) {
   return (
@@ -12,7 +12,7 @@ export default function LecturesTab({ lectureStats }: { lectureStats: LectureSta
         const passColor = noData ? TEXT_MUTED
           : lec.passRate! >= 70 ? ACCENT
           : lec.passRate! >= 40 ? BADGE_NOTIFY
-          : '#e05252';
+          : ERROR;
         return (
           <div key={lec.id} className="card">
             <div className="flex justify-between items-center mb-2">

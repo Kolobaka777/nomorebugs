@@ -19,6 +19,16 @@ function truncateForNotify(text, max = 60) {
 
 const router = express.Router();
 
+// A ceiling on the knowledge-base lists, none of which had one.
+//
+// These are curated content — a team's glossary and bug examples grow to
+// hundreds of rows, not millions — so this is a backstop, not real
+// pagination with a cursor the client walks. It exists so a list that grows
+// unexpectedly (an import, a runaway script) degrades into "you see the
+// most recent 500" instead of one response that keeps getting larger until
+// something gives. The response shape is unchanged: still a plain array.
+const KNOWLEDGE_LIST_CAP = 500;
+
 function hasManageGuides(user) {
   return user.role === 'lead' || user.role === 'admin' || hasPermission(user.id, 'manage_guides');
 }
@@ -62,13 +72,13 @@ router.get('/api/bug-examples', authMiddleware, (req, res) => {
       ? db.prepare(`
           SELECT e.*, ${displayName('u')} as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM bug_examples e
           LEFT JOIN users u ON u.id = e.created_by
-          WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC
-        `).all()
+          WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT ?
+        `).all(KNOWLEDGE_LIST_CAP)
       : db.prepare(`
           SELECT e.*, ${displayName('u')} as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM bug_examples e
           LEFT JOIN users u ON u.id = e.created_by
-          WHERE e.deleted_at IS NULL AND (e.is_published = 1 OR e.created_by = ?) ORDER BY e.created_at DESC
-        `).all(req.user.id);
+          WHERE e.deleted_at IS NULL AND (e.is_published = 1 OR e.created_by = ?) ORDER BY e.created_at DESC LIMIT ?
+        `).all(req.user.id, KNOWLEDGE_LIST_CAP);
     res.json(rows);
   } catch (err) {
     logError(err);
@@ -191,13 +201,13 @@ router.get('/api/glossary', authMiddleware, (req, res) => {
       ? db.prepare(`
           SELECT g.*, ${displayName('u')} as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM glossary_terms g
           LEFT JOIN users u ON u.id = g.created_by
-          WHERE g.deleted_at IS NULL ORDER BY g.term COLLATE NOCASE ASC
-        `).all()
+          WHERE g.deleted_at IS NULL ORDER BY g.term COLLATE NOCASE ASC LIMIT ?
+        `).all(KNOWLEDGE_LIST_CAP)
       : db.prepare(`
           SELECT g.*, ${displayName('u')} as author_name, (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender FROM glossary_terms g
           LEFT JOIN users u ON u.id = g.created_by
-          WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.term COLLATE NOCASE ASC
-        `).all(req.user.id);
+          WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.term COLLATE NOCASE ASC LIMIT ?
+        `).all(req.user.id, KNOWLEDGE_LIST_CAP);
     res.json(rows);
   } catch (err) {
     logError(err);
@@ -312,16 +322,16 @@ router.get('/api/guides', authMiddleware, (req, res) => {
           SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, ${displayName('u')} as author_name,
             (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
           FROM guides g JOIN users u ON u.id = g.created_by
-          WHERE g.deleted_at IS NULL ORDER BY g.category, g.title
-        `).all()
+          WHERE g.deleted_at IS NULL ORDER BY g.category, g.title LIMIT ?
+        `).all(KNOWLEDGE_LIST_CAP)
       // Everyone else: published guides, plus their own proposals whatever
       // their status (so they can at least see what they submitted).
       : db.prepare(`
           SELECT g.id, g.title, g.category, g.icon, g.updated_at, g.created_at, g.is_published, g.proposal_status, g.created_by, ${displayName('u')} as author_name,
             (SELECT gender FROM user_profiles WHERE user_id = u.id) as author_gender
           FROM guides g JOIN users u ON u.id = g.created_by
-          WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.category, g.title
-        `).all(req.user.id);
+          WHERE g.deleted_at IS NULL AND (g.is_published = 1 OR g.created_by = ?) ORDER BY g.category, g.title LIMIT ?
+        `).all(req.user.id, KNOWLEDGE_LIST_CAP);
     res.json(rows);
   } catch (err) {
     logError(err);

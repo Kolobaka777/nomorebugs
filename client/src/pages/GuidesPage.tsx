@@ -8,7 +8,7 @@ import { showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, ERROR } from '../utils/theme';
 
 // Tiptap (the block editor) is the single heaviest dependency in the app —
 // its own chunk is ~150KB gzipped, more than every other route combined.
@@ -110,7 +110,7 @@ function GuideForm({
       <Suspense fallback={<RichTextEditorFallback />}>
         <RichTextEditor content={parseRichContent(content)} editable onChangeJSON={setContent} />
       </Suspense>
-      {error && <p className="text-xs font-geist" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist" style={{ color: ERROR }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={() => onSave({ title, category, content, icon })} disabled={saving} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">
           {saving ? '...' : 'Сохранить'}
@@ -260,7 +260,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
 
         {listError && (
           <div className="card text-center py-4 mb-6">
-            <p className="text-sm font-geist mb-3" style={{ color: '#e05252' }}>{listError}</p>
+            <p className="text-sm font-geist mb-3" style={{ color: ERROR }}>{listError}</p>
             <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         )}
@@ -349,7 +349,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                       <button
                         onClick={() => remove(selected.id, selected.proposal_status === 'pending')}
                         aria-label={selected.proposal_status === 'pending' ? 'Отклонить предложение' : 'Удалить гайд'}
-                        className="btn-secondary text-xs px-2 py-1" style={{ color: '#e05252' }}
+                        className="btn-secondary text-xs px-2 py-1" style={{ color: ERROR }}
                       >
                         <Icon name="close" size={14} color="currentColor" />
                       </button>

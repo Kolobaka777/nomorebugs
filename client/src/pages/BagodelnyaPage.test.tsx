@@ -1,7 +1,7 @@
 // The knowledge base: bug examples, glossary, and the lead-only tab that
 // edits what the mascot says. Permission gating is the whole point here.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import BagodelnyaPage from './BagodelnyaPage';
 import { knowledgeApi } from '../api';
 

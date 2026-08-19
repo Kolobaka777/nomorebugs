@@ -7,7 +7,7 @@ import ProfileEditModal from '../components/ProfileEditModal';
 import { primeAvatarCache } from '../components/Navigation';
 import { testerApi, rewardsApi, presenceApi } from '../api';
 import {
-  Lecture, TestHistoryItem, SKillChart,
+  Lecture, SKillChart,
   FullProfile, PresenceEntry, CourseFavorite, CourseNoteGroup,
 } from '../types';
 import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId, type AvatarId } from '../components/PixelAvatar';
@@ -19,9 +19,7 @@ import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { shopItemFor } from '../utils/shop';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, BADGE_BG, BADGE_BORDER,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, BADGE_BG, BADGE_BORDER, ERROR } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
@@ -44,8 +42,9 @@ function formatBirthday(mmdd: string): string {
   return month ? `${dd} ${month}` : mmdd;
 }
 
-// ── Before/After summary (kept for future use on this page — not currently
-//    wired into any tab) ─────────────────────────────────────────────────────
+// Kept only as a reference for whoever wires a before/after summary into
+// this page — nothing calls it today.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getGrowthSummary(skills: SKillChart[], completed: number) {
   if (!skills.length || skills.every(s => s.before === 0))
     return { text: 'Пройди базовый опрос, чтобы увидеть прогресс', color: TEXT_MUTED };
@@ -121,8 +120,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   const [metrics, setMetrics]           = useState<any>(null);
   const [lectures, setLectures]         = useState<Lecture[]>([]);
-  const [history, setHistory]           = useState<TestHistoryItem[]>([]);
-  const [beforeAfter, setBeforeAfter]   = useState<SKillChart[]>([]);
   const [profile, setProfile]           = useState<FullProfile | null>(null);
   const [loading, setLoading]           = useState(true);
   const [showEdit, setShowEdit]         = useState(false);
@@ -171,11 +168,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const loadAll = async () => {
     setLoadError('');
     try {
-      const [metricsRes, lecturesRes, historyRes, baRes, profileRes] = await Promise.all([
+      // getHistory/getBeforeAfter used to be fetched here too — two requests
+      // on every load of this page whose results were stored in state and
+      // never rendered by anything. Removed rather than kept "for later".
+      const [metricsRes, lecturesRes, profileRes] = await Promise.all([
         testerApi.getMetrics(),
         testerApi.getLectures(),
-        testerApi.getHistory(),
-        testerApi.getBeforeAfter(),
         testerApi.getProfileFull(),
       ]);
 
@@ -199,8 +197,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       }).catch((err: any) => showApiError(err, 'Не удалось загрузить рабочее время'));
       setMetrics(metricsRes.data);
       setLectures(lecturesRes.data);
-      setHistory(historyRes.data);
-      setBeforeAfter(baRes.data);
       setProfile(profileRes.data);
       // The nav dropdown reads user.displayName from localStorage, which is
       // only ever set at login or after actively editing the nickname here —
@@ -240,7 +236,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
         <div className="card text-center py-10">
-          <p className="text-sm font-sans mb-4 break-words" style={{ color: '#e05252' }}>{loadError}</p>
+          <p className="text-sm font-sans mb-4 break-words" style={{ color: ERROR }}>{loadError}</p>
           <button onClick={() => { setLoading(true); loadAll(); }} className="btn-secondary text-xs px-4 py-2">Повторить</button>
         </div>
       </div>
@@ -360,7 +356,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   const NAV_ITEMS: { id: Tab; label: string; icon: IconName; color: string }[] = [
     { id: 'favorites',  label: 'Избранное',      icon: 'star',  color: '#EF9F27' },
-    { id: 'notes',      label: 'Заметки',        icon: 'memo',  color: '#e05252' },
+    { id: 'notes',      label: 'Заметки',        icon: 'memo',  color: ERROR },
     { id: 'shop',       label: 'Магазин',        icon: 'card',  color: accent },
     { id: 'collection', label: 'Коллекция',      icon: 'floppy', color: '#7F77DD' },
     { id: 'presence',   label: 'Рабочее время',  icon: 'clock', color: TEXT_MUTED },
@@ -619,7 +615,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       >
                         Перейти <Icon name="chevronRight" size={16} color="currentColor" />
                       </button>
-                      <button onClick={() => removeFavorite(f)} aria-label="Убрать из избранного" className="shrink-0 cursor-pointer flex items-center" style={{ color: '#e05252' }}>
+                      <button onClick={() => removeFavorite(f)} aria-label="Убрать из избранного" className="shrink-0 cursor-pointer flex items-center" style={{ color: ERROR }}>
                         <Icon name="close" size={16} color="currentColor" />
                       </button>
                     </Panel>
@@ -663,7 +659,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                                 <button onClick={() => navigate(`/custom-course/${g.course_id}/learn`)} className="font-geist text-xs cursor-pointer flex items-center gap-1" style={{ color: accent }}>
                                   Перейти к заметке <Icon name="chevronRight" size={14} color="currentColor" />
                                 </button>
-                                <button onClick={() => deleteNote(n.id)} aria-label="Удалить заметку" className="cursor-pointer flex items-center" style={{ color: '#e05252' }}>
+                                <button onClick={() => deleteNote(n.id)} aria-label="Удалить заметку" className="cursor-pointer flex items-center" style={{ color: ERROR }}>
                                   <Icon name="close" size={14} color="currentColor" />
                                 </button>
                               </span>
@@ -791,7 +787,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   </div>
                 </div>
 
-                {shopError && <p className="font-geist text-xs" style={{ color: '#e05252' }}>{shopError}</p>}
+                {shopError && <p className="font-geist text-xs" style={{ color: ERROR }}>{shopError}</p>}
               </div>
             )}
 

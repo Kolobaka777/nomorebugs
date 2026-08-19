@@ -7,7 +7,7 @@ import { suggestionsApi } from '../api';
 import { Suggestion, SuggestionType, SuggestionStatus, SuggestionFolder } from '../types';
 import { showApiError } from '../utils/toast';
 import { timeAgo, parseServerDate } from '../utils/date';
-import { PAGE_GRADIENT, CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -30,7 +30,7 @@ const TYPE_LABELS: Record<SuggestionType, string> = {
 const TYPE_ORDER: SuggestionType[] = ['idea', 'complaint'];
 const TYPE_COLORS: Record<SuggestionType, string> = {
   idea: '#7F77DD',
-  complaint: '#e05252',
+  complaint: ERROR,
   question: '#4fc3f7',
 };
 const STATUS_LABELS: Record<SuggestionStatus, string> = {
@@ -116,7 +116,7 @@ function SuggestionCard({
             <button onClick={save} disabled={saving} className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">{saving ? '...' : 'Сохранить'}</button>
           </div>
         </div>
-        {error && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="text-xs font-geist mt-2 break-words" style={{ color: ERROR }}>{error}</p>}
       </div>
     );
   }
@@ -199,7 +199,7 @@ function SuggestionCard({
             onClick={() => onDelete(s)}
             className="cursor-pointer transition-colors"
             style={{ color: TEXT_MUTED }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#e05252'; }}
+            onMouseEnter={e => { e.currentTarget.style.color = ERROR; }}
             onMouseLeave={e => { e.currentTarget.style.color = TEXT_MUTED; }}
             title="Удалить"
           >
@@ -408,7 +408,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
               {submitting ? '...' : 'Отправить'}
             </button>
           </div>
-          {submitError && <p className="text-xs font-geist mt-2 break-words" style={{ color: '#e05252' }}>{submitError}</p>}
+          {submitError && <p className="text-xs font-geist mt-2 break-words" style={{ color: ERROR }}>{submitError}</p>}
         </div>
 
         {/* Lead-only folder management — purely their own private sorting */}
@@ -419,7 +419,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
               {folders.map(f => (
                 <span key={f.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199,0.07)', color: TEXT_PRIMARY }}>
                   <span className="break-words min-w-0">{f.name}</span>
-                  <button onClick={() => removeFolder(f.id)} aria-label={`Удалить папку ${f.name}`} style={{ color: '#e05252' }}>
+                  <button onClick={() => removeFolder(f.id)} aria-label={`Удалить папку ${f.name}`} style={{ color: ERROR }}>
                     <Icon name="close" size={12} color="currentColor" />
                   </button>
                 </span>
@@ -440,7 +440,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
         )}
 
         {/* List */}
-        {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: '#e05252' }}>{loadError}</p>}
+        {loadError && <p className="text-sm font-geist text-center py-6 break-words" style={{ color: ERROR }}>{loadError}</p>}
         {!loadError && !list && <FrogLoader />}
         {list && list.length === 0 && (
           <p className="text-sm font-geist text-center py-10" style={{ color: TEXT_MUTED }}>Пока ничего нет — стань первым.</p>

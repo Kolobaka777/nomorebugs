@@ -181,7 +181,12 @@ function App() {
           regardless of DOM order (position:fixed + z-index:auto siblings
           are ordered by z-index value first, not just tree order). */}
       <BgWatermark />
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      {/* The routed view is the page's main content, so it says so once
+          here rather than 21 times. <header> and <nav> already come from
+          the shared Navigation component, so this completes the set: a
+          screen reader can jump straight past the chrome on every screen,
+          which it could previously do on exactly one of them. */}
+      <main style={{ position: 'relative', zIndex: 1 }}>
         <Suspense fallback={
           <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0B0C10', lineHeight: 1.8 }}>
             🐌 уже ползу...
@@ -236,7 +241,7 @@ function App() {
             )}
           </Routes>
         </Suspense>
-      </div>
+      </main>
     </BrowserRouter>
   );
 }

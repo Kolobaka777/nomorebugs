@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
 import Icon from './Icon';
+import { ERROR } from '../utils/theme';
 
 interface TelegramLoginButtonProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -99,7 +100,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
   if (phase === 'expired' || phase === 'error') {
     return (
       <div className="mt-4 text-center">
-        <p className="text-xs font-sans mb-2" style={{ color: '#e05252' }}>
+        <p className="text-xs font-sans mb-2" style={{ color: ERROR }}>
           {phase === 'expired' ? 'Ссылка устарела' : 'Что-то пошло не так'}
         </p>
         <button

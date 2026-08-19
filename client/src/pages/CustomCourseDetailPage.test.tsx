@@ -1,9 +1,8 @@
-// A custom course's landing page. It talks to the API through authFetch
-// rather than the api module, so that is what gets stubbed here.
+// A custom course's landing page.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import CustomCourseDetailPage from './CustomCourseDetailPage';
-import { authFetch } from '../auth';
+import { coursesApi } from '../api';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -11,8 +10,10 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate, useParams: () => ({ id: '3' }) };
 });
 vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="nav" /> }));
-vi.mock('../auth', () => ({ authFetch: vi.fn() }));
-vi.mock('../api', () => ({ leadApi: { setDeadlineOverride: vi.fn(), removeDeadlineOverride: vi.fn() } }));
+vi.mock('../api', () => ({
+  leadApi: { setDeadlineOverride: vi.fn(), removeDeadlineOverride: vi.fn() },
+  coursesApi: { get: vi.fn(), togglePublish: vi.fn(), remove: vi.fn() },
+}));
 
 const tester = { id: 2, name: 'Nazariy', role: 'tester' };
 const lead = { id: 1, name: 'Lead', role: 'lead' };
@@ -22,11 +23,9 @@ const course = (o = {}) => ({
   is_published: 1, proposal_status: null, created_by: 1, modules: [], effectiveDeadline: null, ...o,
 });
 
-const respond = (body: any) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as any);
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(authFetch).mockImplementation(() => respond(course()));
+  vi.mocked(coursesApi.get).mockResolvedValue({ data: course() } as any);
 });
 
 const renderFor = (user: any) => render(<CustomCourseDetailPage user={user} onLogout={vi.fn()} />);
@@ -38,14 +37,14 @@ describe('CustomCourseDetailPage', () => {
   });
 
   it('offers a retry when the request itself failed, instead of claiming the course does not exist', async () => {
-    vi.mocked(authFetch).mockRejectedValue(new Error('offline'));
+    vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderFor(tester);
     expect(await screen.findByText(/Не удалось загрузить курс/)).toBeInTheDocument();
     expect(screen.getByText(/Повторить/)).toBeInTheDocument();
   });
 
-  it('says the course is missing — not that the network failed — when the server answers with an error', async () => {
-    vi.mocked(authFetch).mockImplementation(() => respond({ error: 'Не найдено' }));
+  it('says the course is missing — not that the network failed — on a 404', async () => {
+    vi.mocked(coursesApi.get).mockRejectedValue({ response: { status: 404, data: { error: 'Не найдено' } } });
     renderFor(tester);
     expect(await screen.findByText('Курс не найден')).toBeInTheDocument();
     expect(screen.queryByText(/Повторить/)).not.toBeInTheDocument();
@@ -58,14 +57,14 @@ describe('CustomCourseDetailPage', () => {
   });
 
   it('offers the author a publish control for an unpublished course', async () => {
-    vi.mocked(authFetch).mockImplementation(() => respond(course({ is_published: 0 })));
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({ is_published: 0 }) } as any);
     renderFor(lead);
     await screen.findByText('Основы вёрстки');
     expect(screen.getByText(/Опубликовать/)).toBeInTheDocument();
   });
 
   it('frames a pending proposal as a review decision, not an ordinary publish', async () => {
-    vi.mocked(authFetch).mockImplementation(() => respond(course({ is_published: 0, proposal_status: 'pending', created_by: 2 })));
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({ is_published: 0, proposal_status: 'pending', created_by: 2 }) } as any);
     renderFor(lead);
     await screen.findByText('Основы вёрстки');
     expect(screen.getByText(/Одобрить и опубликовать/)).toBeInTheDocument();

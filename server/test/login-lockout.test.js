@@ -1,52 +1,59 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+// Per-account login lockout — the half of brute-force protection that the
+// per-IP limiter can't do, since an attacker rotating IPs otherwise gets
+// unlimited attempts at one specific account. See routes/auth.js.
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
+
+vi.mock('../src/telegram.js', () => ({
+  notifyUser: () => {},
+  notifyUserConfirmed: async () => 'none',
+}));
 
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
 const { seedTestData, testServer } = await import('./helpers.js');
 
 const server = await testServer(app);
-// Own file so this gets a fresh module load — a fresh in-memory failed-login
-// map, and a fresh per-IP loginLimiter budget (20 requests/15min, shared by
-// every request in this file — kept deliberately under that throughout, so
-// what trips is always the per-account lockout, not the pre-existing IP one
-// from a different test file).
+
+const login = (email, password) => request(server).post('/api/auth/login').send({ email, password });
+
 beforeAll(() => {
   seedTestData(db);
 });
 
-describe('per-account login lockout', () => {
-  it('locks a specific account out after repeated wrong passwords, and rejects even the correct password while locked', async () => {
-    const email = 'tester@test.local';
-    let lastStatus = 200;
-    // The lockout trips at 8 failed attempts (well under the IP limiter's
-    // 20) — looping one past that confirms the lock is actually in effect,
-    // not just that the 8th guess itself was wrong.
-    for (let i = 0; i < 9; i++) {
-      const res = await request(server).post('/api/auth/login').send({ email, password: 'wrongpassword' });
-      lastStatus = res.status;
+describe('login lockout', () => {
+  it('locks one account after repeated failures, without touching another', async () => {
+    for (let i = 0; i < 8; i++) {
+      const res = await login('tester@test.local', 'wrong-password');
+      expect(res.status).toBe(401);
     }
-    expect(lastStatus).toBe(429);
 
-    const withCorrectPassword = await request(server).post('/api/auth/login').send({ email, password: 'testerpass123' });
-    expect(withCorrectPassword.status).toBe(429);
+    const locked = await login('tester@test.local', 'testerpass123'); // now the *right* password
+    expect(locked.status).toBe(429);
+
+    // The lock is per account, not global — everyone else still gets in.
+    const other = await login('lead@test.local', 'leadpass123');
+    expect(other.status).toBe(200);
   });
 
-  it('a successful login resets the counter, so a handful of typos afterward does not carry over toward a lockout', async () => {
-    const email = 'lead@test.local';
-    for (let i = 0; i < 3; i++) {
-      await request(server).post('/api/auth/login').send({ email, password: 'wrong' });
-    }
-    const good = await request(server).post('/api/auth/login').send({ email, password: 'leadpass123' });
-    expect(good.status).toBe(200);
+  // The lockout must not become a new way to learn which addresses exist —
+  // an unknown email and a wrong password have to look the same.
+  it('answers identically for an unknown email and a wrong password', async () => {
+    const unknown = await login('nobody-here@test.local', 'whatever');
+    const wrong = await login('lead@test.local', 'definitely-wrong');
+    expect(unknown.status).toBe(wrong.status);
+    expect(unknown.body.error).toBe(wrong.body.error);
+  });
 
-    for (let i = 0; i < 3; i++) {
-      await request(server).post('/api/auth/login').send({ email, password: 'wrong' });
-    }
-    const stillOk = await request(server).post('/api/auth/login').send({ email, password: 'leadpass123' });
-    expect(stillOk.status).toBe(200);
+  it('a successful login clears the count before it reaches the threshold', async () => {
+    for (let i = 0; i < 5; i++) await login('admin@test.local', 'wrong');
+    expect((await login('admin@test.local', 'adminpass123')).status).toBe(200);
+
+    // The counter reset, so another five failures still don't lock it.
+    for (let i = 0; i < 5; i++) await login('admin@test.local', 'wrong');
+    expect((await login('admin@test.local', 'adminpass123')).status).toBe(200);
   });
 });

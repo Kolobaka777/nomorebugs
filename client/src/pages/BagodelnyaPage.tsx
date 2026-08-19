@@ -8,9 +8,7 @@ import { showApiError } from '../utils/toast';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { parseRichContent, richContentToPlainText } from '../utils/richContent';
-import {
-  PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW,
-} from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
 const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
@@ -66,7 +64,7 @@ interface GlossaryTerm {
   author_gender?: Gender;
 }
 
-const TAG_COLORS = ['#7F77DD', '#66FCF1', '#EF9F27', '#e05252', '#4fc3f7', '#ff8a65'];
+const TAG_COLORS = ['#7F77DD', '#66FCF1', '#EF9F27', ERROR, '#4fc3f7', '#ff8a65'];
 
 function PendingBadge() {
   return (
@@ -144,7 +142,7 @@ function BugExampleForm({
         <input className="pixel-input" value={problem} onChange={e => setProblem(e.target.value)} placeholder="Например: Неверный отступ в секции" />
       </div>
       <div>
-        <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: '#e05252' }}>
+        <label className="flex items-center gap-1.5 text-xs font-geist mb-1.5" style={{ color: ERROR }}>
           <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
         </label>
         <Suspense fallback={<RichTextEditorFallback />}>
@@ -159,7 +157,7 @@ function BugExampleForm({
           <RichTextEditor content={parseRichContent(goodText)} editable onChangeJSON={setGoodText} placeholder="Хороший пример баг-репорта" />
         </Suspense>
       </div>
-      {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist break-words" style={{ color: ERROR }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
           {saving ? 'Сохраняю...' : isProposing ? 'Отправить на рассмотрение' : 'Сохранить'}
@@ -213,7 +211,7 @@ function GlossaryForm({
           <RichTextEditor content={parseRichContent(definition)} editable onChangeJSON={setDefinition} placeholder="Что означает этот термин?" />
         </Suspense>
       </div>
-      {error && <p className="text-xs font-geist break-words" style={{ color: '#e05252' }}>{error}</p>}
+      {error && <p className="text-xs font-geist break-words" style={{ color: ERROR }}>{error}</p>}
       <div className="flex gap-2">
         <button onClick={submit} disabled={saving} className="btn-primary text-xs px-4 py-2">
           {saving ? 'Сохраняю...' : isProposing ? 'Отправить на рассмотрение' : 'Сохранить'}
@@ -356,7 +354,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
 
         {!loading && loadError && (
           <div className="rounded-lg text-center py-8 mb-6" style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}>
-            <p className="text-sm font-geist mb-3 break-words" style={{ color: '#e05252' }}>{loadError}</p>
+            <p className="text-sm font-geist mb-3 break-words" style={{ color: ERROR }}>{loadError}</p>
             <button onClick={load} className="btn-secondary text-xs px-4 py-2">Повторить</button>
           </div>
         )}
@@ -392,8 +390,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
               {/* Column headers */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 px-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: '#e05252' }} />
-                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: '#e05252', fontSize: 13, letterSpacing: TRACK_WIDE }}>
+                  <div className="w-2 h-2 rounded-full" style={{ background: ERROR }} />
+                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: ERROR, fontSize: 13, letterSpacing: TRACK_WIDE }}>
                     <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
                   </span>
                 </div>
@@ -455,7 +453,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                                 >
                                   <Icon name="check" size={13} color="currentColor" />
                                 </button>
-                                <button onClick={() => deleteExample(pair.id, true)} aria-label="Отклонить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                                <button onClick={() => deleteExample(pair.id, true)} aria-label="Отклонить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: ERROR }}>
                                   <Icon name="close" size={13} color="currentColor" />
                                 </button>
                               </div>
@@ -465,7 +463,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                                 <button onClick={() => setEditingExampleId(pair.id)} aria-label="Редактировать пример" className="btn-secondary text-xs px-2 py-0.5">
                                   <Icon name="pencil" size={13} color="currentColor" />
                                 </button>
-                                <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                                <button onClick={() => deleteExample(pair.id)} aria-label="Удалить пример" className="btn-secondary text-xs px-2 py-0.5" style={{ color: ERROR }}>
                                   <Icon name="close" size={13} color="currentColor" />
                                 </button>
                               </div>
@@ -473,8 +471,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: '3px solid #e05252', boxShadow: CARD_SHADOW }}>
-                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: '#e05252', letterSpacing: TRACK_WIDE }}>
+                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${ERROR}`, boxShadow: CARD_SHADOW }}>
+                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: ERROR, letterSpacing: TRACK_WIDE }}>
                                 <Icon name="close" size={13} color="currentColor" /> ПЛОХО
                               </span>
                               <Suspense fallback={<RichTextEditorFallback />}>
@@ -621,7 +619,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                         >
                           <Icon name="check" size={13} color="currentColor" />
                         </button>
-                        <button onClick={() => deleteTerm(item.id, true)} aria-label="Отклонить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                        <button onClick={() => deleteTerm(item.id, true)} aria-label="Отклонить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: ERROR }}>
                           <Icon name="close" size={13} color="currentColor" />
                         </button>
                       </div>
@@ -631,7 +629,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                         <button onClick={() => setEditingTermId(item.id)} aria-label="Редактировать термин" className="btn-secondary text-xs px-2 py-0.5">
                           <Icon name="pencil" size={13} color="currentColor" />
                         </button>
-                        <button onClick={() => deleteTerm(item.id)} aria-label="Удалить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: '#e05252' }}>
+                        <button onClick={() => deleteTerm(item.id)} aria-label="Удалить термин" className="btn-secondary text-xs px-2 py-0.5" style={{ color: ERROR }}>
                           <Icon name="close" size={13} color="currentColor" />
                         </button>
                       </div>

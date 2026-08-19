@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
               <p className="font-geist text-sm text-center mb-6" style={{ color: TEXT_MUTED }}>Введите почту, на которую зарегистрирован аккаунт</p>
               <form onSubmit={submit} className="space-y-4">
                 {error && (
-                  <div className="px-4 py-3 rounded-lg text-sm font-geist" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252' }}>
+                  <div className="px-4 py-3 rounded-lg text-sm font-geist" style={{ background: 'rgba(224,82,82,0.1)', color: ERROR }}>
                     {error}
                   </div>
                 )}

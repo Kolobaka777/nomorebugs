@@ -79,3 +79,45 @@ describe('chat topic wiring', () => {
     }
   });
 });
+
+// The chat posts a button's label as the person's own line in the
+// conversation, so an imperative there ("Начисляй премии") reads as them
+// ordering the frog about rather than asking it something. The how-to items
+// carry a separate question form for exactly this; the FAQ ones were
+// already questions.
+describe('FrogChat — everything on a button is a question', () => {
+  const ROLES = ['tester', 'lead'];
+
+  it('phrases every answer button as a question, whichever list it came from', () => {
+    for (const role of ROLES) {
+      for (const topic of chatTopicsFor(role)) {
+        for (const answer of topic.answers) {
+          expect(answer.label.trim().endsWith('?'), `${role}/${topic.id}: ${answer.label}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  // Two buttons reading the same thing is a menu that asks you to guess.
+  it('never shows the same question twice inside one topic', () => {
+    for (const role of ROLES) {
+      for (const topic of chatTopicsFor(role)) {
+        const labels = topic.answers.map(a => a.label);
+        expect(new Set(labels).size, `${role}/${topic.id}`).toBe(labels.length);
+      }
+    }
+  });
+
+  // The Help page's capability cards keep the imperative — a list of what
+  // you can do reads correctly that way. The two forms must not be confused
+  // for one another.
+  it('keeps the imperative card title separate from the chat question', () => {
+    for (const role of ROLES) {
+      for (const item of howToFor(role)) {
+        expect(item.title.trim(), item.id).not.toBe('');
+        expect(item.question.trim().endsWith('?'), item.id).toBe(true);
+        expect(item.question, item.id).not.toBe(item.title);
+      }
+    }
+  });
+});

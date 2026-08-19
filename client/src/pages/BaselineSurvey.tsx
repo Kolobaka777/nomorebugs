@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { testerApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 interface BaselineSurveyProps {
   onComplete: () => void;
@@ -144,7 +144,7 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
 
         <div className="p-8 rounded-lg" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
           {error && (
-            <div className="px-4 py-3 rounded-lg text-sm font-geist mb-5" style={{ background: 'rgba(224,82,82,0.1)', color: '#e05252', border: '1px solid #e05252' }}>
+            <div className="px-4 py-3 rounded-lg text-sm font-geist mb-5" style={{ background: 'rgba(224,82,82,0.1)', color: ERROR, border: `1px solid ${ERROR}` }}>
               {error}
             </div>
           )}

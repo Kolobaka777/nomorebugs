@@ -7,7 +7,7 @@ import { parseServerDate } from '../../utils/date';
 import { pickByGender } from '../../utils/gender';
 import { parseRichContent, richContentToPlainText } from '../../utils/richContent';
 import { ALL_PERMISSIONS, LEAVE_LABELS, PERMISSION_LABELS } from './constants';
-import { ACCENT, BADGE_NOTIFY, CARD_BG, CARD_SHADOW, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../../utils/theme';
+import { ACCENT, BADGE_NOTIFY, CARD_BG, CARD_SHADOW, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, ERROR } from '../../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -36,7 +36,6 @@ export default function TeamTab({
   resetResult,
   archivingId,
   bonusResult,
-  noteDrafts,
   setNoteDrafts,
   savingNoteId,
   onSetPresenceTarget,
@@ -266,7 +265,7 @@ export default function TeamTab({
                     onClick={() => archiveMember(member.id, member.name)}
                     disabled={archivingId === member.id}
                     className="btn-secondary text-xs px-3 py-1 flex items-center gap-1.5"
-                    style={{ color: '#e05252' }}
+                    style={{ color: ERROR }}
                   >
                     <Icon name="archive" size={13} color="currentColor" /> {archivingId === member.id ? '...' : 'Архивировать'}
                   </button>

@@ -156,10 +156,23 @@ describe('«Полуночный жук» — logged in after midnight (server t
     await request(server).post('/api/auth/register').send({ email: 'almostowl@test.local', password: 'almostpass123', name: 'Almost Owl' });
     const almostOwl = db.prepare("SELECT id FROM users WHERE email = 'almostowl@test.local'").get();
 
+    // Three seeded days plus today, deliberately — not four seeded days.
+    //
+    // The real login below is timestamped by the server, and "after
+    // midnight" here means UTC hours 0-4. Seeding four past days meant that
+    // whenever the suite happened to run inside that five-hour window, the
+    // real login became a fifth distinct day and the badge fired — the test
+    // failed for a reason that had nothing to do with the rule it checks.
+    // Anchoring the fourth day to today makes the real login land on a day
+    // that is already counted (or on no counted day at all, outside the
+    // window), so the total is four either way.
     const insLogin = db.prepare("INSERT INTO activity_log (user_id, action, created_at) VALUES (?, 'login', ?)");
-    for (let day = 1; day <= 4; day++) {
-      insLogin.run(almostOwl.id, `2026-01-0${day} 02:30:00`);
+    for (const day of ['2026-01-01', '2026-01-02', '2026-01-03']) {
+      insLogin.run(almostOwl.id, `${day} 02:30:00`);
     }
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    insLogin.run(almostOwl.id, `${todayUtc} 02:30:00`);
+
     await loginAs(request, server, 'almostowl@test.local', 'almostpass123');
     expect(hasBadge(almostOwl.id, 'achievement_polunochny_zhuk')).toBe(false);
   });

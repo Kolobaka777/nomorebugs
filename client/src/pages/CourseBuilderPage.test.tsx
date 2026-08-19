@@ -2,10 +2,9 @@
 // course outright and submitting one for review — the same screen does both,
 // and which one it is depends on a permission.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import CourseBuilderPage from './CourseBuilderPage';
-import { authFetch } from '../auth';
-import { knowledgeApi } from '../api';
+import { knowledgeApi, coursesApi } from '../api';
 import { DEFAULT_SUCCESS_TEXT, DEFAULT_FAIL_TEXT } from '../utils/courseResult';
 
 const mockNavigate = vi.fn();
@@ -15,18 +14,20 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate, useParams: () => params };
 });
 vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="nav" /> }));
-vi.mock('../auth', () => ({ authFetch: vi.fn() }));
-vi.mock('../api', () => ({ knowledgeApi: { getMyPermissions: vi.fn() } }));
+vi.mock('../api', () => ({
+  knowledgeApi: { getMyPermissions: vi.fn() },
+  coursesApi: { get: vi.fn(), create: vi.fn(), update: vi.fn(), getSections: vi.fn() },
+}));
 
 const tester = { id: 2, name: 'Nazariy', role: 'tester' };
 const lead = { id: 1, name: 'Lead', role: 'lead' };
-const respond = (body: any) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as any);
 
 beforeEach(() => {
   vi.clearAllMocks();
   params = {};
   vi.mocked(knowledgeApi.getMyPermissions).mockResolvedValue({ data: [] } as any);
-  vi.mocked(authFetch).mockImplementation(() => respond([]));
+  vi.mocked(coursesApi.getSections).mockResolvedValue({ data: [] } as any);
+  vi.mocked(coursesApi.get).mockResolvedValue({ data: {} } as any);
 });
 
 const renderFor = (user: any) => render(<CourseBuilderPage user={user} onLogout={vi.fn()} />);
@@ -52,10 +53,9 @@ describe('CourseBuilderPage', () => {
 
   it('loads an existing course for editing when the route carries an id', async () => {
     params = { id: '7' };
-    vi.mocked(authFetch).mockImplementation((url: string) =>
-      url.includes('/custom-courses/7')
-        ? respond({ id: 7, title: 'Курс про баги', description: '', tag: 'Custom', color: '#66FCF1', modules: [] })
-        : respond([]));
+    vi.mocked(coursesApi.get).mockResolvedValue({
+      data: { id: 7, title: 'Курс про баги', description: '', tag: 'Custom', color: '#66FCF1', modules: [] },
+    } as any);
     renderFor(lead);
     expect(await screen.findByText('Редактировать курс')).toBeInTheDocument();
     expect(await screen.findByDisplayValue('Курс про баги')).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('CourseBuilderPage', () => {
 
   it('reports a failed load rather than silently opening a blank editor over a real course', async () => {
     params = { id: '7' };
-    vi.mocked(authFetch).mockRejectedValue(new Error('offline'));
+    vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderFor(lead);
     expect(await screen.findByText('Ошибка загрузки курса')).toBeInTheDocument();
   });

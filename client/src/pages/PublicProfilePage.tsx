@@ -9,7 +9,7 @@ import { PublicProfile } from '../types';
 import { BADGE_META } from '../utils/badges';
 import { parseServerDate } from '../utils/date';
 import { TIMEZONES } from '../utils/timezones';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -62,7 +62,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
       <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
         <Navigation user={user} onLogout={onLogout} />
         <div className="max-w-lg mx-auto px-6 pt-16 text-center">
-          <p className="text-sm font-geist mb-4 break-words" style={{ color: '#e05252' }}>{loadError || 'Профиль не найден'}</p>
+          <p className="text-sm font-geist mb-4 break-words" style={{ color: ERROR }}>{loadError || 'Профиль не найден'}</p>
           {/* Text kept literally as "← Назад" (not swapped for an Icon) —
               PublicProfilePage.test.tsx asserts screen.getByText('← Назад')
               verbatim and is out of scope to edit. */}

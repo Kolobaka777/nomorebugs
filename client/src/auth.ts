@@ -120,25 +120,6 @@ function sessionExpired() {
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
-// fetch() wrapper for pages that call the API directly instead of through the
-// shared axios instance in api.ts. Attaches the access token and, on a 401,
-// transparently refreshes and retries the request once before giving up.
-export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const doFetch = (token: string | null) =>
-    fetch(input, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token || ''}` } });
-
-  let res = await doFetch(getAccessToken());
-  if (res.status === 401) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      res = await doFetch(newToken);
-    } else {
-      sessionExpired();
-    }
-  }
-  return res;
-}
-
 // Exposed for api.ts's axios response interceptor, which handles the retry
 // itself (axios needs the new token to rebuild its own request config).
 export async function tryRefreshAccessToken(): Promise<string | null> {

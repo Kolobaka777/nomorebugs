@@ -8,10 +8,7 @@ import { ROLE_META } from '../utils/roles';
 import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
 import logoUrl from '../assets/logo.svg';
-import {
-  ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG,
-  HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER,
-} from '../utils/theme';
+import { ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG, HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER, ERROR } from '../utils/theme';
 
 // Distance from the header's own top/bottom edge to a nav tab, per the kit
 // spec — with the header's own height, this fixes the tab's rendered
@@ -436,7 +433,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 onClick={() => { onLogout(); setMenuOpen(false); }}
                 className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
                 style={{ color: 'rgba(197, 198, 199,0.6)', borderTop: '1px solid rgba(102, 252, 241,0.08)' }}
-                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(224,82,82,0.06)'; (e.currentTarget).style.color = '#e05252'; }}
+                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(224,82,82,0.06)'; (e.currentTarget).style.color = ERROR; }}
                 onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(197, 198, 199,0.45)'; }}
               >
                 Выйти

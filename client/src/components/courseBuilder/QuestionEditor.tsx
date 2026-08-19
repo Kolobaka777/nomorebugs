@@ -1,6 +1,6 @@
 import Icon from '../Icon';
 import type { BQuestion } from './types';
-import { TEXT_MUTED } from '../../utils/theme';
+import { TEXT_MUTED, ERROR } from '../../utils/theme';
 
 export default function QuestionEditor({
   q,
@@ -35,7 +35,7 @@ export default function QuestionEditor({
           onClick={onDelete}
           className="flex items-center gap-1 font-geist text-xs transition-colors cursor-pointer"
           style={{ color: TEXT_MUTED }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#e05252')}
+          onMouseEnter={e => (e.currentTarget.style.color = ERROR)}
           onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
         >
           <Icon name="close" size={13} color="currentColor" />

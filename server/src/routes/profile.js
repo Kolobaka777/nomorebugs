@@ -277,14 +277,67 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
 // independent copy.
 const MAX_AVATAR_BASE64_CHARS = 2.8 * 1024 * 1024; // same cap as custom_avatar above
 
+// The gallery listing carries no image data at all.
+//
+// It used to select ca.image for every row with no limit — each one up to
+// 2.8 MB of base64, so twenty uploaded avatars meant roughly 56 MB in a
+// single JSON response, sent every time the avatar picker opened, with no
+// cache headers. The picker only ever needs to know what exists; the bytes
+// come one at a time from the route below, which the browser can cache.
+const GALLERY_PAGE_SIZE = 60;
+
 router.get('/api/avatars/gallery', authMiddleware, (req, res) => {
   try {
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const rows = db.prepare(`
-      SELECT ca.id, ca.image, ca.user_id, ${displayName('u')} as uploader_name
+      SELECT ca.id, ca.user_id, ${displayName('u')} as uploader_name
       FROM custom_avatars ca JOIN users u ON u.id = ca.user_id
       ORDER BY ca.created_at DESC
-    `).all();
-    res.json(rows);
+      LIMIT ? OFFSET ?
+    `).all(GALLERY_PAGE_SIZE + 1, offset);
+    res.json({
+      rows: rows.slice(0, GALLERY_PAGE_SIZE),
+      hasMore: rows.length > GALLERY_PAGE_SIZE,
+    });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// One image, as an image — decoded from the stored base64 and served with
+// its real content type, so the browser caches it like any other picture
+// instead of re-downloading it inside a JSON blob on every render.
+// Immutable: a gallery entry's bytes never change, only whether the row
+// still exists.
+router.get('/api/avatars/gallery/:id/image', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT image FROM custom_avatars WHERE id = ?').get(req.params.id);
+    if (!row?.image) return res.status(404).json({ error: 'Не найдено' });
+
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(row.image);
+    if (!match) return res.status(415).json({ error: 'Неподдерживаемый формат' });
+
+    res.setHeader('Content-Type', match[1]);
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    res.send(Buffer.from(match[2], 'base64'));
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Wearing a gallery avatar copies the bytes server-side. The picker never
+// downloads them to hand them straight back on save — it only knows the id.
+router.post('/api/tester/avatar/gallery/:id/equip', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT image FROM custom_avatars WHERE id = ?').get(req.params.id);
+    if (!row?.image) return res.status(404).json({ error: 'Не найдено' });
+    db.prepare(`
+      INSERT INTO user_profiles (user_id, avatar_id, custom_avatar) VALUES (?, 'custom', ?)
+      ON CONFLICT(user_id) DO UPDATE SET avatar_id = 'custom', custom_avatar = excluded.custom_avatar
+    `).run(req.user.id, row.image);
+    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

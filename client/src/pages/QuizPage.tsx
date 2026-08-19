@@ -8,7 +8,7 @@ import Navigation from '../components/Navigation';
 import { BookOpenIcon, CheckCircleIcon } from '../components/CatalogIcons';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { celebrateAchievements } from '../utils/achievements';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 interface QuizPageProps {
   user: any;
@@ -254,17 +254,17 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
             className="w-full max-w-md p-8 rounded-lg text-center fade-in"
             style={{
               background: CARD_BG,
-              border: passed ? `1px solid ${ACCENT}` : '1px solid #e05252',
+              border: passed ? `1px solid ${ACCENT}` : `1px solid ${ERROR}`,
               boxShadow: '0 8px 12px 0 rgba(0, 0, 0, 0.25)',
             }}
           >
             <div className="mb-4 flex justify-center">
-              <Icon name={passed ? 'trophy' : 'warning'} size={52} color={passed ? '#EF9F27' : '#e05252'} />
+              <Icon name={passed ? 'trophy' : 'warning'} size={52} color={passed ? '#EF9F27' : ERROR} />
             </div>
-            <p className="font-montserrat font-bold mb-2" style={{ color: passed ? ACCENT : '#e05252', fontSize: 20, letterSpacing: TRACK_WIDE }}>
+            <p className="font-montserrat font-bold mb-2" style={{ color: passed ? ACCENT : ERROR, fontSize: 20, letterSpacing: TRACK_WIDE }}>
               {passed ? 'ТЕСТ ПРОЙДЕН!' : 'ТЕСТ НЕ СДАН'}
             </p>
-            <p className="font-montserrat font-extrabold mb-6" style={{ color: passed ? ACCENT : '#e05252', fontSize: 44 }}>
+            <p className="font-montserrat font-extrabold mb-6" style={{ color: passed ? ACCENT : ERROR, fontSize: 44 }}>
               {score}%
             </p>
             <p className="font-geist text-sm mb-8" style={{ color: TEXT_MUTED }}>
@@ -399,7 +399,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                 borderColor = ACCENT;
                 bgColor = 'rgba(102, 252, 241,0.1)';
               } else if (isWrongAnswer) {
-                borderColor = '#e05252';
+                borderColor = ERROR;
                 bgColor = 'rgba(224,82,82,0.1)';
               } else if (isSelected) {
                 borderColor = '#EF9F27';
@@ -449,10 +449,10 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               className="mt-6 p-4 rounded-lg fade-in"
               style={{
                 background: isCorrect ? 'rgba(102, 252, 241,0.08)' : 'rgba(224,82,82,0.08)',
-                border: `1px solid ${isCorrect ? ACCENT : '#e05252'}`,
+                border: `1px solid ${isCorrect ? ACCENT : ERROR}`,
               }}
             >
-              <p className="font-montserrat font-bold mb-2" style={{ color: isCorrect ? ACCENT : '#e05252', fontSize: 14, letterSpacing: TRACK_WIDE }}>
+              <p className="font-montserrat font-bold mb-2" style={{ color: isCorrect ? ACCENT : ERROR, fontSize: 14, letterSpacing: TRACK_WIDE }}>
                 {isCorrect ? '✓ Верно!' : `✗ Правильный ответ: ${explanation.correctAnswer.toUpperCase()}`}
               </p>
               <p className="font-geist text-sm mb-2 break-words" style={{ color: 'rgba(197, 198, 199,0.85)' }}>{explanation.explanation}</p>

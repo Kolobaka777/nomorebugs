@@ -102,7 +102,15 @@ export const testerApi = {
 
   updateProfile: (data: any) => api.put('/tester/profile', data),
 
-  getAvatarGallery: () => api.get('/avatars/gallery'),
+  // Returns { rows, hasMore } and, deliberately, no image data — the bytes
+  // come one at a time from getGalleryImage below so the browser can cache
+  // them, instead of arriving together in one very large JSON response.
+  getAvatarGallery: (params?: { offset?: number }) => api.get('/avatars/gallery', { params }),
+
+  getGalleryImage: (id: number) => api.get(`/avatars/gallery/${id}/image`, { responseType: 'blob' }),
+
+  // Wearing one is done by id: the picker never needs the bytes in hand.
+  equipGalleryAvatar: (id: number) => api.post(`/tester/avatar/gallery/${id}/equip`),
 
   publishAvatarToGallery: (image: string) => api.post('/tester/avatar/gallery', { image }),
 
@@ -249,6 +257,39 @@ export const statsApi = {
 // Knowledge base (Багодельня): bug examples + glossary. Anyone can also
 // *propose* one — the server forces it unpublished + pending review
 // regardless of what's sent (see POST /api/bug-examples, POST /api/glossary).
+// Custom courses. This whole domain used to live on `authFetch` — a second,
+// parallel HTTP layer with its own retry, its own header handling and its own
+// error shape — while everything else went through axios. Same transport for
+// everything now; authFetch is gone.
+export const coursesApi = {
+  list: () => api.get('/custom-courses'),
+  get: (id: number | string) => api.get(`/custom-courses/${id}`),
+  create: (data: any) => api.post('/custom-courses', data),
+  update: (id: number | string, data: any) => api.put(`/custom-courses/${id}`, data),
+  remove: (id: number | string) => api.delete(`/custom-courses/${id}`),
+  togglePublish: (id: number | string) => api.patch(`/custom-courses/${id}/publish`),
+
+  completeLesson: (lessonId: number) => api.post(`/custom-lessons/${lessonId}/complete`),
+  trackTime: (course_id: number, seconds_spent: number) =>
+    api.post('/courses/time-track', { course_id, seconds_spent }),
+
+  // Grading lives on the server (see routes/courses.js). `answers` is keyed
+  // by question id, not by position, so a course edited mid-attempt can't
+  // grade someone against a question they never read.
+  submitQuiz: (lessonId: number, answers: Record<number, number>) =>
+    api.post(`/custom-lessons/${lessonId}/submit-quiz`, { answers }),
+  // The per-question reveal, fetched only once an answer is picked — the
+  // answer key is not in the page source.
+  getExplanation: (lessonId: number, questionId: number) =>
+    api.get(`/custom-lessons/${lessonId}/question/${questionId}/explanation`),
+  myResult: (courseId: number | string) => api.get(`/custom-courses/${courseId}/my-result`),
+
+  getSections: () => api.get('/course-sections'),
+  createSection: (name: string) => api.post('/course-sections', { name }),
+  renameSection: (id: number, name: string) => api.patch(`/course-sections/${id}`, { name }),
+  removeSection: (id: number) => api.delete(`/course-sections/${id}`),
+};
+
 export const knowledgeApi = {
   getBugExamples: () => api.get('/bug-examples'),
   createBugExample: (data: { tag: string; tag_color: string; problem: string; bad_text: string; good_text: string }) =>

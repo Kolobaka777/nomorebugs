@@ -59,10 +59,35 @@ function clearRefreshCookie(res) {
 
 // ============== AUTH ENDPOINTS ==============
 
-// Throttles login attempts per IP to slow down credential brute-forcing.
+// Every limit below is overridable by environment variable.
+//
+// Two reasons. Operationally, the right number depends on the deployment —
+// a team of ten behind one office NAT and a public sign-up page want very
+// different budgets, and neither should need a code change. For tests, it
+// means a file that is *about* rate limiting can pick tight numbers while
+// every other file gets a budget it will never hit: the counters live in
+// process memory, so two test files sharing a worker used to share a
+// bucket, and a suite that ran in a different order failed somewhere it had
+// nothing to do with.
+const limitFromEnv = (name, fallback) => {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+};
+
+// Throttles login attempts per IP. Deliberately looser than the per-account
+// lockout below, because the two defend against different things and only
+// one of them should be the tight one.
+//
+// A whole office behind a single NAT shares this bucket: at 20 per 15
+// minutes, five people mistyping their passwords on a Monday morning locked
+// out everyone else in the building — a self-inflicted denial of service
+// with no attacker involved. The targeted attack this number was meant to
+// stop (hammering one account) is what failedLoginAttempts actually stops,
+// per account, regardless of how many IPs it comes from. This stays as a
+// coarse backstop against volume.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: limitFromEnv('RATE_LIMIT_LOGIN', 60),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток входа. Попробуйте снова через несколько минут.' },
@@ -74,7 +99,7 @@ const loginLimiter = rateLimit({
 // an unguessable random value, not a low-entropy password).
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 60,
+  limit: limitFromEnv('RATE_LIMIT_REFRESH', 60),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов. Попробуйте снова через несколько минут.' },
@@ -83,7 +108,7 @@ const refreshLimiter = rateLimit({
 // Logout is user-initiated and rare — same budget as login is generous enough.
 const logoutLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: limitFromEnv('RATE_LIMIT_LOGOUT', 20),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов. Попробуйте снова через несколько минут.' },
@@ -93,7 +118,7 @@ const logoutLimiter = rateLimit({
 // concern here, not brute-forcing a specific credential.
 const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: limitFromEnv('RATE_LIMIT_REGISTER', 20),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток регистрации. Попробуйте снова через несколько минут.' },
@@ -103,7 +128,7 @@ const registerLimiter = rateLimit({
 // row, so the abuse concern (token-table exhaustion) is the same shape.
 const telegramStartLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: limitFromEnv('RATE_LIMIT_TELEGRAM', 20),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Попробуйте снова через несколько минут.' },
@@ -118,7 +143,7 @@ const telegramStartLimiter = rateLimit({
 // backstop).
 const telegramPollLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  limit: limitFromEnv('RATE_LIMIT_TELEGRAM_POLL', 300),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов. Попробуйте снова через несколько минут.' },
@@ -436,7 +461,7 @@ router.post('/api/auth/logout', logoutLimiter, (req, res) => {
 
 const passwordChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: limitFromEnv('RATE_LIMIT_PASSWORD_CHANGE', 20),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Попробуйте снова через несколько минут.' },
@@ -444,7 +469,7 @@ const passwordChangeLimiter = rateLimit({
 
 const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: limitFromEnv('RATE_LIMIT_FORGOT_PASSWORD', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Попробуйте снова через несколько минут.' },

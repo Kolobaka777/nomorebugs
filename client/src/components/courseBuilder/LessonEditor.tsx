@@ -4,7 +4,7 @@ import QuestionEditor from './QuestionEditor';
 import { emptyQuestion } from './types';
 import type { BLesson, BQuestion, PrerequisiteType } from './types';
 import { parseRichContent } from '../../utils/richContent';
-import { CARD_BG, TEXT_MUTED } from '../../utils/theme';
+import { CARD_BG, TEXT_MUTED, ERROR } from '../../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx/CourseBuilderPage.tsx.
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -81,7 +81,7 @@ export default function LessonEditor({
           aria-label="Удалить урок"
           className="flex-shrink-0 transition-colors cursor-pointer"
           style={{ color: TEXT_MUTED }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#e05252')}
+          onMouseEnter={e => (e.currentTarget.style.color = ERROR)}
           onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
         >
           <Icon name="close" size={14} color="currentColor" />

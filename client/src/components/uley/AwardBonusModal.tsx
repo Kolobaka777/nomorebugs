@@ -3,7 +3,7 @@ import { leadApi } from '../../api';
 import { useEscapeKey } from '../../utils/a11y';
 import { MAX_BONUS_AMOUNT } from './constants';
 import Modal from '../Modal';
-import { TEXT_MUTED } from '../../utils/theme';
+import { TEXT_MUTED, ERROR } from '../../utils/theme';
 
 export default function AwardBonusModal({
   member,
@@ -71,7 +71,7 @@ export default function AwardBonusModal({
           />
         </div>
 
-        {error && <p className="font-geist text-xs break-words" style={{ color: '#e05252' }}>{error}</p>}
+        {error && <p className="font-geist text-xs break-words" style={{ color: ERROR }}>{error}</p>}
 
         <button onClick={submit} disabled={saving} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
           {saving ? '...' : 'Начислить'}

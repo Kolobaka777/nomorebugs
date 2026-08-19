@@ -4,6 +4,22 @@ import request from 'supertest';
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
+// This file is the one that IS about the limiters, so it sets its own tight
+// numbers — the shared setup (test/setup-limits.js) raises them out of the
+// way for every other file. Assigned before importing the app, since the
+// limiters read them once at module load.
+const LIMITS = {
+  RATE_LIMIT_REFRESH: 8,
+  RATE_LIMIT_LOGOUT: 8,
+  RATE_LIMIT_REGISTER: 8,
+  RATE_LIMIT_TELEGRAM: 8,
+  RATE_LIMIT_TELEGRAM_POLL: 8,
+  RATE_LIMIT_PASSWORD_CHANGE: 8,
+  RATE_LIMIT_FORGOT_PASSWORD: 8,
+  RATE_LIMIT_WRITE: 40,
+};
+for (const [k, v] of Object.entries(LIMITS)) process.env[k] = String(v);
+
 const { default: app } = await import('../src/app.js');
 const { db } = await import('../db/schema.js');
 const { seedTestData, loginAs, testServer } = await import('./helpers.js');
@@ -54,69 +70,69 @@ function expect429(result, limit) {
 }
 
 describe('rate limiters actually trigger, not just exist in code', () => {
-  it('registerLimiter (20/15min) on POST /api/auth/register', async () => {
+  it('registerLimiter triggers on POST /api/auth/register', async () => {
     // Deliberately invalid body (fast 400, no user actually created) — the
     // limiter counts the request regardless of what the route does with it.
     const result = await fireUntil429(
       () => request(server).post('/api/auth/register').send({}),
-      20
+      LIMITS.RATE_LIMIT_REGISTER
     );
-    expect429(result, 20);
+    expect429(result, LIMITS.RATE_LIMIT_REGISTER);
   });
 
-  it('refreshLimiter (60/15min) on POST /api/auth/refresh', async () => {
+  it('refreshLimiter triggers on POST /api/auth/refresh', async () => {
     // The refresh token now travels as a cookie, not a body field — an
     // absent/bogus cookie still exercises the limiter identically, since
     // it runs before the route even looks at req.cookies.
     const result = await fireUntil429(
       () => request(server).post('/api/auth/refresh').set('Cookie', 'refreshToken=not-a-real-token'),
-      60
+      LIMITS.RATE_LIMIT_REFRESH
     );
-    expect429(result, 60);
+    expect429(result, LIMITS.RATE_LIMIT_REFRESH);
   });
 
-  it('logoutLimiter (20/15min) on POST /api/auth/logout', async () => {
+  it('logoutLimiter triggers on POST /api/auth/logout', async () => {
     const result = await fireUntil429(
       () => request(server).post('/api/auth/logout').set('Cookie', 'refreshToken=not-a-real-token'),
-      20
+      LIMITS.RATE_LIMIT_LOGOUT
     );
-    expect429(result, 20);
+    expect429(result, LIMITS.RATE_LIMIT_LOGOUT);
   });
 
-  it('forgotPasswordLimiter (10/15min) on POST /api/auth/forgot-password', async () => {
+  it('forgotPasswordLimiter triggers on POST /api/auth/forgot-password', async () => {
     const result = await fireUntil429(
       () => request(server).post('/api/auth/forgot-password').send({ email: 'nobody@test.local' }),
-      10
+      LIMITS.RATE_LIMIT_FORGOT_PASSWORD
     );
-    expect429(result, 10);
+    expect429(result, LIMITS.RATE_LIMIT_FORGOT_PASSWORD);
   });
 
-  it('telegramStartLimiter (20/15min) on POST /api/auth/telegram/start', async () => {
+  it('telegramStartLimiter triggers on POST /api/auth/telegram/start', async () => {
     // Telegram isn't configured in tests (no TELEGRAM_BOT_TOKEN), so every
     // request 503s before touching the DB — fine, the limiter runs first.
     const result = await fireUntil429(
       () => request(server).post('/api/auth/telegram/start').send({}),
-      20
+      LIMITS.RATE_LIMIT_TELEGRAM
     );
-    expect429(result, 20);
+    expect429(result, LIMITS.RATE_LIMIT_TELEGRAM);
   });
 
-  it('telegramPollLimiter (300/15min) on GET /api/auth/telegram/poll/:token', async () => {
+  it('telegramPollLimiter triggers on GET /api/auth/telegram/poll/:token', async () => {
     const result = await fireUntil429(
       () => request(server).get('/api/auth/telegram/poll/not-a-real-token'),
-      300
+      LIMITS.RATE_LIMIT_TELEGRAM_POLL
     );
-    expect429(result, 300);
+    expect429(result, LIMITS.RATE_LIMIT_TELEGRAM_POLL);
   });
 
-  it('passwordChangeLimiter (20/15min) on PUT /api/me/password', async () => {
+  it('passwordChangeLimiter triggers on PUT /api/me/password', async () => {
     const result = await fireUntil429(
       () => request(server)
         .put('/api/me/password')
         .set('Authorization', `Bearer ${testerToken}`)
         .send({ current_password: 'wrongpassword', new_password: 'irrelevant12345' }),
-      20
+      LIMITS.RATE_LIMIT_PASSWORD_CHANGE
     );
-    expect429(result, 20);
+    expect429(result, LIMITS.RATE_LIMIT_PASSWORD_CHANGE);
   });
 });
