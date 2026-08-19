@@ -176,3 +176,62 @@ describe('ZhukademiPage — course sections (public catalog grouping)', () => {
     await waitFor(() => expect(coursesApi.update).toHaveBeenCalledWith(5, { section_id: 1 }));
   });
 });
+
+// The catalog showed a course somebody finished last month exactly as it
+// showed one nobody had opened: no bar, no mark, and the status filter
+// beside it only ever applied to the seeded lecture track.
+describe('course progress in the catalog', () => {
+  const inProgress = () => customCourse({ id: 1, title: 'Начатый курс', lessonsTotal: 4, lessonsDone: 1, isCompleted: false });
+  const finished = () => customCourse({ id: 2, title: 'Завершённый курс', lessonsTotal: 4, lessonsDone: 4, isCompleted: true });
+  const untouched = () => customCourse({ id: 3, title: 'Нетронутый курс', lessonsTotal: 4, lessonsDone: 0, isCompleted: false });
+
+  it('shows how far through a course someone is', async () => {
+    mockRoutes({ courses: [inProgress()] });
+    renderPage();
+    expect(await screen.findByText('Начатый курс')).toBeInTheDocument();
+    expect(screen.getByText('1 из 4')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
+  });
+
+  it('marks a finished course instead of leaving it to look untouched', async () => {
+    mockRoutes({ courses: [finished()] });
+    renderPage();
+    expect(await screen.findByText('Завершённый курс')).toBeInTheDocument();
+    expect(screen.getByText('ПРОЙДЕН')).toBeInTheDocument();
+    expect(screen.getByText('Пройден')).toBeInTheDocument();
+  });
+
+  it('reports the bar to assistive tech, not just visually', async () => {
+    mockRoutes({ courses: [inProgress()] });
+    renderPage();
+    const bar = await screen.findByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '1');
+    expect(bar).toHaveAttribute('aria-valuemax', '4');
+  });
+
+  it('filters the catalog down to finished courses, and to unfinished ones', async () => {
+    mockRoutes({ courses: [inProgress(), finished(), untouched()] });
+    renderPage();
+    await screen.findByText('Начатый курс');
+
+    const filter = screen.getByLabelText('Фильтр по статусу');
+    fireEvent.change(filter, { target: { value: 'passed' } });
+    expect(screen.getByText('Завершённый курс')).toBeInTheDocument();
+    expect(screen.queryByText('Начатый курс')).not.toBeInTheDocument();
+    expect(screen.queryByText('Нетронутый курс')).not.toBeInTheDocument();
+
+    fireEvent.change(filter, { target: { value: 'unpassed' } });
+    expect(screen.getByText('Начатый курс')).toBeInTheDocument();
+    expect(screen.getByText('Нетронутый курс')).toBeInTheDocument();
+    expect(screen.queryByText('Завершённый курс')).not.toBeInTheDocument();
+  });
+
+  it('leaves the bar off a course with nothing in it yet', async () => {
+    // Nothing done out of nothing is not progress, and a full-looking bar
+    // on an empty shell would be a lie.
+    mockRoutes({ courses: [customCourse({ title: 'Пустой курс', lessonsTotal: 0, lessonsDone: 0, isCompleted: false })] });
+    renderPage();
+    expect(await screen.findByText('Пустой курс')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+});

@@ -12,7 +12,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SECONDARY, TRACK_WIDE, ERROR } from '../utils/theme';
+import { ACCENT, CARD_BG, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
@@ -37,7 +37,7 @@ interface ZhukademiPageProps {
   onLogout: () => void;
 }
 
-type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
+type StatusFilter = 'all' | 'active' | 'locked' | 'passed' | 'unpassed';
 
 // Shared card shell for both the seeded-lecture catalog and lead-authored
 // custom courses — same border/radius/type treatment either way so the two
@@ -45,6 +45,7 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed';
 function CourseCard({
   modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
   statsLabel, onClick, clickable, onEdit, onDelete, teamCount, isFavorited, onToggleFavorite,
+  progressDone, progressTotal,
 }: {
   modulesLabel: string;
   tag: string;
@@ -69,6 +70,11 @@ function CourseCard({
   teamCount?: number;
   isFavorited?: boolean;
   onToggleFavorite?: () => void;
+  // How far this person is through the course, in lessons. Absent for the
+  // seeded lecture track, which is a single test rather than a sequence of
+  // lessons, and for cards nobody can take yet (a draft, a proposal).
+  progressDone?: number;
+  progressTotal?: number;
 }) {
   return (
     <div className="relative h-full group">
@@ -173,7 +179,35 @@ function CourseCard({
           {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-0.5" />}
         </h3>
 
-        <div className="flex items-center justify-between gap-2 mt-auto">
+        {/* Progress, when there is a sequence to be part-way through. The
+            catalog used to show a finished course exactly as it showed one
+            nobody had opened. */}
+        {progressTotal !== undefined && progressTotal > 0 && (
+          <div className="mt-auto mb-3">
+            <div className="flex items-center justify-between mb-1.5 font-geist" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
+              <span>{isPassed ? 'Пройден' : `${progressDone} из ${progressTotal}`}</span>
+              {!isPassed && progressDone !== undefined && progressDone > 0 && (
+                <span>{Math.round((progressDone / progressTotal) * 100)}%</span>
+              )}
+            </div>
+            <div
+              className="rounded-full overflow-hidden"
+              style={{ height: 4, background: 'rgba(197, 198, 199,0.12)' }}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={progressTotal}
+              aria-valuenow={progressDone}
+              aria-label={`Пройдено уроков: ${progressDone} из ${progressTotal}`}
+            >
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${Math.round(((progressDone || 0) / progressTotal) * 100)}%`, background: isPassed ? SUCCESS : ctaColor }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className={`flex items-center justify-between gap-2 ${progressTotal ? '' : 'mt-auto'}`}>
           <span className="font-geist truncate" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
             {statsLabel}
           </span>
@@ -340,9 +374,13 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
 
   // Filters apply across both the seeded-lecture catalog and custom courses,
   // matched by title search + a shared tag vocabulary (topic tag for
-  // lectures, the course's own `tag` field for custom courses). Status
-  // filtering only makes sense for lectures — custom courses don't have a
-  // per-user aggregate status from this endpoint.
+  // lectures, the course's own `tag` field for custom courses).
+  //
+  // Status now covers courses too: the list endpoint reports how many of a
+  // course's lessons this person has finished. "Доступные" and "Закрытые"
+  // stay lecture-only ideas — a course is never locked — so picking those
+  // leaves the course grids empty on purpose rather than silently ignoring
+  // the filter.
   const matchesSearch = (title: string) => !search.trim() || title.toLowerCase().includes(search.trim().toLowerCase());
 
   // Hooks must run unconditionally, so these stay above the loading/error
@@ -350,19 +388,28 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
   const filteredLectures = useMemo(() => lectures.filter(l =>
     matchesSearch(l.title) &&
     (!tagFilter || getTopicTag(l.skill_area) === tagFilter) &&
-    (statusFilter === 'all' || l.status === statusFilter) &&
+    (statusFilter === 'all' || (statusFilter === 'unpassed' ? l.status !== 'passed' : l.status === statusFilter)) &&
     !draftOnly
   ), [lectures, search, tagFilter, statusFilter, draftOnly]);
+  const matchesStatus = (cc: any) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'passed') return !!cc.isCompleted;
+    if (statusFilter === 'unpassed' || statusFilter === 'active') return !cc.isCompleted;
+    return false; // 'locked' — nothing here is ever locked
+  };
   const filteredCustomCourses = useMemo(() => nonOnboardingCourses.filter((cc: any) =>
     matchesSearch(cc.title) &&
     (!tagFilter || (cc.tag || 'Custom') === tagFilter) &&
+    matchesStatus(cc) &&
     (!draftOnly || !cc.is_published)
-  ), [nonOnboardingCourses, search, tagFilter, draftOnly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [nonOnboardingCourses, search, tagFilter, statusFilter, draftOnly]);
   // No tag filter here — the "Для новичков" section is a permanent fixture,
   // not part of the browse-by-topic grids.
   const filteredOnboardingCourses = useMemo(() => onboardingCourses.filter((cc: any) =>
-    matchesSearch(cc.title) && (!draftOnly || !cc.is_published)
-  ), [onboardingCourses, search, draftOnly]);
+    matchesSearch(cc.title) && matchesStatus(cc) && (!draftOnly || !cc.is_published)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [onboardingCourses, search, statusFilter, draftOnly]);
 
   // Group the regular custom-courses grid by section (a public catalog
   // layer, unlike suggestion_folders' lead-private ones — every role sees
@@ -541,18 +588,19 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             )}
           </div>
 
-          {user.role === 'tester' && lectures.length > 0 && (
+          {(lectures.length > 0 || customCourses.length > 0) && (
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-              aria-label="Фильтр по статусу лекции"
+              aria-label="Фильтр по статусу"
               className="rounded-lg px-2.5 py-2 font-geist outline-none"
               style={{ fontSize: 12, background: CARD_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.15)' }}
             >
               <option value="all">Любой статус</option>
-              <option value="active">Доступные</option>
-              <option value="locked">Закрытые</option>
               <option value="passed">Пройденные</option>
+              <option value="unpassed">Непройденные</option>
+              {lectures.length > 0 && <option value="active">Доступные лекции</option>}
+              {lectures.length > 0 && <option value="locked">Закрытые лекции</option>}
             </select>
           )}
         </div>
@@ -588,8 +636,11 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       title={cc.title}
                       isDraft={isDraft}
                       pendingReview={isPending}
-                      ctaLabel="ОТКРЫТЬ КУРС"
-                      ctaColor={color}
+                      ctaLabel={cc.isCompleted ? 'ПРОЙДЕН' : 'ОТКРЫТЬ КУРС'}
+                      ctaColor={cc.isCompleted ? SUCCESS : color}
+                      isPassed={!!cc.isCompleted}
+                      progressDone={isDraft || isPending ? undefined : cc.lessonsDone}
+                      progressTotal={isDraft || isPending ? undefined : cc.lessonsTotal}
                       statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                       clickable
                       onClick={() => navigate(`/custom-course/${cc.id}`)}
@@ -740,8 +791,11 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                           isNew={courseIsNew}
                           isDraft={isDraft}
                           pendingReview={isPending}
-                          ctaLabel="ОТКРЫТЬ КУРС"
-                          ctaColor={color}
+                          ctaLabel={cc.isCompleted ? 'ПРОЙДЕН' : 'ОТКРЫТЬ КУРС'}
+                          ctaColor={cc.isCompleted ? SUCCESS : color}
+                          isPassed={!!cc.isCompleted}
+                          progressDone={isDraft || isPending ? undefined : cc.lessonsDone}
+                          progressTotal={isDraft || isPending ? undefined : cc.lessonsTotal}
                           statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                           clickable
                           onClick={() => navigate(`/custom-course/${cc.id}`)}

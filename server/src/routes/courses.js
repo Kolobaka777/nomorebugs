@@ -56,6 +56,50 @@ function lessonVisibleTo(lessonId, user, res) {
   return course;
 }
 
+// How far one person has got through every course, in two queries rather
+// than two per course. The catalog had no notion of this at all: a course
+// someone finished last month looked exactly like one they had never
+// opened, and the status filter beside it only ever applied to the fixed
+// lecture track.
+//
+// Counted in lessons rather than by the pass mark, because that is what a
+// progress bar means — "how much is left to read", not "did you score
+// 60%". Whether it was *passed* is a separate question the course page
+// answers (courseResultFor).
+function progressByCourseFor(userId) {
+  const totals = db.prepare(`
+    SELECT m.course_id as courseId, COUNT(*) as total
+    FROM custom_lessons l
+    JOIN custom_modules m ON m.id = l.module_id
+    GROUP BY m.course_id
+  `).all();
+
+  const done = db.prepare(`
+    SELECT m.course_id as courseId, COUNT(*) as done
+    FROM custom_lesson_progress p
+    JOIN custom_lessons l ON l.id = p.lesson_id
+    JOIN custom_modules m ON m.id = l.module_id
+    WHERE p.user_id = ?
+    GROUP BY m.course_id
+  `).all(userId);
+
+  const doneByCourse = new Map(done.map(r => [r.courseId, r.done]));
+  const byCourse = new Map();
+  for (const row of totals) {
+    const lessonsDone = doneByCourse.get(row.courseId) || 0;
+    byCourse.set(row.courseId, {
+      lessonsTotal: row.total,
+      lessonsDone,
+      // An empty course is not a finished one — otherwise a shell someone
+      // created and never filled would show up as passed for everybody.
+      isCompleted: row.total > 0 && lessonsDone >= row.total,
+    });
+  }
+  return byCourse;
+}
+
+const EMPTY_PROGRESS = { lessonsTotal: 0, lessonsDone: 0, isCompleted: false };
+
 // List: testers see published (+ their own proposals, any status); lead
 // sees own + published + everyone's pending proposals (the review queue —
 // see canManageCourse above for why "pending" specifically is the carve-out).
@@ -92,6 +136,10 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
         ORDER BY cc.created_at DESC
       `).all(req.user.id, req.user.id, req.user.id);
     }
+
+    const progress = progressByCourseFor(req.user.id);
+    rows = rows.map(r => ({ ...r, ...(progress.get(r.id) || EMPTY_PROGRESS) }));
+
     res.json(rows);
   } catch (err) {
     logError(err);
