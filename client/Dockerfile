@@ -57,14 +57,23 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # serving both under one hostname) yields nothing, leaving connect-src at
 # 'self' — correct for that layout.
 #
-# API_ORIGIN is still accepted as a build arg for the rare case where the
-# browser must reach a different origin than the bundle's base URL names.
+# API_ORIGIN is accepted too, for the rare case where the browser must
+# reach an origin the bundle's base URL does not name.
+#
+# Recorded to a file rather than substituted into the template outright:
+# doing it only here assumes the build is given the variable, and on
+# Railway it was not — the bundle had the URL, the derived origin came out
+# empty, and the CSP shipped blocking every call the app makes. The
+# entrypoint script derives it again at container start and falls back to
+# this file, so the config is right whichever moment the platform hands the
+# value over.
 ARG VITE_API_BASE_URL
 ARG API_ORIGIN
-RUN origin="${API_ORIGIN:-$(printf '%s' "$VITE_API_BASE_URL" | sed -n 's#^\(https\{0,1\}://[^/]*\).*#\1#p')}" \
- && sed -i "s|\${API_ORIGIN}|${origin}|g" /etc/nginx/templates/default.conf.template \
- && echo "CSP connect-src: 'self' ${origin:-(same-origin only)}" \
- && ! grep -q 'API_ORIGIN' /etc/nginx/templates/default.conf.template
+RUN printf '%s' "${API_ORIGIN:-$(printf '%s' "$VITE_API_BASE_URL" | sed -n 's#^\(https\{0,1\}://[^/]*\).*#\1#p')}" > /etc/nginx/csp-origin \
+ && echo "CSP connect-src baked at build: '$(cat /etc/nginx/csp-origin)'"
+
+COPY docker-entrypoint.d/10-csp-origin.sh /docker-entrypoint.d/10-csp-origin.sh
+RUN chmod +x /docker-entrypoint.d/10-csp-origin.sh
 
 # Sane default for `docker run`/docker-compose, where nothing injects
 # PORT — real deployments override this with their assigned port.

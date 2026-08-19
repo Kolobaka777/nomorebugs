@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { spawn, execFileSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -133,51 +134,74 @@ describe('deployment manifests', () => {
 // than restating it — a copy of the expression in a test would keep passing
 // after the original changed.
 describe('CSP origin derivation', () => {
-  const dockerfile = fs.readFileSync(path.join(repoRoot, 'client', 'Dockerfile'), 'utf8');
+  // The origin the browser is allowed to call is worked out by
+  // client/docker-entrypoint.d/10-csp-origin.sh. There is no docker here to
+  // build the image, but the shell is the part that can be wrong — and was.
+  // The script takes its paths from the environment precisely so this can
+  // run the real file against fixtures instead of restating its logic; a
+  // copy in a test keeps passing after the original changes.
+  const script = path.join(repoRoot, 'client', 'docker-entrypoint.d', '10-csp-origin.sh');
+  const template = path.join(repoRoot, 'client', 'nginx.conf.template');
 
-  // The `origin="..."` assignment, unwrapped from its line continuations.
-  const assignment = dockerfile
-    .replace(/\\\n/g, ' ')
-    .split('\n')
-    .find(l => l.trim().startsWith('RUN origin='))
-    ?.replace(/^\s*RUN\s+/, '')
-    .split('&&')[0]
-    .trim();
-
-  function derive(baseUrl, override = '') {
-    expect(assignment, 'the origin= assignment must still be findable in the Dockerfile').toBeTruthy();
-    const out = execFileSync('sh', ['-c', `${assignment}; printf '%s' "$origin"`], {
-      env: { PATH: process.env.PATH, VITE_API_BASE_URL: baseUrl, API_ORIGIN: override },
-      encoding: 'utf8',
-    });
-    return out;
+  function connectSrc({ apiOrigin = '', baseUrl = '', baked = '' } = {}) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csp-'));
+    try {
+      const tpl = path.join(dir, 'default.conf.template');
+      const bakedFile = path.join(dir, 'csp-origin');
+      fs.copyFileSync(template, tpl);
+      fs.writeFileSync(bakedFile, baked);
+      execFileSync('sh', [script], {
+        env: {
+          PATH: process.env.PATH,
+          API_ORIGIN: apiOrigin,
+          VITE_API_BASE_URL: baseUrl,
+          CSP_TEMPLATE: tpl,
+          CSP_BAKED: bakedFile,
+        },
+        encoding: 'utf8',
+      });
+      // Comments stripped first: the template explains the directive by
+      // name a few lines above it, and reading that instead of the real
+      // one is a mistake both this and the entrypoint's own guard made.
+      const rendered = fs.readFileSync(tpl, 'utf8')
+        .split('\n').filter(l => !l.trim().startsWith('#')).join('\n');
+      return rendered.match(/connect-src ([^;]*)/)[1].trim();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 
-  it('takes the origin of the URL the bundle was built against', () => {
-    expect(derive('https://nomorebugs-production.up.railway.app/api'))
-      .toBe('https://nomorebugs-production.up.railway.app');
-    expect(derive('http://localhost:5001/api')).toBe('http://localhost:5001');
-    expect(derive('https://api.example.com')).toBe('https://api.example.com');
+  it('allows the origin of the URL the bundle was built against', () => {
+    expect(connectSrc({ baseUrl: 'https://nomorebugs-production.up.railway.app/api' }))
+      .toBe("'self' https://nomorebugs-production.up.railway.app");
+    expect(connectSrc({ baseUrl: 'http://localhost:5001/api' })).toBe("'self' http://localhost:5001");
   });
 
-  it('yields nothing for a relative base URL, leaving connect-src at self', () => {
-    // One hostname, a reverse proxy in front of both — 'self' is right.
-    expect(derive('/api')).toBe('');
-    expect(derive('')).toBe('');
+  it('falls back to the value baked in at build when the container has none', () => {
+    // Which of build or run a platform hands the variable to is the
+    // platform's business. Deriving it in both places is what stops that
+    // being a deployment's problem.
+    expect(connectSrc({ baked: 'https://baked.example.com' })).toBe("'self' https://baked.example.com");
   });
 
-  it('lets an explicit build arg win', () => {
-    expect(derive('https://api.example.com/api', 'https://other.example.com'))
-      .toBe('https://other.example.com');
+  it('lets an explicit API_ORIGIN win over both', () => {
+    expect(connectSrc({
+      apiOrigin: 'https://explicit.example.com',
+      baseUrl: 'https://other.example.com/api',
+      baked: 'https://baked.example.com',
+    })).toBe("'self' https://explicit.example.com");
   });
 
-  it('leaves no placeholder behind in the shipped config', () => {
-    // The RUN ends with a check that the substitution actually happened;
-    // without it a typo in the placeholder would ship `${API_ORIGIN}` as a
-    // literal, and nginx would reject the config at start.
-    const run = dockerfile.replace(/\\\n/g, ' ').split('\n').find(l => l.trim().startsWith('RUN origin='));
-    expect(run).toContain('grep -q');
-    expect(run).toContain('sed -i');
+  it("leaves connect-src at 'self' for a same-origin deployment", () => {
+    // One hostname with a reverse proxy in front of both halves.
+    expect(connectSrc({ baseUrl: '/api' })).toBe("'self'");
+    expect(connectSrc()).toBe("'self'");
+  });
+
+  it('leaves no placeholder behind for nginx to choke on', () => {
+    for (const args of [{ baseUrl: 'https://a.example.com/api' }, {}]) {
+      expect(connectSrc(args)).not.toContain('API_ORIGIN');
+    }
   });
 });
 
