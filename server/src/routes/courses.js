@@ -87,11 +87,16 @@ function progressByCourseFor(userId) {
   const byCourse = new Map();
   for (const row of modules) {
     const acc = byCourse.get(row.courseId) || { modulesTotal: 0, modulesDone: 0, lessonsTotal: 0, lessonsDone: 0 };
-    acc.modulesTotal += 1;
-    // A module counts as done only once every lesson in it is. An empty
-    // module is never done — otherwise a course outline with no content in
-    // it would read as complete for everyone who opened it.
-    if (row.lessons > 0 && row.done >= row.lessons) acc.modulesDone += 1;
+    // A module with nothing in it is an outline heading, not a unit of
+    // work, so it is left out of the count entirely rather than counted as
+    // permanently unfinished. Counting it produced a card that argued with
+    // itself: every lesson done, so "КУРС ПРОЙДЕН!" and a full bar, above
+    // a label reading "1/2 модулей".
+    if (row.lessons > 0) {
+      acc.modulesTotal += 1;
+      // Done only once every lesson in it is.
+      if (row.done >= row.lessons) acc.modulesDone += 1;
+    }
     acc.lessonsTotal += row.lessons;
     acc.lessonsDone += row.done;
     byCourse.set(row.courseId, acc);

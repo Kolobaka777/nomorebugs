@@ -258,5 +258,8 @@ describe('course progress in the catalog', () => {
     expect(await screen.findByText('Пустой курс')).toBeInTheDocument();
     expect(screen.getByText('Дополнительный курс')).toBeInTheDocument();
     expect(screen.queryByText('0/0 модулей')).not.toBeInTheDocument();
+    // And no bar at zero either: that would be a claim about progress on
+    // something with nothing to measure.
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 });

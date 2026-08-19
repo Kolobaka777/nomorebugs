@@ -80,13 +80,28 @@ describe('progress in the course list', () => {
     expect(row.isCompleted).toBe(false);
   });
 
-  it('does not count an empty module as done', async () => {
-    // A course outline with no content in it would otherwise read as
-    // complete for everyone who opened it.
-    const c = await makeCourse('Курс с пустым модулем', [0, 0]);
+  it('leaves an empty module out of the count rather than counting it unfinished', async () => {
+    // A heading with nothing under it is not a unit of work, and counting
+    // it made the card argue with itself: every lesson done, so the call
+    // to action read КУРС ПРОЙДЕН! above a full bar, over a label saying
+    // "1/2 модулей".
+    const c = await makeCourse('Курс с пустым модулем', [2, 0]);
+    for (const id of c.lessonIds) {
+      await asTester(request(server).post(`/api/custom-lessons/${id}/complete`));
+    }
     const row = (await listFor(testerToken))[c.id];
-    expect(row.modulesTotal).toBe(2);
+    expect(row.modulesTotal).toBe(1);
+    expect(row.modulesDone).toBe(1);
+    expect(row.isCompleted).toBe(true);
+  });
+
+  it('has nothing to count in a course that is all empty modules', async () => {
+    const c = await makeCourse('Один каркас', [0, 0]);
+    const row = (await listFor(testerToken))[c.id];
+    expect(row.modulesTotal).toBe(0);
     expect(row.modulesDone).toBe(0);
+    // Nothing to finish is not finished — the card falls back to its
+    // descriptive label rather than showing 0/0.
     expect(row.isCompleted).toBe(false);
   });
 

@@ -54,7 +54,10 @@ function courseCardState(cc: any, color: string) {
 
   const total = cc.modulesTotal ?? 0;
   const done = cc.modulesDone ?? 0;
-  const pct = total > 0 ? (done / total) * 100 : 0;
+  // Undefined rather than 0 when there is nothing to measure: a bar at zero
+  // is a claim about progress, and an empty course makes none. It also
+  // keeps the strip from being announced as a progressbar reading 0%.
+  const pct = total > 0 ? (done / total) * 100 : undefined;
 
   if (cc.isCompleted) return { ctaLabel: 'КУРС ПРОЙДЕН!', ctaColor: SUCCESS, isPassed: true, progressPct: 100 };
   // "Started" is judged on lessons, not modules: reading one lesson of a
