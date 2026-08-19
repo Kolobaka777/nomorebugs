@@ -4,6 +4,7 @@ import { authApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export default function ForgotPasswordPage() {
       await authApi.forgotPassword(email);
       setSent(true);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Ошибка. Попробуйте позже.');
+      setError(apiErrorMessage(err, 'Ошибка. Попробуйте позже.'));
     } finally {
       setLoading(false);
     }

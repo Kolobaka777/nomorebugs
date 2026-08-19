@@ -372,16 +372,3 @@ export interface CourseDeadlineOverride {
   deadline_at: string;
   reason: string;
 }
-
-export const DIFFICULTY_LABELS: Record<number, string> = {
-  1: 'Головастик',
-  2: 'Головастик',
-  3: 'Лягушка',
-  4: 'Лягушка',
-  5: 'Матёрая',
-  6: 'Матёрая',
-  7: 'Матёрая',
-  8: 'Матёрая',
-  9: 'Матёрая',
-  10: 'Матёрая',
-};

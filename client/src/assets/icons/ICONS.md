@@ -90,20 +90,3 @@ layout when a mockup calls for the frog mascot in a new spot.
 `frog-pose-1.svg` · `frog-pose-2.svg` · `frog-pose-3.svg` ·
 `frog-pose-4.svg` · `frog-pose-5.svg`
 
-## Mascot — badge (raster PNG, `client/src/assets/mascot/`)
-
-A second, distinct mascot: an owl/skull-like face with crossed wrenches
-below it (glowing cyan, soft particle effect) — reads as a "tools/bug-hunter"
-badge, thematically fits Багодельня (the tools shop) more than the frog
-does. These are low-res PNGs straight from the kit, not vectors — treat as
-a placeholder until/unless the user provides a clean export. Three states,
-~2-3 crop variants each:
-
-- `badge-open-eyes-1/2.png` + `badge-open-eyes-crop.png` — normal/idle face
-- `badge-x-eyes-1/2.png` + `badge-x-eyes-crop.png` — ×-eyes (defeated/error?) face
-- `badge-wrenches-only-1/2.png` — wrenches alone, no face
-- `badge-face-only.png` — face alone, no wrenches
-
-Not wired into any page yet — flag to the user before using, since its
-exact intended context (achievement? error state? Багодельня branding?)
-hasn't been confirmed.

@@ -4,6 +4,7 @@ import FrogLoader from './FrogLoader';
 import { frogLinesApi } from '../api';
 import { FrogLine, invalidateFrogLines } from '../utils/frogLines';
 import { ACCENT, CARD_BG, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 // Lead-facing editor for everything the mascot says. Lives inside Багодельня
 // rather than getting a page of its own because that page is already the
@@ -155,7 +156,7 @@ export default function FrogLinesEditor() {
       else await frogLinesApi.create({ ...payload, kind });
       afterWrite();
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Не удалось сохранить');
+      setError(apiErrorMessage(e, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }
@@ -167,7 +168,7 @@ export default function FrogLinesEditor() {
       await frogLinesApi.remove(l.id);
       afterWrite();
     } catch (e: any) {
-      setLoadError(e?.response?.data?.error || 'Не удалось удалить');
+      setLoadError(apiErrorMessage(e, 'Не удалось удалить'));
     }
   };
 

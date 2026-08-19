@@ -11,6 +11,7 @@ import { shopItemFor, ACCENT_PALETTE } from '../utils/shop';
 import { ACCENT, ERROR } from '../utils/theme';
 import GalleryAvatarImage from './GalleryAvatarImage';
 import { loadGalleryImage, forgetGalleryImage } from '../utils/galleryImages';
+import { apiErrorMessage } from '../utils/toast';
 
 const SPECIALIZATIONS = [
   { value: '',                    label: '— Не выбрано —' },
@@ -174,7 +175,7 @@ export default function ProfileEditModal({
       setJustPurchased(prev => [...prev, itemId]);
       onPurchase?.(itemId, res.data.newCoins);
     } catch (e: any) {
-      setBuyError(e?.response?.data?.error || 'Не удалось купить');
+      setBuyError(apiErrorMessage(e, 'Не удалось купить'));
     } finally {
       setBuyingId(null);
     }
@@ -208,7 +209,7 @@ export default function ProfileEditModal({
       });
       onClose();
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Ошибка сохранения');
+      setError(apiErrorMessage(e, 'Ошибка сохранения'));
     } finally {
       setSaving(false);
     }
@@ -225,7 +226,7 @@ export default function ProfileEditModal({
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
       setPwSuccess(true);
     } catch (e: any) {
-      setPwError(e?.response?.data?.error || 'Не удалось изменить пароль');
+      setPwError(apiErrorMessage(e, 'Не удалось изменить пароль'));
     } finally {
       setPwSaving(false);
     }
@@ -239,7 +240,7 @@ export default function ProfileEditModal({
       setCurrentEmail(res.data.email);
       setEmailPw(''); setEmailOpen(false);
     } catch (e: any) {
-      setEmailError(e?.response?.data?.error || 'Не удалось изменить почту');
+      setEmailError(apiErrorMessage(e, 'Не удалось изменить почту'));
     } finally {
       setEmailSaving(false);
     }
@@ -253,7 +254,7 @@ export default function ProfileEditModal({
       setPhonePw('');
       setPhoneSuccess(true);
     } catch (e: any) {
-      setPhoneError(e?.response?.data?.error || 'Не удалось изменить номер');
+      setPhoneError(apiErrorMessage(e, 'Не удалось изменить номер'));
     } finally {
       setPhoneSaving(false);
     }

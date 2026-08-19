@@ -4,6 +4,7 @@ import { useEscapeKey } from '../../utils/a11y';
 import { MAX_BONUS_AMOUNT } from './constants';
 import Modal from '../Modal';
 import { TEXT_MUTED, ERROR } from '../../utils/theme';
+import { apiErrorMessage } from '../../utils/toast';
 
 export default function AwardBonusModal({
   member,
@@ -37,7 +38,7 @@ export default function AwardBonusModal({
       onAwarded(amt);
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось начислить премию');
+      setError(apiErrorMessage(err, 'Не удалось начислить премию'));
     } finally {
       setSaving(false);
     }

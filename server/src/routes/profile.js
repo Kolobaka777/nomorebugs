@@ -5,7 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity, canSeeCourse } from '../routeHelpers.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity, canSeeCourse, toPositiveInt } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -421,8 +421,8 @@ router.post('/api/tester/favorites', authMiddleware, (req, res) => {
   try {
     const { course_type, course_id } = req.body;
     if (course_type !== 'lecture' && course_type !== 'custom') return res.status(400).json({ error: 'Некорректный тип курса' });
-    const id = parseInt(course_id, 10);
-    if (!id) return res.status(400).json({ error: 'Некорректный курс' });
+    const id = toPositiveInt(course_id);
+    if (id === null) return res.status(400).json({ error: 'Некорректный курс' });
 
     const exists = course_type === 'custom'
       ? db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(id)
@@ -493,8 +493,8 @@ router.get('/api/tester/notes', authMiddleware, (req, res) => {
 router.post('/api/tester/notes', authMiddleware, (req, res) => {
   try {
     const { course_id, lesson_id, lesson_title, text } = req.body;
-    const courseId = parseInt(course_id, 10);
-    if (!courseId) return res.status(400).json({ error: 'Некорректный курс' });
+    const courseId = toPositiveInt(course_id);
+    if (courseId === null) return res.status(400).json({ error: 'Некорректный курс' });
     if (!text || !String(text).trim()) return res.status(400).json({ error: 'Пустая заметка' });
     if (String(text).length > 2000) return res.status(400).json({ error: 'Заметка слишком длинная (макс 2000)' });
     // Not just "does it exist": GET /api/tester/notes joins custom_courses

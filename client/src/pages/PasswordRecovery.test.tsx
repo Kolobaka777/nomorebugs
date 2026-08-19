@@ -31,11 +31,11 @@ describe('ForgotPasswordPage', () => {
   });
 
   it('reports a failure rather than falsely claiming the mail went out', async () => {
-    vi.mocked(authApi.forgotPassword).mockRejectedValue(new Error('down'));
+    vi.mocked(authApi.forgotPassword).mockRejectedValue({ response: { status: 500, data: {} } });
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'me@qa.com' } });
     fireEvent.click(screen.getByRole('button', { name: /отправить ссылку/i }));
-    expect(await screen.findByText('Ошибка. Попробуйте позже.')).toBeInTheDocument();
+    expect(await screen.findByText(/Ошибка\. Попробуйте позже\./)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
   });
 });
@@ -76,7 +76,7 @@ describe('ResetPasswordPage', () => {
 
   it('says the link is dead rather than failing silently', async () => {
     searchParams = new URLSearchParams('token=expired');
-    vi.mocked(authApi.resetPassword).mockRejectedValue(new Error('410'));
+    vi.mocked(authApi.resetPassword).mockRejectedValue({ response: { status: 410, data: {} } });
     render(<ResetPasswordPage />);
     fill('longenough1');
     submit();

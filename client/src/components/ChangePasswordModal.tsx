@@ -3,6 +3,7 @@ import { authApi } from '../api';
 import { setAccessToken } from '../auth';
 import Modal from './Modal';
 import { ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 interface Props {
   forced?: boolean;
@@ -38,7 +39,7 @@ export default function ChangePasswordModal({ forced, onDone, onClose }: Props) 
       if (res.data?.token) setAccessToken(res.data.token);
       onDone();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось изменить пароль');
+      setError(apiErrorMessage(err, 'Не удалось изменить пароль'));
     } finally {
       setSaving(false);
     }

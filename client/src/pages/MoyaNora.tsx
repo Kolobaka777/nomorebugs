@@ -14,7 +14,7 @@ import { AVATAR_LIST, FRAME_LIST, BG_LIST, type BgId, type FrameId, type AvatarI
 import Icon, { IconName } from '../components/Icon';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
@@ -218,7 +218,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       // This is the tester's main daily-use page — used to just log and
       // leave everything at its empty default, which reads as "you have no
       // progress yet" instead of "this failed to load".
-      setLoadError(err.response?.data?.error || 'Не удалось загрузить кабинет');
+      setLoadError(apiErrorMessage(err, 'Не удалось загрузить кабинет'));
     } finally {
       setLoading(false);
     }
@@ -348,7 +348,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
       setProfile(p => p ? { ...p, bug_coins: res.data.newCoins, purchased_items: [...p.purchased_items, itemId] } : p);
       await equipItem(kind === 'frame' ? { avatar_frame: refId } : kind === 'bg' ? { profile_bg: refId } : { avatar_id: refId });
     } catch (e: any) {
-      setShopError(e?.response?.data?.error || 'Не удалось купить');
+      setShopError(apiErrorMessage(e, 'Не удалось купить'));
     } finally {
       setShopBuyingId(null);
     }

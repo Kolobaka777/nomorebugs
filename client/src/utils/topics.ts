@@ -1,4 +1,3 @@
-import { TOPIC_TAGS } from '../types';
 import { ACCENT, TEXT_PRIMARY } from './theme';
 
 // Lecture skill_area strings are free-text ("HTML structure", "CSS reading",
@@ -15,10 +14,6 @@ export function getTopicTag(area: string): string {
   if (area.includes('JavaScript')) return 'JS';
   if (area.includes('Network')) return 'Network';
   return 'AIO';
-}
-
-export function getTopicColor(area: string): string {
-  return TOPIC_TAGS[getTopicTag(area)] || TOPIC_TAGS.AIO;
 }
 
 // Courses-catalog tag palette — its own map, deliberately separate from

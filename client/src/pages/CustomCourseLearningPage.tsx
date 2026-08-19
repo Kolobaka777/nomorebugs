@@ -9,7 +9,7 @@ import { testerApi, coursesApi } from '../api';
 import { CourseNote } from '../types';
 import { useEscapeKey } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
@@ -675,7 +675,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
         error: '',
       }));
     } catch (e: any) {
-      patchQuiz(idx, () => ({ error: e?.response?.data?.error || 'Не удалось проверить ответ. Попробуй ещё раз.' }));
+      patchQuiz(idx, () => ({ error: apiErrorMessage(e, 'Не удалось проверить ответ. Попробуй ещё раз.') }));
     }
   }, [patchQuiz]);
 
@@ -699,7 +699,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       patchQuiz(idx, () => ({ submitted: true, score: res.data.score, breakdown, error: '' }));
       return true;
     } catch (e: any) {
-      patchQuiz(idx, () => ({ error: e?.response?.data?.error || 'Не удалось отправить ответы. Попробуй ещё раз.' }));
+      patchQuiz(idx, () => ({ error: apiErrorMessage(e, 'Не удалось отправить ответы. Попробуй ещё раз.') }));
       return false;
     }
   }, [patchQuiz]);

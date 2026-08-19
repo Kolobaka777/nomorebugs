@@ -6,6 +6,7 @@ import { PresenceEntry, LeaveType } from '../../types';
 import { WEEKDAY_LABELS, LEAVE_LABELS } from './constants';
 import Modal from '../Modal';
 import { ACCENT, TEXT_MUTED, BADGE_NOTIFY, ERROR } from '../../utils/theme';
+import { apiErrorMessage } from '../../utils/toast';
 
 // Lets a lead configure a tester's working hours/status and schedule leave
 // — powers both the "работают сейчас" dots below and the team news feed's
@@ -53,7 +54,7 @@ export default function PresenceEditModal({
       });
       onSaved();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось сохранить');
+      setError(apiErrorMessage(err, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }
@@ -68,7 +69,7 @@ export default function PresenceEditModal({
       setLeaveStart(''); setLeaveEnd(''); setLeaveNote('');
       onSaved();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось добавить отсутствие');
+      setError(apiErrorMessage(err, 'Не удалось добавить отсутствие'));
     } finally {
       setSavingLeave(false);
     }
@@ -81,7 +82,7 @@ export default function PresenceEditModal({
       await leadApi.removeLeave(member.id, entry.currentLeave.id);
       onSaved();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось отменить');
+      setError(apiErrorMessage(err, 'Не удалось отменить'));
     } finally {
       setSavingLeave(false);
     }

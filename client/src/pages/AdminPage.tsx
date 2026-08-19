@@ -7,6 +7,7 @@ import { parseServerDate } from '../utils/date';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 interface AdminPageProps {
   user: any;
@@ -162,7 +163,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       const res = await leadApi.getLectures();
       setLectures(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось загрузить лекции');
+      setError(apiErrorMessage(err, 'Не удалось загрузить лекции'));
     }
   };
 
@@ -177,7 +178,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       setLectures(ls => ls ? ls.map(l => l.id === lecture.id ? { ...l, video_url: value } : l) : ls);
       if (res.data.warning) setVideoWarning({ id: lecture.id, message: res.data.warning });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось сохранить ссылку');
+      setError(apiErrorMessage(err, 'Не удалось сохранить ссылку'));
     } finally {
       setSavingVideoId(null);
     }
@@ -222,7 +223,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       setNewTaskType('');
       loadTaskTypes();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось добавить тип задачи');
+      setError(apiErrorMessage(err, 'Не удалось добавить тип задачи'));
     }
   };
 
@@ -271,7 +272,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       await adminApi.archiveUser(targetId);
       load(showArchived);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось архивировать');
+      setError(apiErrorMessage(err, 'Не удалось архивировать'));
     } finally {
       setArchivingId(null);
     }
@@ -283,7 +284,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       await adminApi.restoreUser(targetId);
       load(showArchived);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось восстановить');
+      setError(apiErrorMessage(err, 'Не удалось восстановить'));
     } finally {
       setArchivingId(null);
     }
@@ -338,7 +339,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       await adminApi.setUserRole(targetId, role);
     } catch (err: any) {
       setUsers(prev);
-      setError(err.response?.data?.error || 'Не удалось изменить роль');
+      setError(apiErrorMessage(err, 'Не удалось изменить роль'));
     } finally {
       setSavingId(null);
     }
@@ -356,7 +357,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       setResetResult({ id: targetId, message });
       load(showArchived);
     } catch (err: any) {
-      setResetResult({ id: targetId, message: err.response?.data?.error || 'Не удалось сбросить пароль' });
+      setResetResult({ id: targetId, message: apiErrorMessage(err, 'Не удалось сбросить пароль') });
     } finally {
       setResettingId(null);
     }

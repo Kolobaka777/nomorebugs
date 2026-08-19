@@ -5,7 +5,7 @@ import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { suggestionsApi } from '../api';
 import { Suggestion, SuggestionType, SuggestionStatus, SuggestionFolder } from '../types';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { timeAgo, parseServerDate } from '../utils/date';
 import { PAGE_GRADIENT, CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
@@ -78,7 +78,7 @@ function SuggestionCard({
       await onSave(s, { type: editType, text: editText.trim(), is_anonymous: editAnon });
       setEditing(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось сохранить');
+      setError(apiErrorMessage(err, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }
@@ -236,7 +236,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
         setHasMore(r.data.hasMore);
         setOffset(r.data.rows.length);
       })
-      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить идеи'));
+      .catch((err: any) => setLoadError(apiErrorMessage(err, 'Не удалось загрузить идеи')));
     if (isLead) {
       suggestionsApi.getFolders().then(r => setFolders(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить папки'));
     }
@@ -268,7 +268,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
       setIsAnonymous(false);
       load();
     } catch (err: any) {
-      setSubmitError(err.response?.data?.error || 'Не удалось отправить');
+      setSubmitError(apiErrorMessage(err, 'Не удалось отправить'));
     } finally {
       setSubmitting(false);
     }

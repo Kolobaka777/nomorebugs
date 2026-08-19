@@ -4,7 +4,7 @@ import FrogLoader from '../components/FrogLoader';
 import FrogLinesEditor from '../components/FrogLinesEditor';
 import Icon, { IconName } from '../components/Icon';
 import { knowledgeApi } from '../api';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { parseRichContent, richContentToPlainText } from '../utils/richContent';
@@ -104,7 +104,7 @@ function BugExampleForm({
     try {
       await onSave({ tag: tag.trim(), tag_color: tagColor, problem: problem.trim(), bad_text: badText, good_text: goodText });
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Ошибка сохранения');
+      setError(apiErrorMessage(err, 'Ошибка сохранения'));
     } finally {
       setSaving(false);
     }
@@ -188,7 +188,7 @@ function GlossaryForm({
     try {
       await onSave({ term: term.trim(), definition });
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Ошибка сохранения');
+      setError(apiErrorMessage(err, 'Ошибка сохранения'));
     } finally {
       setSaving(false);
     }
@@ -254,7 +254,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
       // Was a silent no-op — a failed load looked exactly like "no examples/
       // terms yet" (both left the lists at their empty default), which is
       // misleading rather than merely quiet.
-      setLoadError(err.response?.data?.error || 'Не удалось загрузить базу знаний');
+      setLoadError(apiErrorMessage(err, 'Не удалось загрузить базу знаний'));
     }
     finally { setLoading(false); }
   };

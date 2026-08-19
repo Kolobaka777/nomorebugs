@@ -4,7 +4,7 @@ import Icon from './Icon';
 import FrogLoader from './FrogLoader';
 import { suggestionsApi } from '../api';
 import { Suggestion } from '../types';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { timeAgo, parseServerDate } from '../utils/date';
 import { CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, BADGE_NOTIFY, ERROR } from '../utils/theme';
 
@@ -48,7 +48,7 @@ function QuestionCard({ q, isLead, userId, onAnswer, onDelete, onLike, isLiking 
       await onAnswer(q, answerText.trim());
       setAnswering(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Не удалось отправить ответ');
+      setError(apiErrorMessage(err, 'Не удалось отправить ответ'));
     } finally {
       setSaving(false);
     }
@@ -165,7 +165,7 @@ export default function TeamQuestions({ user }: { user: any }) {
         setHasMore(r.data.hasMore);
         setOffset(r.data.rows.length);
       })
-      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить вопросы'));
+      .catch((err: any) => setLoadError(apiErrorMessage(err, 'Не удалось загрузить вопросы')));
   };
   useEffect(load, []);
 
@@ -194,7 +194,7 @@ export default function TeamQuestions({ user }: { user: any }) {
       setSent(true);
       load();
     } catch (err: any) {
-      setSubmitError(err.response?.data?.error || 'Не удалось отправить');
+      setSubmitError(apiErrorMessage(err, 'Не удалось отправить'));
     } finally {
       setSubmitting(false);
     }

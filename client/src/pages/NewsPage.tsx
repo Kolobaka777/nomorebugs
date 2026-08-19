@@ -7,7 +7,7 @@ import { teamApi, presenceApi } from '../api';
 import { TeamNewsItem, PresenceEntry } from '../types';
 import { formatTeamEvent } from '../utils/activity';
 import { timeAgo } from '../utils/date';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { EVENT_ICON } from '../utils/newsIcons';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, ACCENT, TEXT_PRIMARY, TEXT_MUTED, CARD_SHADOW, TRACK_WIDE, ERROR } from '../utils/theme';
 
@@ -45,7 +45,7 @@ export default function NewsPage({ user, onLogout }: Props) {
     presenceApi.getTeam().then(r => setPresence(r.data)).catch((err: any) => showApiError(err, 'Не удалось загрузить статус команды'));
     teamApi.getNews()
       .then(r => { setNews(r.data.rows); setHasMore(r.data.hasMore); setOffset(r.data.storedCount); })
-      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить новости'))
+      .catch((err: any) => setLoadError(apiErrorMessage(err, 'Не удалось загрузить новости')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -65,7 +65,7 @@ export default function NewsPage({ user, onLogout }: Props) {
       } as TeamNewsItem, ...n]);
       setDraft('');
     } catch (err: any) {
-      setPostError(err.response?.data?.error || 'Не удалось опубликовать');
+      setPostError(apiErrorMessage(err, 'Не удалось опубликовать'));
     } finally {
       setPosting(false);
     }

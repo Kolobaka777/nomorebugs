@@ -46,8 +46,19 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Аккаунт заблокирован')).toBeInTheDocument();
   });
 
-  it('falls back to its own message when the server sends none — a network failure must still say something', async () => {
+  it('names a network failure as one, instead of blaming the login', async () => {
+    // An error with no `response` never reached the server. Saying «Ошибка
+    // входа» here sends someone checking their password when the problem is
+    // that nothing is listening.
     vi.mocked(authApi.login).mockRejectedValue(new Error('network'));
+    render(<LoginPage onLogin={vi.fn()} />);
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
+    expect(await screen.findByText(/нет связи с сервером/i)).toBeInTheDocument();
+  });
+
+  it('falls back to its own message when the server answers without one', async () => {
+    vi.mocked(authApi.login).mockRejectedValue({ response: { status: 400, data: {} } });
     render(<LoginPage onLogin={vi.fn()} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
@@ -60,7 +71,7 @@ describe('LoginPage', () => {
     render(<LoginPage onLogin={onLogin} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
-    await screen.findByText('Ошибка входа');
+    await screen.findByText(/нет связи с сервером/i);
     expect(onLogin).not.toHaveBeenCalled();
   });
 

@@ -5,6 +5,7 @@ import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 import { ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 interface RegisterPageProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -47,7 +48,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
       const { data } = await authApi.register(email, password, name, gender, birthday || null);
       onLogin(data.token, data.user, data.needsBaselineSurvey);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Ошибка регистрации');
+      setError(apiErrorMessage(err, 'Ошибка регистрации'));
     } finally {
       setLoading(false);
     }

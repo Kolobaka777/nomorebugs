@@ -81,10 +81,10 @@ describe('RegisterPage submission', () => {
   });
 
   it('falls back to its own message when the server sends none', async () => {
-    vi.mocked(authApi.register).mockRejectedValue(new Error('network'));
+    vi.mocked(authApi.register).mockRejectedValue({ response: { status: 500, data: {} } });
     render(<RegisterPage onLogin={vi.fn()} />);
     fill();
     submit();
-    expect(await screen.findByText('Ошибка регистрации')).toBeInTheDocument();
+    expect(await screen.findByText(/Ошибка регистрации/)).toBeInTheDocument();
   });
 });

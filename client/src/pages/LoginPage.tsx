@@ -5,6 +5,7 @@ import FrogIcon from '../components/FrogIcon';
 import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 import { ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 interface LoginPageProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean, mustChangePassword?: boolean) => void;
@@ -26,7 +27,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
       const { data } = await authApi.login(email, password);
       onLogin(data.token, data.user, data.needsBaselineSurvey, data.mustChangePassword);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Ошибка входа');
+      setError(apiErrorMessage(err, 'Ошибка входа'));
     } finally {
       setLoading(false);
     }

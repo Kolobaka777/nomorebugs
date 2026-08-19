@@ -10,6 +10,7 @@ import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuild
 import type { BModule, FormState } from '../components/courseBuilder/types';
 import { parseRichContent } from '../utils/richContent';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 // Same lazy-split reasoning as GuidesPage.tsx — Tiptap is the app's single
 // heaviest dependency, no reason to pay for it before this form is open.
@@ -191,7 +192,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
       // axios rejects on a non-2xx, so the server's own explanation (a
       // validation message, a 409 from the conflict check) arrives here
       // instead of having to be sniffed out of a 200 body.
-      setError(e?.response?.data?.error || 'Ошибка сохранения');
+      setError(apiErrorMessage(e, 'Ошибка сохранения'));
     } finally {
       setSaving(false);
     }

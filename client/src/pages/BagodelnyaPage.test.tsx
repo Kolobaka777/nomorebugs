@@ -43,9 +43,9 @@ describe('BagodelnyaPage', () => {
   });
 
   it('reports a failed load instead of looking like an empty knowledge base', async () => {
-    vi.mocked(knowledgeApi.getBugExamples).mockRejectedValue(new Error('down'));
+    vi.mocked(knowledgeApi.getBugExamples).mockRejectedValue({ response: { status: 500, data: {} } });
     renderPage(tester);
-    expect(await screen.findByText('Не удалось загрузить базу знаний')).toBeInTheDocument();
+    expect(await screen.findByText(/Не удалось загрузить базу знаний/)).toBeInTheDocument();
   });
 
   it('offers a tester «Предложить пример», not «Добавить пример» — the wording is the permission', async () => {

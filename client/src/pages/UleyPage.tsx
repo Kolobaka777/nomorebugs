@@ -4,7 +4,7 @@ import FrogLoader from '../components/FrogLoader';
 import { leadApi, permissionsApi, adminApi, presenceApi } from '../api';
 import { TeamMember, SKillChart, ActivityItem, ActivityFilters, LectureStat, TesterSkillBreakdown, PresenceEntry } from '../types';
 import Icon, { IconName } from '../components/Icon';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import AwardBonusModal from '../components/uley/AwardBonusModal';
 import PresenceEditModal from '../components/uley/PresenceEditModal';
 import TeamTab from '../components/uley/TeamTab';
@@ -67,7 +67,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       // Previously a silent no-op on failure — the tab just spun forever
       // with no way to tell "still loading" apart from "broken". Now the
       // actual server message (or a generic fallback) shows, with a retry.
-      .catch((err: any) => setRatingsError(err.response?.data?.error || 'Не удалось загрузить рейтинг'));
+      .catch((err: any) => setRatingsError(apiErrorMessage(err, 'Не удалось загрузить рейтинг')));
   };
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     setByTesterError('');
     leadApi.getBeforeAfterByTester()
       .then(r => setByTester(r.data))
-      .catch((err: any) => setByTesterError(err.response?.data?.error || 'Не удалось загрузить разбивку по сотрудникам'));
+      .catch((err: any) => setByTesterError(apiErrorMessage(err, 'Не удалось загрузить разбивку по сотрудникам')));
   };
 
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
       // Used to just console.error and leave every stat at its zeroed
       // default — "0% прогресс, 0 жуков в улье" looked like a genuinely
       // empty team, not a failed request.
-      setLoadError(err.response?.data?.error || 'Не удалось загрузить данные команды');
+      setLoadError(apiErrorMessage(err, 'Не удалось загрузить данные команды'));
     } finally {
       setLoading(false);
     }
@@ -247,7 +247,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         : `Новый пароль отправлен через ${delivered === 'telegram' ? 'Telegram' : 'почту'}.`;
       setResetResult({ id: userId, message });
     } catch (err: any) {
-      setResetResult({ id: userId, message: err.response?.data?.error || 'Не удалось сбросить пароль' });
+      setResetResult({ id: userId, message: apiErrorMessage(err, 'Не удалось сбросить пароль') });
     } finally {
       setResettingId(null);
     }

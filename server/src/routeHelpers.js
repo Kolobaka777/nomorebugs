@@ -242,3 +242,32 @@ export function canSeeCourse(course, user) {
   if (!course || course.deleted_at) return false;
   return Boolean(course.is_published) || canManageCourse(course, user);
 }
+
+// `parseInt(x, 10)` returns an integer or NaN and nothing else, so
+// `Number.isInteger(parseInt(x))` — a shape this codebase had in five
+// places — is a check that can only ever catch "not a number at all". It
+// reads like validation and performs none: `parseInt` stops at the first
+// character it doesn't understand, so 1.5 became 1, "50 руб" became 50, and
+// "10; DROP TABLE users" became 10. Every one of those was accepted, acted
+// on, and written to the audit log as a figure nobody had typed.
+//
+// `Number()` refuses the whole value instead of salvaging a prefix from it,
+// which is the behaviour the call sites always assumed they had. Strings of
+// digits still pass — this is a JSON API and "5" is a reasonable way to
+// send five.
+export function toInt(value) {
+  // The type check is not belt-and-braces: `Number([])` is 0 and
+  // `Number(true)` is 1, so an empty array or a boolean would otherwise
+  // arrive as a perfectly good integer. Only something that was written as
+  // a number counts as one.
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) ? n : null;
+}
+
+// The common case: an id or a count, which is never zero or negative.
+export function toPositiveInt(value) {
+  const n = toInt(value);
+  return n !== null && n > 0 ? n : null;
+}

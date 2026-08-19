@@ -4,7 +4,7 @@ import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import EmojiPicker from '../components/EmojiPicker';
 import { guidesApi, knowledgeApi } from '../api';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
@@ -139,7 +139,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
     setListError('');
     guidesApi.list()
       .then(r => setGuides(r.data))
-      .catch((err: any) => setListError(err.response?.data?.error || 'Не удалось загрузить гайды'))
+      .catch((err: any) => setListError(apiErrorMessage(err, 'Не удалось загрузить гайды')))
       .finally(() => setLoading(false));
   };
 
@@ -173,7 +173,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
       // Was a bare `catch {}` — a failed save looked identical to nothing
       // happening at all (form just sat there), which is exactly what was
       // reported as "гайды не создаются". Now the real reason shows.
-      setFormError(err.response?.data?.error || 'Не удалось сохранить гайд');
+      setFormError(apiErrorMessage(err, 'Не удалось сохранить гайд'));
     } finally {
       setSaving(false);
     }

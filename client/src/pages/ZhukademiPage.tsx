@@ -8,7 +8,7 @@ import { testerApi, leadApi, coursesApi } from '../api';
 import { Lecture } from '../types';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
-import { showApiError } from '../utils/toast';
+import { apiErrorMessage, showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
@@ -255,7 +255,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
     // error state instead of an empty catalog that looks like "no courses".
     testerApi.getLectures()
       .then(r => setLectures(r.data))
-      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить курсы'))
+      .catch((err: any) => setLoadError(apiErrorMessage(err, 'Не удалось загрузить курсы')))
       .finally(() => setLoading(false));
 
     // Real "X/Y team members passed this" — replaces what used to be a

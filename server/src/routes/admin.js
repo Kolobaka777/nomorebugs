@@ -13,7 +13,7 @@ import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { ROLES, isValidRole } from '../roles.js';
 import { notifyUser } from '../telegram.js';
-import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS, displayName, logActivity } from '../routeHelpers.js';
+import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS, displayName, logActivity, toPositiveInt } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -300,7 +300,8 @@ router.post('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, 
     if (!KNOWN_PERMISSIONS.includes(permission)) {
       return res.status(400).json({ error: `Неизвестное право. Допустимые: ${KNOWN_PERMISSIONS.join(', ')}` });
     }
-    const targetId = parseInt(user_id, 10);
+    const targetId = toPositiveInt(user_id);
+    if (targetId === null) return res.status(400).json({ error: 'Некорректный сотрудник' });
     const target = db.prepare('SELECT id, role, name, telegram_id, archived_at FROM users WHERE id = ?').get(targetId);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
     if (target.role !== 'tester') return res.status(400).json({ error: 'Права можно выдавать только тестировщикам — лид и админ уже имеют полный доступ' });
@@ -368,11 +369,12 @@ const MAX_BONUS_AMOUNT = 500;
 router.post('/api/lead/award-bonus', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     const { user_id, amount, reason } = req.body;
-    const targetId = parseInt(user_id, 10);
-    const amt = parseInt(amount, 10);
-    if (!Number.isInteger(amt) || amt <= 0 || amt > MAX_BONUS_AMOUNT) {
-      return res.status(400).json({ error: `Сумма должна быть от 1 до ${MAX_BONUS_AMOUNT}` });
+    const targetId = toPositiveInt(user_id);
+    const amt = toPositiveInt(amount);
+    if (amt === null || amt > MAX_BONUS_AMOUNT) {
+      return res.status(400).json({ error: `Сумма должна быть целым числом от 1 до ${MAX_BONUS_AMOUNT}` });
     }
+    if (targetId === null) return res.status(400).json({ error: 'Некорректный сотрудник' });
     if (!reason?.trim()) return res.status(400).json({ error: 'Укажите причину премии' });
 
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);

@@ -4,6 +4,7 @@ import { authApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function ResetPasswordPage() {
       await authApi.resetPassword(token, newPassword);
       setDone(true);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Ссылка недействительна или устарела');
+      setError(apiErrorMessage(err, 'Ссылка недействительна или устарела'));
     } finally {
       setLoading(false);
     }

@@ -30,7 +30,6 @@ export const BADGE_NOTIFY = '#EF9F27'; // NEW, бейджики, уведомл�
 export const NUM_BRIGHT = HOVER;
 export const NUM_DIM = 'rgba(138, 255, 245, 0.6)';
 export const ACCENT_DIM = 'rgba(102, 252, 241, 0.12)';
-export const ACCENT_BORDER = 'rgba(102, 252, 241, 0.4)';
 
 // ── Semantic colors ───────────────────────────────────────────────────────
 // These were the palette's biggest hole: the app has spoken in exactly these
@@ -42,12 +41,8 @@ export const ACCENT_BORDER = 'rgba(102, 252, 241, 0.4)';
 // Semantic, not decorative: ERROR means "this went wrong", not "red". Keep
 // them distinct from ACCENT, which is identity rather than meaning.
 export const ERROR = '#e05252';
-export const ERROR_DIM = 'rgba(224, 82, 82, 0.1)';
-export const ERROR_BORDER = 'rgba(224, 82, 82, 0.4)';
 export const SUCCESS = '#4ADE80';
-export const WARNING = BADGE_NOTIFY;
 export const INFO = '#7F77DD';   // the "rare"/epic tier and the idea-board's own hue
-export const TELEGRAM = '#229ED9';
 
 // The muted-text color as an alpha wash over the page, for the several
 // places that want "primary text, dimmed" rather than the flat TEXT_MUTED.
@@ -100,14 +95,6 @@ export const STAT_LABEL_COLOR = '#E0E0E0';
 export const STAT_GRADIENT = 'linear-gradient(0deg, rgba(69, 162, 158, 0.23) 0%, rgba(11, 12, 16, 0.00) 100%)';
 export const STAT_SHADOW = '0 4px 12px 0 rgba(0, 0, 0, 0.25)';
 
-// The kit's generic "outlined box on page background" treatment — distinct
-// from CARD_BG_PATTERN (which is for #1F2833 surfaces like list rows).
-// Not wired into any element yet since no current screen calls for it
-// (the kit showed it as an unlabeled placeholder rect); available for
-// inputs/callouts/dialogs when a future mockup needs it.
-export const BORDERED_BOX_BG = `linear-gradient(0deg, rgba(0, 0, 0, 0.20) 0%, rgba(0, 0, 0, 0.20) 100%), ${PAGE_BG}`;
-export const BORDERED_BOX_BORDER = `1px solid ${ACCENT}`;
-export const BORDERED_BOX_RADIUS = 8;
 
 // Floating glass header (frosted rounded bar, not a full-bleed solid header).
 export const HEADER_BG = 'rgba(31, 40, 51, 0.20)';

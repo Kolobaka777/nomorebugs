@@ -10,6 +10,7 @@ import { BADGE_META } from '../utils/badges';
 import { parseServerDate } from '../utils/date';
 import { TIMEZONES } from '../utils/timezones';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
+import { apiErrorMessage } from '../utils/toast';
 
 interface Props {
   user: any;
@@ -44,7 +45,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
     setLoadError('');
     usersApi.getProfile(Number(id))
       .then(r => setProfile(r.data))
-      .catch((err: any) => setLoadError(err.response?.data?.error || 'Не удалось загрузить профиль'))
+      .catch((err: any) => setLoadError(apiErrorMessage(err, 'Не удалось загрузить профиль')))
       .finally(() => setLoading(false));
   }, [id]);
 

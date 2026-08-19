@@ -50,9 +50,9 @@ describe('UleyPage', () => {
   });
 
   it('says the load failed instead of showing an empty team', async () => {
-    vi.mocked(leadApi.getTeam).mockRejectedValue(new Error('down'));
+    vi.mocked(leadApi.getTeam).mockRejectedValue({ response: { status: 500, data: {} } });
     renderPage();
-    expect(await screen.findByText('Не удалось загрузить данные команды')).toBeInTheDocument();
+    expect(await screen.findByText(/Не удалось загрузить данные команды/)).toBeInTheDocument();
   });
 
   it('summarises the team above the tabs', async () => {
