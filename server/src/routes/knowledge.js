@@ -3,7 +3,7 @@
 // docs). Split out from the old monolithic app.js — see PROGRESS.md.
 import express from 'express';
 import { db } from '../../db/schema.js';
-import { displayName } from '../routeHelpers.js';
+import { displayName, logActivity } from '../routeHelpers.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
 import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins } from '../routeHelpers.js';
@@ -111,6 +111,7 @@ router.post('/api/bug-examples', authMiddleware, (req, res) => {
       (tag || 'Общее').trim(), tag_color || '#7F77DD', problem.trim(), bad_text, good_text, req.user.id,
       canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending'
     );
+    logActivity(req.user.id, `bug_example_created:${problem.trim().slice(0, 80)}`);
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -154,6 +155,7 @@ router.delete('/api/bug-examples/:id', authMiddleware, requirePermission('manage
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(example.created_by);
       if (author) notifyUser(author, 'Пример отклонён', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» отклонён.`);
     }
+    logActivity(req.user.id, `bug_example_deleted:${(example?.problem || '').slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -179,6 +181,7 @@ router.patch('/api/bug-examples/:id/approve', authMiddleware, requirePermission(
         if (author) notifyUser(author, 'Пример одобрен!', `Твой предложенный пример бага «${truncateForNotify(example.problem)}» одобрен и опубликован. +${COIN_REWARDS.proposalBugExample} баг-коинов.`);
       }
     }
+    logActivity(req.user.id, `bug_example_approved:${example.problem.slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -230,6 +233,7 @@ router.post('/api/glossary', authMiddleware, (req, res) => {
     const result = db.prepare(
       'INSERT INTO glossary_terms (term, definition, created_by, is_published, proposal_status) VALUES (?, ?, ?, ?, ?)'
     ).run(term.trim(), definition, req.user.id, canPublishDirectly ? 1 : 0, canPublishDirectly ? null : 'pending');
+    logActivity(req.user.id, `glossary_created:${term.trim().slice(0, 80)}`);
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -267,6 +271,7 @@ router.delete('/api/glossary/:id', authMiddleware, requirePermission('manage_kno
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(term.created_by);
       if (author) notifyUser(author, 'Термин отклонён', `Твой предложенный термин «${truncateForNotify(term.term)}» отклонён.`);
     }
+    logActivity(req.user.id, `glossary_deleted:${(term?.term || '').slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -294,6 +299,7 @@ router.patch('/api/glossary/:id/approve', authMiddleware, requirePermission('man
         if (author) notifyUser(author, 'Термин одобрен!', `Твой предложенный термин «${truncateForNotify(term.term)}» одобрен и опубликован. +${COIN_REWARDS.proposalGlossary} баг-коинов.`);
       }
     }
+    logActivity(req.user.id, `glossary_approved:${term.term.slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -389,6 +395,7 @@ router.post('/api/guides', authMiddleware, (req, res) => {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('guide_published', req.user.id, result.lastInsertRowid);
     }
+    logActivity(req.user.id, `guide_created:${title.trim().slice(0, 80)}`);
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
     logError(err);
@@ -444,6 +451,7 @@ router.delete('/api/guides/:id', authMiddleware, requirePermission('manage_guide
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(guide.created_by);
       if (author) notifyUser(author, 'Гайд отклонён', `Твой предложенный гайд «${truncateForNotify(guide.title)}» отклонён.`);
     }
+    logActivity(req.user.id, `guide_deleted:${(guide?.title || '').slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -475,6 +483,7 @@ router.patch('/api/guides/:id/approve', authMiddleware, requirePermission('manag
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(guide.created_by);
       if (author) notifyUser(author, 'Гайд одобрен!', `Твой предложенный гайд «${truncateForNotify(guide.title)}» одобрен и опубликован. +${COIN_REWARDS.proposalGuide} баг-коинов.`);
     }
+    logActivity(req.user.id, `guide_approved:${guide.title.slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

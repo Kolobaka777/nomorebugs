@@ -38,6 +38,11 @@ interface FormatOptions {
 
 export function formatActivityAction(action: string, opts: FormatOptions = {}): string {
   const who = (id: string) => opts.nameById?.[Number(id)] || `#${id}`;
+  // Titles are truncated to 80 chars server-side before they ever reach the
+  // log, so an ellipsis here would be a second one — the cut already
+  // happened, and pretending otherwise in the UI is how «Как заводить...»
+  // ends up looking like a title someone actually typed that way.
+  const quoted = (title: string) => (title.trim() ? ` «${title.trim()}»` : '');
   const g = opts.gender;
   // Shorthand bound to this call's gender — every phrase below supplies its
   // own masculine/feminine/neutral triplet; the neutral form is a real
@@ -91,6 +96,28 @@ export function formatActivityAction(action: string, opts: FormatOptions = {}): 
     const role = ROLE_LABELS[m[2]] || m[2];
     return pick(`Изменил роль сотрудника ${target} на «${role}»`, `Изменила роль сотрудника ${target} на «${role}»`, `Роль сотрудника ${target} изменена на «${role}»`);
   }
+  if ((m = action.match(/^bonus_awarded:target=(\d+):amount=(\d+)$/))) {
+    const target = who(m[1]);
+    return pick(`Начислил ${m[2]} премиальных баллов сотруднику ${target}`, `Начислила ${m[2]} премиальных баллов сотруднику ${target}`, `Сотруднику ${target} начислено ${m[2]} премиальных баллов`);
+  }
+  // Content actions all carry their subject's title after the colon, kept
+  // verbatim (titles contain colons and spaces, so the pattern deliberately
+  // takes everything to the end rather than splitting on ':' again).
+  if ((m = action.match(/^course_created:(.*)$/))) return pick(`Создал курс${quoted(m[1])}`, `Создала курс${quoted(m[1])}`, `Создан курс${quoted(m[1])}`);
+  if ((m = action.match(/^course_published:(.*)$/))) return pick(`Опубликовал курс${quoted(m[1])}`, `Опубликовала курс${quoted(m[1])}`, `Опубликован курс${quoted(m[1])}`);
+  if ((m = action.match(/^course_unpublished:(.*)$/))) return pick(`Снял с публикации курс${quoted(m[1])}`, `Сняла с публикации курс${quoted(m[1])}`, `Снят с публикации курс${quoted(m[1])}`);
+  if ((m = action.match(/^course_deleted:(.*)$/))) return pick(`Удалил курс${quoted(m[1])}`, `Удалила курс${quoted(m[1])}`, `Удалён курс${quoted(m[1])}`);
+  if ((m = action.match(/^guide_created:(.*)$/))) return pick(`Создал гайд${quoted(m[1])}`, `Создала гайд${quoted(m[1])}`, `Создан гайд${quoted(m[1])}`);
+  if ((m = action.match(/^guide_approved:(.*)$/))) return pick(`Одобрил гайд${quoted(m[1])}`, `Одобрила гайд${quoted(m[1])}`, `Одобрен гайд${quoted(m[1])}`);
+  if ((m = action.match(/^guide_deleted:(.*)$/))) return pick(`Удалил гайд${quoted(m[1])}`, `Удалила гайд${quoted(m[1])}`, `Удалён гайд${quoted(m[1])}`);
+  if ((m = action.match(/^bug_example_created:(.*)$/))) return pick(`Добавил пример бага${quoted(m[1])}`, `Добавила пример бага${quoted(m[1])}`, `Добавлен пример бага${quoted(m[1])}`);
+  if ((m = action.match(/^bug_example_approved:(.*)$/))) return pick(`Одобрил пример бага${quoted(m[1])}`, `Одобрила пример бага${quoted(m[1])}`, `Одобрен пример бага${quoted(m[1])}`);
+  if ((m = action.match(/^bug_example_deleted:(.*)$/))) return pick(`Удалил пример бага${quoted(m[1])}`, `Удалила пример бага${quoted(m[1])}`, `Удалён пример бага${quoted(m[1])}`);
+  if ((m = action.match(/^glossary_created:(.*)$/))) return pick(`Добавил термин${quoted(m[1])}`, `Добавила термин${quoted(m[1])}`, `Добавлен термин${quoted(m[1])}`);
+  if ((m = action.match(/^glossary_approved:(.*)$/))) return pick(`Одобрил термин${quoted(m[1])}`, `Одобрила термин${quoted(m[1])}`, `Одобрен термин${quoted(m[1])}`);
+  if ((m = action.match(/^glossary_deleted:(.*)$/))) return pick(`Удалил термин${quoted(m[1])}`, `Удалила термин${quoted(m[1])}`, `Удалён термин${quoted(m[1])}`);
+  if ((m = action.match(/^news_posted:(.*)$/))) return pick(`Опубликовал новость${quoted(m[1])}`, `Опубликовала новость${quoted(m[1])}`, `Опубликована новость${quoted(m[1])}`);
+  if ((m = action.match(/^news_deleted:(.*)$/))) return pick(`Удалил новость${quoted(m[1])}`, `Удалила новость${quoted(m[1])}`, `Удалена новость${quoted(m[1])}`);
   if (action.match(/^checklist_submitted:/)) {
     return pick('Отправил чек-лист', 'Отправила чек-лист', 'Чек-лист отправлен');
   }
@@ -105,6 +132,11 @@ export function formatActivityAction(action: string, opts: FormatOptions = {}): 
     case 'login_telegram': return pick('Вошёл через Telegram', 'Вошла через Telegram', 'Вход через Telegram');
     case 'password_changed': return pick('Сменил пароль', 'Сменила пароль', 'Пароль изменён');
     case 'password_reset_self_service': return pick('Сбросил пароль через восстановление', 'Сбросила пароль через восстановление', 'Пароль сброшен через восстановление');
+    // Deliberately not gendered by the account holder: whoever typed the
+    // wrong password may well not be them, and that is the whole reason
+    // this line is in the log.
+    case 'login_failed': return 'Неудачная попытка входа';
+    case 'account_locked': return 'Аккаунт временно заблокирован — слишком много неудачных попыток';
   }
 
   // Unknown action — show it plainly rather than hiding it silently, so a

@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { displayName } from '../routeHelpers.js';
+import { displayName, logActivity } from '../routeHelpers.js';
 
 const MAX_ANNOUNCEMENT_LENGTH = 1000;
 import { todayInTimezone, todayMonthDayInTimezone } from '../presence.js';
@@ -115,6 +115,10 @@ router.post('/api/team/news', authMiddleware, requireRole('lead'), (req, res) =>
     const id = db.prepare(
       "INSERT INTO team_events (event_type, user_id, text) VALUES ('announcement', ?, ?)"
     ).run(req.user.id, text.trim()).lastInsertRowid;
+    // Truncated in the log line itself: the audit log answers "who posted
+    // something, and when", and the full announcement is already a row in
+    // team_events for as long as it exists.
+    logActivity(req.user.id, `news_posted:${text.trim().slice(0, 80)}`);
     res.json({ id });
   } catch (err) {
     logError(err);
@@ -138,8 +142,13 @@ router.delete('/api/team/news/:id', authMiddleware, requireRole('lead'), (req, r
     if (!Number.isInteger(id) || String(id) !== String(req.params.id)) {
       return res.status(400).json({ error: 'Дни рождения и отпуска считаются на лету — их нельзя удалить' });
     }
+    // Read before delete: once the row is gone there is nothing left to
+    // name it by, and "a news item was deleted" without saying which one is
+    // the kind of audit line that only tells you to go ask someone.
+    const doomed = db.prepare('SELECT event_type, text FROM team_events WHERE id = ?').get(id);
     const result = db.prepare('DELETE FROM team_events WHERE id = ?').run(id);
     if (result.changes === 0) return res.status(404).json({ error: 'Новость не найдена' });
+    logActivity(req.user.id, `news_deleted:${(doomed?.text || doomed?.event_type || '').slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

@@ -7,6 +7,7 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { parseDbDate, displayName } from '../routeHelpers.js';
+import { categoryFilter, categoryCaseSql } from '../activityCategories.js';
 
 const router = express.Router();
 
@@ -268,23 +269,73 @@ router.get('/api/lead/lecture-stats', authMiddleware, requireRole('lead'), (req,
   }
 });
 
+// The lead's audit log. Four filters, all optional and all combinable:
+// a category (see activityCategories.js), one person, a free-text search
+// over the action string, and a date range. They compose into one WHERE
+// rather than being separate endpoints because the questions a lead
+// actually arrives with are compound — "what did Nazariy change in the
+// content last week" is a category plus a person plus a range.
 router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res) => {
   try {
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const userId = req.query.user_id ? parseInt(req.query.user_id, 10) : null;
-    // Small, fixed feed (Home page's "recent activity" widget) vs the full,
-    // pageable admin log — same query, different LIMIT/offset so one route
-    // serves both without duplicating the join.
-    const PAGE_SIZE = req.query.offset !== undefined || req.query.user_id ? 50 : 20;
+    const { category, q, from, to } = req.query;
 
-    const where = userId ? 'WHERE a.user_id = ?' : '';
-    const params = userId ? [userId] : [];
+    const conditions = [];
+    const params = [];
+
+    if (userId) {
+      conditions.push('a.user_id = ?');
+      params.push(userId);
+    }
+
+    const cat = categoryFilter(category);
+    if (cat) {
+      conditions.push(cat.sql);
+      params.push(...cat.params);
+    }
+
+    // Searches the raw action string, which is where the titles live
+    // (`guide_deleted:Как заводить баги`), and the person's display name,
+    // so typing a name and typing part of a course title both work without
+    // the lead having to know which field they're aiming at. LIKE with a
+    // leading % can't use an index — acceptable against a table this size,
+    // and the alternative (FTS5) is a schema for a feature nobody has asked
+    // to be fast yet.
+    if (typeof q === 'string' && q.trim()) {
+      conditions.push(`(a.action LIKE ? OR ${displayName('u')} LIKE ?)`);
+      const like = `%${q.trim()}%`;
+      params.push(like, like);
+    }
+
+    // Dates arrive as YYYY-MM-DD. `to` is compared against the *end* of
+    // that day — a naive `created_at <= '2026-08-19'` silently excludes
+    // everything that happened on the 19th, which is the day a lead
+    // filtering "to today" most wants to see.
+    if (typeof from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+      conditions.push('a.created_at >= ?');
+      params.push(`${from} 00:00:00`);
+    }
+    if (typeof to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      conditions.push('a.created_at <= ?');
+      params.push(`${to} 23:59:59`);
+    }
+
+    // Small, fixed feed (Home page's "recent activity" widget) vs the full,
+    // pageable log — same query, different LIMIT/offset so one route serves
+    // both without duplicating the join. Any filter at all means this is
+    // the log view, not the widget.
+    const isLogView = req.query.offset !== undefined || conditions.length > 0;
+    const PAGE_SIZE = isLogView ? 50 : 20;
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const rows = db.prepare(`
       SELECT
         a.id, a.action, a.created_at,
         u.id as user_id, ${displayName('u')} as name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+        ${categoryCaseSql('a')} as category,
         l.title as lecture_title,
         c.title as course_title
       FROM activity_log a
@@ -296,7 +347,7 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
       LEFT JOIN lectures l ON a.lecture_id = l.id
       LEFT JOIN custom_courses c ON a.course_id = c.id
       ${where}
-      ORDER BY a.created_at DESC
+      ORDER BY a.created_at DESC, a.id DESC
       LIMIT ? OFFSET ?
     `).all(...params, PAGE_SIZE + 1, offset);
 
@@ -320,6 +371,7 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
         a.id, a.action, a.created_at,
         u.id as user_id, ${displayName('u')} as name,
         (SELECT gender FROM user_profiles WHERE user_id = u.id) as gender,
+        ${categoryCaseSql('a')} as category,
         l.title as lecture_title,
         c.title as course_title
       FROM activity_log a

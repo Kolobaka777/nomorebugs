@@ -5,7 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName } from '../routeHelpers.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -564,7 +564,7 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
     // leave the badge crafted with no matching activity_log record of it.
     db.transaction(() => {
       db.prepare('INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)').run(userId, skill_area);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(userId, `crafted_badge:${skill_area}`);
+      logActivity(userId, `crafted_badge:${skill_area}`);
     })();
 
     // «Коллекционер» — all 5 skill-area badges crafted.

@@ -4,6 +4,7 @@ import bcryptjs from 'bcryptjs';
 import { db } from '../db/schema.js';
 import { generateAccessToken, generateRefreshToken } from './auth.js';
 import { DEFAULT_ROLE } from './roles.js';
+import { logActivity } from './routeHelpers.js';
 import { isEmailConfigured, sendEmail } from './email.js';
 
 // Long enough to open Telegram and tap the bot, short enough that a stale
@@ -150,7 +151,7 @@ function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, repl
     ).run(`tg${tgId}@telegram.local`, passwordHash, displayName, DEFAULT_ROLE, initialsFromName(displayName), tgId, tgUsername).lastInsertRowid;
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     isNew = true;
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'register_telegram');
+    logActivity(user.id, 'register_telegram');
     db.prepare('INSERT INTO team_events (event_type, user_id) VALUES (?, ?)').run('member_joined', user.id);
   } else if (user.telegram_username !== tgUsername) {
     // Auto-capture: a Telegram @username can change any time; keep it
@@ -170,7 +171,7 @@ function handleLoginOrRegister(payloadToken, tgId, tgUsername, displayName, repl
     needsBaselineSurvey = !baseline;
   }
 
-  db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'login_telegram');
+  logActivity(user.id, 'login_telegram');
 
   // Same shape as the email/password login response (auth.js) — without
   // this, a Telegram-only login left `displayName`/`gender` missing on the

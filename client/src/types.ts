@@ -77,14 +77,29 @@ export interface TesterSkillBreakdown {
   skills: { skill: string; before: number | null; after: number | null; delta: number | null }[];
 }
 
+// Server-assigned (see server/src/activityCategories.js). 'other' is what
+// an action nobody has categorized yet falls into — visible and uncoloured
+// rather than hidden, so a new action type shows up as "we forgot to file
+// this" instead of vanishing from a filtered log.
+export type ActivityCategory = 'learning' | 'content' | 'admin' | 'account' | 'other';
+
 export interface ActivityItem {
   id: number;
   action: string;
   created_at: string;
   name: string;
   gender?: Gender;
+  category?: ActivityCategory;
   lecture_title?: string;
   course_title?: string;
+}
+
+export interface ActivityFilters {
+  category: string;
+  q: string;
+  userId: string;
+  from: string;
+  to: string;
 }
 
 export interface RpgStats {

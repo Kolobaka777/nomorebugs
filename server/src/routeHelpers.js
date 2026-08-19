@@ -3,6 +3,7 @@
 // Anything only used within a single domain lives in that domain's own
 // router file instead, to keep this from becoming a second dumping ground.
 import { db } from '../db/schema.js';
+import { logError } from './sentry.js';
 
 // A UNIQUE-constraint violation reaching the generic catch block in a route
 // used to surface as a bare 500 "Server error" — technically correct but
@@ -199,4 +200,25 @@ export function hardDeleteCourse(courseId) {
     db.prepare('DELETE FROM custom_lesson_notes WHERE course_id = ?').run(courseId);
     db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
   })();
+}
+
+// The one place an audit-log row gets written. Was 19 hand-rolled INSERTs
+// scattered across the route modules, each with its own idea of which
+// columns to fill — which is how `course_completed` ended up putting a
+// custom_courses id into lecture_id, a column with a foreign key to
+// `lectures`, and made finishing a course fail outright.
+//
+// Deliberately swallows its own errors. A log write is never the point of
+// the request that triggers it: a lead losing one audit line is a much
+// smaller problem than a tester's course completion 500-ing because the
+// bookkeeping behind it failed. The error still reaches Sentry, so a
+// silently-broken log is visible to us without being visible to them.
+export function logActivity(userId, action, { lectureId = null, courseId = null } = {}) {
+  try {
+    db.prepare(
+      'INSERT INTO activity_log (user_id, action, lecture_id, course_id) VALUES (?, ?, ?, ?)'
+    ).run(userId, action, lectureId, courseId);
+  } catch (err) {
+    logError(err, { context: 'activity log write', action, userId });
+  }
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import { leadApi, permissionsApi, adminApi, presenceApi } from '../api';
-import { TeamMember, SKillChart, ActivityItem, LectureStat, TesterSkillBreakdown, PresenceEntry } from '../types';
+import { TeamMember, SKillChart, ActivityItem, ActivityFilters, LectureStat, TesterSkillBreakdown, PresenceEntry } from '../types';
 import Icon, { IconName } from '../components/Icon';
 import { showApiError } from '../utils/toast';
 import AwardBonusModal from '../components/uley/AwardBonusModal';
@@ -11,7 +11,7 @@ import TeamTab from '../components/uley/TeamTab';
 import BeforeAfterTab from '../components/uley/BeforeAfterTab';
 import LecturesTab from '../components/uley/LecturesTab';
 import RatingsTab from '../components/uley/RatingsTab';
-import ActivityTab from '../components/uley/ActivityTab';
+import ActivityTab, { EMPTY_ACTIVITY_FILTERS } from '../components/uley/ActivityTab';
 import { Tab } from '../components/uley/constants';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
 
@@ -28,6 +28,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
   const [activityOffset, setActivityOffset] = useState(0);
   const [activityHasMore, setActivityHasMore] = useState(false);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [activityFilters, setActivityFilters] = useState<ActivityFilters>(EMPTY_ACTIVITY_FILTERS);
   const [lectureStats, setLectureStats] = useState<LectureStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,10 +92,43 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
     }
   }, [tab]);
 
+  // Empty strings are dropped rather than sent as `?q=&from=` — the server
+  // ignores them either way, but a request whose URL lists filters that
+  // aren't set is a confusing thing to find in a network tab.
+  const activityQuery = (f: ActivityFilters) => ({
+    ...(f.category ? { category: f.category } : {}),
+    ...(f.q.trim() ? { q: f.q.trim() } : {}),
+    ...(f.userId ? { user_id: Number(f.userId) } : {}),
+    ...(f.from ? { from: f.from } : {}),
+    ...(f.to ? { to: f.to } : {}),
+  });
+
+  // Refetches from offset 0 whenever a filter changes, debounced because
+  // the search box changes on every keystroke. Skipped entirely until the
+  // log tab is actually open, so the other five tabs don't pay for it.
+  useEffect(() => {
+    if (tab !== 'activity') return;
+    const handle = setTimeout(async () => {
+      setActivityLoading(true);
+      try {
+        const res = await leadApi.getActivity({ offset: 0, ...activityQuery(activityFilters) });
+        setActivity(res.data.rows);
+        setActivityHasMore(res.data.hasMore);
+        setActivityOffset(res.data.rows.length);
+      } catch (err: any) {
+        showApiError(err, 'Не удалось отфильтровать журнал');
+      } finally {
+        setActivityLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, activityFilters]);
+
   const loadMoreActivity = async () => {
     setActivityLoading(true);
     try {
-      const res = await leadApi.getActivity({ offset: activityOffset });
+      const res = await leadApi.getActivity({ offset: activityOffset, ...activityQuery(activityFilters) });
       setActivity(prev => [...prev, ...res.data.rows]);
       setActivityHasMore(res.data.hasMore);
       setActivityOffset(o => o + res.data.rows.length);
@@ -413,6 +447,9 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
             activityLoading={activityLoading}
             loadMoreActivity={loadMoreActivity}
             teamNameById={teamNameById}
+            team={team}
+            filters={activityFilters}
+            onFiltersChange={setActivityFilters}
           />
         )}
         </div>

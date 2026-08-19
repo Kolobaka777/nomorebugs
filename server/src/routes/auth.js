@@ -14,7 +14,7 @@ import { DEFAULT_ROLE } from '../roles.js';
 import {
   isTelegramConfigured, createTelegramToken, buildDeepLink, pollTelegramToken, notifyUser, notifyUserConfirmed,
 } from '../telegram.js';
-import { isUniqueConstraintError, revokeAllRefreshTokens, awardAchievement, ACHIEVEMENT_IDS } from '../routeHelpers.js';
+import { isUniqueConstraintError, revokeAllRefreshTokens, awardAchievement, ACHIEVEMENT_IDS, logActivity } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -257,7 +257,7 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
       db.prepare(`INSERT INTO user_profiles (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...vals);
     }
 
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'register');
+    logActivity(user.id, 'register');
     db.prepare('INSERT INTO team_events (event_type, user_id) VALUES (?, ?)').run('member_joined', user.id);
 
     // Fire-and-forget — Telegram if linked (it never is at this point for a
@@ -288,11 +288,17 @@ function recordFailedLogin(emailKey) {
   const entry = failedLoginAttempts.get(emailKey) || { count: 0, lockedUntil: 0 };
   entry.count += 1;
   entry.lastAttempt = Date.now();
+  // Returns whether *this* attempt is the one that tripped the lockout, so
+  // the caller can log "account locked" once rather than on every
+  // subsequent rejected attempt during the 15-minute window.
+  let justLocked = false;
   if (entry.count >= MAX_FAILED_LOGIN_ATTEMPTS) {
     entry.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
     entry.count = 0;
+    justLocked = true;
   }
   failedLoginAttempts.set(emailKey, entry);
+  return justLocked;
 }
 
 // A successful login already clears its own entry (see below), but an
@@ -343,7 +349,17 @@ router.post('/api/auth/login', loginLimiter, (req, res) => {
     // despite the identical response body below.
     const passwordMatches = bcryptjs.compareSync(password, user?.password || DUMMY_PASSWORD_HASH);
     if (!user || !passwordMatches) {
-      recordFailedLogin(emailKey);
+      const justLocked = recordFailedLogin(emailKey);
+      // Only attempts against an account that exists get a log line —
+      // activity_log.user_id is NOT NULL and there is no row to attribute a
+      // typo'd or scanned email to. That's the right half to keep anyway:
+      // "someone is trying to get into Nazariy's account" is what a lead
+      // needs to see, and a log nobody reads full of noise from a scanner
+      // hitting made-up addresses is how the real line gets missed.
+      //
+      // Not an enumeration channel either — the response below is byte-for-
+      // byte identical in both branches, and this log is lead-only.
+      if (user) logActivity(user.id, justLocked ? 'account_locked' : 'login_failed');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     failedLoginAttempts.delete(emailKey);
@@ -363,7 +379,7 @@ router.post('/api/auth/login', loginLimiter, (req, res) => {
     }
 
     // Log login activity
-    db.prepare(`INSERT INTO activity_log (user_id, action) VALUES (?, ?)`).run(user.id, 'login');
+    logActivity(user.id, 'login');
 
     // «Полуночный жук» achievement — a fun/easter-egg one, not meant to be
     // precise: server (UTC) wall-clock hour 0-4 counts as "after midnight",
@@ -502,7 +518,7 @@ router.put('/api/me/password', authMiddleware, passwordChangeLimiter, (req, res)
     db.prepare('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?')
       .run(bcryptjs.hashSync(new_password, 10), user.id);
     revokeAllRefreshTokens(user.id);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'password_changed');
+    logActivity(user.id, 'password_changed');
 
     // revokeAllRefreshTokens above also revokes the CURRENT session's own
     // refresh token — without reissuing one here, the tab that just changed
@@ -546,7 +562,7 @@ router.put('/api/me/email', authMiddleware, passwordChangeLimiter, (req, res) =>
       if (isUniqueConstraintError(err)) return res.status(400).json({ error: 'Эта почта уже занята' });
       throw err;
     }
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'email_changed');
+    logActivity(user.id, 'email_changed');
     res.json({ ok: true, email });
   } catch (err) {
     logError(err);
@@ -568,7 +584,7 @@ router.put('/api/me/phone', authMiddleware, passwordChangeLimiter, (req, res) =>
     if (phone && !PHONE_RE.test(phone)) return res.status(400).json({ error: 'Некорректный номер телефона' });
 
     db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone || null, user.id);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(user.id, 'phone_changed');
+    logActivity(user.id, 'phone_changed');
     res.json({ ok: true, phone: phone || null });
   } catch (err) {
     logError(err);
@@ -599,8 +615,7 @@ router.post('/api/admin/users/:id/reset-password', authMiddleware, requireRole('
       db.prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?')
         .run(bcryptjs.hashSync(tempPassword, 10), target.id);
       revokeAllRefreshTokens(target.id);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-        .run(req.user.id, `password_reset:target=${target.id}`);
+      logActivity(req.user.id, `password_reset:target=${target.id}`);
     })();
 
     // Uses the delivery-confirmed variant (not the fire-and-forget
@@ -665,7 +680,7 @@ router.post('/api/auth/reset-password', forgotPasswordLimiter, (req, res) => {
       .run(bcryptjs.hashSync(new_password, 10), row.user_id);
     db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(row.user_id);
     revokeAllRefreshTokens(row.user_id);
-    db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(row.user_id, 'password_reset_self_service');
+    logActivity(row.user_id, 'password_reset_self_service');
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
     notifyUser(user, 'Пароль изменён', 'Пароль твоего аккаунта baga-net был только что изменён через восстановление доступа. Это был не ты? Срочно сообщи лиду.');

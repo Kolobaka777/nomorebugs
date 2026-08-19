@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName, logActivity } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -645,6 +645,10 @@ router.post('/api/custom-courses', authMiddleware, (req, res) => {
       db.prepare('INSERT INTO team_events (event_type, user_id, ref_id) VALUES (?, ?, ?)')
         .run('course_published', req.user.id, courseId);
     }
+    // The title travels in the action string rather than being joined from
+    // course_id at read time, so the line still reads years later — after a
+    // rename, and after a purge that takes the course row with it.
+    logActivity(req.user.id, `course_created:${title.trim().slice(0, 80)}`, { courseId });
 
     res.json({ id: courseId });
   } catch (err) {
@@ -762,6 +766,7 @@ router.delete('/api/custom-courses/:id', authMiddleware, requirePermission('mana
       const author = db.prepare('SELECT * FROM users WHERE id = ?').get(course.created_by);
       if (author) notifyUser(author, 'Курс отклонён', `Твой предложенный курс «${course.title}» отклонён.`);
     }
+    logActivity(req.user.id, `course_deleted:${course.title.slice(0, 80)}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);
@@ -803,6 +808,12 @@ router.patch('/api/custom-courses/:id/publish', authMiddleware, requirePermissio
         if (author) notifyUser(author, 'Курс одобрен!', `Твой предложенный курс «${course.title}» одобрен и опубликован. +${COIN_REWARDS.proposalCourse} баг-коинов.`);
       }
     }
+
+    logActivity(
+      req.user.id,
+      `${newStatus === 1 ? 'course_published' : 'course_unpublished'}:${course.title.slice(0, 80)}`,
+      { courseId: course.id }
+    );
 
     res.json({ is_published: newStatus });
   } catch (err) {
@@ -907,8 +918,7 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
           seconds_spent = excluded.seconds_spent,
           completed_at = excluded.completed_at
       `).run(userId, course_id, clampedSeconds);
-      db.prepare('INSERT INTO activity_log (user_id, action, course_id) VALUES (?, ?, ?)')
-        .run(userId, 'course_completed', course_id);
+      logActivity(userId, 'course_completed', { courseId: course_id });
       if (!alreadyTracked && reallyFinished && passed) awardCoins(userId, COIN_REWARDS.courseCompleted);
     })();
     res.json({ ok: true });

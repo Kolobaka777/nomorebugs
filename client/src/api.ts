@@ -164,7 +164,17 @@ export const leadApi = {
   getBeforeAfter: () => api.get('/lead/before-after'),
   getBeforeAfterByTester: () => api.get('/lead/before-after-by-tester'),
 
-  getActivity: (params?: { offset?: number; user_id?: number }) => api.get('/lead/activity', { params }),
+  getActivity: (params?: {
+    offset?: number;
+    user_id?: number;
+    // See server/src/activityCategories.js — 'learning' | 'content' |
+    // 'admin' | 'account'. An unknown value is ignored server-side rather
+    // than erroring, so this stays a plain string.
+    category?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+  }) => api.get('/lead/activity', { params }),
 
   getLectureStats: () => api.get('/lead/lecture-stats'),
 

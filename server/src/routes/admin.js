@@ -13,7 +13,7 @@ import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
 import { ROLES, isValidRole } from '../roles.js';
 import { notifyUser } from '../telegram.js';
-import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS, displayName } from '../routeHelpers.js';
+import { revokeAllRefreshTokens, hardDeleteCourse, KNOWN_PERMISSIONS, displayName, logActivity } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -60,7 +60,7 @@ router.post('/api/admin/users/:id/archive', authMiddleware, requireRole('lead'),
     db.transaction(() => {
       db.prepare('UPDATE users SET archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(targetId);
       revokeAllRefreshTokens(targetId);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_archived:target=${targetId}`);
+      logActivity(req.user.id, `user_archived:target=${targetId}`);
     })();
     res.json({ ok: true });
   } catch (err) {
@@ -79,7 +79,7 @@ router.post('/api/admin/users/:id/restore', authMiddleware, requireRole('lead'),
     }
     db.transaction(() => {
       db.prepare('UPDATE users SET archived_at = NULL WHERE id = ?').run(targetId);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)').run(req.user.id, `user_restored:target=${targetId}`);
+      logActivity(req.user.id, `user_restored:target=${targetId}`);
     })();
     res.json({ ok: true });
   } catch (err) {
@@ -231,8 +231,7 @@ router.patch('/api/admin/users/:id/role', authMiddleware, requireRole('admin'), 
     // record of who made it.
     db.transaction(() => {
       db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, targetId);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-        .run(req.user.id, `admin_role_change:target=${targetId}:new_role=${role}`);
+      logActivity(req.user.id, `admin_role_change:target=${targetId}:new_role=${role}`);
     })();
 
     const updatedTarget = db.prepare('SELECT id, email, name, role, telegram_id FROM users WHERE id = ?').get(targetId);
@@ -323,8 +322,7 @@ router.post('/api/lead/permissions', authMiddleware, requireRole('lead'), (req, 
       const result = db.prepare(
         'INSERT INTO granted_permissions (user_id, permission, granted_by, expires_at) VALUES (?, ?, ?, ?)'
       ).run(targetId, permission, req.user.id, expires_at || null);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-        .run(req.user.id, `permission_granted:target=${targetId}:permission=${permission}`);
+      logActivity(req.user.id, `permission_granted:target=${targetId}:permission=${permission}`);
       return result.lastInsertRowid;
     })();
     notifyUser(target, 'Новые права', `Тебе выдано право «${permission}» в baga-net.`);
@@ -343,8 +341,7 @@ router.delete('/api/lead/permissions/:id', authMiddleware, requireRole('lead'), 
     if (!grant) return res.status(404).json({ error: 'Не найдено' });
     db.transaction(() => {
       db.prepare('DELETE FROM granted_permissions WHERE id = ?').run(req.params.id);
-      db.prepare('INSERT INTO activity_log (user_id, action) VALUES (?, ?)')
-        .run(req.user.id, `permission_revoked:target=${grant.user_id}:permission=${grant.permission}`);
+      logActivity(req.user.id, `permission_revoked:target=${grant.user_id}:permission=${grant.permission}`);
     })();
     res.json({ ok: true });
   } catch (err) {
@@ -393,6 +390,7 @@ router.post('/api/lead/award-bonus', authMiddleware, requireRole('lead'), (req, 
     })();
 
     notifyUser(target, 'Премия!', `Тебе начислено ${amt} премиальных баллов: «${reason.trim()}»`);
+    logActivity(req.user.id, `bonus_awarded:target=${targetId}:amount=${amt}`);
     res.json({ ok: true });
   } catch (err) {
     logError(err);

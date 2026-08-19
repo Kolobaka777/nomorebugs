@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { isUniqueConstraintError, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins } from '../routeHelpers.js';
+import { isUniqueConstraintError, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, logActivity } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -387,10 +387,7 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
           completed_at = CURRENT_TIMESTAMP
       `).run(userId, lectureId, score, JSON.stringify(answersMap), resultMeta);
 
-      db.prepare(`
-        INSERT INTO activity_log (user_id, action, lecture_id)
-        VALUES (?, ?, ?)
-      `).run(userId, score >= 60 ? 'passed_lecture' : 'failed_lecture', lectureId);
+      logActivity(userId, score >= 60 ? 'passed_lecture' : 'failed_lecture', { lectureId });
 
       // Award trading card if passed
       if (score >= 60) {
@@ -565,7 +562,7 @@ router.post('/api/tester/baseline-survey', authMiddleware, (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(userId, html_structure, css_reading, devtools, console_errors, bug_report_quality);
 
-    db.prepare(`INSERT INTO activity_log (user_id, action) VALUES (?, ?)`).run(userId, 'completed_baseline');
+    logActivity(userId, 'completed_baseline');
 
     res.json({ success: true });
   } catch (err) {
