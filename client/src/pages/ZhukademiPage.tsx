@@ -147,7 +147,7 @@ function CourseCard({
     <div
       onClick={onClick}
       {...(clickable && onClick ? clickableProps(onClick) : {})}
-      className={`relative rounded-lg transition-all h-full ${clickable ? 'cursor-pointer hover:brightness-105' : ''}`}
+      className={`relative rounded-lg transition-all h-full flex flex-col ${clickable ? 'cursor-pointer hover:brightness-105' : ''}`}
       style={{
         background: CARD_BG,
         border: `1.5px solid ${isLocked ? 'rgba(197, 198, 199, 0.18)' : `${tagColor}70`}`,
@@ -157,14 +157,49 @@ function CourseCard({
     >
       {showNew && (
         <span
-          className="absolute -top-2.5 right-3 font-geist font-bold rounded px-2 py-0.5"
+          className="absolute -top-2.5 right-3 z-10 font-geist font-bold rounded px-2 py-0.5"
           style={{ background: NEW_BADGE_COLOR, color: PAGE_BG, fontSize: 10, letterSpacing: TRACK_WIDE }}
         >
           NEW
         </span>
       )}
 
-      {/* flex-col + h-full so every card in the grid fills its row (Grid's
+      {/* The progress bar is the card's header band, edge to edge under the
+          top border, exactly as the design has it: the fill runs behind the
+          label rather than beside it, so a course's progress is the first
+          thing the eye lands on and nothing else competes for that row.
+          The radius is the card's own minus its border, so the band's top
+          corners sit flush inside them instead of squaring them off. */}
+      <div
+        className="relative flex items-center shrink-0 overflow-hidden rounded-t-[6px]"
+        style={{
+          background: 'rgba(197, 198, 199, 0.06)',
+          borderBottom: `1px solid ${isLocked ? 'rgba(197, 198, 199, 0.12)' : `${tagColor}40`}`,
+        }}
+      >
+        {progressPct !== undefined && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-0 left-0 transition-all"
+            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%`, background: `${isPassed ? SUCCESS : tagColor}55` }}
+          />
+        )}
+        <span
+          className="relative font-geist px-3 py-1.5"
+          style={{ fontSize: 12, color: isLocked ? 'rgba(197, 198, 199,0.4)' : 'rgba(197, 198, 199,0.8)', letterSpacing: TRACK_WIDE }}
+          {...(progressPct !== undefined ? {
+            role: 'progressbar',
+            'aria-valuemin': 0,
+            'aria-valuemax': 100,
+            'aria-valuenow': Math.round(progressPct),
+            'aria-label': `Прогресс курса: ${modulesLabel}`,
+          } : {})}
+        >
+          {modulesLabel}
+        </span>
+      </div>
+
+      {/* flex-1 + flex-col so every card in the grid fills its row (Grid's
           default align-items:stretch already equalizes height *within* a
           row) and the title is clamped to a fixed two-line box regardless
           of how long it actually is — that's what makes cards uniform
@@ -172,64 +207,44 @@ function CourseCard({
           the same space a two-line one would need, so the grid's tallest
           card no longer varies row to row. mt-auto pins the footer to the
           bottom instead of it drifting up under a short title. */}
-      <div className="p-4 h-full flex flex-col">
-        <div className="relative flex items-center justify-between gap-2 mb-3 rounded overflow-hidden">
-          {/* The strip doubles as the progress bar: the label sits on top of
-              a fill that runs behind it. One element, so a finished course
-              reads as finished at a glance without a second bar competing
-              with the tag and the call to action below. */}
-          {progressPct !== undefined && (
-            <span
-              aria-hidden="true"
-              className="absolute inset-y-0 left-0 transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%`, background: `${isPassed ? SUCCESS : tagColor}33` }}
-            />
-          )}
-          <span
-            className="relative font-geist px-1.5 py-1"
-            style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}
-            {...(progressPct !== undefined ? {
-              role: 'progressbar',
-              'aria-valuemin': 0,
-              'aria-valuemax': 100,
-              'aria-valuenow': Math.round(progressPct),
-              'aria-label': `Прогресс курса: ${modulesLabel}`,
-            } : {})}
-          >
-            {modulesLabel}
-          </span>
+      <div className="p-4 flex-1 flex flex-col">
+        {/* Title and its badge share a row, per the design. They used to sit
+            in separate rows, which put the badge on top of the progress
+            fill — legible enough, but it read as two labels fighting for
+            the same strip. */}
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <h3 className="font-montserrat font-semibold flex items-start gap-2 min-w-0" style={{ fontSize: 16, lineHeight: 1.4, letterSpacing: '0.02em', color: TEXT_PRIMARY }}>
+            {onToggleFavorite && (
+              <button
+                onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
+                aria-label={isFavorited ? 'Убрать из избранного' : 'Добавить в избранное'}
+                className="shrink-0 cursor-pointer flex items-center mt-0.5"
+                style={{ color: isFavorited ? '#EF9F27' : 'rgba(197, 198, 199,0.3)' }}
+              >
+                <Icon name="star" size={15} color="currentColor" />
+              </button>
+            )}
+            <span className="flex-1 break-words min-w-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
+            {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-1" />}
+          </h3>
+
           {pendingReview ? (
-            <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+            <span className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
               На рассмотрении
             </span>
           ) : isDraft ? (
-            <span className="font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.1)', color: 'rgba(197, 198, 199,0.6)' }}>
+            <span className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.1)', color: 'rgba(197, 198, 199,0.6)' }}>
               Draft
             </span>
           ) : (
             <span
-              className="font-geist font-semibold rounded px-2 py-0.5"
+              className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5"
               style={{ fontSize: 11, background: `${tagColor}22`, color: tagColor, border: `1px solid ${tagColor}55` }}
             >
               {tag}
             </span>
           )}
         </div>
-
-        <h3 className="font-montserrat font-semibold flex items-start gap-2 mb-4" style={{ fontSize: 15, lineHeight: 1.4, color: TEXT_PRIMARY }}>
-          {onToggleFavorite && (
-            <button
-              onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
-              aria-label={isFavorited ? 'Убрать из избранного' : 'Добавить в избранное'}
-              className="shrink-0 cursor-pointer flex items-center mt-0.5"
-              style={{ color: isFavorited ? '#EF9F27' : 'rgba(197, 198, 199,0.3)' }}
-            >
-              <Icon name="star" size={15} color="currentColor" />
-            </button>
-          )}
-          <span className="flex-1 break-words min-w-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
-          {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-0.5" />}
-        </h3>
 
         <div className="flex items-center justify-between gap-2 mt-auto">
           <span className="font-geist truncate" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
@@ -241,6 +256,7 @@ function CourseCard({
           >
             {isPassed && <CheckCircleIcon size={13} color={ctaColor} />}
             {ctaLabel}
+            {isLocked && <LockIcon size={13} color="rgba(197, 198, 199,0.4)" />}
             {!isPassed && !isLocked && <Icon name="chevronRight" size={14} color="currentColor" />}
           </span>
         </div>
@@ -570,9 +586,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
               style={{
                 fontSize: 12,
-                background: tagFilter === null && !draftOnly ? `${ACCENT}18` : 'transparent',
-                color: tagFilter === null && !draftOnly ? ACCENT : 'rgba(197, 198, 199,0.5)',
-                border: `1px solid ${tagFilter === null && !draftOnly ? ACCENT : 'transparent'}`,
+                background: tagFilter === null && !draftOnly ? `${ACCENT}30` : `${ACCENT}12`,
+                color: tagFilter === null && !draftOnly ? ACCENT : 'rgba(102, 252, 241, 0.65)',
+                border: `1px solid ${tagFilter === null && !draftOnly ? ACCENT : `${ACCENT}3A`}`,
               }}
             >
               Все темы
@@ -587,9 +603,10 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                   className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-all"
                   style={{
                     fontSize: 12,
-                    background: active ? `${color}18` : 'transparent',
+                    background: active ? `${color}30` : `${color}12`,
                     color,
-                    border: `1px solid ${active ? color : 'transparent'}`,
+                    border: `1px solid ${active ? color : `${color}3A`}`,
+                    opacity: active ? 1 : 0.8,
                   }}
                 >
                   {tag}
@@ -602,9 +619,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
                 style={{
                   fontSize: 12,
-                  background: draftOnly ? 'rgba(197, 198, 199,0.12)' : 'transparent',
+                  background: draftOnly ? 'rgba(197, 198, 199,0.18)' : 'rgba(197, 198, 199,0.07)',
                   color: 'rgba(197, 198, 199,0.6)',
-                  border: `1px solid ${draftOnly ? 'rgba(197, 198, 199,0.5)' : 'transparent'}`,
+                  border: `1px solid ${draftOnly ? 'rgba(197, 198, 199,0.5)' : 'rgba(197, 198, 199,0.22)'}`,
                 }}
               >
                 Draft

@@ -251,6 +251,17 @@ describe('course progress in the catalog', () => {
     expect(screen.queryByText('Завершённый курс')).not.toBeInTheDocument();
   });
 
+  it('keeps the tag badge out of the progress strip', async () => {
+    // The badge used to share that row, so on a mostly-finished course the
+    // fill ran underneath it and the two read as one smeared label. The
+    // design gives the strip to progress alone and puts the tag beside the
+    // title, so the strip should hold nothing but its own count.
+    mockRoutes({ courses: [inProgress()] });
+    renderPage();
+    const bar = await screen.findByRole('progressbar');
+    expect(bar.parentElement).toHaveTextContent(/^1\/4 модулей$/);
+  });
+
   it('falls back to a description when a course has no modules to count', async () => {
     // "0/0 модулей" says nothing; the old descriptive label says more.
     mockRoutes({ courses: [customCourse({ title: 'Пустой курс', modulesTotal: 0, modulesDone: 0, lessonsTotal: 0, lessonsDone: 0, isCompleted: false })] });
