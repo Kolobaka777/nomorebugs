@@ -42,10 +42,39 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed' | 'unpassed';
 // Shared card shell for both the seeded-lecture catalog and lead-authored
 // custom courses — same border/radius/type treatment either way so the two
 // sections read as one design language, not two.
+// The states a custom-course card can be in, in one place — the catalog
+// renders these cards from two separate grids ("Для новичков" and the main
+// one) and a state defined twice is a state that eventually differs.
+//
+// Only the first two are about the course itself; the rest are about how
+// far the reader has got, which the list endpoint now reports.
+function courseCardState(cc: any, color: string) {
+  if (cc.proposal_status === 'pending') return { ctaLabel: 'НА РАССМОТРЕНИИ', ctaColor: '#EF9F27', isPassed: false, progressPct: undefined };
+  if (!cc.is_published) return { ctaLabel: 'ПРОДОЛЖИТЬ РЕДАКТИРОВАНИЕ', ctaColor: color, isPassed: false, progressPct: undefined };
+
+  const total = cc.modulesTotal ?? 0;
+  const done = cc.modulesDone ?? 0;
+  const pct = total > 0 ? (done / total) * 100 : 0;
+
+  if (cc.isCompleted) return { ctaLabel: 'КУРС ПРОЙДЕН!', ctaColor: SUCCESS, isPassed: true, progressPct: 100 };
+  // "Started" is judged on lessons, not modules: reading one lesson of a
+  // four-lesson module is a course you have started, even though the
+  // module count still says nothing is finished.
+  if ((cc.lessonsDone ?? 0) > 0) return { ctaLabel: 'ПРОДОЛЖИТЬ КУРС', ctaColor: color, isPassed: false, progressPct: pct };
+  return { ctaLabel: 'НАЧАТЬ КУРС', ctaColor: color, isPassed: false, progressPct: pct };
+}
+
+// "2/12 модулей" — the label the design puts in the strip that doubles as
+// the progress bar. Falls back to the old descriptive text for a course
+// with no modules at all, where a count would say nothing.
+function modulesLabelFor(cc: any, fallback: string) {
+  return (cc.modulesTotal ?? 0) > 0 ? `${cc.modulesDone ?? 0}/${cc.modulesTotal} модулей` : fallback;
+}
+
 function CourseCard({
   modulesLabel, tag, tagColor, title, isNew: showNew, isDraft, pendingReview, isLocked, isPassed, ctaLabel, ctaColor,
   statsLabel, onClick, clickable, onEdit, onDelete, teamCount, isFavorited, onToggleFavorite,
-  progressDone, progressTotal,
+  progressPct,
 }: {
   modulesLabel: string;
   tag: string;
@@ -70,11 +99,10 @@ function CourseCard({
   teamCount?: number;
   isFavorited?: boolean;
   onToggleFavorite?: () => void;
-  // How far this person is through the course, in lessons. Absent for the
-  // seeded lecture track, which is a single test rather than a sequence of
-  // lessons, and for cards nobody can take yet (a draft, a proposal).
-  progressDone?: number;
-  progressTotal?: number;
+  // 0–100. Fills the header strip behind `modulesLabel`, which is where
+  // the design puts progress — not a second bar lower down. Absent for
+  // cards nobody can take yet (a draft, a proposal awaiting review).
+  progressPct?: number;
 }) {
   return (
     <div className="relative h-full group">
@@ -142,8 +170,29 @@ function CourseCard({
           card no longer varies row to row. mt-auto pins the footer to the
           bottom instead of it drifting up under a short title. */}
       <div className="p-4 h-full flex flex-col">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <span className="font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+        <div className="relative flex items-center justify-between gap-2 mb-3 rounded overflow-hidden">
+          {/* The strip doubles as the progress bar: the label sits on top of
+              a fill that runs behind it. One element, so a finished course
+              reads as finished at a glance without a second bar competing
+              with the tag and the call to action below. */}
+          {progressPct !== undefined && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-0 left-0 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%`, background: `${isPassed ? SUCCESS : tagColor}33` }}
+            />
+          )}
+          <span
+            className="relative font-geist px-1.5 py-1"
+            style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}
+            {...(progressPct !== undefined ? {
+              role: 'progressbar',
+              'aria-valuemin': 0,
+              'aria-valuemax': 100,
+              'aria-valuenow': Math.round(progressPct),
+              'aria-label': `Прогресс курса: ${modulesLabel}`,
+            } : {})}
+          >
             {modulesLabel}
           </span>
           {pendingReview ? (
@@ -179,35 +228,7 @@ function CourseCard({
           {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-0.5" />}
         </h3>
 
-        {/* Progress, when there is a sequence to be part-way through. The
-            catalog used to show a finished course exactly as it showed one
-            nobody had opened. */}
-        {progressTotal !== undefined && progressTotal > 0 && (
-          <div className="mt-auto mb-3">
-            <div className="flex items-center justify-between mb-1.5 font-geist" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
-              <span>{isPassed ? 'Пройден' : `${progressDone} из ${progressTotal}`}</span>
-              {!isPassed && progressDone !== undefined && progressDone > 0 && (
-                <span>{Math.round((progressDone / progressTotal) * 100)}%</span>
-              )}
-            </div>
-            <div
-              className="rounded-full overflow-hidden"
-              style={{ height: 4, background: 'rgba(197, 198, 199,0.12)' }}
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={progressTotal}
-              aria-valuenow={progressDone}
-              aria-label={`Пройдено уроков: ${progressDone} из ${progressTotal}`}
-            >
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${Math.round(((progressDone || 0) / progressTotal) * 100)}%`, background: isPassed ? SUCCESS : ctaColor }}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className={`flex items-center justify-between gap-2 ${progressTotal ? '' : 'mt-auto'}`}>
+        <div className="flex items-center justify-between gap-2 mt-auto">
           <span className="font-geist truncate" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
             {statsLabel}
           </span>
@@ -625,22 +646,22 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 const isPending = cc.proposal_status === 'pending';
                 const isLead = user.role === 'lead';
                 const isOwn = cc.created_by === user.id;
+                const state = courseCardState(cc, color);
                 const hidden = isDraft && !isLead && !isOwn;
 
                 return (
                   <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
                     <CourseCard
-                      modulesLabel="Вводный курс"
+                      modulesLabel={modulesLabelFor(cc, 'Вводный курс')}
                       tag={cc.tag || 'Custom'}
                       tagColor={color}
                       title={cc.title}
                       isDraft={isDraft}
                       pendingReview={isPending}
-                      ctaLabel={cc.isCompleted ? 'ПРОЙДЕН' : 'ОТКРЫТЬ КУРС'}
-                      ctaColor={cc.isCompleted ? SUCCESS : color}
-                      isPassed={!!cc.isCompleted}
-                      progressDone={isDraft || isPending ? undefined : cc.lessonsDone}
-                      progressTotal={isDraft || isPending ? undefined : cc.lessonsTotal}
+                      ctaLabel={state.ctaLabel}
+                      ctaColor={state.ctaColor}
+                      isPassed={state.isPassed}
+                      progressPct={state.progressPct}
                       statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                       clickable
                       onClick={() => navigate(`/custom-course/${cc.id}`)}
@@ -675,6 +696,9 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 <CourseCard
                   key={lecture.id}
                   modulesLabel={isPassed ? `Результат: ${lecture.score ?? 0}%` : 'Итоговый тест'}
+                  // A lecture is one test, not a sequence, so its strip is
+                  // either empty or full — no invented intermediate.
+                  progressPct={isTester ? (isPassed ? 100 : 0) : undefined}
                   tag={getTopicTag(lecture.skill_area)}
                   tagColor={tagColor}
                   title={lecture.title}
@@ -773,6 +797,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                     const isDraft = !cc.is_published;
                     const isPending = cc.proposal_status === 'pending';
                     const isLead = user.role === 'lead';
+                    const state = courseCardState(cc, color);
                     const isOwn = cc.created_by === user.id;
                     // A lead sees every draft/proposal (their own review queue);
                     // anyone else only sees their own — the server already only
@@ -784,18 +809,17 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                       <div key={cc.id} className="h-full flex flex-col" style={hidden ? { display: 'none' } : undefined}>
                         <div className="flex-1">
                         <CourseCard
-                          modulesLabel="Дополнительный курс"
+                          modulesLabel={modulesLabelFor(cc, 'Дополнительный курс')}
                           tag={cc.tag || 'Custom'}
                           tagColor={color}
                           title={cc.title}
                           isNew={courseIsNew}
                           isDraft={isDraft}
                           pendingReview={isPending}
-                          ctaLabel={cc.isCompleted ? 'ПРОЙДЕН' : 'ОТКРЫТЬ КУРС'}
-                          ctaColor={cc.isCompleted ? SUCCESS : color}
-                          isPassed={!!cc.isCompleted}
-                          progressDone={isDraft || isPending ? undefined : cc.lessonsDone}
-                          progressTotal={isDraft || isPending ? undefined : cc.lessonsTotal}
+                          ctaLabel={state.ctaLabel}
+                          ctaColor={state.ctaColor}
+                          isPassed={state.isPassed}
+                          progressPct={state.progressPct}
                           statsLabel={isPending ? pickByGender(cc.author_gender, `Предложил: ${cc.author_name}`, `Предложила: ${cc.author_name}`, `Предложение от ${cc.author_name}`) : cc.completedCount !== undefined ? `${cc.completedCount}/${cc.totalTesters} прошли` : cc.author_name}
                           clickable
                           onClick={() => navigate(`/custom-course/${cc.id}`)}

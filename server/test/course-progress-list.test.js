@@ -23,15 +23,17 @@ let threeLessons, emptyCourse;
 const asLead = req => req.set('Authorization', `Bearer ${leadToken}`);
 const asTester = req => req.set('Authorization', `Bearer ${testerToken}`);
 
-async function makeCourse(title, lessonCount) {
+// One module per entry in `lessonsPerModule`, with that many lessons in it.
+async function makeCourse(title, lessonsPerModule) {
+  const counts = Array.isArray(lessonsPerModule) ? lessonsPerModule : [lessonsPerModule];
   const res = await asLead(request(server).post('/api/custom-courses')).send({
     title,
-    modules: [{
-      title: 'M',
+    modules: counts.map((lessonCount, mIdx) => ({
+      title: `M${mIdx}`,
       lessons: Array.from({ length: lessonCount }, (_, i) => ({
-        title: `L${i}`, type: 'lesson', content: 'тело', prerequisite_type: 'none',
+        title: `L${mIdx}-${i}`, type: 'lesson', content: 'тело', prerequisite_type: 'none',
       })),
-    }],
+    })),
   });
   expect(res.status).toBe(200);
   db.prepare('UPDATE custom_courses SET is_published = 1 WHERE id = ?').run(res.body.id);
@@ -57,6 +59,37 @@ beforeAll(async () => {
 });
 
 describe('progress in the course list', () => {
+  it('counts modules as well as lessons, since that is what a card shows', async () => {
+    // Three modules: two lessons, one lesson, one lesson.
+    const c = await makeCourse('Курс из трёх модулей', [2, 1, 1]);
+    let row = (await listFor(testerToken))[c.id];
+    expect(row.modulesTotal).toBe(3);
+    expect(row.modulesDone).toBe(0);
+    expect(row.lessonsTotal).toBe(4);
+
+    // Half of the first module is not a finished module.
+    await asTester(request(server).post(`/api/custom-lessons/${c.lessonIds[0]}/complete`));
+    row = (await listFor(testerToken))[c.id];
+    expect(row.modulesDone).toBe(0);
+    expect(row.lessonsDone).toBe(1);
+
+    // Its second lesson closes it.
+    await asTester(request(server).post(`/api/custom-lessons/${c.lessonIds[1]}/complete`));
+    row = (await listFor(testerToken))[c.id];
+    expect(row.modulesDone).toBe(1);
+    expect(row.isCompleted).toBe(false);
+  });
+
+  it('does not count an empty module as done', async () => {
+    // A course outline with no content in it would otherwise read as
+    // complete for everyone who opened it.
+    const c = await makeCourse('Курс с пустым модулем', [0, 0]);
+    const row = (await listFor(testerToken))[c.id];
+    expect(row.modulesTotal).toBe(2);
+    expect(row.modulesDone).toBe(0);
+    expect(row.isCompleted).toBe(false);
+  });
+
   it('starts at nothing done, out of a real total', async () => {
     const c = (await listFor(testerToken))[threeLessons.id];
     expect(c.lessonsTotal).toBe(3);

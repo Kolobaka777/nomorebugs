@@ -67,38 +67,46 @@ function lessonVisibleTo(lessonId, user, res) {
 // 60%". Whether it was *passed* is a separate question the course page
 // answers (courseResultFor).
 function progressByCourseFor(userId) {
-  const totals = db.prepare(`
-    SELECT m.course_id as courseId, COUNT(*) as total
-    FROM custom_lessons l
-    JOIN custom_modules m ON m.id = l.module_id
-    GROUP BY m.course_id
-  `).all();
-
-  const done = db.prepare(`
-    SELECT m.course_id as courseId, COUNT(*) as done
-    FROM custom_lesson_progress p
-    JOIN custom_lessons l ON l.id = p.lesson_id
-    JOIN custom_modules m ON m.id = l.module_id
-    WHERE p.user_id = ?
-    GROUP BY m.course_id
+  // One row per module, with its lesson count and how many of them this
+  // person has finished. Everything else is arithmetic on top, so the whole
+  // catalog costs one query rather than a couple per card.
+  //
+  // LEFT JOINs throughout: a module with no lessons yet, and a lesson
+  // nobody has opened, both have to appear with a zero rather than vanish.
+  const modules = db.prepare(`
+    SELECT m.course_id as courseId,
+           m.id as moduleId,
+           COUNT(l.id) as lessons,
+           COUNT(p.lesson_id) as done
+    FROM custom_modules m
+    LEFT JOIN custom_lessons l ON l.module_id = m.id
+    LEFT JOIN custom_lesson_progress p ON p.lesson_id = l.id AND p.user_id = ?
+    GROUP BY m.id
   `).all(userId);
 
-  const doneByCourse = new Map(done.map(r => [r.courseId, r.done]));
   const byCourse = new Map();
-  for (const row of totals) {
-    const lessonsDone = doneByCourse.get(row.courseId) || 0;
-    byCourse.set(row.courseId, {
-      lessonsTotal: row.total,
-      lessonsDone,
-      // An empty course is not a finished one — otherwise a shell someone
-      // created and never filled would show up as passed for everybody.
-      isCompleted: row.total > 0 && lessonsDone >= row.total,
-    });
+  for (const row of modules) {
+    const acc = byCourse.get(row.courseId) || { modulesTotal: 0, modulesDone: 0, lessonsTotal: 0, lessonsDone: 0 };
+    acc.modulesTotal += 1;
+    // A module counts as done only once every lesson in it is. An empty
+    // module is never done — otherwise a course outline with no content in
+    // it would read as complete for everyone who opened it.
+    if (row.lessons > 0 && row.done >= row.lessons) acc.modulesDone += 1;
+    acc.lessonsTotal += row.lessons;
+    acc.lessonsDone += row.done;
+    byCourse.set(row.courseId, acc);
+  }
+
+  for (const acc of byCourse.values()) {
+    // Completion is judged on lessons, not modules: they agree whenever
+    // there is anything to finish, and lessons are the thing actually
+    // marked done. The same empty-course caveat applies.
+    acc.isCompleted = acc.lessonsTotal > 0 && acc.lessonsDone >= acc.lessonsTotal;
   }
   return byCourse;
 }
 
-const EMPTY_PROGRESS = { lessonsTotal: 0, lessonsDone: 0, isCompleted: false };
+const EMPTY_PROGRESS = { modulesTotal: 0, modulesDone: 0, lessonsTotal: 0, lessonsDone: 0, isCompleted: false };
 
 // List: testers see published (+ their own proposals, any status); lead
 // sees own + published + everyone's pending proposals (the review queue —

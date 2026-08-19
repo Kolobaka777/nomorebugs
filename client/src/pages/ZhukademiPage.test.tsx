@@ -181,32 +181,57 @@ describe('ZhukademiPage — course sections (public catalog grouping)', () => {
 // showed one nobody had opened: no bar, no mark, and the status filter
 // beside it only ever applied to the seeded lecture track.
 describe('course progress in the catalog', () => {
-  const inProgress = () => customCourse({ id: 1, title: 'Начатый курс', lessonsTotal: 4, lessonsDone: 1, isCompleted: false });
-  const finished = () => customCourse({ id: 2, title: 'Завершённый курс', lessonsTotal: 4, lessonsDone: 4, isCompleted: true });
-  const untouched = () => customCourse({ id: 3, title: 'Нетронутый курс', lessonsTotal: 4, lessonsDone: 0, isCompleted: false });
+  const inProgress = () => customCourse({ id: 1, title: 'Начатый курс', modulesTotal: 4, modulesDone: 1, lessonsTotal: 8, lessonsDone: 3, isCompleted: false });
+  const finished = () => customCourse({ id: 2, title: 'Завершённый курс', modulesTotal: 4, modulesDone: 4, lessonsTotal: 8, lessonsDone: 8, isCompleted: true });
+  const untouched = () => customCourse({ id: 3, title: 'Нетронутый курс', modulesTotal: 4, modulesDone: 0, lessonsTotal: 8, lessonsDone: 0, isCompleted: false });
 
-  it('shows how far through a course someone is', async () => {
+  it('shows how far through a course someone is, in the strip the design puts it in', async () => {
     mockRoutes({ courses: [inProgress()] });
     renderPage();
     expect(await screen.findByText('Начатый курс')).toBeInTheDocument();
-    expect(screen.getByText('1 из 4')).toBeInTheDocument();
-    expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(screen.getByText('1/4 модулей')).toBeInTheDocument();
+  });
+
+  it('tells a course not yet opened apart from one already under way', async () => {
+    mockRoutes({ courses: [untouched(), inProgress()] });
+    renderPage();
+    await screen.findByText('Нетронутый курс');
+    // Both used to say ОТКРЫТЬ КУРС, which answered neither question.
+    expect(screen.getByText('НАЧАТЬ КУРС')).toBeInTheDocument();
+    expect(screen.getByText('ПРОДОЛЖИТЬ КУРС')).toBeInTheDocument();
+  });
+
+  it('counts a part-read module as started, even before it is finished', async () => {
+    // One lesson of a four-lesson module is a course you have begun, though
+    // the module count still says nothing is complete.
+    mockRoutes({ courses: [customCourse({ title: 'Едва начатый', modulesTotal: 2, modulesDone: 0, lessonsTotal: 8, lessonsDone: 1, isCompleted: false })] });
+    renderPage();
+    await screen.findByText('Едва начатый');
+    expect(screen.getByText('ПРОДОЛЖИТЬ КУРС')).toBeInTheDocument();
+    expect(screen.getByText('0/2 модулей')).toBeInTheDocument();
   });
 
   it('marks a finished course instead of leaving it to look untouched', async () => {
     mockRoutes({ courses: [finished()] });
     renderPage();
     expect(await screen.findByText('Завершённый курс')).toBeInTheDocument();
-    expect(screen.getByText('ПРОЙДЕН')).toBeInTheDocument();
-    expect(screen.getByText('Пройден')).toBeInTheDocument();
+    expect(screen.getByText('КУРС ПРОЙДЕН!')).toBeInTheDocument();
+    expect(screen.getByText('4/4 модулей')).toBeInTheDocument();
+  });
+
+  it('calls a draft what it is, and offers to keep editing it', async () => {
+    mockRoutes({ courses: [customCourse({ title: 'Черновик', is_published: false, modulesTotal: 1, modulesDone: 0, lessonsTotal: 2, lessonsDone: 0 })] });
+    renderPage(lead);
+    expect(await screen.findByText('Черновик')).toBeInTheDocument();
+    expect(screen.getByText('ПРОДОЛЖИТЬ РЕДАКТИРОВАНИЕ')).toBeInTheDocument();
   });
 
   it('reports the bar to assistive tech, not just visually', async () => {
     mockRoutes({ courses: [inProgress()] });
     renderPage();
     const bar = await screen.findByRole('progressbar');
-    expect(bar).toHaveAttribute('aria-valuenow', '1');
-    expect(bar).toHaveAttribute('aria-valuemax', '4');
+    expect(bar).toHaveAttribute('aria-valuenow', '25');
+    expect(bar).toHaveAttribute('aria-valuemax', '100');
   });
 
   it('filters the catalog down to finished courses, and to unfinished ones', async () => {
@@ -226,12 +251,12 @@ describe('course progress in the catalog', () => {
     expect(screen.queryByText('Завершённый курс')).not.toBeInTheDocument();
   });
 
-  it('leaves the bar off a course with nothing in it yet', async () => {
-    // Nothing done out of nothing is not progress, and a full-looking bar
-    // on an empty shell would be a lie.
-    mockRoutes({ courses: [customCourse({ title: 'Пустой курс', lessonsTotal: 0, lessonsDone: 0, isCompleted: false })] });
+  it('falls back to a description when a course has no modules to count', async () => {
+    // "0/0 модулей" says nothing; the old descriptive label says more.
+    mockRoutes({ courses: [customCourse({ title: 'Пустой курс', modulesTotal: 0, modulesDone: 0, lessonsTotal: 0, lessonsDone: 0, isCompleted: false })] });
     renderPage();
     expect(await screen.findByText('Пустой курс')).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByText('Дополнительный курс')).toBeInTheDocument();
+    expect(screen.queryByText('0/0 модулей')).not.toBeInTheDocument();
   });
 });
