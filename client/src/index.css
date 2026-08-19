@@ -1198,3 +1198,32 @@
 .rich-text-drag-handle:hover { color: #66FCF1; background: rgba(197, 198, 199, 0.08); }
 .rich-text-drag-handle:active { cursor: grabbing;
 }
+
+/* The companion's "Спросить лягуха" label. Fades rather than appearing
+   flat, and sits outside the frog entirely (see FrogCompanion.tsx for why
+   it isn't a native title). visibility, not display, so the fade has
+   something to animate; pointer-events are off in the inline style, so it
+   can never eat a click meant for the frog underneath. */
+.frog-companion-label {
+  position: absolute;
+  right: 100%;
+  margin-right: 14px;
+  top: 50%;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-50%) translateX(6px);
+  transition: opacity 0.16s ease-out, transform 0.16s ease-out, visibility 0s linear 0.16s;
+}
+.frog-companion-label[data-visible='true'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+  transition: opacity 0.16s ease-out, transform 0.16s ease-out, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .frog-companion-label {
+    transition: none;
+  }
+}
