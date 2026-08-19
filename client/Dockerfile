@@ -79,8 +79,8 @@ ARG API_ORIGIN
 RUN printf '%s' "${API_ORIGIN:-$(printf '%s' "$VITE_API_BASE_URL" | sed -n 's#^\(https\{0,1\}://[^/]*\).*#\1#p')}" > /etc/nginx/csp-origin \
  && echo "CSP connect-src baked at build: '$(cat /etc/nginx/csp-origin)'"
 
-COPY docker-entrypoint.d/10-csp-origin.sh /docker-entrypoint.d/10-csp-origin.sh
-RUN chmod +x /docker-entrypoint.d/10-csp-origin.sh
+COPY docker-entrypoint.d/ /docker-entrypoint.d/
+RUN chmod +x /docker-entrypoint.d/05-worker-processes.sh /docker-entrypoint.d/10-csp-origin.sh
 
 # Sane default for `docker run`/docker-compose, where nothing injects
 # PORT — real deployments override this with their assigned port.

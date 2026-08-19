@@ -234,6 +234,61 @@ describe('CSP origin derivation', () => {
   });
 });
 
+// nginx shipped `worker_processes auto`, which is one worker per host CPU
+// — 48 of them on Railway's metal, for a container serving static files in
+// a single replica. Same testing approach as the CSP script above: the real
+// file is run against a fixture, because a copy of its logic in a test
+// keeps passing after the original changes.
+describe('nginx worker count', () => {
+  const script = path.join(repoRoot, 'client', 'docker-entrypoint.d', '05-worker-processes.sh');
+
+  function workerLine(override) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workers-'));
+    try {
+      const conf = path.join(dir, 'nginx.conf');
+      fs.writeFileSync(conf, 'user nginx;\nworker_processes auto;\nevents { worker_connections 1024; }\n');
+      execFileSync('sh', [script], {
+        env: {
+          PATH: process.env.PATH,
+          NGINX_MAIN_CONF: conf,
+          ...(override === undefined ? {} : { NGINX_WORKER_PROCESSES: override }),
+        },
+        encoding: 'utf8',
+      });
+      return fs.readFileSync(conf, 'utf8').split('\n').find(l => l.startsWith('worker_processes'));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('replaces auto with a number a static-file server can justify', () => {
+    expect(workerLine()).toBe('worker_processes 2;');
+  });
+
+  it('lets the deployment raise it', () => {
+    expect(workerLine('8')).toBe('worker_processes 8;');
+  });
+
+  it('leaves the rest of the config alone', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workers-'));
+    try {
+      const conf = path.join(dir, 'nginx.conf');
+      const before = 'user nginx;\nworker_processes auto;\nevents { worker_connections 1024; }\n';
+      fs.writeFileSync(conf, before);
+      execFileSync('sh', [script], {
+        env: { PATH: process.env.PATH, NGINX_MAIN_CONF: conf },
+        encoding: 'utf8',
+      });
+      const after = fs.readFileSync(conf, 'utf8');
+      expect(after).toContain('user nginx;');
+      expect(after).toContain('worker_connections 1024;');
+      expect(after.split('\n')).toHaveLength(before.split('\n').length);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 // The nginx config can't be exercised here — there is no nginx in the test
 // environment — so this asserts the one property whose violation is
 // invisible until someone inspects response headers in production. It
