@@ -16,7 +16,7 @@ vi.mock('../src/telegram.js', () => ({
   initTelegramBot: () => {}, isTelegramConfigured: () => false, stopTelegramBot: () => {},
 }));
 
-const { default: app } = await import('../src/app.js');
+const { default: app, lowDiskThresholdMb } = await import('../src/app.js');
 
 const { testServer } = await import('./helpers.js');
 const server = await testServer(app);
@@ -35,5 +35,36 @@ describe('GET /api/health', () => {
     const res = await request(server).get('/api/health');
     expect(res.status).toBe(200);
     expect(['ok', 'degraded']).toContain(res.body.status);
+  });
+});
+
+// Railway hands out a 433MB volume by default, and the threshold was a flat
+// 512MB of free space — more than the disk holds. The endpoint reported
+// "degraded" from the moment the volume was created, at 6% used, and would
+// have gone on reporting it forever. An alarm that never stops is one
+// nobody looks at, which is worse than not having it: this endpoint exists
+// to make the one disk problem visible *before* it arrives.
+describe('the low-disk threshold', () => {
+  it('never asks for more headroom than the volume can hold', () => {
+    // The case that was live in production.
+    expect(lowDiskThresholdMb(433)).toBeLessThan(433);
+    expect(lowDiskThresholdMb(433)).toBe(87);
+
+    for (const total of [50, 100, 433, 1024]) {
+      expect(lowDiskThresholdMb(total), `${total}MB`).toBeLessThan(total);
+    }
+  });
+
+  it('keeps a flat floor once the volume is big enough for one', () => {
+    // A fifth of 50GB is 10GB, which is not a useful warning level.
+    expect(lowDiskThresholdMb(10240)).toBe(512);
+    expect(lowDiskThresholdMb(51200)).toBe(512);
+  });
+
+  it('calls a healthy volume healthy, and a nearly-full one degraded', () => {
+    // 6% used on the real Railway volume: fine.
+    expect(407).toBeGreaterThan(lowDiskThresholdMb(433));
+    // Same volume with 40MB left: not fine.
+    expect(40).toBeLessThan(lowDiskThresholdMb(433));
   });
 });

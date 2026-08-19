@@ -281,7 +281,22 @@ app.use(writeLimiter);
 // Anything below this and the next few backup cycles are the last ones that
 // will fit. Deliberately generous: an alert that fires with room to act on it
 // is the whole point, and a false alarm here costs nothing.
+// Free space below which the volume is worth worrying about — but never
+// more headroom than a fifth of the volume, because a threshold larger
+// than the whole disk can never be met.
+//
+// Railway provisions 433MB by default. A flat 512MB floor meant the health
+// endpoint reported "degraded" from the moment the volume was created, at
+// 6% used, and would have gone on reporting it until the disk was full.
+// An alarm that is always sounding is one nobody looks at, which is worse
+// than no alarm: this endpoint exists to make the one real disk problem
+// visible before it happens.
 const LOW_DISK_MB = 512;
+const LOW_DISK_FRACTION = 0.2;
+
+export function lowDiskThresholdMb(totalMb) {
+  return Math.min(LOW_DISK_MB, Math.round(totalMb * LOW_DISK_FRACTION));
+}
 
 // statfsSync is Node 18.15+; wrapped because it is not implemented on every
 // platform and a health check must never be the thing that breaks. Returning
@@ -320,7 +335,7 @@ app.get('/api/health', (req, res) => {
     // volume and nothing else reports on it. A monitor can alert on
     // disk.freeMb, and `degraded` makes a bare eyeball check enough.
     const disk = diskSpace();
-    const low = disk && disk.freeMb < LOW_DISK_MB;
+    const low = disk && disk.freeMb < lowDiskThresholdMb(disk.totalMb);
     res.json({ status: low ? 'degraded' : 'ok', ...(disk ? { disk } : {}) });
   } catch (err) {
     logError(err);
