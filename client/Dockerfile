@@ -9,6 +9,13 @@
 # VITE_SENTRY_DSN / VITE_POSTHOG_KEY / VITE_POSTHOG_HOST: optional
 # monitoring — see client/.env.example. Left empty, both integrations
 # simply don't activate (see client/src/monitoring.ts).
+#
+# Docker's linter flags VITE_POSTHOG_KEY as a secret in an ARG. It is not
+# one: a PostHog project key and a Sentry DSN are both public by design —
+# they are compiled into JavaScript that every visitor downloads, so
+# hiding them from the build would hide them from nobody. Anything that
+# actually needs to stay secret never goes near this image; it lives on
+# the server service, which the browser cannot read.
 ARG VITE_API_BASE_URL=/api
 ARG VITE_SENTRY_DSN=
 ARG VITE_POSTHOG_KEY=

@@ -198,6 +198,35 @@ describe('CSP origin derivation', () => {
     expect(connectSrc()).toBe("'self'");
   });
 
+  // The other half: the value the image carries when the container's own
+  // environment has nothing. This step is what failed the Railway build —
+  // it ended in `! grep -q 'API_ORIGIN'`, meant to catch an unsubstituted
+  // placeholder, which instead matched the word API_ORIGIN in a comment a
+  // few lines above the directive and so failed every single build.
+  it('bakes the origin in at build without a guard that cannot pass', () => {
+    const dockerfile = fs.readFileSync(path.join(repoRoot, 'client', 'Dockerfile'), 'utf8');
+    const line = dockerfile
+      .replace(/\\\n/g, ' ')
+      .split('\n')
+      .find(l => l.trim().startsWith('RUN printf') && l.includes('csp-origin'));
+    expect(line, 'the build step that records the origin must still be findable').toBeTruthy();
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csp-build-'));
+    try {
+      const out = path.join(dir, 'csp-origin');
+      const cmd = line.replace(/^\s*RUN\s+/, '').replace(/\/etc\/nginx\/csp-origin/g, out);
+      // Runs it for real: the failure being guarded against was a non-zero
+      // exit, which only executing the thing can show.
+      execFileSync('sh', ['-c', cmd], {
+        env: { PATH: process.env.PATH, VITE_API_BASE_URL: 'https://nomorebugs-production.up.railway.app/api', API_ORIGIN: '' },
+        encoding: 'utf8',
+      });
+      expect(fs.readFileSync(out, 'utf8')).toBe('https://nomorebugs-production.up.railway.app');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('leaves no placeholder behind for nginx to choke on', () => {
     for (const args of [{ baseUrl: 'https://a.example.com/api' }, {}]) {
       expect(connectSrc(args)).not.toContain('API_ORIGIN');
