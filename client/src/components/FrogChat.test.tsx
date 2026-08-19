@@ -108,15 +108,25 @@ describe('FrogChat — everything on a button is a question', () => {
     }
   });
 
-  // The Help page's capability cards keep the imperative — a list of what
-  // you can do reads correctly that way. The two forms must not be confused
-  // for one another.
-  it('keeps the imperative card title separate from the chat question', () => {
+  // Everything clickable asks; nothing orders. The Help page's capability
+  // list used to carry an imperative title of its own («Собирай курсы»)
+  // while the FAQ tab right next to it asked («Как создать курс?») — two
+  // moods, one screen. There is one string now, and this is what keeps it
+  // in the interrogative: an imperative has no question mark to end on.
+  it('phrases every clickable label as a question', () => {
     for (const role of ROLES) {
       for (const item of howToFor(role)) {
-        expect(item.title.trim(), item.id).not.toBe('');
         expect(item.question.trim().endsWith('?'), item.id).toBe(true);
-        expect(item.question, item.id).not.toBe(item.title);
+      }
+      for (const item of faqFor(role)) {
+        expect(item.q.trim().endsWith('?'), item.id).toBe(true);
+      }
+      // Including after the chat has assembled the two lists into one set
+      // of buttons, which is where a mixed mood would actually be seen.
+      for (const topic of chatTopicsFor(role)) {
+        for (const answer of topic.answers) {
+          expect(answer.label.trim().endsWith('?'), `${topic.id}/${answer.id}`).toBe(true);
+        }
       }
     }
   });

@@ -22,7 +22,7 @@ const openQuestions = () => fireEvent.click(screen.getByText('Частые во�
 describe('HelpPage', () => {
   it('shows a tester everything they can do, and none of the lead material', () => {
     renderFor('tester');
-    for (const item of howToFor('tester')) expect(screen.getByText(item.title)).toBeInTheDocument();
+    for (const item of howToFor('tester')) expect(screen.getByText(item.question)).toBeInTheDocument();
     expect(screen.queryByText(/Баг-коины: за что начисляет сервис/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Премиальные баллы: сколько начислять/)).not.toBeInTheDocument();
   });
@@ -38,7 +38,7 @@ describe('HelpPage', () => {
   it('treats an admin as a lead here, the way every server route does', () => {
     renderFor('admin');
     expect(screen.getByText(/Баг-коины: за что начисляет сервис/)).toBeInTheDocument();
-    for (const item of howToFor('admin')) expect(screen.getByText(item.title)).toBeInTheDocument();
+    for (const item of howToFor('admin')) expect(screen.getByText(item.question)).toBeInTheDocument();
   });
 
   it('opens on the platform tab, with the FAQ one click away rather than gone', () => {

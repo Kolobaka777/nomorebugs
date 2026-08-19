@@ -216,11 +216,39 @@ a guarantee.
    `curl https://<server-domain>/api/health` and a real login before
    telling anyone it's back.
 
+## Go-live checklist
+
+Everything here is a variable to set or a thing to do once, not code to
+write. The code side is done; these are the parts only the operator can do,
+listed in the order they bite.
+
+1. **`BACKUP_S3_*`** — until these are set, every backup lives on the same
+   volume as the database it is a backup of. That protects against a
+   dropped table and against nothing else. The server logs a warning on
+   every production start while this is unset; see "Off-site backup
+   shipping" above for the R2/B2 values.
+2. **Restore drill** — run `npm run backups` to list what exists, then
+   restore the newest one onto a scratch copy and log in. The mechanics are
+   covered by tests (`server/test/backup-restore.test.js`), but a drill
+   proves the backups on *this* volume are real, which no test can.
+3. **`API_ORIGIN`** on the client container — the CSP's `connect-src` is
+   built from it. It must be the API's origin with no path, matching
+   `VITE_API_BASE_URL`. Wrong or missing when the API is on another
+   domain, and the browser blocks every request the app makes; you will see
+   it immediately in the console rather than a week later.
+4. **`ADMIN_EMAIL` / `ADMIN_PASSWORD`** — the first account on an empty
+   database. Without them a fresh deployment starts with no users and no
+   way in. Change the password after the first login.
+5. **`SENTRY_DSN`** — errors print to the container log without it, which
+   means nobody sees them.
+6. **Notification channel** — `TELEGRAM_BOT_TOKEN` or the four `SMTP_*`
+   values. With neither, security alerts and every other notification
+   silently do nothing; the server warns about this at startup too.
+
 ## Still open
 
 - Object storage for avatars (base64-in-DB is an accepted trade-off for
   now, per earlier product decision)
 - Custom domain / DNS, if wanted beyond the Railway-provided subdomains
-
-Off-volume backup shipping is now wired up (see above) — just needs
-`BACKUP_S3_*` env vars set in the actual Railway environment to turn on.
+- Single node by design — see the replica-count constraint above. SQLite
+  is the reason, and the reason is deliberate.

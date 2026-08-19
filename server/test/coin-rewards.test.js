@@ -99,6 +99,11 @@ describe('coins for finishing a course', () => {
           })),
         }],
       });
+    // Published directly in the database rather than through the publish
+    // route: this describes what a tester is paid for, not how a course
+    // reaches them, and an unpublished course is one a tester can't touch
+    // at all now (see lessonVisibleTo in routes/courses.js).
+    db.prepare('UPDATE custom_courses SET is_published = 1 WHERE id = ?').run(res.body.id);
     const lessonIds = db.prepare(`
       SELECT l.id FROM custom_lessons l JOIN custom_modules m ON m.id = l.module_id WHERE m.course_id = ?
     `).all(res.body.id).map(r => r.id);

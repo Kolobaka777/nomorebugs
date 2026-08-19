@@ -222,3 +222,23 @@ export function logActivity(userId, action, { lectureId = null, courseId = null 
     logError(err, { context: 'activity log write', action, userId });
   }
 }
+
+// Course visibility, shared because more than one domain needs it: the
+// courses routes gate lessons and grading on it, and the notes routes gate
+// what a note may be attached to — a note against a draft course made that
+// draft's title, tag and colour come back in "Моя Нора", which is the same
+// leak by a longer route.
+//
+// A lead reviewing a pending proposal is the carve-out: the review queue
+// only works if someone other than the author can open what they proposed.
+export function canManageCourse(course, user) {
+  if (user.role === 'admin') return true;
+  if (course.created_by === user.id) return true;
+  if (course.proposal_status === 'pending' && user.role === 'lead') return true;
+  return false;
+}
+
+export function canSeeCourse(course, user) {
+  if (!course || course.deleted_at) return false;
+  return Boolean(course.is_published) || canManageCourse(course, user);
+}

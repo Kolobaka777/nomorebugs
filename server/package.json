@@ -8,7 +8,9 @@
     "seed": "node db/seed.js",
     "build": "echo 'No build needed for node app'",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "backups": "node scripts/restore-backup.js --list",
+    "restore": "node scripts/restore-backup.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",

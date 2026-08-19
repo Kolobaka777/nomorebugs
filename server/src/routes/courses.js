@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName, logActivity } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName, logActivity, canManageCourse, canSeeCourse } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -19,15 +19,41 @@ const RESULT_TEXT_MAX = 300;
 // queue: a tester's proposal needs a lead's approve/decline regardless of
 // who happens to review it, while an ordinary lead-authored course stays
 // "own only" as before.
-function canManageCourse(course, user) {
-  if (user.role === 'admin') return true;
-  if (course.created_by === user.id) return true;
-  if (course.proposal_status === 'pending' && user.role === 'lead') return true;
-  return false;
-}
-
 function hasManageCourses(user) {
   return user.role === 'lead' || user.role === 'admin' || hasPermission(user.id, 'manage_courses');
+}
+
+// The course a lesson belongs to, or null. The lesson-scoped routes take a
+// lesson id and nothing else, so without this they had no way to reach the
+// thing that decides whether the caller is allowed to be there.
+function courseOfLesson(lessonId) {
+  return db.prepare(`
+    SELECT cc.* FROM custom_lessons l
+    JOIN custom_modules m ON m.id = l.module_id
+    JOIN custom_courses cc ON cc.id = m.course_id
+    WHERE l.id = ?
+  `).get(lessonId) || null;
+}
+
+// Guard for every route addressed by lesson id. These looked safe because
+// each one starts by loading its lesson and 404s if it is missing — but a
+// lesson id is a small integer anyone can count through, and the course it
+// hangs off was never consulted. Submitting an empty answer set to
+// /submit-quiz returned the full answer key, `correct_idx` and explanation
+// per question, for a course the caller could not open: the stripping added
+// to GET /api/custom-courses/:id was walked straight around. /complete let
+// the same person accrue progress on a draft, which is the first half of
+// what the course-completion coins are paid for.
+//
+// 404 rather than 403 on an invisible course: an unpublished draft's
+// existence is itself not the caller's business.
+function lessonVisibleTo(lessonId, user, res) {
+  const course = courseOfLesson(lessonId);
+  if (!canSeeCourse(course, user)) {
+    res.status(404).json({ error: 'Урок не найден' });
+    return null;
+  }
+  return course;
 }
 
 // List: testers see published (+ their own proposals, any status); lead
@@ -205,6 +231,7 @@ router.post('/api/custom-lessons/:id/complete', authMiddleware, (req, res) => {
   try {
     const lesson = db.prepare('SELECT * FROM custom_lessons WHERE id = ?').get(req.params.id);
     if (!lesson) return res.status(404).json({ error: 'Урок не найден' });
+    if (!lessonVisibleTo(lesson.id, req.user, res)) return;
 
     if (lesson.prerequisite_type === 'mandatory' && lesson.prerequisite_lesson_id != null) {
       const prereqDone = db.prepare(
@@ -257,6 +284,7 @@ router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) =>
   try {
     const lesson = db.prepare('SELECT * FROM custom_lessons WHERE id = ?').get(req.params.id);
     if (!lesson) return res.status(404).json({ error: 'Урок не найден' });
+    if (!lessonVisibleTo(lesson.id, req.user, res)) return;
     if (lesson.type !== 'quiz') return res.status(400).json({ error: 'Это не тест' });
 
     const { answers } = req.body;
@@ -309,6 +337,7 @@ router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) =>
 // page source from the moment the course loads.
 router.get('/api/custom-lessons/:lessonId/question/:questionId/explanation', authMiddleware, (req, res) => {
   try {
+    if (!lessonVisibleTo(req.params.lessonId, req.user, res)) return;
     const q = db.prepare(
       'SELECT * FROM custom_quiz_questions WHERE id = ? AND lesson_id = ?'
     ).get(req.params.questionId, req.params.lessonId);
@@ -881,6 +910,13 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
     if (!course_id || typeof seconds_spent !== 'number' || !Number.isFinite(seconds_spent) || seconds_spent < 0) {
       return res.status(400).json({ error: 'Неверные данные' });
     }
+    // Addressed by course id straight from the body, so it needs the same
+    // visibility check the lesson routes now make — otherwise a draft
+    // course could be time-tracked, and logged as completed, by someone
+    // who cannot open it.
+    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(course_id);
+    if (!canSeeCourse(course, req.user)) return res.status(404).json({ error: 'Курс не найден' });
+
     const clampedSeconds = Math.min(seconds_spent, MAX_COURSE_SECONDS_SPENT);
     // Coins for finishing a whole course need two guards this route can't
     // get from its own arguments. It upserts, so "was this the first call"

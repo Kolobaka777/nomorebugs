@@ -16,7 +16,7 @@ import { initTelegramBot, isTelegramConfigured } from './telegram.js';
 import { isEmailConfigured } from './email.js';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { startBackupSchedule, runBackup } from './backup.js';
+import { startBackupSchedule, runBackup, isBackupEnabled, isOffsiteBackupEnabled } from './backup.js';
 import knowledgeRouter from './routes/knowledge.js';
 import suggestionsRouter from './routes/suggestions.js';
 import newsRouter from './routes/news.js';
@@ -70,6 +70,19 @@ if (process.env.NODE_ENV !== 'test') {
 // See backup.js for what this does and doesn't protect against.
 if (process.env.NODE_ENV !== 'test') {
   startBackupSchedule();
+
+  // On-volume backups protect against "someone dropped a table". They do
+  // not protect against losing the volume, which takes the live database
+  // and all 28 rotations with it — the failure that actually ends a
+  // deployment. The code for shipping them off-site exists and is tested;
+  // it is inert until BACKUP_S3_* is set, and inert-by-default is exactly
+  // the state that gets mistaken for done.
+  if (isBackupEnabled() && !isOffsiteBackupEnabled() && process.env.NODE_ENV === 'production') {
+    console.warn(
+      'Бэкапы пишутся только на тот же том, где лежит база (BACKUP_S3_* не заданы). ' +
+      'Потеря тома уносит и базу, и все её копии — см. DEPLOYMENT.md.'
+    );
+  }
 }
 
 // Auto-seed demo users if DB is empty — dev/test convenience only. Gated out

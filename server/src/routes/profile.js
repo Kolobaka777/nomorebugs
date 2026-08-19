@@ -5,7 +5,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity } from '../routeHelpers.js';
+import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity, canSeeCourse } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -497,8 +497,11 @@ router.post('/api/tester/notes', authMiddleware, (req, res) => {
     if (!courseId) return res.status(400).json({ error: 'Некорректный курс' });
     if (!text || !String(text).trim()) return res.status(400).json({ error: 'Пустая заметка' });
     if (String(text).length > 2000) return res.status(400).json({ error: 'Заметка слишком длинная (макс 2000)' });
-    const course = db.prepare('SELECT id FROM custom_courses WHERE id = ? AND deleted_at IS NULL').get(courseId);
-    if (!course) return res.status(404).json({ error: 'Курс не найден' });
+    // Not just "does it exist": GET /api/tester/notes joins custom_courses
+    // to head each group with the course's title, tag and colour, so a note
+    // attached to somebody's unpublished draft handed those straight back.
+    const course = db.prepare('SELECT * FROM custom_courses WHERE id = ?').get(courseId);
+    if (!canSeeCourse(course, req.user)) return res.status(404).json({ error: 'Курс не найден' });
 
     const info = db.prepare(
       'INSERT INTO custom_lesson_notes (user_id, course_id, lesson_id, lesson_title, text) VALUES (?, ?, ?, ?, ?)'

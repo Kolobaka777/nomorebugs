@@ -38,7 +38,12 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # letting the image hardcode it — a plain `listen 80` would silently
 # not be reachable on those platforms.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# Substituted into the CSP's connect-src at container start. Derived from
+# the same value the JS bundle was built against, so the policy and the
+# code agree by construction; empty when the API is same-origin, which
+# leaves connect-src at 'self'.
 # Sane default for `docker run`/docker-compose, where nothing injects
 # PORT — real deployments override this with their assigned port.
 ENV PORT=80
+ENV API_ORIGIN=
 EXPOSE 80

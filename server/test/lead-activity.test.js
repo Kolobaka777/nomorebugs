@@ -86,6 +86,9 @@ describe('course_completed activity rows resolve a course_title from custom_cour
       .send({ title: 'Playwright Prereqs', modules: [] });
     expect(created.status).toBe(200);
     const courseId = created.body.id;
+    // A tester can only reach a published course; this test is about which
+    // table the title is resolved from, not about visibility.
+    db.prepare('UPDATE custom_courses SET is_published = 1 WHERE id = ?').run(courseId);
 
     const tracked = await request(server)
       .post('/api/courses/time-track')

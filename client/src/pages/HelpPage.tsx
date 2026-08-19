@@ -47,7 +47,7 @@ function HowToSection({ items }: { items: HowToItem[] }) {
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Icon name={item.icon} size={20} color={ACCENT} />
-            <span className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{item.title}</span>
+            <span className="font-geist text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>{item.question}</span>
           </div>
           <p className="font-geist text-sm leading-relaxed" style={{ color: TEXT_MUTED }}>{item.body}</p>
         </div>

@@ -11,8 +11,26 @@ services:
       # The origin the client is actually served from in this deployment.
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
       DB_PATH: /data/learning_hub.db
+      # The image sets NODE_ENV=production, which is what stops the demo
+      # accounts (whose passwords are in this repository) from being seeded
+      # onto a real deployment. The consequence is that a fresh volume has
+      # no accounts at all unless these two are given, so they are required
+      # the same way JWT_SECRET is — a stack that starts and cannot be
+      # logged into is a worse failure than one that refuses to start.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL must be set — the first account on a fresh database}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set — the first account on a fresh database}
     volumes:
       - server-db:/data
+    healthcheck:
+      # Compose won't act on the image's own HEALTHCHECK for dependency
+      # ordering, so it is restated here — this is what makes the client's
+      # depends_on below wait for a server that can actually serve, rather
+      # than one whose container merely exists.
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:5001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   client:
     build:
@@ -24,10 +42,17 @@ services:
         # proxy) routes /api to the server container.
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5001/api}
     restart: unless-stopped
+    environment:
+      # Fills the CSP's connect-src at container start (see
+      # client/nginx.conf.template). Must be the *origin* of the API — no
+      # path — and must match VITE_API_BASE_URL above, or the browser
+      # blocks every request the bundle makes. Empty means same-origin.
+      API_ORIGIN: ${API_ORIGIN:-http://localhost:5001}
     ports:
       - '8080:80'
     depends_on:
-      - server
+      server:
+        condition: service_healthy
 
 volumes:
   server-db:
