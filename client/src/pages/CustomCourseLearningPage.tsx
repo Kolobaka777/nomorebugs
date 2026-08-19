@@ -1022,7 +1022,12 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} currentLessonId={currentLesson?.id} courseId={id || ''} />
 
       {!showNotes && (
-        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+        // Shifted left of the mascot from `sm` up. Three things claim this
+        // corner — the frog (bottom 54px, 72px wide), the toast stack and
+        // this — and the frog sits above it, so the two were drawn on top
+        // of one another. The frog is hidden below `sm`, so the narrow
+        // layout keeps the corner to itself.
+        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 sm:right-28 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
           <Icon name="memo" size={22} color="currentColor" /> <span className="text-xs">Заметки</span>
           {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0B0C10', fontSize: '0.6rem' }}>{notes.length}</span>}
         </button>
