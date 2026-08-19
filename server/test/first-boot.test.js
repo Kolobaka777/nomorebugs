@@ -6,7 +6,7 @@
 // and nothing set NODE_ENV — and an unset NODE_ENV is precisely what that
 // guard reads as "nobody decided".
 import { describe, it, expect } from 'vitest';
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -120,6 +120,64 @@ describe('deployment manifests', () => {
   it('waits for a healthy server before starting the client', () => {
     expect(compose).toContain('condition: service_healthy');
     expect(compose).toContain('healthcheck:');
+  });
+});
+
+// The CSP's connect-src is worked out by a shell expression inside
+// client/Dockerfile. There is no docker here to build the image, but the
+// expression itself is the part that can be wrong — and was: it did not
+// exist, the value was an empty variable an operator had to remember, and
+// forgetting it shipped a policy that blocked every request the app makes.
+//
+// So this lifts the real line out of the Dockerfile and runs it, rather
+// than restating it — a copy of the expression in a test would keep passing
+// after the original changed.
+describe('CSP origin derivation', () => {
+  const dockerfile = fs.readFileSync(path.join(repoRoot, 'client', 'Dockerfile'), 'utf8');
+
+  // The `origin="..."` assignment, unwrapped from its line continuations.
+  const assignment = dockerfile
+    .replace(/\\\n/g, ' ')
+    .split('\n')
+    .find(l => l.trim().startsWith('RUN origin='))
+    ?.replace(/^\s*RUN\s+/, '')
+    .split('&&')[0]
+    .trim();
+
+  function derive(baseUrl, override = '') {
+    expect(assignment, 'the origin= assignment must still be findable in the Dockerfile').toBeTruthy();
+    const out = execFileSync('sh', ['-c', `${assignment}; printf '%s' "$origin"`], {
+      env: { PATH: process.env.PATH, VITE_API_BASE_URL: baseUrl, API_ORIGIN: override },
+      encoding: 'utf8',
+    });
+    return out;
+  }
+
+  it('takes the origin of the URL the bundle was built against', () => {
+    expect(derive('https://nomorebugs-production.up.railway.app/api'))
+      .toBe('https://nomorebugs-production.up.railway.app');
+    expect(derive('http://localhost:5001/api')).toBe('http://localhost:5001');
+    expect(derive('https://api.example.com')).toBe('https://api.example.com');
+  });
+
+  it('yields nothing for a relative base URL, leaving connect-src at self', () => {
+    // One hostname, a reverse proxy in front of both — 'self' is right.
+    expect(derive('/api')).toBe('');
+    expect(derive('')).toBe('');
+  });
+
+  it('lets an explicit build arg win', () => {
+    expect(derive('https://api.example.com/api', 'https://other.example.com'))
+      .toBe('https://other.example.com');
+  });
+
+  it('leaves no placeholder behind in the shipped config', () => {
+    // The RUN ends with a check that the substitution actually happened;
+    // without it a typo in the placeholder would ship `${API_ORIGIN}` as a
+    // literal, and nginx would reject the config at start.
+    const run = dockerfile.replace(/\\\n/g, ' ').split('\n').find(l => l.trim().startsWith('RUN origin='));
+    expect(run).toContain('grep -q');
+    expect(run).toContain('sed -i');
   });
 });
 

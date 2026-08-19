@@ -38,12 +38,35 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # letting the image hardcode it — a plain `listen 80` would silently
 # not be reachable on those platforms.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-# Substituted into the CSP's connect-src at container start. Derived from
-# the same value the JS bundle was built against, so the policy and the
-# code agree by construction; empty when the API is same-origin, which
-# leaves connect-src at 'self'.
+
+# The CSP's connect-src, filled in here rather than left to the operator.
+#
+# It used to be an empty runtime variable with a comment claiming it was
+# derived from the API URL. Nothing derived it, so a deployment whose API
+# lives on a second domain — which is the documented Railway layout, two
+# services, two hostnames — shipped a policy that blocked every request the
+# app makes, and said so only in the browser console.
+#
+# Derived now, from the same VITE_API_BASE_URL the bundle was compiled
+# against, so the policy and the code cannot disagree and there is no
+# second variable to keep in step. Build-time is the right time: Vite bakes
+# the API URL into the JavaScript at build too, so a runtime override could
+# only ever contradict what the bundle already does.
+#
+# A relative VITE_API_BASE_URL (the `/api` default, for a reverse proxy
+# serving both under one hostname) yields nothing, leaving connect-src at
+# 'self' — correct for that layout.
+#
+# API_ORIGIN is still accepted as a build arg for the rare case where the
+# browser must reach a different origin than the bundle's base URL names.
+ARG VITE_API_BASE_URL
+ARG API_ORIGIN
+RUN origin="${API_ORIGIN:-$(printf '%s' "$VITE_API_BASE_URL" | sed -n 's#^\(https\{0,1\}://[^/]*\).*#\1#p')}" \
+ && sed -i "s|\${API_ORIGIN}|${origin}|g" /etc/nginx/templates/default.conf.template \
+ && echo "CSP connect-src: 'self' ${origin:-(same-origin only)}" \
+ && ! grep -q 'API_ORIGIN' /etc/nginx/templates/default.conf.template
+
 # Sane default for `docker run`/docker-compose, where nothing injects
 # PORT — real deployments override this with their assigned port.
 ENV PORT=80
-ENV API_ORIGIN=
 EXPOSE 80

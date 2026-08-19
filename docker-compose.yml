@@ -40,14 +40,11 @@ services:
         # inside this docker network — a relative /api path only works if
         # something in front of both services (e.g. a shared reverse
         # proxy) routes /api to the server container.
+        # The CSP's connect-src is derived from this at build time (see
+        # client/Dockerfile), so there is no second variable to keep in
+        # step with it.
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5001/api}
     restart: unless-stopped
-    environment:
-      # Fills the CSP's connect-src at container start (see
-      # client/nginx.conf.template). Must be the *origin* of the API — no
-      # path — and must match VITE_API_BASE_URL above, or the browser
-      # blocks every request the bundle makes. Empty means same-origin.
-      API_ORIGIN: ${API_ORIGIN:-http://localhost:5001}
     ports:
       - '8080:80'
     depends_on:

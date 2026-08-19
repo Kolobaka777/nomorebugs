@@ -231,11 +231,20 @@ listed in the order they bite.
    restore the newest one onto a scratch copy and log in. The mechanics are
    covered by tests (`server/test/backup-restore.test.js`), but a drill
    proves the backups on *this* volume are real, which no test can.
-3. **`API_ORIGIN`** on the client container — the CSP's `connect-src` is
-   built from it. It must be the API's origin with no path, matching
-   `VITE_API_BASE_URL`. Wrong or missing when the API is on another
-   domain, and the browser blocks every request the app makes; you will see
-   it immediately in the console rather than a week later.
+3. **The two origins.** Client and server are separate Railway services
+   with separate hostnames, so each has to be told about the other, and
+   both failures show up only in the browser console:
+   - `VITE_API_BASE_URL` on the **client** — the API's URL. The CSP's
+     `connect-src` is derived from it when the image is built (see
+     `client/Dockerfile`), so the policy and the bundle cannot disagree
+     and there is no second variable to keep in step. A relative `/api`
+     yields `connect-src 'self'`, which is right for a reverse proxy
+     serving both under one hostname. Pass `API_ORIGIN` as a build arg
+     only if the browser must reach an origin the base URL does not name.
+   - `CORS_ORIGIN` on the **server** — the client's URL, no trailing
+     slash. Without it the API refuses the browser's requests even once
+     the CSP allows them.
+
 4. **`ADMIN_EMAIL` / `ADMIN_PASSWORD`** — the first account on an empty
    database. Without them a fresh deployment starts with no users and no
    way in. Change the password after the first login.
