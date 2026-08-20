@@ -13,7 +13,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { counted } from '../utils/plural';
 import { getCourseTagColor } from '../utils/topics';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
@@ -217,18 +217,20 @@ function CustomQuizView({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="font-montserrat font-bold" style={{ fontSize: 18, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h2 className="font-montserrat break-words min-w-0" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>
           Тест: {lesson.title}
-        </p>
-        <span className="font-geist text-sm shrink-0" style={{ color: TEXT_MUTED }}>{qIdx + 1}/{questions.length}</span>
-      </div>
-      <div className="h-1 rounded-full overflow-hidden mb-8" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
-        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, background: color }} />
+        </h2>
+        <span className="font-geist flex items-center gap-2 shrink-0 tabular-nums" style={{ fontSize: 13, color }}>
+          <PagesIcon size={16} color="currentColor" />{qIdx + 1}/{questions.length}
+        </span>
       </div>
 
-      <div className="p-6 rounded-lg fade-in" style={{ background: CARD_BG, border: `1px solid ${color}`, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
-        <p className="font-sans font-semibold text-base mb-6 break-words flex gap-3" style={{ color: TEXT_PRIMARY }}>
+      {/* No panel around the question: the design puts it straight on the
+          page. A card here framed a single question inside a page that had
+          nothing else on it, which is a border drawn around everything. */}
+      <div className="fade-in">
+        <p className="font-geist mb-6 break-words flex gap-3" style={{ fontSize: 15, lineHeight: 1.6, letterSpacing: '1.6px', color: TEXT_PRIMARY }}>
           <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold text-xs" style={{ background: color, color: PAGE_BG }}>{qIdx + 1}</span>
           <span className="break-words min-w-0">{q.question_text}</span>
         </p>
@@ -239,24 +241,31 @@ function CustomQuizView({
             const isCorrectOpt = checked && oi === reveal.correct_idx;
             const isWrongChosen = checked && isChosen && oi !== reveal.correct_idx;
 
-            let bg = 'rgba(197, 198, 199,0.04)';
-            let border = 'rgba(197, 198, 199,0.1)';
-            let textColor = 'rgba(197, 198, 199,0.65)';
+            // An option nobody picked keeps the course's own outline once
+            // the answer is revealed, rather than greying out — only the
+            // two that carry a verdict change colour, so the verdict is
+            // what the eye finds. Correct is green, not the course accent:
+            // "this is the answer" is not the same statement as "this is
+            // the brand".
+            let bg = `${color}0A`;
+            let border = `${color}55`;
+            let textColor = 'rgba(197, 198, 199,0.75)';
+            let markColor = color;
 
-            if (!checked && isChosen) { bg = `${color}18`; border = `${color}60`; textColor = '#C5C6C7'; }
-            if (isCorrectOpt) { bg = 'rgba(102, 252, 241,0.12)'; border = 'rgba(102, 252, 241,0.5)'; textColor = '#C5C6C7'; }
-            if (isWrongChosen) { bg = 'rgba(224,82,82,0.1)'; border = 'rgba(224,82,82,0.4)'; textColor = 'rgba(197, 198, 199,0.6)'; }
+            if (!checked && isChosen) { bg = `${color}22`; border = color; textColor = TEXT_PRIMARY; }
+            if (isCorrectOpt) { bg = `${SUCCESS}18`; border = `${SUCCESS}80`; textColor = TEXT_PRIMARY; markColor = SUCCESS; }
+            if (isWrongChosen) { bg = 'rgba(224,82,82,0.12)'; border = 'rgba(224,82,82,0.6)'; textColor = 'rgba(197, 198, 199,0.7)'; markColor = ERROR; }
 
             return (
               <button
                 key={oi}
                 onClick={() => !checked && onAnswer(qIdx, oi)}
                 disabled={checked}
-                className="w-full text-left px-4 py-3 rounded font-sans text-sm flex items-center gap-3 transition-all"
+                className="w-full text-left px-4 py-3.5 rounded-lg font-geist text-sm flex items-center gap-3 transition-all"
                 style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: checked ? 'default' : 'pointer' }}
               >
-                <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? ERROR : textColor }}>
-                  {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
+                <span className="flex-shrink-0 flex items-center justify-center font-bold" style={{ width: 20, fontSize: 13, color: markColor }}>
+                  {isCorrectOpt ? '✓' : isWrongChosen ? '✕' : `${String.fromCharCode(65 + oi)})`}
                 </span>
                 <span className="break-words min-w-0">{opt}</span>
               </button>
@@ -264,16 +273,26 @@ function CustomQuizView({
           })}
         </div>
 
-        {checked && reveal.explanation && (
+        {checked && (
+          // Names the right answer by its letter before explaining it. The
+          // box used to carry the explanation alone, which read as a remark
+          // about the question rather than the verdict on the attempt.
           <div
-            className="mt-6 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words"
+            className="mt-4 px-4 py-3.5 rounded-lg font-geist leading-relaxed break-words"
             style={{
-              background: isCorrect ? 'rgba(102, 252, 241,0.08)' : 'rgba(224,82,82,0.08)',
-              border: `1px solid ${isCorrect ? 'rgba(102, 252, 241,0.3)' : 'rgba(224,82,82,0.3)'}`,
-              color: 'rgba(197, 198, 199,0.75)',
+              fontSize: 13,
+              background: isCorrect ? `${SUCCESS}12` : 'rgba(224,82,82,0.10)',
+              border: `1px solid ${isCorrect ? `${SUCCESS}55` : 'rgba(224,82,82,0.5)'}`,
+              color: 'rgba(197, 198, 199,0.8)',
             }}
           >
-            💬 {reveal.explanation}
+            <p className="font-semibold flex items-center gap-2 mb-1.5" style={{ color: isCorrect ? SUCCESS : ERROR }}>
+              <span style={{ fontSize: 13 }}>{isCorrect ? '✓' : '✕'}</span>
+              {isCorrect ? 'Верно' : `Правильный ответ: ${String.fromCharCode(65 + reveal.correct_idx)}`}
+            </p>
+            {reveal.explanation && (
+              <p className="break-words"><span className="font-semibold" style={{ color: TEXT_PRIMARY }}>Пояснение:</span> {reveal.explanation}</p>
+            )}
           </div>
         )}
 
@@ -286,8 +305,8 @@ function CustomQuizView({
             <button
               onClick={async () => { setBusy(true); await onCheck(qIdx); setBusy(false); }}
               disabled={chosen === undefined || busy}
-              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all"
-              style={{ background: chosen !== undefined && !busy ? color : 'rgba(197, 198, 199,0.1)', color: chosen !== undefined && !busy ? '#0B0C10' : 'rgba(197, 198, 199,0.3)', cursor: chosen !== undefined && !busy ? 'pointer' : 'not-allowed' }}
+              className="px-8 py-3 rounded-lg font-geist font-semibold text-sm transition-all"
+              style={{ background: chosen !== undefined && !busy ? `${color}1F` : 'rgba(197, 198, 199,0.06)', border: `1px solid ${chosen !== undefined && !busy ? color : 'rgba(197, 198, 199,0.15)'}`, color: chosen !== undefined && !busy ? color : 'rgba(197, 198, 199,0.3)', letterSpacing: TRACK_WIDE, cursor: chosen !== undefined && !busy ? 'pointer' : 'not-allowed' }}
             >
               {busy ? '...' : 'Ответить'}
             </button>
@@ -306,10 +325,10 @@ function CustomQuizView({
                 if (ok && isLastLesson) onNext();
               }}
               disabled={busy}
-              className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110 disabled:opacity-60"
-              style={{ background: color, color: '#0B0C10' }}
+              className="px-8 py-3 rounded-lg font-geist font-semibold text-sm flex items-center gap-2 transition-all hover:brightness-125 disabled:opacity-60"
+              style={{ background: `${color}1F`, border: `1px solid ${color}`, color, letterSpacing: TRACK_WIDE }}
             >
-              {busy ? '...' : isLastQuestion ? 'Завершить тест' : <>Следующий вопрос <Icon name="arrowRight" size={22} color="currentColor" /></>}
+              {busy ? '...' : isLastQuestion ? 'Завершить тест' : <>Следующий вопрос <Icon name="arrowRight" size={20} color="currentColor" /></>}
             </button>
           )}
         </div>
@@ -635,11 +654,20 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const quizStatesRef = useRef<Record<number, any>>({});
   quizStatesRef.current = quizStates;
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
-  // Below the lg breakpoint the module/lesson list collapses into this
-  // toggle instead of eating a fixed-width column — on a phone a 256px
-  // sidebar next to the lesson content left almost nothing to actually
-  // read the lesson in.
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // The contents live behind a dropdown at every width now, rather than in
+  // a column of their own — a permanent tree beside the lesson took a
+  // third of the page to say what the reader had already chosen.
+  const [tocOpen, setTocOpen] = useState(false);
+  const tocRef = useRef<HTMLDivElement>(null);
+  useEscapeKey(() => setTocOpen(false));
+  useEffect(() => {
+    if (!tocOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (tocRef.current && !tocRef.current.contains(e.target as Node)) setTocOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [tocOpen]);
 
   const startTimeRef = useRef(Date.now());
 
@@ -774,6 +802,8 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const color = course.color || getCourseTagColor(course.tag || '') || '#66FCF1';
   const currentLesson = allLessons[currentIdx];
   const isLastLesson = currentIdx === allLessons.length - 1;
+  const prevLesson = currentIdx > 0 ? allLessons[currentIdx - 1] : null;
+  const nextLesson = allLessons[currentIdx + 1] || null;
   const totalLessons = allLessons.length;
   const completedCount = completedLessons.size;
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
@@ -853,169 +883,68 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-7xl mx-auto px-8 pt-10 pb-16">
-        <button
-          onClick={() => navigate(`/custom-course/${id}`)}
-          className="flex items-center gap-2 mb-6 font-geist cursor-pointer transition-colors"
-          style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}
-          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
-          onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
-        >
-          <Icon name="chevronLeft" size={18} color="currentColor" /> ВЕРНУТЬСЯ К КУРСУ
-        </button>
-
-        {/* Course header — what you are inside of, stated once at the top.
-            Before this the only thing naming the course was the sidebar's
-            truncated line, so a lesson opened on its own said nothing about
-            which course it belonged to. */}
-        <div
-          className="rounded-lg mb-8 flex items-center gap-5 p-5 flex-wrap"
-          style={{ background: CARD_BG_PATTERN, border: `1px solid ${color}70`, boxShadow: CARD_SHADOW }}
-        >
-          <div
-            className="rounded-lg flex items-center justify-center shrink-0"
-            style={{ width: 64, height: 64, background: `${color}1F`, border: `1px solid ${color}55` }}
+        <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
+          <button
+            onClick={() => navigate(`/custom-course/${id}`)}
+            className="flex items-center gap-2 font-geist cursor-pointer transition-colors py-2"
+            style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}
+            onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+            onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
           >
-            <BookOpenIcon size={30} color={color} />
-          </div>
-          <div className="min-w-0 flex-1">
-            {course.tag && (
-              <span
-                className="inline-block font-geist font-semibold rounded mb-2"
-                style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.08em', background: `${color}22`, color, border: `1px solid ${color}55` }}
+            <Icon name="chevronLeft" size={18} color="currentColor" /> ВЕРНУТЬСЯ К КУРСУ
+          </button>
+
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
+            {user.role === 'lead' && (
+              <LeadTimer startTimeMs={startTimeRef.current} color={color} />
+            )}
+
+            {/* Contents, behind a dropdown rather than a standing column.
+                Hidden once the course is finished: a pass/fail screen is
+                the endpoint, not a place to keep navigating from. */}
+            {!showCompleted && (
+            <div className="relative" ref={tocRef}>
+              <button
+                onClick={() => setTocOpen(o => !o)}
+                aria-expanded={tocOpen}
+                className="flex items-center justify-between gap-6 rounded-lg font-montserrat cursor-pointer transition-colors"
+                style={{ minWidth: 280, height: 56, padding: '0 20px', fontSize: 16, fontWeight: 600, letterSpacing: '2px', color: TEXT_PRIMARY, background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', boxShadow: CARD_SHADOW }}
               >
-                {course.tag}
-              </span>
-            )}
-            <h1 className="font-montserrat break-words" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, letterSpacing: '3px', color: TEXT_PRIMARY }}>
-              {course.title}
-            </h1>
-            <div className="flex items-center gap-6 flex-wrap mt-3 font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
-              <span className="flex items-center gap-2"><BookOpenIcon size={15} color="currentColor" />{counted(totalLessons, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
-              <span className="flex items-center gap-2"><PagesIcon size={15} color="currentColor" />{counted(moduleCount, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
-              <span className="flex items-center gap-2"><CapIcon size={15} color="currentColor" />{counted(quizCount, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
-            </div>
-          </div>
-          {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
-          {user.role === 'lead' && (
-            <LeadTimer startTimeMs={startTimeRef.current} color={color} />
-          )}
-        </div>
+                Содержание
+                <Icon name={tocOpen ? 'chevronUp' : 'chevronDown'} size={22} color={color} />
+              </button>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
-          {/* A section, not a <main>: App.tsx marks the routed view as
-              the page's main content, and there is only ever one of those. */}
-          <section className="flex-1 min-w-0 w-full order-2 lg:order-1">
-            {showCompleted ? (
-              <CourseResultScreen
-                course={course}
-                color={color}
-                passed={coursePassed}
-                score={courseScore}
-                weakModules={weakModuleTitles}
-                onRetry={retryQuizzes}
-                onBackToCourse={() => navigate(`/custom-course/${id}`)}
-                onNext={() => navigate('/zhukademia')}
-                onModuleClick={jumpToModule}
-              />
-            ) : currentLesson ? (
-              <div>
-                <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
-
-                {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
-                  <div
-                    className="rounded-lg p-3 mb-6 flex items-start gap-2"
-                    style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
-                  >
-                    <Icon name="lightbulb" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
-                    <p className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
-                  </div>
-                )}
-
-                {currentLesson.type === 'lesson' ? (
-                  <>
-                    <LessonContent content={currentLesson.content} />
-
-                    {completeError && (
-                      <p className="font-geist text-xs mt-4" style={{ color: ERROR }}>
-                        Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between mt-10 pt-6" style={{ borderTop: '1px solid rgba(197, 198, 199,0.07)' }}>
-                      {currentIdx > 0 ? (
-                        <button onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)} className="font-geist text-sm transition-colors cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }} onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}><Icon name="chevronLeft" size={22} color="currentColor" /> Назад</button>
-                      ) : <div />}
-                      {/* Outlined in the course's own colour rather than
-                          filled with it, per the design — a solid block of
-                          accent next to a page of body text pulled harder
-                          than the thing it leads to deserves. */}
-                      <button
-                        onClick={() => markComplete(currentLesson.id)}
-                        className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-125 cursor-pointer flex items-center gap-2"
-                        style={{ background: `${color}1F`, border: `1px solid ${color}`, color }}
-                      >
-                        {allLessons[currentIdx + 1]?.type === 'quiz'
-                          ? <><PagesIcon size={14} color="currentColor" />Пройти тест <Icon name="arrowRight" size={20} color="currentColor" /></>
-                          : isLastLesson
-                          ? <><CheckCircleIcon size={14} color="currentColor" />Завершить курс</>
-                          : <>Далее <Icon name="arrowRight" size={20} color="currentColor" /></>}
-                      </button>
+              {tocOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 z-30 rounded-lg overflow-y-auto"
+                  style={{ width: 440, maxWidth: 'calc(100vw - 4rem)', maxHeight: '70vh', background: CARD_BG_PATTERN, border: `1px solid ${color}55`, boxShadow: '0 12px 28px rgba(0,0,0,0.5)' }}
+                >
+                  {/* What the standing course header used to say, said here
+                      instead — the design gives the lesson the full width,
+                      so the course's own name and size move in with the
+                      contents rather than being dropped. */}
+                  <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.08)' }}>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <p className="font-montserrat break-words min-w-0" style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.2px', color: TEXT_PRIMARY }}>{course.title}</p>
+                      {course.tag && (
+                        <span className="font-geist font-semibold rounded shrink-0" style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.08em', background: `${color}22`, color, border: `1px solid ${color}55` }}>{course.tag}</span>
+                      )}
                     </div>
-                  </>
-                ) : (
-                  <CustomQuizView
-                    key={currentLesson.id}
-                    lesson={currentLesson}
-                    quizState={quizStates[currentIdx] || emptyQuizState()}
-                    onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}
-                    onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
-                    onSubmit={() => submitQuiz(currentIdx, currentLesson)}
-                    onNext={() => markComplete(currentLesson.id)}
-                    isLastLesson={isLastLesson}
-                    color={color}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-24">
-                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок в оглавлении</p>
-              </div>
-            )}
-          </section>
+                    <div className="flex items-center gap-4 flex-wrap mb-3 font-geist" style={{ fontSize: 11, color: TEXT_MUTED, letterSpacing: '1.2px' }}>
+                      <span className="flex items-center gap-1.5"><BookOpenIcon size={13} color="currentColor" />{counted(totalLessons, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
+                      <span className="flex items-center gap-1.5"><PagesIcon size={13} color="currentColor" />{counted(moduleCount, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
+                      <span className="flex items-center gap-1.5"><CapIcon size={13} color="currentColor" />{counted(quizCount, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%`, background: color }} />
+                      </div>
+                      <span className="font-geist text-xs tabular-nums" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons}</span>
+                    </div>
+                  </div>
 
-          {/* Contents — a card on the right, per the design, where it used to
-              be a bordered column pinned to the left edge of the window.
-              Hidden once the course is finished: a pass/fail screen is the
-              endpoint, not a place to keep navigating from, so the lesson
-              tree would just be dead weight next to it.
-
-              Ordered first below `lg` so a phone still meets the navigation
-              before a wall of lesson text, while the DOM keeps the lesson
-              first for anything reading the page in source order. */}
-          {!showCompleted && (
-          <aside className="w-full lg:w-[380px] flex-shrink-0 rounded-lg overflow-hidden order-1 lg:order-2" style={{ background: CARD_BG_PATTERN, border: '1px solid rgba(197, 198, 199,0.10)', boxShadow: CARD_SHADOW }}>
-            <button
-              onClick={() => setMobileNavOpen(o => !o)}
-              className="w-full flex items-center justify-between px-5 py-4 lg:hidden"
-            >
-              <span className="text-left min-w-0">
-                <p className="font-montserrat font-semibold mb-1 truncate" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{course.title}</p>
-                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
-              </span>
-              <span className="font-geist text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{mobileNavOpen ? <>Скрыть <Icon name="chevronUp" size={22} color="currentColor" /></> : <>Оглавление <Icon name="chevronDown" size={22} color="currentColor" /></>}</span>
-            </button>
-
-            <div className="px-5 pt-5 pb-4 hidden lg:block">
-              <p className="font-montserrat break-words mb-3" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.4px', color: TEXT_PRIMARY }}>{course.title}</p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%`, background: color }} />
-                </div>
-                <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons}</span>
-              </div>
-            </div>
-
-            <div className={`pb-4 ${mobileNavOpen ? '' : 'hidden'} lg:block`}>
+                  <div className="py-3">
               {(course.modules || []).map((mod: any, mi: number) => {
                 const modLessons = mod.lessons || [];
                 const isExpanded = expandedModules.has(mi);
@@ -1052,7 +981,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                       return (
                         <button
                           key={lesson.id ?? li}
-                          onClick={() => accessible && (setCurrentIdx(gi), setMobileNavOpen(false))}
+                          onClick={() => accessible && (setCurrentIdx(gi), setTocOpen(false))}
                           disabled={!accessible}
                           className="w-full flex items-start gap-2.5 pl-9 pr-5 py-1.5 text-left transition-all"
                           style={{ background: isCur ? `${color}15` : 'transparent', cursor: accessible ? 'pointer' : 'not-allowed' }}
@@ -1073,9 +1002,112 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                   </div>
                 );
               })}
+                  </div>
+                </div>
+              )}
             </div>
-          </aside>
-          )}
+            )}
+          </div>
+        </div>
+
+        <div>
+          {/* A section, not a <main>: App.tsx marks the routed view as
+              the page's main content, and there is only ever one of those. */}
+          <section className="min-w-0 w-full">
+            {showCompleted ? (
+              <CourseResultScreen
+                course={course}
+                color={color}
+                passed={coursePassed}
+                score={courseScore}
+                weakModules={weakModuleTitles}
+                onRetry={retryQuizzes}
+                onBackToCourse={() => navigate(`/custom-course/${id}`)}
+                onNext={() => navigate('/zhukademia')}
+                onModuleClick={jumpToModule}
+              />
+            ) : currentLesson ? (
+              <div>
+                <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
+
+                {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
+                  <div
+                    className="rounded-lg p-3 mb-6 flex items-start gap-2"
+                    style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
+                  >
+                    <Icon name="lightbulb" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
+                    <p className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
+                  </div>
+                )}
+
+                {currentLesson.type === 'lesson' ? (
+                  <>
+                    <LessonContent content={currentLesson.content} />
+
+                    {completeError && (
+                      <p className="font-geist text-xs mt-4" style={{ color: ERROR }}>
+                        Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
+                      </p>
+                    )}
+
+                    {/* Both directions name the lesson they lead to, per
+                        the design. "Назад"/"Далее" said only that something
+                        came next, which the reader could already see. */}
+                    <div className="flex items-center justify-between gap-4 mt-10 pt-6" style={{ borderTop: '1px solid rgba(197, 198, 199,0.07)' }}>
+                      {prevLesson ? (
+                        <button
+                          onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)}
+                          className="font-geist flex items-center gap-2 min-w-0 transition-colors cursor-pointer"
+                          style={{ fontSize: 13, letterSpacing: '1.2px', color: 'rgba(197, 198, 199,0.6)' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}
+                        >
+                          <Icon name="arrowLeft" size={20} color="currentColor" />
+                          <span className="truncate" style={{ maxWidth: 260 }}>{prevLesson.title}</span>
+                        </button>
+                      ) : <div />}
+                      {/* Outlined in the course's own colour rather than
+                          filled with it, per the design — a solid block of
+                          accent next to a page of body text pulled harder
+                          than the thing it leads to deserves. */}
+                      <button
+                        onClick={() => markComplete(currentLesson.id)}
+                        className="px-6 py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-125 cursor-pointer flex items-center gap-2 min-w-0 shrink-0"
+                        style={{ background: `${color}1F`, border: `1px solid ${color}`, color, letterSpacing: '1.2px' }}
+                      >
+                        {isLastLesson ? (
+                          <><CheckCircleIcon size={16} color="currentColor" />Завершить курс</>
+                        ) : (
+                          <>
+                            {nextLesson?.type === 'quiz' && <PagesIcon size={16} color="currentColor" className="shrink-0" />}
+                            <span className="truncate" style={{ maxWidth: 260 }}>{nextLesson?.title || 'Далее'}</span>
+                            <Icon name="arrowRight" size={20} color="currentColor" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <CustomQuizView
+                    key={currentLesson.id}
+                    lesson={currentLesson}
+                    quizState={quizStates[currentIdx] || emptyQuizState()}
+                    onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}
+                    onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
+                    onSubmit={() => submitQuiz(currentIdx, currentLesson)}
+                    onNext={() => markComplete(currentLesson.id)}
+                    isLastLesson={isLastLesson}
+                    color={color}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-24">
+                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок в оглавлении</p>
+              </div>
+            )}
+          </section>
+
         </div>
 
       </div>

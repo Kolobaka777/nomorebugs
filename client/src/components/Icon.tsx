@@ -34,7 +34,7 @@ export type IconName =
   // replacing raw ›‹→←▼▲»« and ×/✕ characters everywhere they acted as a
   // UI control (not prose).
   | 'chevronRight' | 'chevronLeft' | 'chevronDown' | 'chevronUp'
-  | 'arrowRight' | 'close'
+  | 'arrowRight' | 'arrowLeft' | 'close'
   // ── Added when the restyle pass hit real gaps (delete/reset-password/
   // archive/restore actions were still falling back to raw emoji) —
   // 'trash' is real kit path data (trash.svg); 'key'/'archive'/'undo' are
@@ -289,6 +289,12 @@ const RENDERERS: Record<IconName, (color: string, color2: string) => React.React
   arrowRight: (c) => <>
     <path d="M17 12H3" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M21.7152 11.7966L16.265 7.90356C15.7355 7.52535 15 7.90385 15 8.55455V15.4454C15 16.0961 15.7355 16.4746 16.265 16.0964L21.7152 12.2034C21.8548 12.1037 21.8548 11.8963 21.7152 11.7966Z" fill={c} />
+  </>,
+  // The mirror of arrowRight, hand-mirrored rather than a CSS transform so
+  // it composes the same way inside a flex row of icons.
+  arrowLeft: (c) => <>
+    <path d="M7 12H21" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2.28483 11.7966L7.73505 7.90356C8.26449 7.52535 9 7.90385 9 8.55455V15.4454C9 16.0961 8.26449 16.4746 7.73505 16.0964L2.28483 12.2034C2.14522 12.1037 2.14522 11.8963 2.28483 11.7966Z" fill={c} />
   </>,
   close: (c) => <>
     <path d="M18 6L6 18" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
