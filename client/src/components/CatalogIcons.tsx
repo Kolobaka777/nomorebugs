@@ -40,6 +40,19 @@ export function CheckCircleIcon({ size = 24, color = DEFAULT_COLOR, className }:
   );
 }
 
+// The double tick the design marks a finished lesson with — distinct from
+// CheckCircleIcon, which marks a finished *course*. Two ticks, no ring, so a
+// column of them reads as a list of small confirmations rather than a column
+// of medals.
+export function DoubleCheckIcon({ size = 24, color = DEFAULT_COLOR, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M2 12.5L6 16.5L13.5 8" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 15.5L11.5 17L19 8" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PeopleIcon({ size = 24, color = DEFAULT_COLOR, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

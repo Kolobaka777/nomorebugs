@@ -44,6 +44,50 @@ describe('CustomCourseLearningPage', () => {
     expect((await screen.findAllByText('Урок про отступы')).length).toBeGreaterThan(0);
   });
 
+  it('names the course above the lesson, and counts what is in it', async () => {
+    // A lesson opened on its own used to say nothing about which course it
+    // belonged to — the only mention was a truncated line in the sidebar.
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
+      title: 'Introduction to DevTools',
+      tag: 'DevTools',
+      modules: [
+        { id: 1, title: 'Модуль 1', order_num: 0, lessons: [
+          { id: 10, title: 'Тема 1.1', type: 'lesson', content: 'x', completed: false, locked: false, prerequisite_type: 'none' },
+          { id: 11, title: 'Тема 1.2', type: 'quiz', questions: [], completed: false, locked: false, prerequisite_type: 'none' },
+        ] },
+        { id: 2, title: 'Модуль 2', order_num: 1, lessons: [
+          { id: 12, title: 'Тема 2.1', type: 'lesson', content: 'y', completed: false, locked: false, prerequisite_type: 'none' },
+        ] },
+      ],
+    }) } as any);
+    renderPage();
+
+    expect(await screen.findByText('ВЕРНУТЬСЯ К КУРСУ')).toBeInTheDocument();
+    expect(screen.getByText('DevTools')).toBeInTheDocument();
+    // Three lessons, one of which is the quiz — тесты are a breakdown of
+    // the lesson count, not a fourth thing added on top.
+    expect(screen.getByText('3 УРОКА')).toBeInTheDocument();
+    expect(screen.getByText('2 МОДУЛЯ')).toBeInTheDocument();
+    expect(screen.getByText('1 ТЕСТ')).toBeInTheDocument();
+  });
+
+  it('declines the counts instead of pinning one ending on every number', async () => {
+    // "1 УРОКОВ" is the failure this guards; so is "11 УРОКА", which every
+    // naive last-digit rule produces.
+    const lessons = Array.from({ length: 11 }, (_, i) => ({
+      id: 100 + i, title: `Тема ${i}`, type: 'lesson', content: 'x',
+      completed: false, locked: false, prerequisite_type: 'none',
+    }));
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
+      modules: [{ id: 1, title: 'Модуль 1', order_num: 0, lessons }],
+    }) } as any);
+    renderPage();
+
+    expect(await screen.findByText('11 УРОКОВ')).toBeInTheDocument();
+    expect(screen.getByText('1 МОДУЛЬ')).toBeInTheDocument();
+    expect(screen.getByText('0 ТЕСТОВ')).toBeInTheDocument();
+  });
+
   it('offers a retry when the course could not be fetched', async () => {
     vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderPage();

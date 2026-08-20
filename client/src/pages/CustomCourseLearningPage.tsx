@@ -4,14 +4,16 @@ import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import { resultText } from '../utils/courseResult';
-import { LockIcon, CheckCircleIcon, PagesIcon, BookOpenIcon } from '../components/CatalogIcons';
+import { LockIcon, CheckCircleIcon, DoubleCheckIcon, PagesIcon, BookOpenIcon, CapIcon } from '../components/CatalogIcons';
 import { testerApi, coursesApi } from '../api';
 import { CourseNote } from '../types';
 import { useEscapeKey } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { counted } from '../utils/plural';
+import { getCourseTagColor } from '../utils/topics';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
@@ -417,11 +419,16 @@ function LeadTimer({ startTimeMs, color }: { startTimeMs: number; color: string 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   return (
-    <div className="w-40 flex-shrink-0 flex flex-col items-center justify-start pt-8 px-4" style={{ borderLeft: '1px solid rgba(197, 198, 199,0.06)' }}>
-      <p className="font-geist font-semibold mb-2" style={{ fontSize: 12, letterSpacing: TRACK_WIDE, color: TEXT_MUTED }}>ТАЙМЕР</p>
-      <p className="font-geist text-2xl font-bold tabular-nums" style={{ color }}>{formatTime(elapsedSeconds)}</p>
-      <p className="font-geist text-xs mt-1" style={{ color: TEXT_MUTED }}>мин:сек</p>
-      <p className="font-geist text-xs mt-4 text-center leading-relaxed" style={{ color: TEXT_MUTED }}>Видно только лиду</p>
+    // Rides in the course header rather than claiming a column of its own:
+    // the page is two columns now, and a 160px third one for a clock pushed
+    // the lesson text narrower for everyone in exchange for something only
+    // the lead can see.
+    <div className="flex items-center gap-3 rounded-lg px-4 py-2.5 flex-shrink-0" style={{ background: 'rgba(11, 12, 16, 0.5)', border: '1px solid rgba(197, 198, 199,0.12)' }}>
+      <div>
+        <p className="font-geist font-semibold" style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: TEXT_MUTED }}>ТАЙМЕР</p>
+        <p className="font-geist font-bold tabular-nums" style={{ fontSize: 20, color }}>{formatTime(elapsedSeconds)}</p>
+      </div>
+      <p className="font-geist leading-tight" style={{ fontSize: 10, color: TEXT_MUTED }}>мин:сек<br />виден только лиду</p>
     </div>
   );
 }
@@ -764,12 +771,17 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     );
   }
 
-  const color = course.color || '#66FCF1';
+  const color = course.color || getCourseTagColor(course.tag || '') || '#66FCF1';
   const currentLesson = allLessons[currentIdx];
   const isLastLesson = currentIdx === allLessons.length - 1;
   const totalLessons = allLessons.length;
   const completedCount = completedLessons.size;
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+  // The header card's three counts. Quizzes are lessons too, so the lesson
+  // total deliberately includes them — the design puts тесты beside уроков
+  // as a breakdown of the same set, not as a fourth thing to add up.
+  const quizCount = allLessons.filter((l: any) => l.type === 'quiz').length;
+  const moduleCount = (course.modules || []).length;
 
   // Mirrors the server's lock computation (see GET /api/custom-courses/:id)
   // but reactive to completedLessons as the user progresses within this
@@ -833,190 +845,239 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   })();
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: PAGE_GRADIENT }}>
+    // A page that scrolls as one document, not two panes that scroll past
+    // each other. The old shell pinned itself to the viewport and gave the
+    // lesson its own scrollbar inside a column — which is why the course
+    // never had room for a header above it.
+    <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
 
-      <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
-        {/* Sidebar — full-width collapsible block on mobile, static column from
-            lg up. Hidden once the course is finished: a pass/fail (or plain
-            completion) screen is the endpoint, not a place to keep navigating
-            from, so the lesson tree would just be dead weight next to it. */}
-        {!showCompleted && (
-        <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: CARD_BG, borderRight: '1px solid rgba(197, 198, 199,0.06)', borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
-          <button
-            onClick={() => setMobileNavOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-4 flex-shrink-0 lg:hidden"
-            style={{ borderBottom: mobileNavOpen ? '1px solid rgba(197, 198, 199,0.06)' : 'none' }}
+      <div className="max-w-7xl mx-auto px-8 pt-10 pb-16">
+        <button
+          onClick={() => navigate(`/custom-course/${id}`)}
+          className="flex items-center gap-2 mb-6 font-geist cursor-pointer transition-colors"
+          style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}
+          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
+          onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
+        >
+          <Icon name="chevronLeft" size={18} color="currentColor" /> ВЕРНУТЬСЯ К КУРСУ
+        </button>
+
+        {/* Course header — what you are inside of, stated once at the top.
+            Before this the only thing naming the course was the sidebar's
+            truncated line, so a lesson opened on its own said nothing about
+            which course it belonged to. */}
+        <div
+          className="rounded-lg mb-8 flex items-center gap-5 p-5 flex-wrap"
+          style={{ background: CARD_BG_PATTERN, border: `1px solid ${color}70`, boxShadow: CARD_SHADOW }}
+        >
+          <div
+            className="rounded-lg flex items-center justify-center shrink-0"
+            style={{ width: 64, height: 64, background: `${color}1F`, border: `1px solid ${color}55` }}
           >
-            <span className="text-left min-w-0">
-              <p className="font-montserrat font-semibold mb-1 truncate" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{course.title}</p>
-              <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
-            </span>
-            <span className="font-geist text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{mobileNavOpen ? <>Скрыть <Icon name="chevronUp" size={22} color="currentColor" /></> : <>Оглавление <Icon name="chevronDown" size={22} color="currentColor" /></>}</span>
-          </button>
-
-          <div className="px-4 py-4 flex-shrink-0 hidden lg:block" style={{ borderBottom: '1px solid rgba(197, 198, 199,0.06)' }}>
-            <p className="font-montserrat font-semibold mb-2 truncate" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{course.title}</p>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%`, background: color }} />
-              </div>
-              <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{progressPercent}%</span>
-            </div>
-            <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено</p>
+            <BookOpenIcon size={30} color={color} />
           </div>
-
-          <div className={`flex-1 overflow-y-auto py-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ maxHeight: '50vh' }}>
-            {(course.modules || []).map((mod: any, mi: number) => {
-              const modLessons = mod.lessons || [];
-              const isExpanded = expandedModules.has(mi);
-              const isCurMod = mi === currentModuleIdx;
-
-              // Global start idx for this module
-              let modStartIdx = 0;
-              for (let i = 0; i < mi; i++) modStartIdx += (course.modules[i].lessons || []).length;
-
-              return (
-                <div key={mod.id ?? mi} className="mb-1">
-                  <button
-                    onClick={() => setExpandedModules(s => { const n = new Set(s); if (n.has(mi)) n.delete(mi); else n.add(mi); return n; })}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
-                    style={{ background: isCurMod ? 'rgba(197, 198, 199,0.05)' : 'transparent' }}
-                  >
-                    <span className="flex-shrink-0" style={{ color: color, transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}><Icon name="chevronRight" size={22} color="currentColor" /></span>
-                    <span className="flex-1 min-w-0 font-geist text-xs font-semibold leading-snug break-words" style={{ color: isCurMod ? color : 'rgba(197, 198, 199,0.6)' }}>{(mod.title || `Модуль ${mi + 1}`).toUpperCase()}</span>
-                    <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
-                      {modLessons.filter((_: any, li: number) => completedLessons.has(modLessons[li]?.id)).length}/{modLessons.length}
-                    </span>
-                  </button>
-
-                  {isExpanded && modLessons.map((lesson: any, li: number) => {
-                    const gi = modStartIdx + li;
-                    const accessible = isAccessible(gi);
-                    const completed = completedLessons.has(lesson.id);
-                    const isCur = gi === currentIdx;
-
-                    return (
-                      <button
-                        key={lesson.id ?? li}
-                        onClick={() => accessible && (setCurrentIdx(gi), setMobileNavOpen(false))}
-                        disabled={!accessible}
-                        className="w-full flex items-center gap-2.5 pl-8 pr-4 py-2 text-left transition-all"
-                        style={{ background: isCur ? `${color}15` : 'transparent', borderLeft: isCur ? `2px solid ${color}` : '2px solid transparent', cursor: accessible ? 'pointer' : 'not-allowed', opacity: !accessible ? 0.4 : 1 }}
-                      >
-                        <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-xs">
-                          {completed ? <CheckCircleIcon size={14} color={ACCENT} /> : isCur ? <span style={{ color }}>▸</span> : !accessible ? <LockIcon size={13} color="rgba(197, 198, 199,0.3)" /> : <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(197, 198, 199,0.2)' }} />}
-                        </span>
-                        <span className="font-geist text-xs leading-snug flex-1 min-w-0 flex items-center gap-1.5 break-words" style={{ color: isCur ? TEXT_PRIMARY : 'rgba(197, 198, 199,0.5)' }}>
-                          {lesson.type === 'quiz' && <PagesIcon size={12} color="currentColor" />}
-                          {lesson.title}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={`px-4 py-3 flex-shrink-0 space-y-2 ${mobileNavOpen ? '' : 'hidden'} lg:block`} style={{ borderTop: '1px solid rgba(197, 198, 199,0.06)' }}>
-            <button onClick={() => setShowNotes(true)} className="w-full py-2 rounded-lg font-geist text-xs flex items-center justify-center gap-2 cursor-pointer" style={{ background: 'rgba(197, 198, 199,0.06)', color: 'rgba(197, 198, 199,0.6)' }}>
-              <PagesIcon size={14} color="currentColor" /> Заметки {notes.length > 0 && <span className="text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{ background: color, color: PAGE_BG, fontSize: '0.6rem' }}>{notes.length}</span>}
-            </button>
-            <button onClick={() => navigate(`/custom-course/${id}`)} className="w-full py-2 rounded-lg font-geist text-xs cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.55)' }}><Icon name="chevronLeft" size={22} color="currentColor" /> К описанию</button>
-          </div>
-        </aside>
-        )}
-
-        {/* Main content */}
-        {/* A section, not a <main>: App.tsx marks the routed view as
-            the page's main content, and there is only ever one of those. */}
-        <section className="flex-1 overflow-y-auto">
-          {showCompleted ? (
-            <CourseResultScreen
-              course={course}
-              color={color}
-              passed={coursePassed}
-              score={courseScore}
-              weakModules={weakModuleTitles}
-              onRetry={retryQuizzes}
-              onBackToCourse={() => navigate(`/custom-course/${id}`)}
-              onNext={() => navigate('/zhukademia')}
-              onModuleClick={jumpToModule}
-            />
-          ) : currentLesson ? (
-            <div className="max-w-3xl mx-auto px-8 py-8">
-              {/* Breadcrumb */}
-              <p className="font-geist text-xs mb-6 break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
-                {(course.modules || [])[currentModuleIdx]?.title || ''}
-                {' › '}
-                <span style={{ color: 'rgba(197, 198, 199,0.6)' }}>{currentLesson.title}</span>
-              </p>
-
-              <h1 className="font-montserrat font-bold mb-8 break-words" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{currentLesson.title}</h1>
-
-              {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
-                <div
-                  className="rounded-lg p-3 mb-6 flex items-start gap-2"
-                  style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
-                >
-                  <Icon name="lightbulb" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
-                  <p className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
-                </div>
-              )}
-
-              {currentLesson.type === 'lesson' ? (
-                <>
-                  <LessonContent content={currentLesson.content} />
-
-                  {completeError && (
-                    <p className="font-geist text-xs mt-4" style={{ color: ERROR }}>
-                      Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between mt-10 pt-6" style={{ borderTop: '1px solid rgba(197, 198, 199,0.07)' }}>
-                    {currentIdx > 0 ? (
-                      <button onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)} className="font-geist text-sm transition-colors cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }} onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}><Icon name="chevronLeft" size={22} color="currentColor" /> Назад</button>
-                    ) : <div />}
-                    <button
-                      onClick={() => markComplete(currentLesson.id)}
-                      className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer flex items-center gap-2"
-                      style={{ background: color, color: PAGE_BG }}
-                    >
-                      {allLessons[currentIdx + 1]?.type === 'quiz'
-                        ? <><PagesIcon size={14} color="currentColor" />Пройти тест <Icon name="chevronRight" size={22} color="currentColor" /></>
-                        : isLastLesson
-                        ? <><CheckCircleIcon size={14} color="currentColor" />Завершить курс</>
-                        : <>Далее <Icon name="chevronRight" size={22} color="currentColor" /></>}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <CustomQuizView
-                  key={currentLesson.id}
-                  lesson={currentLesson}
-                  quizState={quizStates[currentIdx] || emptyQuizState()}
-                  onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}
-                  onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
-                  onSubmit={() => submitQuiz(currentIdx, currentLesson)}
-                  onNext={() => markComplete(currentLesson.id)}
-                  isLastLesson={isLastLesson}
-                  color={color}
-                />
-              )}
+          <div className="min-w-0 flex-1">
+            {course.tag && (
+              <span
+                className="inline-block font-geist font-semibold rounded mb-2"
+                style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.08em', background: `${color}22`, color, border: `1px solid ${color}55` }}
+              >
+                {course.tag}
+              </span>
+            )}
+            <h1 className="font-montserrat break-words" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, letterSpacing: '3px', color: TEXT_PRIMARY }}>
+              {course.title}
+            </h1>
+            <div className="flex items-center gap-6 flex-wrap mt-3 font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+              <span className="flex items-center gap-2"><BookOpenIcon size={15} color="currentColor" />{counted(totalLessons, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
+              <span className="flex items-center gap-2"><PagesIcon size={15} color="currentColor" />{counted(moduleCount, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
+              <span className="flex items-center gap-2"><CapIcon size={15} color="currentColor" />{counted(quizCount, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок слева</p>
-            </div>
+          </div>
+          {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
+          {user.role === 'lead' && (
+            <LeadTimer startTimeMs={startTimeRef.current} color={color} />
           )}
-        </section>
+        </div>
 
-        {/* Lead timer — its own component so the once-a-second tick doesn't re-render this whole page */}
-        {user.role === 'lead' && (
-          <LeadTimer startTimeMs={startTimeRef.current} color={color} />
-        )}
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {/* A section, not a <main>: App.tsx marks the routed view as
+              the page's main content, and there is only ever one of those. */}
+          <section className="flex-1 min-w-0 w-full order-2 lg:order-1">
+            {showCompleted ? (
+              <CourseResultScreen
+                course={course}
+                color={color}
+                passed={coursePassed}
+                score={courseScore}
+                weakModules={weakModuleTitles}
+                onRetry={retryQuizzes}
+                onBackToCourse={() => navigate(`/custom-course/${id}`)}
+                onNext={() => navigate('/zhukademia')}
+                onModuleClick={jumpToModule}
+              />
+            ) : currentLesson ? (
+              <div>
+                <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
+
+                {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
+                  <div
+                    className="rounded-lg p-3 mb-6 flex items-start gap-2"
+                    style={{ background: 'rgba(239,159,39,0.06)', border: '1px solid rgba(239,159,39,0.25)' }}
+                  >
+                    <Icon name="lightbulb" size={22} color="#EF9F27" style={{ flexShrink: 0 }} />
+                    <p className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.7)' }}>{currentLesson.prerequisite_note}</p>
+                  </div>
+                )}
+
+                {currentLesson.type === 'lesson' ? (
+                  <>
+                    <LessonContent content={currentLesson.content} />
+
+                    {completeError && (
+                      <p className="font-geist text-xs mt-4" style={{ color: ERROR }}>
+                        Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between mt-10 pt-6" style={{ borderTop: '1px solid rgba(197, 198, 199,0.07)' }}>
+                      {currentIdx > 0 ? (
+                        <button onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)} className="font-geist text-sm transition-colors cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.6)' }} onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}><Icon name="chevronLeft" size={22} color="currentColor" /> Назад</button>
+                      ) : <div />}
+                      {/* Outlined in the course's own colour rather than
+                          filled with it, per the design — a solid block of
+                          accent next to a page of body text pulled harder
+                          than the thing it leads to deserves. */}
+                      <button
+                        onClick={() => markComplete(currentLesson.id)}
+                        className="px-8 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-125 cursor-pointer flex items-center gap-2"
+                        style={{ background: `${color}1F`, border: `1px solid ${color}`, color }}
+                      >
+                        {allLessons[currentIdx + 1]?.type === 'quiz'
+                          ? <><PagesIcon size={14} color="currentColor" />Пройти тест <Icon name="arrowRight" size={20} color="currentColor" /></>
+                          : isLastLesson
+                          ? <><CheckCircleIcon size={14} color="currentColor" />Завершить курс</>
+                          : <>Далее <Icon name="arrowRight" size={20} color="currentColor" /></>}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <CustomQuizView
+                    key={currentLesson.id}
+                    lesson={currentLesson}
+                    quizState={quizStates[currentIdx] || emptyQuizState()}
+                    onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}
+                    onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
+                    onSubmit={() => submitQuiz(currentIdx, currentLesson)}
+                    onNext={() => markComplete(currentLesson.id)}
+                    isLastLesson={isLastLesson}
+                    color={color}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-24">
+                <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Выбери урок в оглавлении</p>
+              </div>
+            )}
+          </section>
+
+          {/* Contents — a card on the right, per the design, where it used to
+              be a bordered column pinned to the left edge of the window.
+              Hidden once the course is finished: a pass/fail screen is the
+              endpoint, not a place to keep navigating from, so the lesson
+              tree would just be dead weight next to it.
+
+              Ordered first below `lg` so a phone still meets the navigation
+              before a wall of lesson text, while the DOM keeps the lesson
+              first for anything reading the page in source order. */}
+          {!showCompleted && (
+          <aside className="w-full lg:w-[380px] flex-shrink-0 rounded-lg overflow-hidden order-1 lg:order-2" style={{ background: CARD_BG_PATTERN, border: '1px solid rgba(197, 198, 199,0.10)', boxShadow: CARD_SHADOW }}>
+            <button
+              onClick={() => setMobileNavOpen(o => !o)}
+              className="w-full flex items-center justify-between px-5 py-4 lg:hidden"
+            >
+              <span className="text-left min-w-0">
+                <p className="font-montserrat font-semibold mb-1 truncate" style={{ fontSize: 15, color: TEXT_PRIMARY }}>{course.title}</p>
+                <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons} пройдено · {progressPercent}%</p>
+              </span>
+              <span className="font-geist text-xs flex-shrink-0 ml-2" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{mobileNavOpen ? <>Скрыть <Icon name="chevronUp" size={22} color="currentColor" /></> : <>Оглавление <Icon name="chevronDown" size={22} color="currentColor" /></>}</span>
+            </button>
+
+            <div className="px-5 pt-5 pb-4 hidden lg:block">
+              <p className="font-montserrat break-words mb-3" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.4px', color: TEXT_PRIMARY }}>{course.title}</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(197, 198, 199,0.08)' }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%`, background: color }} />
+                </div>
+                <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>{completedCount}/{totalLessons}</span>
+              </div>
+            </div>
+
+            <div className={`pb-4 ${mobileNavOpen ? '' : 'hidden'} lg:block`}>
+              {(course.modules || []).map((mod: any, mi: number) => {
+                const modLessons = mod.lessons || [];
+                const isExpanded = expandedModules.has(mi);
+                const isCurMod = mi === currentModuleIdx;
+
+                // Global start idx for this module
+                let modStartIdx = 0;
+                for (let i = 0; i < mi; i++) modStartIdx += (course.modules[i].lessons || []).length;
+
+                return (
+                  <div key={mod.id ?? mi} className="mb-1">
+                    <button
+                      onClick={() => setExpandedModules(s => { const n = new Set(s); if (n.has(mi)) n.delete(mi); else n.add(mi); return n; })}
+                      className="w-full flex items-start gap-2 px-5 py-2.5 text-left"
+                    >
+                      <span className="flex-shrink-0 mt-0.5" style={{ color }}><Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} size={18} color="currentColor" /></span>
+                      <span
+                        className="flex-1 min-w-0 font-geist leading-relaxed break-words"
+                        style={{ fontSize: 12, letterSpacing: '1.4px', fontWeight: isCurMod ? 700 : 500, color: isCurMod ? color : `${color}99` }}
+                      >
+                        {(mod.title || `Модуль ${mi + 1}`).toUpperCase()}
+                      </span>
+                      <span className="font-geist flex-shrink-0 mt-0.5" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.45)' }}>
+                        {modLessons.filter((l: any) => completedLessons.has(l.id)).length}/{modLessons.length}
+                      </span>
+                    </button>
+
+                    {isExpanded && modLessons.map((lesson: any, li: number) => {
+                      const gi = modStartIdx + li;
+                      const accessible = isAccessible(gi);
+                      const completed = completedLessons.has(lesson.id);
+                      const isCur = gi === currentIdx;
+
+                      return (
+                        <button
+                          key={lesson.id ?? li}
+                          onClick={() => accessible && (setCurrentIdx(gi), setMobileNavOpen(false))}
+                          disabled={!accessible}
+                          className="w-full flex items-start gap-2.5 pl-9 pr-5 py-1.5 text-left transition-all"
+                          style={{ background: isCur ? `${color}15` : 'transparent', cursor: accessible ? 'pointer' : 'not-allowed' }}
+                        >
+                          <span className="flex-shrink-0 w-4 flex items-center justify-center mt-0.5">
+                            {completed ? <DoubleCheckIcon size={15} color={color} /> : isCur ? <span style={{ color, fontSize: 11 }}>▸</span> : !accessible ? <LockIcon size={13} color={color} /> : <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(197, 198, 199,0.2)' }} />}
+                          </span>
+                          <span
+                            className="font-geist leading-relaxed flex-1 min-w-0 flex items-start gap-1.5 break-words"
+                            style={{ fontSize: 12, letterSpacing: '1.2px', color: isCur ? TEXT_PRIMARY : 'rgba(197, 198, 199,0.45)' }}
+                          >
+                            {lesson.type === 'quiz' && <PagesIcon size={12} color="currentColor" className="flex-shrink-0 mt-0.5" />}
+                            {lesson.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+          )}
+        </div>
+
       </div>
 
       <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} currentLessonId={currentLesson?.id} courseId={id || ''} />
