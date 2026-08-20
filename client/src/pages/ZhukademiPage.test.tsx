@@ -251,6 +251,21 @@ describe('course progress in the catalog', () => {
     expect(screen.queryByText('Завершённый курс')).not.toBeInTheDocument();
   });
 
+  it('lets the frog sit on the search field without eating what is typed into it', async () => {
+    // The design perches the mascot on the field's top-left corner, which
+    // puts a 47x60 svg over the input. Anything laid over a control has to
+    // be transparent to the pointer or it swallows the click.
+    mockRoutes({ courses: [customCourse({ id: 1, title: 'Найди меня' }), customCourse({ id: 2, title: 'Другой курс' })] });
+    renderPage();
+    await screen.findByText('Найди меня');
+
+    expect(document.querySelector('svg[aria-hidden="true"].absolute.pointer-events-none')).not.toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Поиск курсов по названию'), { target: { value: 'Найди' } });
+    expect(screen.getByText('Найди меня')).toBeInTheDocument();
+    expect(screen.queryByText('Другой курс')).not.toBeInTheDocument();
+  });
+
   it('keeps the tag badge out of the progress strip', async () => {
     // The badge used to share that row, so on a mostly-finished course the
     // fill ran underneath it and the two read as one smeared label. The

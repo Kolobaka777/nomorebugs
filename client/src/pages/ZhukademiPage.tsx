@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
-import FrogIcon from '../components/FrogIcon';
+import FrogPerched from '../components/FrogPerched';
 import Icon from '../components/Icon';
 import { testerApi, leadApi, coursesApi } from '../api';
 import { Lecture } from '../types';
@@ -12,7 +13,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
-import { ACCENT, CARD_BG, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
+import { ACCENT, CARD_BG, CARD_BG_PATTERN, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
@@ -22,7 +23,34 @@ function isNew(createdAt: string, viewed: boolean): boolean {
   return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
-const NEW_BADGE_COLOR = '#4ADE80';
+// Per the kit: the badge is the accent teal, not a green of its own, and it
+// carries a faint amber glow so it lifts off the card it sits on.
+const NEW_BADGE: CSSProperties = {
+  color: PAGE_BG,
+  fontSize: 14,
+  fontWeight: 600,
+  letterSpacing: '2.8px',
+  borderRadius: 4,
+  border: `1px solid ${ACCENT}`,
+  background: 'rgba(102, 252, 241, 0.96)',
+  boxShadow: '0 0 4px 0 rgba(239, 159, 39, 0.25)',
+  padding: '2px 4px',
+};
+
+// Every filter reads as a standing chip in its own topic colour — the same
+// square-cornered badge shape a card wears for its tag, not the pill the
+// page used to draw only once something had been picked.
+function filterChipStyle(color: string, active: boolean): CSSProperties {
+  return {
+    fontSize: 12,
+    borderRadius: 4,
+    padding: '4px 9px',
+    letterSpacing: '0.08em',
+    background: active ? `${color}33` : `${color}14`,
+    color,
+    border: `1px solid ${active ? color : `${color}55`}`,
+  };
+}
 
 function deadlineChip(deadline: string | null | undefined): { label: string; color: string } | null {
   if (!deadline) return null;
@@ -149,7 +177,9 @@ function CourseCard({
       {...(clickable && onClick ? clickableProps(onClick) : {})}
       className={`relative rounded-lg transition-all h-full flex flex-col ${clickable ? 'cursor-pointer hover:brightness-105' : ''}`}
       style={{
-        background: CARD_BG,
+        // Same beetle tile the homepage cards sit on, so the catalog reads
+        // as the same surface rather than a flat panel next to a textured one.
+        background: CARD_BG_PATTERN,
         border: `1.5px solid ${isLocked ? 'rgba(197, 198, 199, 0.18)' : `${tagColor}70`}`,
         boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
         opacity: isLocked ? 0.6 : 1,
@@ -157,8 +187,8 @@ function CourseCard({
     >
       {showNew && (
         <span
-          className="absolute -top-2.5 right-3 z-10 font-geist font-bold rounded px-2 py-0.5"
-          style={{ background: NEW_BADGE_COLOR, color: PAGE_BG, fontSize: 10, letterSpacing: TRACK_WIDE }}
+          className="absolute -top-3 right-3 z-10 font-geist"
+          style={NEW_BADGE}
         >
           NEW
         </span>
@@ -213,7 +243,7 @@ function CourseCard({
             fill — legible enough, but it read as two labels fighting for
             the same strip. */}
         <div className="flex items-start justify-between gap-2 mb-4">
-          <h3 className="font-montserrat font-semibold flex items-start gap-2 min-w-0" style={{ fontSize: 16, lineHeight: 1.4, letterSpacing: '0.02em', color: TEXT_PRIMARY }}>
+          <h3 className="font-montserrat flex items-start gap-2 min-w-0" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.3, letterSpacing: '4px', color: TEXT_PRIMARY }}>
             {onToggleFavorite && (
               <button
                 onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
@@ -521,129 +551,119 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-7xl mx-auto px-8 pt-16 pb-16 fade-in">
-        {/* ===== HEADER — title left, action + search grouped together right ===== */}
-        <div className="flex items-center justify-between mb-1 flex-wrap gap-4">
-          <h1 className="font-montserrat font-bold flex items-center gap-3" style={{ fontSize: 28, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
-            <BookOpenIcon size={26} color={ACCENT} />
-            КУРСЫ
-          </h1>
+        {/* ===== HEADER — title block left; the frog, the search field and
+             the filters stack down the right edge, per the design ===== */}
+        <div className="flex items-start justify-between mb-8 flex-wrap gap-6">
+          <div>
+            <h1 className="font-montserrat flex items-center gap-3" style={{ fontSize: 32, fontWeight: 600, lineHeight: '40px', letterSpacing: '6.4px', color: '#E0E0E0' }}>
+              <BookOpenIcon size={30} color={ACCENT} />
+              КУРСЫ
+            </h1>
+            {/* A heading in its own right, not a caption under one — the kit
+                gives it 24px and the same wide tracking as the title. */}
+            <p className="font-montserrat mt-3" style={{ fontSize: 24, fontWeight: 600, lineHeight: '40px', letterSpacing: '4.8px', color: TEXT_PRIMARY }}>
+              Каталог курсов
+            </p>
+          </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {user.role === 'lead' ? (
-              <button
-                onClick={() => navigate('/lead/course-builder')}
-                className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
-                style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
-              >
-                <PlusIcon size={16} color={PAGE_BG} /> Создать курс
-              </button>
-            ) : (
-              // Any other role can propose one instead of creating it
-              // outright — the button looks the same as the lead's, just
-              // worded as a suggestion; the server enforces the actual gate
-              // (see POST /api/custom-courses) regardless of who clicks it.
-              <button
-                onClick={() => navigate('/propose-course')}
-                className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 py-2.5 cursor-pointer transition-all hover:brightness-110"
-                style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14 }}
-              >
-                <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс
-              </button>
-            )}
+          <div className="flex flex-col items-end gap-3 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              {user.role === 'lead' ? (
+                <button
+                  onClick={() => navigate('/lead/course-builder')}
+                  className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 cursor-pointer transition-all hover:brightness-110"
+                  style={{ background: ACCENT, color: PAGE_BG, fontSize: 14, height: 48 }}
+                >
+                  <PlusIcon size={16} color={PAGE_BG} /> Создать курс
+                </button>
+              ) : (
+                // Any other role can propose one instead of creating it
+                // outright — the button looks the same as the lead's, just
+                // worded as a suggestion; the server enforces the actual gate
+                // (see POST /api/custom-courses) regardless of who clicks it.
+                <button
+                  onClick={() => navigate('/propose-course')}
+                  className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 cursor-pointer transition-all hover:brightness-110"
+                  style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}55`, fontSize: 14, height: 48 }}
+                >
+                  <Icon name="lightbulb" size={16} color={ACCENT} /> Предложить курс
+                </button>
+              )}
 
-            {/* Single rounded-full pill with the search glyph inside it
-                (right-aligned, muted teal) instead of a two-part input +
-                solid-fill button — matches the mockup. */}
-            <div className="relative" style={{ minWidth: 220 }}>
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Поищи курс"
-                aria-label="Поиск курсов по названию"
-                className="font-geist text-sm w-full"
-                style={{ background: CARD_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.15)', borderRadius: 9999, height: 44, padding: '0 44px 0 20px' }}
-              />
-              <span
-                className="absolute flex items-center"
-                style={{ right: 16, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              {/* The frog sits on the field's top-left corner instead of
+                  standing off beside the filters — it is the one piece of
+                  the mascot the design places rather than parks. Feet
+                  overlap the border, so it reads as perched, and it takes
+                  no pointer events so it can't swallow a click meant for
+                  the input underneath. */}
+              <div className="relative" style={{ width: 396, maxWidth: '100%' }}>
+                <FrogPerched className="absolute pointer-events-none" style={{ left: 8, bottom: 'calc(100% - 10px)' }} />
+                <div
+                  className="flex items-center justify-between"
+                  style={{ height: 48, padding: '0 16px', borderRadius: 8, border: `1px solid ${SECONDARY}`, background: 'rgba(11, 12, 16, 0.72)' }}
+                >
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Поищи курс"
+                    aria-label="Поиск курсов по названию"
+                    className="font-geist text-sm flex-1 min-w-0 bg-transparent outline-none border-none"
+                    style={{ color: TEXT_PRIMARY }}
+                  />
+                  <SearchIcon size={20} color={ACCENT} />
+                </div>
+              </div>
+            </div>
+
+            {/* ===== FILTERS ===== */}
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <button
+                onClick={() => { setTagFilter(null); setDraftOnly(false); }}
+                className="font-geist font-semibold cursor-pointer transition-colors"
+                style={filterChipStyle(ACCENT, tagFilter === null && !draftOnly)}
               >
-                <SearchIcon size={18} color={ACCENT} />
-              </span>
+                Все темы
+              </button>
+              {availableTags.map(tag => {
+                const color = getCourseTagColor(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => { setTagFilter(t => t === tag ? null : tag); setDraftOnly(false); }}
+                    className="font-geist font-semibold cursor-pointer transition-all"
+                    style={filterChipStyle(color, tagFilter === tag)}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+              {user.role === 'lead' && (
+                <button
+                  onClick={() => { setDraftOnly(d => !d); setTagFilter(null); }}
+                  className="font-geist font-semibold cursor-pointer transition-colors"
+                  style={filterChipStyle('#C5C6C7', draftOnly)}
+                >
+                  Draft
+                </button>
+              )}
+
+              {(lectures.length > 0 || customCourses.length > 0) && (
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+                  aria-label="Фильтр по статусу"
+                  className="font-geist outline-none cursor-pointer"
+                  style={{ fontSize: 12, borderRadius: 4, padding: '4px 8px', background: 'rgba(11, 12, 16, 0.72)', color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.25)' }}
+                >
+                  <option value="all">Любой статус</option>
+                  <option value="passed">Пройденные</option>
+                  <option value="unpassed">Непройденные</option>
+                  {lectures.length > 0 && <option value="active">Доступные лекции</option>}
+                  {lectures.length > 0 && <option value="locked">Закрытые лекции</option>}
+                </select>
+              )}
             </div>
           </div>
-        </div>
-        <p className="font-geist mb-6" style={{ fontSize: 14, color: TEXT_MUTED }}>
-          Каталог курсов
-        </p>
-
-        {/* ===== FILTERS ===== */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <FrogIcon size={44} />
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => { setTagFilter(null); setDraftOnly(false); }}
-              className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
-              style={{
-                fontSize: 12,
-                background: tagFilter === null && !draftOnly ? `${ACCENT}30` : `${ACCENT}12`,
-                color: tagFilter === null && !draftOnly ? ACCENT : 'rgba(102, 252, 241, 0.65)',
-                border: `1px solid ${tagFilter === null && !draftOnly ? ACCENT : `${ACCENT}3A`}`,
-              }}
-            >
-              Все темы
-            </button>
-            {availableTags.map(tag => {
-              const color = getCourseTagColor(tag);
-              const active = tagFilter === tag;
-              return (
-                <button
-                  key={tag}
-                  onClick={() => { setTagFilter(t => t === tag ? null : tag); setDraftOnly(false); }}
-                  className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-all"
-                  style={{
-                    fontSize: 12,
-                    background: active ? `${color}30` : `${color}12`,
-                    color,
-                    border: `1px solid ${active ? color : `${color}3A`}`,
-                    opacity: active ? 1 : 0.8,
-                  }}
-                >
-                  {tag}
-                </button>
-              );
-            })}
-            {user.role === 'lead' && (
-              <button
-                onClick={() => { setDraftOnly(d => !d); setTagFilter(null); }}
-                className="font-geist font-semibold rounded-full px-3.5 py-1.5 cursor-pointer transition-colors"
-                style={{
-                  fontSize: 12,
-                  background: draftOnly ? 'rgba(197, 198, 199,0.18)' : 'rgba(197, 198, 199,0.07)',
-                  color: 'rgba(197, 198, 199,0.6)',
-                  border: `1px solid ${draftOnly ? 'rgba(197, 198, 199,0.5)' : 'rgba(197, 198, 199,0.22)'}`,
-                }}
-              >
-                Draft
-              </button>
-            )}
-          </div>
-
-          {(lectures.length > 0 || customCourses.length > 0) && (
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-              aria-label="Фильтр по статусу"
-              className="rounded-lg px-2.5 py-2 font-geist outline-none"
-              style={{ fontSize: 12, background: CARD_BG, color: TEXT_PRIMARY, border: '1px solid rgba(197, 198, 199,0.15)' }}
-            >
-              <option value="all">Любой статус</option>
-              <option value="passed">Пройденные</option>
-              <option value="unpassed">Непройденные</option>
-              {lectures.length > 0 && <option value="active">Доступные лекции</option>}
-              {lectures.length > 0 && <option value="locked">Закрытые лекции</option>}
-            </select>
-          )}
         </div>
 
         {/* ===== FOR NEWCOMERS — permanent, not affected by the tag filter ===== */}
