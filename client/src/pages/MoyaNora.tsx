@@ -22,7 +22,7 @@ import { shopItemFor } from '../utils/shop';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { counted } from '../utils/plural';
 import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
@@ -66,13 +66,15 @@ function getGrowthSummary(skills: SKillChart[], completed: number) {
 
 // ── Shared flat card shell — same border/radius/shadow language as
 //    HomePage/CustomCourseDetailPage, replacing the old RPG/Win98 panel. ──────
-function Panel({ children, className = '', pad = 'p-5', style, onClick }: {
+function Panel({ children, className = '', pad = 'p-6', style, onClick }: {
   children: React.ReactNode; className?: string; pad?: string; style?: React.CSSProperties; onClick?: () => void;
 }) {
   return (
     <div
       className={`rounded-lg ${pad} ${className}`}
-      style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)', ...style }}
+      // Same beetle tile the homepage cards sit on. The cabinet was the last
+      // page still drawing flat panels beside textured ones.
+      style={{ background: CARD_BG_PATTERN, boxShadow: CARD_SHADOW, ...style }}
       onClick={onClick}
       {...(onClick ? clickableProps(onClick) : {})}
     >
@@ -81,10 +83,14 @@ function Panel({ children, className = '', pad = 'p-5', style, onClick }: {
   );
 }
 
-function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+// `sub` is for a heading *inside* a card, under that card's own heading —
+// same weight, a rung down in size, so the two do not read as peers.
+function SectionLabel({ children, right, sub }: { children: React.ReactNode; right?: React.ReactNode; sub?: boolean }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <p className="font-montserrat font-semibold" style={{ fontSize: 14, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{children}</p>
+    <div className={`flex items-center justify-between gap-4 ${sub ? 'mb-3' : 'mb-6'}`}>
+      <p className="font-montserrat" style={sub
+        ? { fontSize: 14, fontWeight: 600, letterSpacing: TRACK_WIDE, color: TEXT_MUTED }
+        : { fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>{children}</p>
       {right}
     </div>
   );
@@ -95,23 +101,20 @@ function SectionLabel({ children, right }: { children: React.ReactNode; right?: 
 // filled accent pill with the chevron pointing back into the row, inactive
 // rows are plain text with a muted chevron pointing forward and a small
 // tinted icon chip naming the section.
-function NavRow({ icon, label, color, active, onClick }: {
-  icon: IconName; label: string; color: string; active: boolean; onClick: () => void;
+function NavRow({ icon, label, color, accent, active, onClick }: {
+  icon: IconName; label: string; color: string; accent: string; active: boolean; onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
-      style={{ background: active ? color : 'transparent', color: active ? PAGE_BG : 'rgba(197, 198, 199,0.75)' }}
+      className="w-full flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-colors"
+      // The filled row is the profile's own colour; the icon beside it keeps
+      // the section's. They are two different facts and used to be one.
+      style={{ background: active ? `${accent}CC` : 'transparent', color: active ? PAGE_BG : 'rgba(197, 198, 199,0.75)' }}
     >
-      <Icon name={active ? 'chevronLeft' : 'chevronRight'} size={16} color={active ? PAGE_BG : 'rgba(197, 198, 199,0.35)'} />
-      <span className="font-geist text-xs font-semibold flex-1 text-left" style={{ letterSpacing: TRACK_WIDE }}>{label.toUpperCase()}</span>
-      <span
-        className="rounded-full flex items-center justify-center shrink-0"
-        style={{ width: 26, height: 26, background: active ? 'rgba(0, 0, 0, 0.18)' : `${color}20` }}
-      >
-        <Icon name={icon} size={14} color={active ? PAGE_BG : color} />
-      </span>
+      <Icon name={active ? 'chevronLeft' : 'chevronRight'} size={18} color={active ? PAGE_BG : 'rgba(197, 198, 199,0.35)'} />
+      <span className="font-montserrat flex-1 text-center" style={{ fontSize: 16, fontWeight: 400, letterSpacing: '3.2px' }}>{label.toUpperCase()}</span>
+      <Icon name={icon} size={18} color={active ? PAGE_BG : color} />
     </button>
   );
 }
@@ -436,13 +439,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         ══════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* LEFT: identity card */}
-          <Panel className="lg:col-span-2" pad="p-6" style={{ border: `1px solid ${accent}70`, ...bgStyle }}>
-            <div className="flex flex-col sm:flex-row gap-6">
+          <Panel className="lg:col-span-2" pad="p-6" style={{ border: `1px solid ${accent}E8`, ...bgStyle }}>
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
               <div className="shrink-0">
                 <PixelAvatar
                   id={(profile?.avatar_id || 'frog1') as AvatarId}
                   frame={(profile?.avatar_frame || 'default') as FrameId}
-                  size={132}
+                  size={150}
                   customSrc={profile?.custom_avatar}
                   animate
                 />
@@ -450,7 +453,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="font-montserrat font-bold break-words min-w-0" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+                  <span className="font-montserrat break-words min-w-0" style={{ fontSize: 24, fontWeight: 500, color: '#E0E0E0' }}>
                     {profile?.nickname || user.name}
                   </span>
                   {/* Was the literal string "TESTER" in teal, which is
@@ -472,15 +475,15 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   <p className="font-geist text-xs mb-2 break-words" style={{ color: TEXT_MUTED }}>{profile.specialization}</p>
                 )}
                 {profile?.status_quote && (
-                  <p className="font-geist text-sm italic mb-2 break-words" style={{ color: 'rgba(197, 198, 199,0.7)', borderLeft: `2px solid ${accent}40`, paddingLeft: 10 }}>
+                  <p className="font-montserrat italic mb-3 break-words" style={{ fontSize: 14, fontWeight: 400, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>
                     "{profile.status_quote}"
                   </p>
                 )}
                 {profile?.info_box && (
-                  <p className="font-geist text-xs mb-3 break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>{profile.info_box}</p>
+                  <p className="font-geist mb-3 break-words" style={{ fontSize: 13, fontWeight: 300, lineHeight: 1.6, color: 'rgba(197, 198, 199,0.75)' }}>{profile.info_box}</p>
                 )}
 
-                <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 font-geist text-xs" style={{ color: TEXT_MUTED }}>
+                <div className="flex flex-wrap gap-x-5 gap-y-1 font-geist" style={{ fontSize: 12, fontWeight: 300, color: TEXT_PRIMARY }}>
                   {profile?.created_at && (
                     <span>*В Жабьем Бору с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   )}
@@ -493,38 +496,43 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   150px tiles plus gaps do not fit in a 390px viewport, and
                   without wrapping they pushed the whole page 132px wide
                   horizontally instead of stacking. */}
-              <div className="flex flex-wrap sm:flex-nowrap sm:flex-col gap-2 shrink-0" style={{ minWidth: 0 }}>
+              <div className="flex flex-wrap sm:flex-nowrap sm:flex-col gap-2 shrink-0 self-stretch" style={{ minWidth: 0 }}>
                 {statItems.map((m, i) => (
-                  <div key={i} className="rounded-lg px-4 py-2.5 text-right flex-1 sm:flex-none" style={{ background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(197, 198, 199,0.15)', minWidth: 140 }}>
-                    <p className="font-montserrat font-bold" style={{ fontSize: 19, color: TEXT_PRIMARY }}>{m.value}</p>
-                    <p className="font-geist" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>{m.label}</p>
+                  // The number sits top-left and its caption bottom-right,
+                  // per the kit: the count is the thing being read, the
+                  // caption only says which count it is.
+                  <div key={i} className="rounded flex flex-col items-start justify-between flex-1 sm:flex-none" style={{ padding: 8, gap: 10, minWidth: 176, background: 'rgba(39, 59, 74, 0.53)', border: '1px solid rgba(69, 162, 158, 0.11)' }}>
+                    <p className="font-montserrat" style={{ fontSize: 24, fontWeight: 400, color: '#E0E0E0' }}>{m.value}</p>
+                    <p className="font-geist w-full text-right" style={{ fontSize: 10, fontWeight: 300, color: 'rgba(197, 198, 199, 0.75)' }}>{m.label}</p>
                   </div>
                 ))}
               </div>
             </div>
           </Panel>
 
-          {/* RIGHT: achievement showcase + edit button. The bordered
-              "3 LEVEL" box that used to sit opposite the ONLINE dot is
-              gone along with the rest of the level system — the courses
-              count and the badges below already carry that information. */}
-          <div className="space-y-3">
-            <Panel pad="p-5" style={{ border: `1px solid ${accent}70` }}>
-              <div className="flex items-center justify-end mb-3">
-                <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: accent }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} /> ONLINE
+          {/* RIGHT: achievement showcase + edit button. */}
+          <div className="flex flex-col gap-3">
+            {/* The bordered "3 LEVEL" box that used to sit opposite the
+                ONLINE dot is gone along with the rest of the level system —
+                the courses count and the badges below already carry that
+                information. The block keeps the design's proportions and
+                the same outline as the identity card beside it. */}
+            <Panel pad="p-4" className="flex flex-col justify-between gap-4" style={{ border: `1px solid ${accent}E8` }}>
+              <div className="flex items-center justify-end">
+                <span className="font-montserrat flex items-center gap-2" style={{ fontSize: 15, fontWeight: 500, color: '#FFF' }}>
+                  <span className="w-2 h-2 rounded-full" style={{ background: accent }} /> ONLINE
                 </span>
               </div>
 
               {showcaseMeta && (
-                <div className="rounded-lg p-3 flex items-center gap-3 relative" style={{ background: `${accent}12`, border: `1px solid ${accent}30`, opacity: showcaseIsGoal ? 0.75 : 1 }}>
-                  <div className="rounded-lg flex items-center justify-center shrink-0" style={{ width: 36, height: 36, background: `${showcaseMeta.color}20` }}>
-                    <Icon name={showcaseMeta.icon} size={20} color={showcaseMeta.color} />
+                <div className="rounded flex items-center gap-3 relative p-3" style={{ background: 'rgba(39, 59, 74, 0.53)', border: '1px solid rgba(69, 162, 158, 0.11)', opacity: showcaseIsGoal ? 0.75 : 1 }}>
+                  <div className="rounded flex items-center justify-center shrink-0" style={{ width: 40, height: 40, background: 'rgba(69, 162, 158, 0.32)', border: '1px solid #45A29E' }}>
+                    <Icon name={showcaseMeta.icon} size={22} color={showcaseMeta.color} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-geist font-semibold text-xs break-words" style={{ color: TEXT_PRIMARY }}>{showcaseMeta.name}</p>
+                    <p className="font-montserrat break-words" style={{ fontSize: 16, fontWeight: 400, color: '#E0E0E0' }}>{showcaseMeta.name}</p>
                     {showcaseDescription && (
-                      <p className="font-geist text-xs break-words" style={{ color: TEXT_MUTED, fontSize: 10 }}>{showcaseDescription}</p>
+                      <p className="font-geist break-words" style={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, color: 'rgba(197, 198, 199, 0.75)' }}>{showcaseDescription}</p>
                     )}
                   </div>
                   <span
@@ -550,7 +558,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 everyone who's never used "Предложить курс/гайд". */}
             {profile && ((profile.coursesProposed ?? 0) > 0 || (profile.guidesProposed ?? 0) > 0) && (
               <Panel pad="p-5">
-                <SectionLabel>Мои предложения</SectionLabel>
+                <SectionLabel sub>Мои предложения</SectionLabel>
                 <div className="space-y-2">
                   {profile.coursesProposed > 0 && (
                     <div className="flex items-center justify-between">
@@ -588,20 +596,34 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* LEFT column: active tab content only — which tab is chosen from
-              the sidebar nav list on the right, not a horizontal tab bar. */}
-          <div className="lg:col-span-2">
+              the sidebar nav list on the right, not a horizontal tab bar.
+              One card holds whichever tab is open, headed by that tab's own
+              name. The sections used to be a loose stack with no heading, so
+              nothing on screen said which of them you were looking at except
+              the highlighted row in the nav across the page. */}
+          <Panel className="lg:col-span-2 flex flex-col gap-6" pad="p-6">
+            <div className="flex items-center justify-between gap-4">
+              <p className="font-montserrat" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>
+                {NAV_ITEMS.find(n => n.id === tab)?.label}
+              </p>
+              {tab === 'shop' && (
+                <span className="font-geist font-bold flex items-center gap-1.5 shrink-0" style={{ fontSize: 15, color: '#EF9F27' }}>
+                  {profile?.bug_coins ?? 0} <Icon name="lightning" size={16} color="currentColor" />
+                </span>
+              )}
+            </div>
 
             {/* ══════════════════════════════════════════════════════
                 FAVORITES
             ══════════════════════════════════════════════════════ */}
             {tab === 'favorites' && (
               favorites.length === 0 ? (
-                <Panel className="text-center py-10">
+                <div className="text-center py-10">
                   <Icon name="star" size={28} color="rgba(197, 198, 199,0.15)" />
                   <p className="font-geist text-xs mt-3" style={{ color: TEXT_MUTED }}>Пока нет избранных курсов — добавляй их звёздочкой в каталоге</p>
-                </Panel>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {favorites.map(f => {
@@ -610,18 +632,18 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                     // Outlined in the course's own tag colour, so a list of
                     // favourites reads the same way the catalog does.
                     <div key={`${f.course_type}-${f.course_id}`} className="relative group">
-                      <Panel style={{ border: `1px solid ${tagColor}` }}>
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <p className="font-montserrat font-semibold break-words min-w-0" style={{ fontSize: 16, letterSpacing: '1.6px', color: TEXT_PRIMARY }}>{f.title}</p>
+                      <Panel pad="p-3" style={{ border: `1px solid ${tagColor}E8` }}>
+                        <div className="flex items-start justify-between gap-8 mb-2">
+                          <p className="font-montserrat break-words min-w-0" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>{f.title}</p>
                           <span className="font-geist font-semibold rounded shrink-0" style={{ fontSize: 11, padding: '2px 8px', background: `${tagColor}22`, color: tagColor, border: `1px solid ${tagColor}55` }}>{f.tag}</span>
                         </div>
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-5 flex-wrap font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                        <div className="flex items-center justify-between gap-8 flex-wrap">
+                          <div className="flex items-center gap-8 flex-wrap font-geist" style={{ fontSize: 14, fontWeight: 400, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>
                             {f.course_type === 'custom' ? (
                               <>
-                                <span className="flex items-center gap-2"><BookOpenIcon size={15} color="currentColor" />{counted(f.totalLessons ?? 0, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
-                                <span className="flex items-center gap-2"><PagesIcon size={15} color="currentColor" />{counted(f.totalModules ?? 0, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
-                                <span className="flex items-center gap-2"><CapIcon size={15} color="currentColor" />{counted(f.totalTests ?? 0, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
+                                <span className="flex items-center gap-2"><BookOpenIcon size={16} color="currentColor" />{counted(f.totalLessons ?? 0, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
+                                <span className="flex items-center gap-2"><PagesIcon size={16} color="currentColor" />{counted(f.totalModules ?? 0, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
+                                <span className="flex items-center gap-2"><CapIcon size={16} color="currentColor" />{counted(f.totalTests ?? 0, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
                               </>
                             ) : (
                               <span>{f.score != null ? <span style={{ color: accent }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}</span>
@@ -662,17 +684,17 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             ══════════════════════════════════════════════════════ */}
             {tab === 'notes' && (
               noteGroups.length === 0 ? (
-                <Panel className="text-center py-16">
+                <div className="text-center py-16">
                   <Icon name="memo" size={32} color="rgba(197, 198, 199,0.15)" />
                   <p className="font-montserrat font-semibold mt-4" style={{ color: TEXT_MUTED, fontSize: 14, letterSpacing: TRACK_WIDE }}>ЗАМЕТКИ</p>
                   <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Здесь будут твои заметки с курсов</p>
-                </Panel>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {noteGroups.map(g => (
-                    <Panel key={g.course_id}>
-                      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-                        <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>
+                    <Panel key={g.course_id} pad="p-3" style={{ border: `1px solid ${g.color || accent}E8` }}>
+                      <div className="flex items-start justify-between gap-8 mb-3 flex-wrap">
+                        <p className="font-montserrat break-words min-w-0" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>
                           {g.title} <span style={{ color: TEXT_MUTED, fontWeight: 400 }}>({g.notes.length})</span>
                         </p>
                         <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${g.color || accent}20`, color: g.color || accent }}>{g.tag}</span>
@@ -712,13 +734,6 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             ══════════════════════════════════════════════════════ */}
             {tab === 'shop' && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <SectionLabel>Магазин</SectionLabel>
-                  <span className="font-geist font-bold flex items-center gap-1.5" style={{ fontSize: 15, color: '#EF9F27' }}>
-                    {profile?.bug_coins ?? 0} <Icon name="lightning" size={16} color="currentColor" />
-                  </span>
-                </div>
-
                 <div>
                   <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
                     АВАТАРЫ <Icon name="chevronUp" size={12} color={TEXT_MUTED} />
@@ -827,12 +842,12 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             {tab === 'collection' && (
               <div className="space-y-5">
                 <div>
-                  <SectionLabel>Карточки</SectionLabel>
+                  <SectionLabel sub>Карточки</SectionLabel>
                   {(profile?.cards?.length ?? 0) === 0 ? (
-                    <Panel className="text-center py-8">
+                    <div className="text-center py-8">
                       <Icon name="floppy" size={24} color="rgba(197, 198, 199,0.15)" />
                       <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Пройди лекцию — получишь первую карточку</p>
-                    </Panel>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                       {profile!.cards.map(c => {
@@ -849,7 +864,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </div>
 
                 <div>
-                  <SectionLabel>Значки</SectionLabel>
+                  <SectionLabel sub>Значки</SectionLabel>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {(profile?.badges ?? []).map(b => {
                       const meta = BADGE_META[b.badge_id];
@@ -869,10 +884,10 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       </div>
                     ))}
                     {(profile?.badges?.length ?? 0) === 0 && (profile?.craftable?.length ?? 0) === 0 && (
-                      <Panel className="text-center py-8 sm:col-span-2">
+                      <div className="text-center py-8 sm:col-span-2">
                         <Icon name="gear" size={24} color="rgba(197, 198, 199,0.15)" />
                         <p className="font-geist text-xs mt-2" style={{ color: TEXT_MUTED }}>Собери все карточки одной темы, чтобы скрафтить значок</p>
-                      </Panel>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -889,7 +904,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             ══════════════════════════════════════════════════════ */}
             {tab === 'presence' && (
               <Panel pad="p-5">
-                <SectionLabel>Моё рабочее время</SectionLabel>
+                <SectionLabel sub>Моё рабочее время</SectionLabel>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div>
                     <label className="block font-geist mb-1" style={{ fontSize: 11, color: TEXT_MUTED }}>Начало</label>
@@ -939,13 +954,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 )}
               </Panel>
             )}
-          </div>
+          </Panel>
 
           {/* RIGHT column: achievements panel + sidebar nav (replaces the
               old separate quick-links row + horizontal tab bar). */}
-          <div className="space-y-4">
-            <Panel pad="p-5">
-              <SectionLabel right={<span className="font-montserrat font-bold" style={{ fontSize: 14, color: TEXT_PRIMARY }}>{badgeCount}</span>}>Достижения</SectionLabel>
+          <div className="flex flex-col gap-6">
+            <Panel pad="p-6">
+              <SectionLabel right={<span className="font-montserrat" style={{ fontSize: 20, fontWeight: 600, color: TEXT_PRIMARY }}>{badgeCount}</span>}>Достижения</SectionLabel>
               {!achievementsExpanded ? (
                 badgeCount > 0 ? (
                   <div className="flex flex-wrap items-center gap-2">
@@ -1007,9 +1022,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
               )}
             </Panel>
 
-            <Panel pad="p-2">
+            <Panel pad="p-6" className="flex flex-col gap-2">
               {NAV_ITEMS.map(n => (
-                <NavRow key={n.id} icon={n.icon} label={n.label} color={n.color} active={tab === n.id} onClick={() => setTab(n.id)} />
+                <NavRow key={n.id} icon={n.icon} label={n.label} color={n.color} accent={accent} active={tab === n.id} onClick={() => setTab(n.id)} />
               ))}
             </Panel>
 

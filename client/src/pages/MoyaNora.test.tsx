@@ -51,6 +51,23 @@ describe('MoyaNora', () => {
     expect(await screen.findByText('Nazariy')).toBeInTheDocument();
   });
 
+  it('names the open section on the card holding it', async () => {
+    // The sections used to be a loose stack with no heading of their own, so
+    // the only thing on screen saying which one was open was the highlighted
+    // row in the nav across the page.
+    renderPage();
+    await screen.findByText('Nazariy');
+
+    // The nav rows shout their labels; the heading is the same word in
+    // sentence case, which is what tells the two apart here.
+    expect(screen.getByText('Избранное')).toBeInTheDocument();
+    expect(screen.queryByText('Магазин')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('МАГАЗИН'));
+    expect(screen.getByText('Магазин')).toBeInTheDocument();
+    expect(screen.queryByText('Избранное')).not.toBeInTheDocument();
+  });
+
   it('badges the role the person actually has, not a hardcoded one', async () => {
     // The card said TESTER in teal for everyone, including a lead looking
     // at their own profile.
