@@ -36,6 +36,15 @@ interface FormatOptions {
   gender?: Gender;
 }
 
+// "2 мин 5 сек" — a pace a lead can read at a glance. Seconds alone stop
+// being legible somewhere past a hundred of them.
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} сек`;
+  const mins = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${mins} мин ${rest} сек` : `${mins} мин`;
+}
+
 export function formatActivityAction(action: string, opts: FormatOptions = {}): string {
   const who = (id: string) => opts.nameById?.[Number(id)] || `#${id}`;
   // Titles are truncated to 80 chars server-side before they ever reach the
@@ -99,6 +108,19 @@ export function formatActivityAction(action: string, opts: FormatOptions = {}): 
   if ((m = action.match(/^bonus_awarded:target=(\d+):amount=(\d+)$/))) {
     const target = who(m[1]);
     return pick(`Начислил ${m[2]} премиальных баллов сотруднику ${target}`, `Начислила ${m[2]} премиальных баллов сотруднику ${target}`, `Сотруднику ${target} начислено ${m[2]} премиальных баллов`);
+  }
+  // A test attempt: verdict, score, how long it took, and which test. Only
+  // the lead is ever served these rows (see PRIVATE_TO_LEAD in
+  // routes/lead.js), so the sentence is written about someone else.
+  if ((m = action.match(/^quiz_(passed|failed):(\d+)%(?::(\d+)s)?:(.*)$/))) {
+    const ok = m[1] === 'passed';
+    const pace = m[3] ? `, ${formatDuration(parseInt(m[3], 10))}` : '';
+    const tail = `${quoted(m[4])} — ${m[2]}%${pace}`;
+    return pick(
+      `${ok ? 'Сдал' : 'Не сдал'} тест${tail}`,
+      `${ok ? 'Сдала' : 'Не сдала'} тест${tail}`,
+      `Тест${tail} ${ok ? 'сдан' : 'не сдан'}`,
+    );
   }
   // Content actions all carry their subject's title after the colon, kept
   // verbatim (titles contain colons and spaces, so the pattern deliberately
@@ -177,7 +199,7 @@ export function formatTeamEvent(item: TeamNewsItem): string {
     case 'lecture_video_added':
       return `Добавлено видео к лекции${item.lecture_title ? ` «${item.lecture_title}»` : ''}`;
     case 'birthday':
-      return `У ${item.name} сегодня день рождения 🎂`;
+      return `У ${item.name} сегодня день рождения`;
     case 'leave_started': {
       // Neutral form agrees with the LEAVE noun's own grammatical gender
       // (отпуск/больничный/отгул are masculine, отсутствие is neuter), not

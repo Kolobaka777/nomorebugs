@@ -1149,6 +1149,31 @@ export function initDb() {
   migrationStep('suggestions.answer', () => {
     if (!suggestionsCols.includes('answer')) db.exec('ALTER TABLE suggestions ADD COLUMN answer TEXT DEFAULT NULL');
   });
+  // Which coin awards a person has already been paid. awardCoins() is a
+  // bare addition — it pays every time it is called — so before this every
+  // call site carried its own ad-hoc "has this happened yet" check, and a
+  // reward that could fire from more than one place had no way to be paid
+  // once. The unique key is the whole guard; awardOnce() inserts and pays
+  // only if the insert was new.
+  //
+  // It doubles as the record of what was earned for what, which is what the
+  // lead's coin breakdown reads.
+  migrationStep('coin_ledger', () => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS coin_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        ref_id INTEGER,
+        amount INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(user_id, reason, ref_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_coin_ledger_user ON coin_ledger(user_id, created_at DESC);
+    `);
+  });
+
   migrationStep('suggestions.answered_at', () => {
     if (!suggestionsCols.includes('answered_at')) db.exec('ALTER TABLE suggestions ADD COLUMN answered_at DATETIME DEFAULT NULL');
   });

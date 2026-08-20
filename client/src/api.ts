@@ -161,6 +161,10 @@ export const testerApi = {
 export const leadApi = {
   getTeam: () => api.get('/lead/team'),
 
+  // What earns bug-coins, straight from the table the server pays from.
+  getCoinRules: () => api.get('/coins/rules'),
+  getCoinsFor: (userId: number) => api.get(`/lead/coins/${userId}`),
+
   getBeforeAfter: () => api.get('/lead/before-after'),
   getBeforeAfterByTester: () => api.get('/lead/before-after-by-tester'),
 
@@ -286,8 +290,11 @@ export const coursesApi = {
   // Grading lives on the server (see routes/courses.js). `answers` is keyed
   // by question id, not by position, so a course edited mid-attempt can't
   // grade someone against a question they never read.
-  submitQuiz: (lessonId: number, answers: Record<number, number>) =>
-    api.post(`/custom-lessons/${lessonId}/submit-quiz`, { answers }),
+  // `secondsSpent` is how long this attempt took, and it is recorded for
+  // the lead alone — a record of how the team is doing, not a stopwatch the
+  // person taking the test is shown.
+  submitQuiz: (lessonId: number, answers: Record<number, number>, secondsSpent?: number) =>
+    api.post(`/custom-lessons/${lessonId}/submit-quiz`, { answers, seconds_spent: secondsSpent }),
   // The per-question reveal, fetched only once an answer is picked — the
   // answer key is not in the page source.
   getExplanation: (lessonId: number, questionId: number) =>

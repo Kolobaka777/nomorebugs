@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, ToastDetail } from '../utils/toast';
-import Icon from './Icon';
+import Icon, { IconName } from './Icon';
 import { ERROR } from '../utils/theme';
 
 interface Toast extends ToastDetail {
@@ -13,10 +13,10 @@ const COLORS: Record<ToastDetail['kind'], { bg: string; fg: string }> = {
   info: { bg: '#7F77DD', fg: '#0B0C10' },
 };
 
-const ICON: Record<ToastDetail['kind'], string> = {
-  error: '⚠',
-  success: '✓',
-  info: 'ℹ',
+const ICON: Record<ToastDetail['kind'], IconName> = {
+  error: 'warning',
+  success: 'check',
+  info: 'lightbulb',
 };
 
 // Mounted once, at the app root — replaces every native alert()/silently
@@ -119,7 +119,7 @@ export default function ToastHost() {
             className="px-4 py-3 rounded-lg text-sm font-sans font-semibold flex items-start gap-2 fade-in"
             style={{ background: c.bg, color: c.fg, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
           >
-            <span className="shrink-0">{ICON[t.kind]}</span>
+            <span className="shrink-0 flex items-center"><Icon name={ICON[t.kind]} size={15} color="currentColor" /></span>
             <span className="flex-1 break-words min-w-0">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}

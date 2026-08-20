@@ -84,7 +84,7 @@ export default function TelegramLinkWidget() {
 
       {status.phase === 'unlinked' && (
         <button onClick={startLink} className="cursor-pointer" style={{ color: '#229ED9' }}>
-          🔗 Привязать Telegram
+          <Icon name="antenna" size={16} color="currentColor" /> Привязать Telegram
         </button>
       )}
 

@@ -179,9 +179,9 @@ export default function TeamTab({
                   "might be worth a look" flag for a lead to interpret. */}
               {(member.fastAnswers > 0 || member.tabSwitches > 0) && (
                 <p className="font-geist text-xs mt-2" style={{ color: BADGE_NOTIFY }}>
-                  {member.fastAnswers > 0 && `⚡ ${member.fastAnswers} слишком быстрых ответов`}
+                  {member.fastAnswers > 0 && <><Icon name="lightning" size={13} color="currentColor" /> {member.fastAnswers} слишком быстрых ответов</>}
                   {member.fastAnswers > 0 && member.tabSwitches > 0 && ' · '}
-                  {member.tabSwitches > 0 && `↔ ${member.tabSwitches} переключений вкладки во время тестов`}
+                  {member.tabSwitches > 0 && `${member.tabSwitches} переключений вкладки во время тестов`}
                 </p>
               )}
 
@@ -230,7 +230,7 @@ export default function TeamTab({
                             )}
                             style={{ color: BADGE_NOTIFY }}
                           >
-                            ⚠
+                            <Icon name="warning" size={14} color="currentColor" />
                           </span>
                         )}
                       </label>

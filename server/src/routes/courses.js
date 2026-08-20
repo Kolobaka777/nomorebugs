@@ -4,7 +4,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, displayName, logActivity, canManageCourse, canSeeCourse } from '../routeHelpers.js';
+import { requirePermission, hasPermission, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, QUIZ_STREAK_LENGTH, awardCoins, awardOnce, displayName, logActivity, canManageCourse, canSeeCourse, toInt } from '../routeHelpers.js';
 import { notifyUser } from '../telegram.js';
 
 const router = express.Router();
@@ -161,6 +161,116 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
 });
 
 // Full course with modules, lessons, questions
+// Which modules of a course are shut for this person, as a set of module
+// ids. A module opens once every graded test in every module before it has
+// been passed — that is what makes an intermediate test intermediate rather
+// than an optional detour.
+//
+// Modules with nothing graded in them gate nothing: a course with no tests
+// at all would otherwise be locked shut by a rule about tests. An empty test
+// (no questions written yet) counts as nothing graded for the same reason.
+function lockedModuleIds(userId, courseId) {
+  const modules = db.prepare('SELECT id FROM custom_modules WHERE course_id = ? ORDER BY order_num, id').all(courseId);
+  const quizzes = db.prepare(`
+    SELECT l.module_id AS moduleId,
+           (SELECT COUNT(*) FROM custom_quiz_questions q WHERE q.lesson_id = l.id) AS questions,
+           r.score AS score
+    FROM custom_lessons l
+    JOIN custom_modules m ON m.id = l.module_id
+    LEFT JOIN custom_quiz_results r ON r.lesson_id = l.id AND r.user_id = ?
+    WHERE m.course_id = ? AND l.type = 'quiz'
+  `).all(userId, courseId);
+
+  const byModule = new Map();
+  for (const q of quizzes) {
+    if (q.questions === 0) continue;
+    if (!byModule.has(q.moduleId)) byModule.set(q.moduleId, []);
+    byModule.get(q.moduleId).push(q);
+  }
+
+  const locked = new Set();
+  let blocked = false;
+  for (const m of modules) {
+    if (blocked) locked.add(m.id);
+    const own = byModule.get(m.id) || [];
+    if (own.some(q => q.score === null || q.score < COURSE_PASS_SCORE)) blocked = true;
+  }
+  return locked;
+}
+
+// Everything a person has earned so far in one course, paid the moment it
+// is earned rather than all at the end. Called after any lesson is marked
+// done; every payment is guarded by the ledger, so calling it again after
+// the next lesson costs nothing.
+//
+// The unit is the module: 10 coins for finishing one. Every bonus here is a
+// multiple of that, so the numbers stay comparable to each other.
+function awardCourseProgress(userId, courseId) {
+  const modules = db.prepare('SELECT id, order_num FROM custom_modules WHERE course_id = ? ORDER BY order_num, id').all(courseId);
+  const lessons = db.prepare(`
+    SELECT l.id, l.module_id, l.type,
+           (SELECT COUNT(*) FROM custom_quiz_questions q WHERE q.lesson_id = l.id) AS questions,
+           (SELECT 1 FROM custom_lesson_progress p WHERE p.lesson_id = l.id AND p.user_id = ?) AS done,
+           r.score AS score, r.attempts AS attempts
+    FROM custom_lessons l
+    JOIN custom_modules m ON m.id = l.module_id
+    LEFT JOIN custom_quiz_results r ON r.lesson_id = l.id AND r.user_id = ?
+    WHERE m.course_id = ?
+    ORDER BY m.order_num, l.order_num, l.id
+  `).all(userId, userId, courseId);
+
+  const byModule = new Map(modules.map(m => [m.id, []]));
+  for (const l of lessons) if (byModule.has(l.module_id)) byModule.get(l.module_id).push(l);
+
+  // A run of modules finished first try, counted in course order. It breaks
+  // on the first module that is unfinished or needed a retake, so the bonus
+  // means "three in a row", not "three altogether".
+  let run = 0;
+  let allFirstTry = true;
+
+  for (const mod of modules) {
+    const own = byModule.get(mod.id) || [];
+    if (own.length === 0) continue;                      // an outline heading, not work
+    const finished = own.every(l => l.done);
+    const graded = own.filter(l => l.type === 'quiz' && l.questions > 0);
+    const firstTry = graded.length > 0 && graded.every(l => l.attempts === 1);
+
+    if (!finished) { run = 0; allFirstTry = false; continue; }
+
+    awardOnce(userId, 'moduleCompleted', mod.id, COIN_REWARDS.moduleCompleted);
+    if (firstTry) {
+      awardOnce(userId, 'quizFirstTry', mod.id, COIN_REWARDS.quizFirstTry);
+      run += 1;
+      if (run >= QUIZ_STREAK_LENGTH) awardOnce(userId, 'quizStreak', mod.id, COIN_REWARDS.quizStreak);
+    } else {
+      run = 0;
+      if (graded.length > 0) allFirstTry = false;
+    }
+  }
+
+  // The course's last graded test, wherever it happens to live.
+  const gradedLessons = lessons.filter(l => l.type === 'quiz' && l.questions > 0);
+  const finalQuiz = gradedLessons[gradedLessons.length - 1];
+  if (finalQuiz && finalQuiz.score !== null && finalQuiz.score >= COURSE_PASS_SCORE) {
+    awardOnce(userId, 'finalQuizPassed', courseId, COIN_REWARDS.finalQuizPassed);
+  }
+
+  // Flawless is only decidable once the whole course is done, and only
+  // means anything if there was something to get wrong.
+  const everythingDone = lessons.length > 0 && lessons.every(l => l.done);
+  if (everythingDone && gradedLessons.length > 0 && allFirstTry) {
+    awardOnce(userId, 'courseFlawless', courseId, COIN_REWARDS.courseFlawless);
+  }
+}
+
+// The gate never applies to whoever can edit the course: a lead walking
+// their own draft is checking it, not taking it.
+function moduleLockedFor(user, course, lesson) {
+  if (!course || canManageCourse(course, user)) return false;
+  const row = db.prepare('SELECT module_id FROM custom_lessons WHERE id = ?').get(lesson.id);
+  return row ? lockedModuleIds(user.id, course.id).has(row.module_id) : false;
+}
+
 router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
   try {
     const course = db.prepare(`
@@ -206,6 +316,10 @@ router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
     // answering, from the explanation route below. Mirrors how the seeded
     // lecture track has always done it (GET /api/lectures/:id/questions).
     const canSeeAnswers = canManageCourse(course, req.user);
+    // Told to the client too: it mirrors the module gate locally so passing
+    // a test opens the next module without a reload, and the mirror needs to
+    // know when the gate does not apply.
+    course.canManage = canSeeAnswers ? 1 : 0;
 
     // Their own best attempt per quiz lesson, so the page can show a score
     // it did not invent and the result screen can agree with the database.
@@ -216,6 +330,10 @@ router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
         ).all(req.user.id, ...lessonIds)
       : [];
     const resultByLesson = new Map(myResults.map(r => [r.lesson_id, r]));
+
+    // Every module after one whose test has not been passed. Computed once
+    // for the whole course rather than per lesson.
+    const lockedModules = canManageCourse(course, req.user) ? new Set() : lockedModuleIds(req.user.id, course.id);
 
     const lessonsByModule = new Map();
     for (const lesson of allLessons) {
@@ -229,9 +347,10 @@ router.get('/api/custom-courses/:id', authMiddleware, (req, res) => {
       // Only a 'mandatory' prerequisite can lock access — 'optional' is a
       // non-blocking recommendation (e.g. unverifiable external reading),
       // and 'none' has no gate at all.
-      lesson.locked = lesson.prerequisite_type === 'mandatory'
+      lesson.locked = (lesson.prerequisite_type === 'mandatory'
         && lesson.prerequisite_lesson_id != null
-        && !completedIds.has(lesson.prerequisite_lesson_id);
+        && !completedIds.has(lesson.prerequisite_lesson_id))
+        || lockedModules.has(lesson.module_id);
       if (!lessonsByModule.has(lesson.module_id)) lessonsByModule.set(lesson.module_id, []);
       lessonsByModule.get(lesson.module_id).push(lesson);
     }
@@ -303,25 +422,39 @@ router.post('/api/custom-lessons/:id/complete', authMiddleware, (req, res) => {
       }
     }
 
-    // A quiz lesson is finished by answering it, not by saying so. Without
-    // this, a single POST marked any test complete — which then counted
-    // towards the whole course being finished, and towards its coins.
-    //
-    // Passing is deliberately still not required (a failed attempt lets you
-    // move on and retake later, same as the lecture track); having actually
-    // attempted it is.
+    // A module opens only once the test before it has been passed, so a
+    // lesson inside a shut module cannot be marked done either — otherwise
+    // the gate would hold the door while the room filled up behind it.
+    if (moduleLockedFor(req.user, courseOfLesson(lesson.id), lesson)) {
+      return res.status(403).json({ error: 'Сначала нужно сдать тест предыдущего модуля' });
+    }
+
+    // A quiz lesson is finished by passing it, not by saying so and not by
+    // merely attempting it. Attempting used to be enough, which meant a
+    // failed test still counted towards the course being finished and
+    // towards its coins. Retaking is unlimited and the best attempt is what
+    // is kept, so nothing is lost by requiring the pass.
     if (lesson.type === 'quiz') {
       const questionCount = db.prepare('SELECT COUNT(*) c FROM custom_quiz_questions WHERE lesson_id = ?').get(lesson.id).c;
       if (questionCount > 0) {
-        const attempted = db.prepare('SELECT 1 FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
+        const best = db.prepare('SELECT score FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
           .get(req.user.id, lesson.id);
-        if (!attempted) return res.status(400).json({ error: 'Сначала нужно пройти тест' });
+        if (!best) return res.status(400).json({ error: 'Сначала нужно пройти тест' });
+        if (best.score < COURSE_PASS_SCORE) {
+          return res.status(400).json({ error: `Тест не сдан — нужно набрать ${COURSE_PASS_SCORE}% или больше. Попробуй ещё раз.` });
+        }
       }
     }
 
-    db.prepare(
-      'INSERT OR IGNORE INTO custom_lesson_progress (user_id, lesson_id) VALUES (?, ?)'
-    ).run(req.user.id, lesson.id);
+    const course = courseOfLesson(lesson.id);
+    db.transaction(() => {
+      db.prepare(
+        'INSERT OR IGNORE INTO custom_lesson_progress (user_id, lesson_id) VALUES (?, ?)'
+      ).run(req.user.id, lesson.id);
+      // Modules are paid as they are finished rather than all at the end, so
+      // someone who stops halfway keeps what they earned.
+      if (course) awardCourseProgress(req.user.id, course.id);
+    })();
 
     res.json({ ok: true });
   } catch (err) {
@@ -347,6 +480,9 @@ router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) =>
     if (!lesson) return res.status(404).json({ error: 'Урок не найден' });
     if (!lessonVisibleTo(lesson.id, req.user, res)) return;
     if (lesson.type !== 'quiz') return res.status(400).json({ error: 'Это не тест' });
+    if (moduleLockedFor(req.user, courseOfLesson(lesson.id), lesson)) {
+      return res.status(403).json({ error: 'Сначала нужно сдать тест предыдущего модуля' });
+    }
 
     const { answers } = req.body;
     if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
@@ -383,6 +519,17 @@ router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) =>
 
     const stored = db.prepare('SELECT score, correct_count, total_count, attempts FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
       .get(req.user.id, lesson.id);
+
+    // Only the lead ever sees these rows (see /api/lead/activity, and the
+    // exclusion in /api/me/activity) — it is a record of how the team is
+    // doing, not a scoreboard the team keeps on each other.
+    const seconds = toInt(req.body.seconds_spent);
+    const paceNote = seconds !== null && seconds > 0 ? `:${Math.min(seconds, MAX_COURSE_SECONDS_SPENT)}s` : '';
+    logActivity(
+      req.user.id,
+      `${score >= COURSE_PASS_SCORE ? 'quiz_passed' : 'quiz_failed'}:${score}%${paceNote}:${lesson.title}`,
+      { courseId: courseOfLesson(lesson.id)?.id ?? null }
+    );
 
     res.json({ score, correct, total: questions.length, breakdown, best: stored });
   } catch (err) {
@@ -1016,7 +1163,9 @@ router.post('/api/courses/time-track', authMiddleware, (req, res) => {
           completed_at = excluded.completed_at
       `).run(userId, course_id, clampedSeconds);
       logActivity(userId, 'course_completed', { courseId: course_id });
-      if (!alreadyTracked && reallyFinished && passed) awardCoins(userId, COIN_REWARDS.courseCompleted);
+      // Through the ledger, so the guard is a unique key rather than a
+      // read-before-write that a second request could race past.
+      if (reallyFinished && passed) awardOnce(userId, 'courseCompleted', course_id, COIN_REWARDS.courseCompleted);
     })();
     res.json({ ok: true });
   } catch (err) {

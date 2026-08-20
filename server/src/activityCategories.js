@@ -21,6 +21,8 @@ export const ACTIVITY_CATEGORIES = {
     'failed_lecture',
     'course_completed',
     'completed_baseline',
+    'quiz_passed:%',
+    'quiz_failed:%',
     'checklist_submitted:%',
     'earned_achievement:%',
     'crafted_badge:%',

@@ -35,7 +35,7 @@ export default function ResetPasswordPage() {
   if (!token) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center" style={{ background: PAGE_GRADIENT }}>
-        <p style={{ fontSize: 40 }} className="mb-4">😕</p>
+        <Icon name="warning" size={40} color="#EF9F27" className="mb-4" />
         <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>Опс...</h1>
         <p className="font-montserrat font-semibold mb-3" style={{ fontSize: 15, color: TEXT_PRIMARY }}>Ссылка недействительна</p>
         <p className="font-geist text-sm max-w-sm mb-6" style={{ color: TEXT_MUTED }}>

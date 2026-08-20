@@ -164,8 +164,8 @@ export default function FrogCompanion({ user }: Props) {
       const names = badgeIds.map(id => BADGE_META[id]?.name).filter(Boolean);
       if (!names.length) return;
       const text = names.length === 1
-        ? `Ого, новая ачивка: «${names[0]}»! Красава 🎉`
-        : `Сразу несколько ачивок: ${names.map(n => `«${n}»`).join(', ')}! 🎉`;
+        ? `Ого, новая ачивка: «${names[0]}»! Красава!`
+        : `Сразу несколько ачивок: ${names.map(n => `«${n}»`).join(', ')}!`;
       setBubble(text);
       hop();
       setTimeout(() => setBubble(prev => (prev === text ? null : prev)), 7000);

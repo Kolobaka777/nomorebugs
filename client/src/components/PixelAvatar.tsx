@@ -283,7 +283,7 @@ const LEGACY_BUG_AVATARS = [
   { id: 'bug4', name: 'Муравей',       rects: ANT },
   { id: 'bug5', name: 'Светлячок',     rects: FIREFLY },
   { id: 'bug6', name: 'Гусеница',      rects: CATERPILLAR },
-  { id: 'bug7', name: 'Улитка 🐌',     rects: SNAIL_AVA },
+  { id: 'bug7', name: 'Улитка',       rects: SNAIL_AVA },
   { id: 'bug8', name: '???',           rects: MYSTERY },
 ] as const;
 

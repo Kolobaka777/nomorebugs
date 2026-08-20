@@ -92,7 +92,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
         >
           <span className="inline-flex items-center gap-1">Открыть Telegram <Icon name="arrowRight" size={14} color="currentColor" /></span>
         </a>
-        <p className="pixel-pulse text-pixel/50 text-xs font-sans mt-3">🐌 ждём подтверждения... вкладка закроется сама</p>
+        <p className="pixel-pulse text-pixel/50 text-xs font-sans mt-3"><Icon name="snail" size={14} color="currentColor" /> ждём подтверждения... вкладка закроется сама</p>
       </div>
     );
   }

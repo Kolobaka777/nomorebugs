@@ -21,6 +21,7 @@ import diff from 'highlight.js/lib/languages/diff';
 import { Details, DetailsSummary, DetailsContent } from '@tiptap/extension-details';
 import DragHandle from '@tiptap/extension-drag-handle-react';
 import { CARD_BG, TEXT_MUTED, ACCENT } from '../utils/theme';
+import Icon from './Icon';
 
 // The shared block-rich-text editor used everywhere the app lets someone
 // write more than a one-line field — guides, course description/
@@ -212,7 +213,7 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
           <ToolbarButton label="Абзац" active={editor.isActive('paragraph')} onClick={() => editor.chain().focus().setParagraph().run()}>¶</ToolbarButton>
           <ToolbarButton label="Жирный" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>B</ToolbarButton>
           <ToolbarButton label="Курсив" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>I</ToolbarButton>
-          <ToolbarButton label="Цитата" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>❝</ToolbarButton>
+          <ToolbarButton label="Цитата" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Icon name="memo" size={14} color="currentColor" /></ToolbarButton>
           {/* Alt-click keeps the old per-line behaviour (one code block per
               selected line); a plain click merges the whole selection into a
               single block, which is what people actually mean when they
@@ -225,7 +226,7 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
           <ToolbarButton label="Нумерованный список" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>1.</ToolbarButton>
           <ToolbarButton label="Маркированный список" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}>•</ToolbarButton>
           <ToolbarButton label="Список-тоггл" active={editor.isActive('details')} onClick={() => editor.chain().focus().setDetails().run()}>▸</ToolbarButton>
-          <ToolbarButton label="Вставить картинку" onClick={() => fileInputRef.current?.click()}>🖼</ToolbarButton>
+          <ToolbarButton label="Вставить картинку" onClick={() => fileInputRef.current?.click()}><Icon name="camera" size={14} color="currentColor" /></ToolbarButton>
           <input
             ref={fileInputRef}
             type="file"
@@ -252,7 +253,7 @@ export default function RichTextEditor({ content, editable, onChangeJSON, placeh
             <ToolbarButton label="Курсив" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>I</ToolbarButton>
             <ToolbarButton label="Заголовок 1" active={editor.isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
             <ToolbarButton label="Заголовок 2" active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
-            <ToolbarButton label="Цитата" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>❝</ToolbarButton>
+            <ToolbarButton label="Цитата" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Icon name="memo" size={14} color="currentColor" /></ToolbarButton>
             <ToolbarButton label="Код" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}>{'<>'}</ToolbarButton>
           </div>
         </BubbleMenu>

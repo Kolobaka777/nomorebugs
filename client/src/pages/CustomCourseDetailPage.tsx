@@ -313,7 +313,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                             <div className="xp-bar-fill" style={{ width: `${pct}%`, background: t.finished ? color : undefined }} />
                           </div>
                           <span className="font-geist text-xs w-20 text-right shrink-0" style={{ color: TEXT_MUTED }}>
-                            {t.finished ? '✓ пройден' : `${t.completedLessons}/${t.totalLessons}`}
+                            {t.finished ? <span className="flex items-center gap-1"><Icon name="check" size={12} color="currentColor" /> пройден</span> : `${t.completedLessons}/${t.totalLessons}`}
                           </span>
                           {deadlineEditFor === t.id ? (
                             <div className="flex items-center gap-1 shrink-0">
@@ -324,7 +324,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                                 className="pixel-input text-xs"
                                 style={{ width: 130, padding: '2px 6px' }}
                               />
-                              <button onClick={() => saveDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-geist cursor-pointer" style={{ color }}>✓</button>
+                              <button onClick={() => saveDeadlineOverride(t.id)} disabled={savingDeadline} className="text-xs font-geist cursor-pointer" style={{ color }} aria-label="Сохранить дедлайн"><Icon name="check" size={14} color="currentColor" /></button>
                               <button onClick={() => setDeadlineEditFor(null)} className="text-xs font-geist cursor-pointer flex items-center" style={{ color: TEXT_MUTED }}><Icon name="close" size={14} color="currentColor" /></button>
                             </div>
                           ) : (
@@ -366,7 +366,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer flex items-center justify-center gap-2"
                 style={{ background: color, color: PAGE_BG }}
               >
-                {hasProgress ? 'Продолжить курс' : 'Начать курс'} <span aria-hidden="true">🧪</span>
+                {hasProgress ? 'Продолжить курс' : 'Начать курс'} <Icon name="chevronRight" size={18} color="currentColor" />
               </button>
             )}
 

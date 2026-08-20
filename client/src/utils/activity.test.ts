@@ -86,7 +86,7 @@ describe('formatTeamEvent', () => {
   });
 
   it('formats a birthday item without needing gender', () => {
-    expect(formatTeamEvent({ ...base, event_type: 'birthday', gender: null })).toBe('У Nazariy сегодня день рождения 🎂');
+    expect(formatTeamEvent({ ...base, event_type: 'birthday', gender: null })).toBe('У Nazariy сегодня день рождения');
   });
 
   it('formats leave start/end with the leave type and gendered verb', () => {
@@ -114,5 +114,26 @@ describe('formatTeamEvent', () => {
       .toBe('Новый курс — Nazariy');
     expect(formatTeamEvent({ ...base, event_type: 'leave_ended', gender: null }))
       .toBe('Nazariy: возвращение из отпуска');
+  });
+});
+
+// Only the lead is ever served these rows, so the sentence is written about
+// someone else rather than to the person who took the test.
+describe('test attempts', () => {
+  it('states the verdict, the score and the pace', () => {
+    expect(formatActivityAction('quiz_passed:100%:92s:Тест по модулю 1', { gender: 'female' }))
+      .toBe('Сдала тест «Тест по модулю 1» — 100%, 1 мин 32 сек');
+    expect(formatActivityAction('quiz_failed:40%:45s:Итоговый тест', { gender: 'male' }))
+      .toBe('Не сдал тест «Итоговый тест» — 40%, 45 сек');
+  });
+
+  it('says it plainly when the pace was not recorded', () => {
+    expect(formatActivityAction('quiz_passed:80%:Тест', { gender: null }))
+      .toBe('Тест «Тест» — 80% сдан');
+  });
+
+  it('keeps a colon inside the test\u0027s own name', () => {
+    expect(formatActivityAction('quiz_passed:60%:30s:Тест: Итоговый', { gender: 'male' }))
+      .toBe('Сдал тест «Тест: Итоговый» — 60%, 30 сек');
   });
 });

@@ -422,8 +422,16 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 <span className="text-xs font-geist font-semibold px-1.5 py-0.5 rounded" style={{ background: `${color}20`, color }}>
                   {form.tag}
                 </span>
-                <p className="font-geist font-semibold text-xs mt-2 leading-snug break-words" style={{ color: TEXT_PRIMARY }}>
-                  {form.title || 'Название курса'}
+                {/* Nothing typed yet still needs something in the preview,
+                    but it is dimmed and italic so it reads as a gap to fill
+                    rather than as a course actually called that. */}
+                <p
+                  className="font-geist font-semibold text-xs mt-2 leading-snug break-words"
+                  style={form.title
+                    ? { color: TEXT_PRIMARY }
+                    : { color: 'rgba(197, 198, 199,0.35)', fontStyle: 'italic', fontWeight: 400 }}
+                >
+                  {form.title || 'Название появится здесь'}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
                   <span className="text-xs font-geist font-bold px-1.5 py-0.5 rounded" style={{ background: '#EF9F27', color: PAGE_BG }}>NEW</span>

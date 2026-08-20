@@ -879,7 +879,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       <div key={skill_area} className="rounded-lg p-3 flex items-center justify-between gap-2" style={{ background: 'rgba(197, 198, 199,0.04)', border: '1px solid rgba(239,159,39,0.4)' }}>
                         <span className="font-geist text-xs break-words min-w-0" style={{ color: 'rgba(197, 198, 199,0.75)' }}>Собран весь набор «{skill_area}»</span>
                         <button onClick={() => handleCraft(skill_area)} disabled={crafting === skill_area} className="btn-amber text-xs px-3 py-1.5 shrink-0 cursor-pointer">
-                          {crafting === skill_area ? '...' : craftSuccess === skill_area ? '✓ Готово' : 'Скрафтить'}
+                          {crafting === skill_area ? '...' : craftSuccess === skill_area ? <span className="flex items-center justify-center gap-1"><Icon name="check" size={12} color="currentColor" /> Готово</span> : 'Скрафтить'}
                         </button>
                       </div>
                     ))}

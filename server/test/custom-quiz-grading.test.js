@@ -167,14 +167,31 @@ describe('a quiz lesson is finished by answering it', () => {
       .get(fixtures.testerId, lessonId)).toBeUndefined();
   });
 
-  it('accepts it once attempted, even if the attempt was failed', async () => {
-    const { lessonId, questions } = await makeQuizCourse('Провал засчитан');
+  it('refuses to call a failed test finished, and says what the pass mark is', async () => {
+    // Attempting used to be enough, so a failed test still counted towards
+    // the course being finished and towards its coins.
+    const { lessonId, questions } = await makeQuizCourse('Провал не засчитан');
     await request(server).post(`/api/custom-lessons/${lessonId}/submit-quiz`).set('Authorization', `Bearer ${testerToken}`)
       .send({ answers: { [questions[0].id]: 1, [questions[1].id]: 1 } });  // 0%
 
     const res = await request(server).post(`/api/custom-lessons/${lessonId}/complete`)
       .set('Authorization', `Bearer ${testerToken}`);
-    expect(res.status).toBe(200); // moving on is allowed; passing is a separate question
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/60%/);
+    expect(db.prepare('SELECT 1 FROM custom_lesson_progress WHERE user_id = ? AND lesson_id = ?')
+      .get(fixtures.testerId, lessonId)).toBeUndefined();
+  });
+
+  it('accepts it once the retake passes, since the best attempt is what is kept', async () => {
+    const { lessonId, questions } = await makeQuizCourse('Пересдал');
+    await request(server).post(`/api/custom-lessons/${lessonId}/submit-quiz`).set('Authorization', `Bearer ${testerToken}`)
+      .send({ answers: { [questions[0].id]: 1, [questions[1].id]: 1 } });  // 0%
+    await request(server).post(`/api/custom-lessons/${lessonId}/submit-quiz`).set('Authorization', `Bearer ${testerToken}`)
+      .send({ answers: { [questions[0].id]: questions[0].correct_idx, [questions[1].id]: questions[1].correct_idx } });
+
+    const res = await request(server).post(`/api/custom-lessons/${lessonId}/complete`)
+      .set('Authorization', `Bearer ${testerToken}`);
+    expect(res.status).toBe(200);
   });
 
   it('leaves a reading-only lesson alone — nothing to attempt there', async () => {

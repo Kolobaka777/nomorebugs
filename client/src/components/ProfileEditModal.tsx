@@ -407,7 +407,7 @@ export default function ProfileEditModal({
                   }}
                 >
                   <span className="flex items-center gap-1.5">
-                    {isPublic ? '✓' : <Icon name="lock" size={10} color="currentColor" />}
+                    <Icon name={isPublic ? 'check' : 'lock'} size={10} color="currentColor" />
                     {isPublic ? 'ПУБЛИЧНЫЙ' : 'ПРИВАТНЫЙ'}
                   </span>
                 </button>
@@ -710,9 +710,9 @@ export default function ProfileEditModal({
                 {pwOpen && (
                   <>
                     <div className="space-y-2">
-                      <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Введите старый пароль" style={inputStyle} />
-                      <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Введите новый пароль" style={inputStyle} />
-                      <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повторите новый пароль" style={inputStyle} />
+                      <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
+                      <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Новый пароль" style={inputStyle} />
+                      <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повтори пароль" style={inputStyle} />
                     </div>
                     {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: ERROR }}>{pwError}</p>}
                     {pwSuccess && <p className="text-xs font-sans mt-1" style={{ color: '#4ADE80' }}>Пароль изменён</p>}

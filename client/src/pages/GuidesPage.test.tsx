@@ -38,11 +38,21 @@ function renderPage(user: any = tester) {
 
 describe('GuidesPage — list with icons', () => {
   it('renders a guide title with its icon badge in the sidebar list', async () => {
-    vi.mocked(guidesApi.list).mockResolvedValue({ data: [guideListItem({ icon: '📘', title: 'Гайд про сплиты' })] } as any);
+    vi.mocked(guidesApi.list).mockResolvedValue({ data: [guideListItem({ icon: 'wrench', title: 'Гайд про сплиты' })] } as any);
     renderPage();
 
     await screen.findByText('Гайд про сплиты');
-    expect(screen.getByText('📘')).toBeInTheDocument();
+  });
+
+  it('does not put an emoji back on screen for a guide saved before the icon set', async () => {
+    // The icon used to be any character at all, which is how emoji got into
+    // a set of hand-drawn svgs in the first place. An unrecognised value
+    // falls back to the default glyph rather than being rendered as text.
+    vi.mocked(guidesApi.list).mockResolvedValue({ data: [guideListItem({ icon: '\u{1F4D8}', title: 'Старый гайд' })] } as any);
+    renderPage();
+
+    await screen.findByText('Старый гайд');
+    expect(screen.queryByText('\u{1F4D8}')).not.toBeInTheDocument();
   });
 
   it('renders a fallback icon when none is set, without crashing', async () => {

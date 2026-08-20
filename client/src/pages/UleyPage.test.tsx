@@ -14,7 +14,7 @@ vi.mock('../api', () => ({
   leadApi: {
     getTeam: vi.fn(), getLectureStats: vi.fn(), getActivity: vi.fn(), getBeforeAfter: vi.fn(),
     getBeforeAfterByTester: vi.fn(), getInternalRatings: vi.fn(), getArchivedTesters: vi.fn(),
-    updateTeamNote: vi.fn(),
+    updateTeamNote: vi.fn(), getCoinRules: vi.fn(), getCoinsFor: vi.fn(),
   },
   permissionsApi: { list: vi.fn(), grant: vi.fn(), revoke: vi.fn() },
   presenceApi: { getTeam: vi.fn() },
@@ -33,6 +33,10 @@ beforeEach(() => {
   vi.mocked(leadApi.getTeam).mockResolvedValue({ data: [member()] } as any);
   vi.mocked(leadApi.getLectureStats).mockResolvedValue({ data: [] } as any);
   vi.mocked(leadApi.getActivity).mockResolvedValue({ data: { rows: [], hasMore: false } } as any);
+  vi.mocked(leadApi.getCoinRules).mockResolvedValue({ data: { passScore: 60, streakLength: 3, rules: [
+    { key: 'moduleCompleted', amount: 10, label: 'Модуль пройден' },
+    { key: 'quizFirstTry', amount: 5, label: 'Тест сдан с первого раза' },
+  ] } } as any);
   vi.mocked(leadApi.getBeforeAfter).mockResolvedValue({ data: [] } as any);
   vi.mocked(leadApi.getBeforeAfterByTester).mockResolvedValue({ data: [] } as any);
   vi.mocked(leadApi.getInternalRatings).mockResolvedValue({ data: [] } as any);

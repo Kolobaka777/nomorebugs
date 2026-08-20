@@ -1,4 +1,9 @@
 import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+// The pass mark, mirrored from the server (COURSE_PASS_SCORE in
+// routes/courses.js). The number is written down in two places because the
+// browser has to be able to say "не сдан" without a round trip; the server
+// remains the one that decides.
+const COURSE_PASS_SCORE = 60;
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -94,6 +99,7 @@ function CustomQuizView({
   onCheck,
   onSubmit,
   onNext,
+  onRetry,
   isLastLesson,
   color,
 }: {
@@ -103,6 +109,7 @@ function CustomQuizView({
   onCheck: (qi: number) => Promise<void>;
   onSubmit: () => Promise<boolean>;
   onNext: () => void;
+  onRetry: () => void;
   isLastLesson: boolean;
   color: string;
 }) {
@@ -120,7 +127,9 @@ function CustomQuizView({
         <Icon name="construction" size={48} color="#EF9F27" className="mb-4" />
         <p className="font-sans text-pixel/60 text-sm">Вопросы для теста ещё готовятся</p>
         <button onClick={onNext} className="mt-6 px-6 py-2 rounded font-sans font-bold text-sm" style={{ background: color, color: '#0B0C10' }}>
-          {isLastLesson ? '🏁 Завершить' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
+          {isLastLesson
+            ? <><CheckCircleIcon size={16} color="currentColor" /> Завершить</>
+            : <>Далее <Icon name="arrowRight" size={20} color="currentColor" /></>}
         </button>
       </div>
     );
@@ -133,18 +142,25 @@ function CustomQuizView({
   // "stay focused, one thing at a time" flow, so nothing distracting about
   // showing it all together here.
   //
-  // No pass/fail verdict banner here on purpose — this recap fires after
-  // *every* quiz lesson in a multi-lesson course, not just the final one,
-  // so a "Отлично!"/"Попробуй ещё раз" judgment here was a premature,
-  // duplicate echo of CourseResultScreen (below), the actual frog-
-  // illustrated pass/fail screen shown once at the end of the whole
-  // course. Just the neutral score stays, as review context.
+  // The recap states whether the attempt counted, because the answer
+  // decides what happens next: a pass opens the module ahead, a fail is a
+  // retake. It stops short of celebrating — CourseResultScreen is where the
+  // whole course gets its verdict, and this recap fires after every test in
+  // it, not only the last.
   if (submitted) {
+    const passedThis = score >= COURSE_PASS_SCORE;
     return (
       <div>
-        <p className="font-sans text-sm mb-8" style={{ color: 'rgba(197, 198, 199,0.6)' }}>
-          Результат: {Object.values(breakdown).filter(b => b.isCorrect).length} из {questions.length} ({score}%)
-        </p>
+        <div className="mb-8 rounded-lg px-4 py-3" style={{ background: passedThis ? `${SUCCESS}12` : 'rgba(224,82,82,0.10)', border: `1px solid ${passedThis ? `${SUCCESS}55` : 'rgba(224,82,82,0.5)'}` }}>
+          <p className="font-geist font-semibold" style={{ fontSize: 14, color: passedThis ? SUCCESS : ERROR }}>
+            {passedThis ? 'Тест сдан' : 'Тест не сдан'} — {Object.values(breakdown).filter(b => b.isCorrect).length} из {questions.length} ({score}%)
+          </p>
+          <p className="font-geist mt-1" style={{ fontSize: 12, color: 'rgba(197, 198, 199,0.7)' }}>
+            {passedThis
+              ? 'Следующий модуль открыт.'
+              : `Нужно ${COURSE_PASS_SCORE}% или больше. Пересдавать можно сколько угодно — сохраняется лучший результат.`}
+          </p>
+        </div>
 
         <div className="space-y-8">
           {questions.map((q: any, qi: number) => {
@@ -178,7 +194,9 @@ function CustomQuizView({
                         style={{ background: bg, border: `1px solid ${border}`, color: textColor }}
                       >
                         <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold border" style={{ borderColor: border, color: isCorrectOpt ? '#66FCF1' : isWrongChosen ? ERROR : textColor }}>
-                          {isCorrectOpt ? '✓' : isWrongChosen ? '✗' : String.fromCharCode(65 + oi)}
+                          {isCorrectOpt ? <Icon name="check" size={13} color="currentColor" />
+                            : isWrongChosen ? <Icon name="close" size={13} color="currentColor" />
+                            : String.fromCharCode(65 + oi)}
                         </span>
                         <span className="break-words min-w-0">{opt}</span>
                       </div>
@@ -187,7 +205,7 @@ function CustomQuizView({
                 </div>
                 {verdict?.explanation && (
                   <div className="mt-3 px-4 py-3 rounded text-xs font-sans leading-relaxed break-words" style={{ background: 'rgba(197, 198, 199,0.04)', color: 'rgba(197, 198, 199,0.55)', border: '1px solid rgba(197, 198, 199,0.06)' }}>
-                    💬 {verdict.explanation}
+                    <span className="flex items-start gap-2"><Icon name="lightbulb" size={14} color="currentColor" className="shrink-0 mt-0.5" /> {verdict.explanation}</span>
                   </div>
                 )}
               </div>
@@ -195,10 +213,28 @@ function CustomQuizView({
           })}
         </div>
 
-        <div className="mt-10 flex justify-end">
-          <button onClick={onNext} className="px-8 py-3 rounded font-sans font-bold text-sm transition-all hover:brightness-110" style={{ background: color, color: '#0B0C10', boxShadow: `0 4px 0 0 ${color}50` }}>
-            {isLastLesson ? '🏁 Завершить курс' : <>Далее <Icon name="arrowRight" size={22} color="currentColor" /></>}
+        <div className="mt-10 flex justify-end gap-3 flex-wrap">
+          {/* A failed test offers only the retake. Moving on is not on the
+              table — the server refuses to mark it done — so offering it
+              would be offering an error message. */}
+          <button
+            onClick={onRetry}
+            className="px-6 py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-125 cursor-pointer flex items-center gap-2"
+            style={{ background: 'rgba(197, 198, 199,0.06)', border: '1px solid rgba(197, 198, 199,0.25)', color: TEXT_PRIMARY, letterSpacing: '1.2px' }}
+          >
+            <Icon name="undo" size={18} color="currentColor" /> Пройти тест заново
           </button>
+          {passedThis && (
+            <button
+              onClick={onNext}
+              className="px-6 py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-125 cursor-pointer flex items-center gap-2"
+              style={{ background: `${color}1F`, border: `1px solid ${color}`, color, letterSpacing: '1.2px' }}
+            >
+              {isLastLesson
+                ? <><CheckCircleIcon size={16} color="currentColor" /> Завершить курс</>
+                : <>Дальше <Icon name="arrowRight" size={20} color="currentColor" /></>}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -265,7 +301,9 @@ function CustomQuizView({
                 style={{ background: bg, border: `1px solid ${border}`, color: textColor, cursor: checked ? 'default' : 'pointer' }}
               >
                 <span className="flex-shrink-0 flex items-center justify-center font-bold" style={{ width: 20, fontSize: 13, color: markColor }}>
-                  {isCorrectOpt ? '✓' : isWrongChosen ? '✕' : `${String.fromCharCode(65 + oi)})`}
+                  {isCorrectOpt ? <Icon name="check" size={15} color="currentColor" />
+                    : isWrongChosen ? <Icon name="close" size={15} color="currentColor" />
+                    : `${String.fromCharCode(65 + oi)})`}
                 </span>
                 <span className="break-words min-w-0">{opt}</span>
               </button>
@@ -287,7 +325,7 @@ function CustomQuizView({
             }}
           >
             <p className="font-semibold flex items-center gap-2 mb-1.5" style={{ color: isCorrect ? SUCCESS : ERROR }}>
-              <span style={{ fontSize: 13 }}>{isCorrect ? '✓' : '✕'}</span>
+              <Icon name={isCorrect ? 'check' : 'close'} size={14} color="currentColor" />
               {isCorrect ? 'Верно' : `Правильный ответ: ${String.fromCharCode(65 + reveal.correct_idx)}`}
             </p>
             {reveal.explanation && (
@@ -315,14 +353,12 @@ function CustomQuizView({
               onClick={async () => {
                 if (!isLastQuestion) { setQIdx(i => i + 1); return; }
                 setBusy(true);
-                const ok = await onSubmit();
+                await onSubmit();
                 setBusy(false);
-                // This quiz is also the course's very last lesson — grading
-                // it already produces the course's final score, so there's
-                // nothing left to review here. Advance straight through to
-                // the pass/fail screen instead of stopping on an intermediate
-                // recap the user would just have to click past anyway.
-                if (ok && isLastLesson) onNext();
+                // Deliberately no auto-advance on the last test. It used to
+                // jump straight to the course's pass/fail screen, which threw
+                // the reader off their own results before they had read them.
+                // The recap below has the button; leaving is their call.
               }}
               disabled={busy}
               className="px-8 py-3 rounded-lg font-geist font-semibold text-sm flex items-center gap-2 transition-all hover:brightness-125 disabled:opacity-60"
@@ -622,11 +658,20 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   // whatever the server said was already completed.
   const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
   const [completeError, setCompleteError] = useState(false);
+  // Best score per quiz lesson. Seeded from the payload's myResult and
+  // updated the moment an attempt is graded, so passing a test opens the
+  // next module in this session rather than on the next page load.
+  const [quizScores, setQuizScores] = useState<Map<number, number>>(new Map());
 
   useEffect(() => {
     if (!course) return;
     const lessons = (course.modules || []).flatMap((m: any) => m.lessons || []);
     setCompletedLessons(new Set(lessons.filter((l: any) => l.completed).map((l: any) => l.id)));
+    setQuizScores(new Map(
+      lessons
+        .filter((l: any) => l.type === 'quiz' && l.myResult && l.myResult.score != null)
+        .map((l: any) => [l.id as number, l.myResult.score as number])
+    ));
   }, [course]);
 
   // Notes are aggregated across every course server-side (see
@@ -716,6 +761,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
 
   // Grades the whole attempt server-side and keeps what comes back. Returns
   // whether it landed, so the caller knows not to advance on a failure.
+  // When the current quiz was opened, so the attempt can be timed. Only the
+  // lead ever sees the number.
+  const quizOpenedAtRef = useRef<number>(Date.now());
+  useEffect(() => { quizOpenedAtRef.current = Date.now(); }, [currentIdx]);
+
   const submitQuiz = useCallback(async (idx: number, lesson: any): Promise<boolean> => {
     const questions = lesson.questions || [];
     const state: QuizState = quizStatesRef.current[idx] || emptyQuizState();
@@ -726,12 +776,17 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       if (state.answers[qi] !== undefined) byId[q.id] = state.answers[qi];
     });
     try {
-      const res = await coursesApi.submitQuiz(lesson.id, byId);
+      const seconds = Math.max(0, Math.round((Date.now() - quizOpenedAtRef.current) / 1000));
+      const res = await coursesApi.submitQuiz(lesson.id, byId, seconds);
       const breakdown: QuizState['breakdown'] = {};
       for (const b of res.data.breakdown) {
         breakdown[b.id] = { correct_idx: b.correct_idx, isCorrect: b.isCorrect, explanation: b.explanation || '' };
       }
       patchQuiz(idx, () => ({ submitted: true, score: res.data.score, breakdown, error: '' }));
+      // The stored record is the best attempt, not the latest one — a worse
+      // retake must not close a module that is already open.
+      const best = res.data.best?.score ?? res.data.score;
+      setQuizScores(prev => new Map(prev).set(lesson.id, Math.max(prev.get(lesson.id) ?? 0, best)));
       return true;
     } catch (e: any) {
       patchQuiz(idx, () => ({ error: apiErrorMessage(e, 'Не удалось отправить ответы. Попробуй ещё раз.') }));
@@ -739,11 +794,26 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     }
   }, [patchQuiz]);
 
+  // Wipes this quiz's answers so it starts from question one. The stored
+  // result is left alone on purpose: the server keeps the best attempt, so a
+  // worse retake can never cost someone a pass they already earned.
+  const retakeQuiz = useCallback((idx: number) => {
+    setQuizStates(prev => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+  }, []);
+
   const markComplete = useCallback(async (lessonId: number) => {
     setCompleteError(false);
     try {
       await coursesApi.completeLesson(lessonId);
-    } catch {
+    } catch (err: any) {
+      // The server refuses a failed test and a shut module, and says why.
+      // Showing that beats the generic "не удалось сохранить прогресс",
+      // which described a network problem the reader did not have.
+      showApiError(err, 'Не удалось сохранить прогресс. Проверь соединение и попробуй ещё раз.');
       setCompleteError(true);
       return;
     }
@@ -813,12 +883,30 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
   const quizCount = allLessons.filter((l: any) => l.type === 'quiz').length;
   const moduleCount = (course.modules || []).length;
 
-  // Mirrors the server's lock computation (see GET /api/custom-courses/:id)
-  // but reactive to completedLessons as the user progresses within this
-  // session, instead of only reflecting the state at initial page load.
+  // Mirrors the server's two locks (see GET /api/custom-courses/:id and
+  // lockedModuleIds beside it) but reactive to this session's progress
+  // instead of only reflecting the state at initial page load. The server
+  // still decides — every /complete and /submit-quiz re-checks both.
+  //
+  // A module opens once every graded test in every module before it has been
+  // passed. Modules with nothing graded in them gate nothing, or a course
+  // with no tests would be locked shut by a rule about tests.
+  const lockedModules = (() => {
+    const locked = new Set<number>();
+    if (course.canManage) return locked;
+    let blocked = false;
+    for (const mod of course.modules || []) {
+      if (blocked) locked.add(mod.id);
+      const graded = (mod.lessons || []).filter((l: any) => l.type === 'quiz' && (l.questions || []).length > 0);
+      if (graded.some((l: any) => (quizScores.get(l.id) ?? -1) < COURSE_PASS_SCORE)) blocked = true;
+    }
+    return locked;
+  })();
+
   const isAccessible = (idx: number) => {
     const lesson = allLessons[idx];
     if (!lesson) return false;
+    if (lockedModules.has(lesson.module_id)) return false;
     if (lesson.prerequisite_type !== 'mandatory' || lesson.prerequisite_lesson_id == null) return true;
     return completedLessons.has(lesson.prerequisite_lesson_id);
   };
@@ -1028,7 +1116,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
               />
             ) : currentLesson ? (
               <div>
-                <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
+                {/* A quiz writes its own heading ("Тест: …"), so the page
+                    does not put the same words above it a second time. */}
+                {currentLesson.type !== 'quiz' && (
+                  <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
+                )}
 
                 {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (
                   <div
@@ -1063,7 +1155,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                           onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}
                         >
                           <Icon name="arrowLeft" size={20} color="currentColor" />
-                          <span className="truncate" style={{ maxWidth: 260 }}>{prevLesson.title}</span>
+                          {/* A neutral label rather than the previous
+                              lesson's title: at this width the title was
+                              cut mid-word, and half a topic name reads as a
+                              glitch rather than as a destination. */}
+                          <span>Предыдущая тема</span>
                         </button>
                       ) : <div />}
                       {/* Outlined in the course's own colour rather than
@@ -1096,6 +1192,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     onCheck={qi => checkAnswer(currentIdx, currentLesson, qi)}
                     onSubmit={() => submitQuiz(currentIdx, currentLesson)}
                     onNext={() => markComplete(currentLesson.id)}
+                    onRetry={() => retakeQuiz(currentIdx)}
                     isLastLesson={isLastLesson}
                     color={color}
                   />
@@ -1115,12 +1212,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       <NotesDrawer show={showNotes} onClose={() => setShowNotes(false)} notes={notes} setNotes={setNotes} currentLessonTitle={currentLesson?.title || ''} currentLessonId={currentLesson?.id} courseId={id || ''} />
 
       {!showNotes && (
-        // Shifted left of the mascot from `sm` up. Three things claim this
-        // corner — the frog (bottom 54px, 72px wide), the toast stack and
-        // this — and the frog sits above it, so the two were drawn on top
-        // of one another. The frog is hidden below `sm`, so the narrow
-        // layout keeps the corner to itself.
-        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 right-6 sm:right-28 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+        // Bottom *left*. The right-hand corner already has two tenants — the
+        // frog and the toast stack — and squeezing a third in beside them
+        // meant it sat over the lesson's own controls. The left corner is
+        // empty on every page.
+        <button onClick={() => setShowNotes(true)} className="fixed bottom-6 left-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
           <Icon name="memo" size={22} color="currentColor" /> <span className="text-xs">Заметки</span>
           {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0B0C10', fontSize: '0.6rem' }}>{notes.length}</span>}
         </button>

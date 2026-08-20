@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
-import { isUniqueConstraintError, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, logActivity } from '../routeHelpers.js';
+import { isUniqueConstraintError, awardAchievement, ACHIEVEMENT_IDS, COIN_REWARDS, awardCoins, awardOnce, logActivity } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -358,12 +358,13 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
     // Result, activity log, card award, and coin award must all land together
     // or not at all — a crash mid-sequence used to be able to record a score
     // with no card/coins granted for it.
-    const coinsEarned = isFirstSubmission
-      ? (score >= 90 ? COIN_REWARDS.quizExcellent
-        : score >= 75 ? COIN_REWARDS.quizGood
-        : score >= 60 ? COIN_REWARDS.quizPass
-        : COIN_REWARDS.quizFail)
-      : 0;
+    // A lecture is a single test, so it is paid like a module: the pass is
+    // the reward, once, and doing it first time carries a bonus. It used to
+    // pay on the *first submission* whatever the score — including a small
+    // consolation for failing — which meant someone who failed and then
+    // passed earned less than someone who passed and stopped.
+    const passedNow = score >= 60;
+    let coinsEarned = 0;
     let cardDrop = null;
     // Collected from awardAchievement's own newly-granted signal (it's
     // idempotent — INSERT OR IGNORE under the hood) rather than assumed,
@@ -409,7 +410,10 @@ router.post('/api/lectures/:id/submit-test', authMiddleware, (req, res) => {
       }
 
       // Award bug_coins — first attempt at this lecture only, see isFirstSubmission above.
-      if (isFirstSubmission) awardCoins(userId, coinsEarned);
+      if (passedNow) {
+        if (awardOnce(userId, 'lecturePassed', lectureId, COIN_REWARDS.lecturePassed)) coinsEarned += COIN_REWARDS.lecturePassed;
+        if (isFirstSubmission && awardOnce(userId, 'lectureFirstTry', lectureId, COIN_REWARDS.lectureFirstTry)) coinsEarned += COIN_REWARDS.lectureFirstTry;
+      }
 
       // Hidden quality+speed signal for a lead's internal-ratings view (see
       // /api/lead/internal-ratings) — score and pace both have to be

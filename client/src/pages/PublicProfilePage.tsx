@@ -206,7 +206,7 @@ export default function PublicProfilePage({ user, onLogout }: Props) {
 
               {'snail_joke' in profile && profile.snail_joke && (
                 <p className="font-geist text-xs leading-relaxed mt-2 italic break-words" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
-                  🐸 {profile.snail_joke}
+                  <Icon name="frog" size={14} color="currentColor" /> {profile.snail_joke}
                 </p>
               )}
 

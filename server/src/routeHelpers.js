@@ -129,22 +129,71 @@ export function awardAchievement(userId, badgeId) {
 // The client mirrors this by hand in client/src/utils/coins.ts — same
 // arrangement as SHOP_CATALOG/shop.ts, since there's no shared-types
 // boundary in this repo. Change one, change the other.
+// Finishing a module is the unit the whole scheme is built on: 10 coins,
+// paid once, when every lesson in it is done and its test is passed. Every
+// other course reward is a multiple of that unit, so the numbers stay
+// comparable to each other and to the shop's prices.
+//
+// Order matters here only in that the labels are shown to the lead in this
+// order (see GET /api/coins/rules).
 export const COIN_REWARDS = {
-  quizExcellent: 25,      // first submission, 90%+
-  quizGood: 18,           // first submission, 75–89%
-  quizPass: 10,           // first submission, 60–74%
-  quizFail: 3,            // first submission, below 60% — a consolation, not a reward
-  courseCompleted: 50,    // every lesson of a custom course done, once per course
+  moduleCompleted: 10,    // every lesson of a module done and its test passed
+  quizFirstTry: 5,        // ...and that module's tests passed on the first attempt
+  quizStreak: 15,         // three modules in a row passed first try
+  finalQuizPassed: 20,    // the last test of a course
+  courseCompleted: 30,    // every lesson of a course done, once per course
+  courseFlawless: 25,     // ...and not one of its tests needed a retake
+  lecturePassed: 10,      // a lecture of the seeded track passed — one test, so one module's worth
+  lectureFirstTry: 5,     // ...on the first attempt
   proposalCourse: 100,    // own course proposal approved by a lead
   proposalGuide: 60,      // own guide proposal approved
   proposalBugExample: 30, // own bug example approved
   proposalGlossary: 20,   // own glossary term approved
 };
 
+// How many modules in a row, passed first try, earn the streak bonus.
+export const QUIZ_STREAK_LENGTH = 3;
+
+// What each reward is called where a person reads it. Kept beside the
+// numbers so a new reward without an explanation is visible in review.
+export const COIN_REASON_LABELS = {
+  moduleCompleted: 'Модуль пройден — все уроки прочитаны и тест сдан',
+  quizFirstTry: 'Тест модуля сдан с первого раза',
+  quizStreak: `${QUIZ_STREAK_LENGTH} модуля подряд сданы с первого раза`,
+  finalQuizPassed: 'Итоговый тест курса сдан',
+  courseCompleted: 'Курс пройден целиком',
+  courseFlawless: 'Курс пройден без единой пересдачи',
+  lecturePassed: 'Лекция сдана',
+  lectureFirstTry: 'Лекция сдана с первого раза',
+  proposalCourse: 'Предложенный курс одобрен лидом',
+  proposalGuide: 'Предложенный гайд одобрен',
+  proposalBugExample: 'Предложенный пример бага одобрен',
+  proposalGlossary: 'Предложенный термин одобрен',
+};
+
 // Same upsert the quiz reward has always used. Not idempotent by itself —
 // it adds every time it's called, so each call site owns the "has this
 // already been paid for" check (a pending→approved transition, a first
 // course completion, a first quiz submission).
+// Pays a reward at most once for a given (person, reason, subject). The
+// unique key on coin_ledger is the whole guard — the insert either lands or
+// it doesn't, and the coins follow the insert, so two requests racing to
+// award the same thing cannot both pay.
+//
+// `refId` is whatever the reward is about: a module id, a course id, the
+// lesson that closed a streak. Rewards with no subject pass null, which the
+// unique key treats as its own value in SQLite — so those can only ever be
+// paid once per person, which is what they mean.
+export function awardOnce(userId, reason, refId, amount) {
+  if (!userId || !amount) return false;
+  const info = db.prepare(
+    'INSERT OR IGNORE INTO coin_ledger (user_id, reason, ref_id, amount) VALUES (?, ?, ?, ?)'
+  ).run(userId, reason, refId ?? null, amount);
+  if (info.changes === 0) return false;
+  awardCoins(userId, amount);
+  return true;
+}
+
 export function awardCoins(userId, amount) {
   if (!userId || !amount) return;
   db.prepare(`

@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { parseDbDate, displayName } from '../routeHelpers.js';
+import { parseDbDate, displayName, toInt, COIN_REWARDS, COIN_REASON_LABELS, QUIZ_STREAK_LENGTH } from '../routeHelpers.js';
 import { categoryFilter, categoryCaseSql } from '../activityCategories.js';
 
 const router = express.Router();
@@ -362,6 +362,12 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
 // Self-scoped equivalent of /api/lead/activity above (same shape, same
 // query minus the role gate) — that route is lead/admin-only, so a tester
 // had no way to see their own activity history anywhere in the app.
+//
+// Test attempts are the one thing it does not show. Every attempt and its
+// verdict is recorded for the lead to read; handing the same rows back to
+// the person who made them turns a record of how the team is doing into a
+// tally of everyone's failures, which is not what it is for.
+const PRIVATE_TO_LEAD = ['quiz_passed:%', 'quiz_failed:%'];
 router.get('/api/me/activity', authMiddleware, (req, res) => {
   try {
     const PAGE_SIZE = 20;
@@ -379,12 +385,48 @@ router.get('/api/me/activity', authMiddleware, (req, res) => {
       LEFT JOIN lectures l ON a.lecture_id = l.id
       LEFT JOIN custom_courses c ON a.course_id = c.id
       WHERE a.user_id = ?
+        AND ${PRIVATE_TO_LEAD.map(() => 'a.action NOT LIKE ?').join(' AND ')}
       ORDER BY a.created_at DESC
       LIMIT ? OFFSET ?
-    `).all(req.user.id, PAGE_SIZE + 1, offset);
+    `).all(req.user.id, ...PRIVATE_TO_LEAD, PAGE_SIZE + 1, offset);
 
     const hasMore = rows.length > PAGE_SIZE;
     res.json({ rows: rows.slice(0, PAGE_SIZE), hasMore });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// What earns what, straight from the table the awards are paid from — so
+// the breakdown a lead reads can never describe a scheme the server does
+// not run. Shown on the lead's own page; not gated, because there is
+// nothing sensitive in a price list.
+router.get('/api/coins/rules', authMiddleware, (req, res) => {
+  res.json({
+    passScore: 60,
+    streakLength: QUIZ_STREAK_LENGTH,
+    rules: Object.entries(COIN_REWARDS).map(([key, amount]) => ({
+      key, amount, label: COIN_REASON_LABELS[key] || key,
+    })),
+  });
+});
+
+// What one person has actually been paid, and for what. The ledger already
+// records every award; this groups it so a lead can answer "why does this
+// tester have 240 coins" without reading rows.
+router.get('/api/lead/coins/:userId', authMiddleware, requireRole('lead'), (req, res) => {
+  try {
+    const userId = toInt(req.params.userId);
+    if (userId === null) return res.status(400).json({ error: 'Неверный id' });
+    const rows = db.prepare(`
+      SELECT reason, COUNT(*) AS times, SUM(amount) AS total
+      FROM coin_ledger WHERE user_id = ? GROUP BY reason ORDER BY total DESC
+    `).all(userId);
+    res.json({
+      total: rows.reduce((a, r) => a + r.total, 0),
+      rows: rows.map(r => ({ ...r, label: COIN_REASON_LABELS[r.reason] || r.reason })),
+    });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

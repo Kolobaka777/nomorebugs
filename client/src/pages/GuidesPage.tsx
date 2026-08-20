@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
-import EmojiPicker from '../components/EmojiPicker';
+import GuideIconPicker, { isGuideIcon } from '../components/GuideIconPicker';
 import { guidesApi, knowledgeApi } from '../api';
 import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
@@ -100,9 +100,9 @@ function GuideForm({
             className="rounded-lg flex items-center justify-center cursor-pointer"
             style={{ width: 40, height: 40, fontSize: 18, background: 'rgba(197, 198, 199, 0.08)', border: '1px solid rgba(197, 198, 199, 0.2)' }}
           >
-            {icon || <Icon name="books" size={16} color={TEXT_MUTED} />}
+            <Icon name={isGuideIcon(icon) ? icon : 'books'} size={16} color={TEXT_MUTED} />
           </button>
-          {pickerOpen && <EmojiPicker value={icon} onChange={setIcon} onClose={() => setPickerOpen(false)} />}
+          {pickerOpen && <GuideIconPicker value={icon} onChange={setIcon} onClose={() => setPickerOpen(false)} />}
         </div>
         <input className="pixel-input w-full text-sm" placeholder="Заголовок" value={title} onChange={e => setTitle(e.target.value)} />
       </div>
@@ -306,7 +306,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                       }}
                     >
                       <span className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 22, height: 22, fontSize: 13, background: 'rgba(197, 198, 199, 0.08)' }}>
-                        {g.icon || <Icon name="memo" size={11} color={TEXT_MUTED} />}
+                        <Icon name={isGuideIcon(g.icon) ? g.icon : 'memo'} size={11} color={TEXT_MUTED} />
                       </span>
                       <span className="flex-1 truncate">{g.title}</span>
                       {g.proposal_status === 'pending' && (
@@ -328,7 +328,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
               <div className="p-6 rounded-lg" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
                 <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
                   <p className="font-geist text-xs flex items-center gap-2" style={{ color: TEXT_MUTED }}>
-                    {selected.icon && <span style={{ fontSize: 14 }}>{selected.icon}</span>}
+                    {isGuideIcon(selected.icon) && <Icon name={selected.icon} size={16} color={TEXT_MUTED} />}
                     <span className="break-words min-w-0">{selected.category}</span>
                     {selected.proposal_status === 'pending' && (
                       <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 10, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>

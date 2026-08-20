@@ -423,7 +423,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
                         color: (isCorrectAnswer && showExplanation) || isWrongAnswer || isSelected ? borderColor : 'rgba(197, 198, 199,0.5)',
                       }}
                     >
-                      {isCorrectAnswer && showExplanation ? <CheckCircleIcon size={14} color={ACCENT} /> : isWrongAnswer ? '✗' : option.key.toUpperCase()}
+                      {isCorrectAnswer && showExplanation ? <CheckCircleIcon size={14} color={ACCENT} /> : isWrongAnswer ? <Icon name="close" size={13} color="currentColor" /> : option.key.toUpperCase()}
                     </span>
                     <span className="font-geist text-sm leading-relaxed break-words min-w-0" style={{ color: TEXT_PRIMARY }}>
                       {option.text}
@@ -453,7 +453,10 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
               }}
             >
               <p className="font-montserrat font-bold mb-2" style={{ color: isCorrect ? ACCENT : ERROR, fontSize: 14, letterSpacing: TRACK_WIDE }}>
-                {isCorrect ? '✓ Верно!' : `✗ Правильный ответ: ${explanation.correctAnswer.toUpperCase()}`}
+                <span className="flex items-center gap-2">
+                  <Icon name={isCorrect ? 'check' : 'close'} size={14} color="currentColor" />
+                  {isCorrect ? 'Верно!' : `Правильный ответ: ${explanation.correctAnswer.toUpperCase()}`}
+                </span>
               </p>
               <p className="font-geist text-sm mb-2 break-words" style={{ color: 'rgba(197, 198, 199,0.85)' }}>{explanation.explanation}</p>
               <p className="font-geist text-xs" style={{ color: TEXT_MUTED }}>

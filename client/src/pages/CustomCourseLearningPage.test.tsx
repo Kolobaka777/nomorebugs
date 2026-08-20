@@ -94,9 +94,11 @@ describe('CustomCourseLearningPage', () => {
     expect(screen.getByText('0 ТЕСТОВ')).toBeInTheDocument();
   });
 
-  it('names the lesson on either side instead of saying Назад and Далее', async () => {
-    // The old pair said only that something came before and after, which
-    // the reader could already see from the contents.
+  it('names the lesson ahead, and stays neutral about the one behind', async () => {
+    // Далее said only that something came next, which the reader could
+    // already see. Going back is different: at this width the previous
+    // lesson's title was cut mid-word, and half a topic name reads as a
+    // glitch rather than as a destination.
     vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
       modules: [{ id: 1, title: 'Модуль 1', order_num: 0, lessons: [
         { id: 10, title: 'Тема 2.4: Старая тема', type: 'lesson', content: 'a', completed: true, locked: false, prerequisite_type: 'none' },
@@ -109,10 +111,40 @@ describe('CustomCourseLearningPage', () => {
     // Opens on the first unfinished lesson, so the neighbours are the one
     // already done and the one after it.
     expect(await screen.findByRole('heading', { name: 'Тема 3.1: Команды Console API' })).toBeInTheDocument();
-    expect(screen.getByText('Тема 2.4: Старая тема')).toBeInTheDocument();
     expect(screen.getByText('Тема 3.2: Точки останова')).toBeInTheDocument();
+    expect(screen.getByText('Предыдущая тема')).toBeInTheDocument();
     expect(screen.queryByText('Далее')).not.toBeInTheDocument();
     expect(screen.queryByText('Назад')).not.toBeInTheDocument();
+    expect(screen.queryByText('Тема 2.4: Старая тема')).not.toBeInTheDocument();
+  });
+
+  it('offers the retake on a failed test and refuses to move on', async () => {
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
+      modules: [{ id: 1, title: 'Модуль 1', order_num: 0, lessons: [
+        { id: 20, title: 'Тест по модулю 1', type: 'quiz', completed: false, locked: false, prerequisite_type: 'none',
+          myResult: null, questions: [{ id: 1, question_text: 'Что такое HTML?', option_a: 'a', option_b: 'b', option_c: 'c', option_d: 'd' }] },
+      ] }],
+    }) } as any);
+    vi.mocked(coursesApi.getExplanation).mockResolvedValue({ data: { correct_idx: 1, explanation: 'вот так' } } as any);
+    vi.mocked(coursesApi.submitQuiz).mockResolvedValue({ data: { score: 0, correct: 0, total: 1, breakdown: [{ id: 1, correct_idx: 1, isCorrect: false, explanation: 'вот так' }], best: { score: 0 } } } as any);
+    renderPage();
+
+    // A quiz lesson writes its own heading, so the page must not title it twice.
+    expect(await screen.findByText('Тест: Тест по модулю 1')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Тест по модулю 1' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('a'));
+    fireEvent.click(screen.getByText('Ответить'));
+    await screen.findByText('Правильный ответ: B');
+    fireEvent.click(screen.getByText('Завершить тест'));
+
+    expect(await screen.findByText(/Тест не сдан/)).toBeInTheDocument();
+    expect(screen.getByText('Пройти тест заново')).toBeInTheDocument();
+    // Moving on is not offered: the server refuses to mark a failed test
+    // done, so the button would only ever produce an error.
+    expect(screen.queryByText('Завершить курс')).not.toBeInTheDocument();
+    // And nothing navigated away on its own.
+    expect(coursesApi.completeLesson).not.toHaveBeenCalled();
   });
 
   it('offers a retry when the course could not be fetched', async () => {

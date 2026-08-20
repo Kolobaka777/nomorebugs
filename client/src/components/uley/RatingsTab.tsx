@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import FrogLoader from '../FrogLoader';
 import Icon from '../Icon';
+import CoinRulesCard from './CoinRulesCard';
 import { parseServerDate } from '../../utils/date';
-import { ACCENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ERROR } from '../../utils/theme';
+import { ACCENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, BADGE_NOTIFY, ERROR } from '../../utils/theme';
 
 export default function RatingsTab({
   ratings,
@@ -21,9 +22,14 @@ export default function RatingsTab({
         Автоматический рейтинг качества + скорости — тестировщики его не видят.
       </p>
       <div className="font-geist text-xs mb-4 space-y-1" style={{ color: TEXT_MUTED }}>
-        <p>⭐ <b>+5 баллов</b> — лекция сдана на ≥90%, без единого подозрительно быстрого ответа и без переключений вкладки во время теста.</p>
+        <p className="flex items-start gap-2">
+          <Icon name="star" size={14} color={BADGE_NOTIFY} className="shrink-0 mt-0.5" />
+          <span><b>+5 баллов</b> — лекция сдана на ≥90%, без единого подозрительно быстрого ответа и без переключений вкладки во время теста.</span>
+        </p>
         <p>Списать баллы, срезав угол, не получится — начисление идёт только по серверной проверке, не по тому, что прислал браузер.</p>
       </div>
+
+      <CoinRulesCard />
       {ratingsError ? (
         <div className="card text-center py-8">
           <p className="font-geist text-sm mb-3 break-words" style={{ color: ERROR }}>{ratingsError}</p>
@@ -47,7 +53,9 @@ export default function RatingsTab({
                   <span className="font-geist text-xs" style={{ color: TEXT_MUTED }}>
                     {r.excellentQuizzes} отличных тестов · видимых баллов: {r.premiumPoints}
                   </span>
-                  <span className="font-montserrat font-semibold text-sm shrink-0" style={{ color: ACCENT }}>★ {r.hiddenScore}</span>
+                  <span className="font-montserrat font-semibold text-sm shrink-0 flex items-center gap-1" style={{ color: ACCENT }}>
+                    <Icon name="star" size={14} color="currentColor" /> {r.hiddenScore}
+                  </span>
                 </button>
                 {expanded && (
                   <div className="px-3 pb-3 pt-1" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>

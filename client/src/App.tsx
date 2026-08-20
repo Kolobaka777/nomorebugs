@@ -16,6 +16,7 @@ import {
   updateStoredUser, SESSION_EXPIRED_EVENT,
 } from './auth';
 import { identifyUser, resetAnalyticsUser } from './monitoring';
+import Icon from './components/Icon';
 
 // Everything past the login/baseline-survey gate is lazy-loaded — those two
 // are needed immediately at auth-boot time, but a tester logging in has no
@@ -123,7 +124,7 @@ function App() {
         className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse"
         style={{ background: '#0B0C10', lineHeight: 1.8 }}
       >
-        🐌 уже ползу...
+        <Icon name="snail" size={16} color="currentColor" /> уже ползу...
       </div>
     );
   }
@@ -189,7 +190,7 @@ function App() {
       <main style={{ position: 'relative', zIndex: 1 }}>
         <Suspense fallback={
           <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0B0C10', lineHeight: 1.8 }}>
-            🐌 уже ползу...
+            <Icon name="snail" size={16} color="currentColor" /> уже ползу...
           </div>
         }>
           <Routes>
