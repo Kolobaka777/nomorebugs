@@ -51,6 +51,29 @@ describe('MoyaNora', () => {
     expect(await screen.findByText('Nazariy')).toBeInTheDocument();
   });
 
+  it('badges the role the person actually has, not a hardcoded one', async () => {
+    // The card said TESTER in teal for everyone, including a lead looking
+    // at their own profile.
+    render(<MoyaNora user={{ id: 5, name: 'БоссЛидер', role: 'lead' }} onLogout={vi.fn()} />);
+    expect(await screen.findByText('LEAD')).toBeInTheDocument();
+    expect(screen.queryByText('TESTER')).not.toBeInTheDocument();
+  });
+
+  it('declines what a favourite course contains instead of bolting one ending onto every number', async () => {
+    // The old line built its endings by hand and produced "3 уроков" and
+    // "5 модуля" — wrong in both directions.
+    vi.mocked(testerApi.getFavorites).mockResolvedValue({ data: [{
+      course_type: 'custom', course_id: 7, title: 'Introduction to DevTools',
+      tag: 'DevTools', color: '#4EA1E8',
+      totalLessons: 3, totalModules: 5, totalTests: 1,
+    }] } as any);
+    renderPage();
+    expect(await screen.findByText('Introduction to DevTools')).toBeInTheDocument();
+    expect(screen.getByText('3 УРОКА')).toBeInTheDocument();
+    expect(screen.getByText('5 МОДУЛЕЙ')).toBeInTheDocument();
+    expect(screen.getByText('1 ТЕСТ')).toBeInTheDocument();
+  });
+
   it('shows premium points alongside the automatic counters, since they are a separate currency', async () => {
     renderPage();
     expect(await screen.findByText('ПРЕМИАЛЬНЫЕ БАЛЛЫ')).toBeInTheDocument();

@@ -19,7 +19,10 @@ import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { shopItemFor } from '../utils/shop';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, BADGE_BG, BADGE_BORDER, ERROR } from '../utils/theme';
+import { ROLE_META, ROLE_SHORT } from '../utils/roles';
+import { counted } from '../utils/plural';
+import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
@@ -383,6 +386,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   // window — otherwise picking one in the profile editor would have no
   // visible effect anymore.
   const bgStyle = BG_LIST.find(b => b.id === (profile?.profile_bg as BgId))?.style || {};
+  const roleColor = (ROLE_META[user.role] || ROLE_META.tester).color;
 
   const statItems = [
     { label: 'КУРСОВ ПРОЙДЕНО',        value: completed },
@@ -432,7 +436,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         ══════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* LEFT: identity card */}
-          <Panel className="lg:col-span-2" pad="p-6" style={bgStyle}>
+          <Panel className="lg:col-span-2" pad="p-6" style={{ border: `1px solid ${accent}70`, ...bgStyle }}>
             <div className="flex flex-col sm:flex-row gap-6">
               <div className="shrink-0">
                 <PixelAvatar
@@ -449,11 +453,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                   <span className="font-montserrat font-bold break-words min-w-0" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
                     {profile?.nickname || user.name}
                   </span>
+                  {/* Was the literal string "TESTER" in teal, which is
+                      what a lead saw on their own profile. */}
                   <span
                     className="font-montserrat font-medium inline-block"
-                    style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: PAGE_BG, background: BADGE_BG, border: `1px solid ${BADGE_BORDER}`, borderRadius: 4, padding: '2px 6px' }}
+                    style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: PAGE_BG, background: `${roleColor}99`, border: `1px solid ${roleColor}CC`, borderRadius: 4, padding: '2px 6px' }}
                   >
-                    TESTER
+                    {ROLE_SHORT[user.role] || ROLE_SHORT.tester}
                   </span>
                   {!profile?.is_public && <Icon name="lock" size={12} color={TEXT_MUTED} />}
                   {myPresence?.birthday && (
@@ -476,7 +482,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
                 <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 font-geist text-xs" style={{ color: TEXT_MUTED }}>
                   {profile?.created_at && (
-                    <span>В гильдии с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    <span>*В Жабьем Бору с {parseServerDate(profile.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   )}
                 </div>
               </div>
@@ -503,7 +509,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
               gone along with the rest of the level system — the courses
               count and the badges below already carry that information. */}
           <div className="space-y-3">
-            <Panel pad="p-5">
+            <Panel pad="p-5" style={{ border: `1px solid ${accent}70` }}>
               <div className="flex items-center justify-end mb-3">
                 <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: accent }}>
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} /> ONLINE
@@ -598,28 +604,52 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 </Panel>
               ) : (
                 <div className="space-y-3">
-                  {favorites.map(f => (
-                    <Panel key={`${f.course_type}-${f.course_id}`} className="flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <span className="font-geist font-semibold rounded px-2 py-0.5 inline-block mb-1" style={{ fontSize: 11, background: `${f.color || accent}20`, color: f.color || accent }}>{f.tag}</span>
-                        <p className="font-montserrat font-semibold text-sm break-words" style={{ color: TEXT_PRIMARY }}>{f.title}</p>
-                        <p className="font-geist text-xs mt-0.5 break-words" style={{ color: TEXT_MUTED }}>
-                          {f.course_type === 'custom'
-                            ? `${f.totalLessons} урок${f.totalLessons === 1 ? '' : 'ов'} · ${f.totalModules} модул${f.totalModules === 1 ? 'ь' : 'я'} · ${f.totalTests} тест${f.totalTests === 1 ? '' : 'а'}`
-                            : f.score != null ? <span style={{ color: accent }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}
-                        </p>
-                      </div>
+                  {favorites.map(f => {
+                    const tagColor = f.color || accent;
+                    return (
+                    // Outlined in the course's own tag colour, so a list of
+                    // favourites reads the same way the catalog does.
+                    <div key={`${f.course_type}-${f.course_id}`} className="relative group">
+                      <Panel style={{ border: `1px solid ${tagColor}` }}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <p className="font-montserrat font-semibold break-words min-w-0" style={{ fontSize: 16, letterSpacing: '1.6px', color: TEXT_PRIMARY }}>{f.title}</p>
+                          <span className="font-geist font-semibold rounded shrink-0" style={{ fontSize: 11, padding: '2px 8px', background: `${tagColor}22`, color: tagColor, border: `1px solid ${tagColor}55` }}>{f.tag}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-5 flex-wrap font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                            {f.course_type === 'custom' ? (
+                              <>
+                                <span className="flex items-center gap-2"><BookOpenIcon size={15} color="currentColor" />{counted(f.totalLessons ?? 0, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
+                                <span className="flex items-center gap-2"><PagesIcon size={15} color="currentColor" />{counted(f.totalModules ?? 0, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
+                                <span className="flex items-center gap-2"><CapIcon size={15} color="currentColor" />{counted(f.totalTests ?? 0, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
+                              </>
+                            ) : (
+                              <span>{f.score != null ? <span style={{ color: accent }}>{Math.round(f.score)}%</span> : 'Ещё не пройдено'}</span>
+                            )}
+                          </div>
+                          {/* Revealed on hover/focus, as in the design — a
+                              row of permanent buttons made a list of
+                              favourites read as a list of controls. */}
+                          <button
+                            onClick={() => navigate(f.course_type === 'custom' ? `/custom-course/${f.course_id}` : `/lecture/${f.course_id}/quiz`)}
+                            className="font-geist font-semibold flex items-center gap-1 cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            style={{ fontSize: 12, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}
+                          >
+                            ПЕРЕЙТИ К КУРСУ <Icon name="chevronRight" size={16} color="currentColor" />
+                          </button>
+                        </div>
+                      </Panel>
                       <button
-                        onClick={() => navigate(f.course_type === 'custom' ? `/custom-course/${f.course_id}` : `/lecture/${f.course_id}/quiz`)}
-                        className="btn-secondary text-xs px-3 py-2 cursor-pointer shrink-0"
+                        onClick={() => removeFavorite(f)}
+                        aria-label="Убрать из избранного"
+                        className="absolute -top-2.5 -right-2.5 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                        style={{ width: 22, height: 22, background: CARD_BG, border: `1px solid ${ERROR}`, color: ERROR }}
                       >
-                        Перейти <Icon name="chevronRight" size={16} color="currentColor" />
+                        <Icon name="close" size={12} color="currentColor" />
                       </button>
-                      <button onClick={() => removeFavorite(f)} aria-label="Убрать из избранного" className="shrink-0 cursor-pointer flex items-center" style={{ color: ERROR }}>
-                        <Icon name="close" size={16} color="currentColor" />
-                      </button>
-                    </Panel>
-                  ))}
+                    </div>
+                    );
+                  })}
                 </div>
               )
             )}

@@ -4,11 +4,11 @@ import Icon from './Icon';
 import PixelAvatar from './PixelAvatar';
 import TelegramLinkWidget from './TelegramLinkWidget';
 import ChangePasswordModal from './ChangePasswordModal';
-import { ROLE_META } from '../utils/roles';
+import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
 import logoUrl from '../assets/logo.svg';
-import { ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG, HEADER_BG, HEADER_SHADOW, HEADER_BLUR, BADGE_BG, BADGE_BORDER, ERROR } from '../utils/theme';
+import { ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG, HEADER_BG, HEADER_SHADOW, HEADER_BLUR, ERROR } from '../utils/theme';
 
 // Distance from the header's own top/bottom edge to a nav tab, per the kit
 // spec — with the header's own height, this fixes the tab's rendered
@@ -343,13 +343,16 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 lineHeight: 1.6,
                 letterSpacing: TRACK_WIDE,
                 color: '#0B0C10',
-                background: BADGE_BG,
-                border: `1px solid ${BADGE_BORDER}`,
+                // Tinted by role, not always teal: a lead and a tester wore
+                // the same badge colour, so the only thing telling them
+                // apart was the word inside it.
+                background: `${roleMeta.color}99`,
+                border: `1px solid ${roleMeta.color}CC`,
                 borderRadius: 4,
                 padding: '2px 4px',
               }}
             >
-              {roleMeta.label.toUpperCase()}
+              {ROLE_SHORT[user.role] || ROLE_SHORT.tester}
             </span>
           </div>
 
