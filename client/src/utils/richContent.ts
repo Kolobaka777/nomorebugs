@@ -24,8 +24,40 @@ function textNode(text: string) {
 // blockquote (loses the icon/color distinction, keeps the "this was
 // called out" structure) — a deliberate, documented scope cut, not an
 // oversight.
+// Blank lines separate blocks — except inside a fenced code block, where a
+// blank line is part of the code. Splitting the whole text on blank lines
+// first, as this used to, tore any such fence into pieces: the opening half
+// no longer ended in a fence and fell through to the paragraph branch, so
+// the reader got their code as prose with stray ``` characters in it. Fences
+// are therefore lifted out whole before anything else is split.
+function splitBlocks(raw: string): string[] {
+  const blocks: string[] = [];
+  let buffer: string[] = [];
+  let fence: string[] | null = null;
+
+  const flush = () => {
+    for (const b of buffer.join('\n').split(/\n\n+/).map(x => x.trim()).filter(Boolean)) blocks.push(b);
+    buffer = [];
+  };
+
+  for (const line of raw.split('\n')) {
+    if (fence) {
+      fence.push(line);
+      if (line.trim().startsWith('```')) { blocks.push(fence.join('\n')); fence = null; }
+      continue;
+    }
+    if (line.trim().startsWith('```')) { flush(); fence = [line]; continue; }
+    buffer.push(line);
+  }
+  // A fence nobody closed is still code as far as its author was concerned;
+  // reading it as prose would lose the formatting and show the ``` besides.
+  if (fence) blocks.push(fence.join('\n'));
+  flush();
+  return blocks;
+}
+
 function textToDoc(raw: string): any {
-  const blocks = raw.split(/\n\n+/).map(b => b.trim()).filter(Boolean);
+  const blocks = splitBlocks(raw);
   if (blocks.length === 0) return EMPTY_RICH_DOC;
 
   const content = blocks.map(block => {
@@ -35,9 +67,13 @@ function textToDoc(raw: string): any {
     if (block.startsWith('# ')) {
       return { type: 'heading', attrs: { level: 1 }, content: textNode(block.slice(2)) };
     }
-    if (block.startsWith('```') && block.endsWith('```')) {
+    if (block.startsWith('```')) {
+      // splitBlocks already guarantees a fence arrives whole, so the only
+      // question left is whether it was ever closed.
       const lines = block.split('\n');
-      const code = lines.slice(1, -1).join('\n');
+      lines.shift();
+      if (lines.length && lines[lines.length - 1].trim().startsWith('```')) lines.pop();
+      const code = lines.join('\n');
       return { type: 'codeBlock', content: code ? [{ type: 'text', text: code }] : undefined };
     }
     if (block.startsWith('> ') || block.startsWith('! ')) {

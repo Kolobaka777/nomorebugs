@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { db, initDb } from '../db/schema.js';
 import { seedDemoContent } from '../db/seedDemoContent.js';
+import { seedFrontendCourses } from '../db/seedFrontendCourses.js';
 import bcryptjs from 'bcryptjs';
 import cookieParser from 'cookie-parser';
 import { initTelegramBot, isTelegramConfigured } from './telegram.js';
@@ -135,6 +136,16 @@ if (process.env.NODE_ENV !== 'test') {
 // of it keeps it deleted.
 if (process.env.NODE_ENV !== 'test' || process.env.SEED_DEMO_CONTENT === '1') {
   seedDemoContent(db);
+}
+
+// The lead's three front-end lectures — HTML, CSS, JavaScript — as real
+// courses with modules and tests rather than slides in someone's notes. Same
+// marker-guarded, skipped-in-tests treatment as the demo content above, but
+// on its own marker and its own opt-in flag: the two seeds are separate
+// content that lands at separate times, and the demo-content test asserts an
+// exact course count that has nothing to do with these.
+if (process.env.NODE_ENV !== 'test' || process.env.SEED_LECTURES === '1') {
+  seedFrontendCourses(db);
 }
 
 // Expired/revoked refresh tokens had no pruning — they'd accumulate in the
