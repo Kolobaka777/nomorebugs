@@ -13,9 +13,7 @@ import { showApiError } from '../utils/toast';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
 import { FREE_BG_IDS } from '../utils/shop';
-import {
-  PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
-} from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, CARD_SHADOW, H2 } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -123,7 +121,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         <div className="rounded-lg p-6 mb-6 flex items-center gap-5 flex-wrap" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}>
           <PixelAvatar id={shown.avatar_id as any} frame={shown.avatar_frame as any} customSrc={shown.custom_avatar} size={72} />
           <div className="flex-1 min-w-0">
-            <h1 className="font-montserrat font-bold mb-1 break-words" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{shown.nickname || shown.name}</h1>
+            <h1 className="font-montserrat mb-1 break-words" style={{ ...H2 }}>{shown.nickname || shown.name}</h1>
             <p className="font-geist text-sm break-words" style={{ color: TEXT_MUTED }}>{shown.email}</p>
             <p className="font-geist text-xs mt-1 flex items-center gap-1.5" style={{ color: TEXT_MUTED }}>
               <Icon name="crown" size={14} color={BADGE_NOTIFY} />

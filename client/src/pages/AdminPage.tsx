@@ -6,7 +6,7 @@ import { adminApi, leadApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW, ERROR, H1 } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
 
 interface AdminPageProps {
@@ -387,7 +387,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-6">
-          <h1 className="font-montserrat font-bold flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          <h1 className="font-montserrat flex items-center gap-2.5" style={{ ...H1 }}>
             <Icon name="crown" size={22} color={BADGE_NOTIFY} />
             Админка
           </h1>

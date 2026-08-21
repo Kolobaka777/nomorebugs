@@ -8,7 +8,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { parseRichContent, richContentToPlainText } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H1 } from '../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
 const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
@@ -323,7 +323,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-8 flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+            <h1 className="font-montserrat mb-2 flex items-center gap-2.5" style={{ ...H1 }}>
               <Icon name="books" size={22} color={ACCENT} />
               Багодельня
             </h1>

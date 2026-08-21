@@ -57,7 +57,9 @@ describe('CourseBuilderPage', () => {
       data: { id: 7, title: 'Курс про баги', description: '', tag: 'Custom', color: '#66FCF1', modules: [] },
     } as any);
     renderFor(lead);
-    expect(await screen.findByText('Редактировать курс')).toBeInTheDocument();
+    // The heading is the course's own name once it has one — what you are
+    // making, not which screen you are on.
+    expect(await screen.findByRole('heading', { name: 'Курс про баги' })).toBeInTheDocument();
     expect(await screen.findByDisplayValue('Курс про баги')).toBeInTheDocument();
   });
 
@@ -66,6 +68,48 @@ describe('CourseBuilderPage', () => {
     vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderFor(lead);
     expect(await screen.findByText('Ошибка загрузки курса')).toBeInTheDocument();
+  });
+});
+
+// Duplicating a module or a lesson. The copy has to be a separate element,
+// not a second reference to the same one.
+describe('CourseBuilderPage — duplicating', () => {
+  it('copies a lesson without carrying its prerequisite across', async () => {
+    renderFor(lead);
+    await screen.findByText('Новый курс');
+
+    fireEvent.change(screen.getByPlaceholderText('Название урока'), { target: { value: 'Вступление' } });
+    fireEvent.click(screen.getByLabelText('Дублировать урок'));
+
+    expect(screen.getByDisplayValue('Вступление')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Вступление (копия)')).toBeInTheDocument();
+    // Two lessons now, each with its own title field.
+    expect(screen.getAllByLabelText('Дублировать урок').length).toBe(2);
+  });
+
+  it('copies a module with everything in it', async () => {
+    renderFor(lead);
+    await screen.findByText('Новый курс');
+
+    fireEvent.change(screen.getByPlaceholderText('Название модуля'), { target: { value: 'Основы' } });
+    fireEvent.click(screen.getByLabelText('Дублировать модуль'));
+
+    expect(screen.getByDisplayValue('Основы')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Основы (копия)')).toBeInTheDocument();
+  });
+
+  it('editing the copy leaves the original alone', async () => {
+    // The failure this guards is a copy that shares the original's object:
+    // typing in one would then change both.
+    renderFor(lead);
+    await screen.findByText('Новый курс');
+
+    fireEvent.change(screen.getByPlaceholderText('Название урока'), { target: { value: 'Первый' } });
+    fireEvent.click(screen.getByLabelText('Дублировать урок'));
+    fireEvent.change(screen.getByDisplayValue('Первый (копия)'), { target: { value: 'Совсем другой' } });
+
+    expect(screen.getByDisplayValue('Первый')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Совсем другой')).toBeInTheDocument();
   });
 });
 

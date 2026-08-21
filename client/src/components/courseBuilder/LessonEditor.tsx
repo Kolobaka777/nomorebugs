@@ -4,7 +4,7 @@ import QuestionEditor from './QuestionEditor';
 import { emptyQuestion } from './types';
 import type { BLesson, BQuestion, PrerequisiteType } from './types';
 import { parseRichContent } from '../../utils/richContent';
-import { CARD_BG, TEXT_MUTED, ERROR } from '../../utils/theme';
+import { CARD_BG, TEXT_MUTED, ERROR, PAGE_BG, H4 } from '../../utils/theme';
 
 // Same lazy-split reasoning as GuidesPage.tsx/CourseBuilderPage.tsx.
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -22,6 +22,7 @@ export default function LessonEditor({
   idx,
   onChange,
   onDelete,
+  onDuplicate,
   color,
   allLessons,
 }: {
@@ -29,6 +30,7 @@ export default function LessonEditor({
   idx: number;
   onChange: (l: BLesson) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   color: string;
   allLessons: { _id: string; title: string }[];
 }) {
@@ -46,36 +48,50 @@ export default function LessonEditor({
         border: `1px solid ${lesson.type === 'quiz' ? `${color}30` : 'rgba(197, 198, 199, 0.12)'}`,
       }}
     >
-      {/* Lesson header */}
-      <div className="flex items-center gap-3 mb-3">
-        <span className="font-geist text-xs flex items-center" style={{ color: TEXT_MUTED }}>
-          {lesson.type === 'quiz' ? <Icon name="memo" size={14} color="rgba(197, 198, 199, 0.4)" /> : `${idx + 1}.`}
-        </span>
-
-        <input
-          value={lesson.title}
-          onChange={e => onChange({ ...lesson, title: e.target.value })}
-          placeholder={lesson.type === 'quiz' ? 'Название теста' : 'Название урока'}
-          className="flex-1 pixel-input text-sm"
-        />
+      {/* A named row above the field, per the design: the label says which
+          element this is and what goes in it, so the input itself does not
+          have to carry that in a placeholder nobody reads twice. */}
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <p className="font-montserrat" style={{ ...H4, fontSize: 15 }}>
+          {lesson.type === 'quiz' ? 'Тест' : 'Урок'} {idx + 1}. {lesson.title || (lesson.type === 'quiz' ? 'Название теста' : 'Название урока')}
+        </p>
 
         {/* Type toggle */}
-        <div className="flex rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid rgba(197, 198, 199, 0.2)' }}>
+        <div className="flex rounded overflow-hidden flex-shrink-0" style={{ border: `1px solid ${color}55` }}>
           {(['lesson', 'quiz'] as const).map(t => (
             <button
               key={t}
               onClick={() => onChange({ ...lesson, type: t, questions: t === 'quiz' && lesson.questions.length === 0 ? [emptyQuestion()] : lesson.questions })}
-              className="px-2.5 py-1 font-geist text-xs transition-colors cursor-pointer"
+              className="px-4 py-1.5 font-geist text-xs transition-colors cursor-pointer"
               style={{
-                background: lesson.type === t ? `${color}25` : 'transparent',
-                color: lesson.type === t ? color : 'rgba(197, 198, 199, 0.4)',
+                background: lesson.type === t ? `${color}66` : 'transparent',
+                color: lesson.type === t ? PAGE_BG : 'rgba(197, 198, 199, 0.55)',
+                fontWeight: lesson.type === t ? 600 : 400,
               }}
             >
               {t === 'lesson' ? 'Урок' : 'Тест'}
             </button>
           ))}
         </div>
+      </div>
 
+      <div className="flex items-center gap-2 mb-3">
+        <input
+          value={lesson.title}
+          onChange={e => onChange({ ...lesson, title: e.target.value })}
+          placeholder={lesson.type === 'quiz' ? 'Название теста' : 'Название урока'}
+          className="flex-1 pixel-input text-sm"
+        />
+        <button
+          onClick={onDuplicate}
+          aria-label="Дублировать урок"
+          className="flex-shrink-0 transition-colors cursor-pointer"
+          style={{ color: TEXT_MUTED }}
+          onMouseEnter={e => (e.currentTarget.style.color = color)}
+          onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
+        >
+          <Icon name="copy" size={18} color="currentColor" />
+        </button>
         <button
           onClick={onDelete}
           aria-label="Удалить урок"
@@ -84,14 +100,14 @@ export default function LessonEditor({
           onMouseEnter={e => (e.currentTarget.style.color = ERROR)}
           onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
         >
-          <Icon name="close" size={14} color="currentColor" />
+          <Icon name="trash" size={18} color="currentColor" />
         </button>
       </div>
 
       {/* Prerequisite */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="font-geist text-xs shrink-0" style={{ color: TEXT_MUTED }}>Пререквизит:</span>
-        <div className="flex rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid rgba(197, 198, 199, 0.2)' }}>
+        <div className="flex rounded overflow-hidden flex-shrink-0" style={{ border: `1px solid ${color}55` }}>
           {([
             ['none', 'Нет'],
             ['optional', 'Рекомендация'],
@@ -100,10 +116,11 @@ export default function LessonEditor({
             <button
               key={t}
               onClick={() => onChange({ ...lesson, prerequisite_type: t })}
-              className="px-2.5 py-1 font-geist text-xs transition-colors cursor-pointer"
+              className="px-3 py-1.5 font-geist text-xs transition-colors cursor-pointer"
               style={{
-                background: lesson.prerequisite_type === t ? `${color}25` : 'transparent',
-                color: lesson.prerequisite_type === t ? color : 'rgba(197, 198, 199, 0.4)',
+                background: lesson.prerequisite_type === t ? `${color}66` : 'transparent',
+                color: lesson.prerequisite_type === t ? PAGE_BG : 'rgba(197, 198, 199, 0.55)',
+                fontWeight: lesson.prerequisite_type === t ? 600 : 400,
               }}
             >
               {label}

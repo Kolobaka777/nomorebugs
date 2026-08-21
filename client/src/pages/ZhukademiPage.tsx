@@ -13,7 +13,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { getTopicTag, getCourseTagColor, tagChipStyle, tagChipStyleMuted } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
-import { ACCENT, CARD_BG, CARD_BG_PATTERN, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
+import { ACCENT, CARD_BG, CARD_BG_PATTERN, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE, H1, H2 } from '../utils/theme';
 
 // A course is "NEW" while it's recent AND this user hasn't opened it yet —
 // the badge disappears the moment they view it (per-user, via the
@@ -552,13 +552,13 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
              the filters stack down the right edge, per the design ===== */}
         <div className="flex items-start justify-between mb-8 flex-wrap gap-6">
           <div>
-            <h1 className="font-montserrat flex items-center gap-3" style={{ fontSize: 32, fontWeight: 600, lineHeight: '40px', letterSpacing: '6.4px', color: '#E0E0E0' }}>
+            <h1 className="font-montserrat flex items-center gap-3" style={{ ...H1 }}>
               <BookOpenIcon size={30} color={ACCENT} />
               КУРСЫ
             </h1>
             {/* A heading in its own right, not a caption under one — the kit
                 gives it 24px and the same wide tracking as the title. */}
-            <p className="font-montserrat mt-3" style={{ fontSize: 24, fontWeight: 600, lineHeight: '40px', letterSpacing: '4.8px', color: TEXT_PRIMARY }}>
+            <p className="font-montserrat mt-3" style={{ ...H2, lineHeight: '40px' }}>
               Каталог курсов
             </p>
           </div>

@@ -8,7 +8,7 @@ import { leadApi, coursesApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { pickByGender } from '../utils/gender';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, H2 } from '../utils/theme';
 import { tagChipStyle } from '../utils/topics';
 
 // Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
@@ -244,7 +244,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                 })()}
               </div>
 
-              <h1 className="font-montserrat font-bold mb-3 break-words" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+              <h1 className="font-montserrat mb-3 break-words" style={{ ...H2 }}>
                 {course.title}
               </h1>
 

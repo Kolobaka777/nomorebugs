@@ -8,7 +8,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, ERROR, H1 } from '../utils/theme';
 
 // Tiptap (the block editor) is the single heaviest dependency in the app —
 // its own chunk is ~150KB gzipped, more than every other route combined.
@@ -237,7 +237,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <h1 className="font-montserrat font-bold flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          <h1 className="font-montserrat flex items-center gap-2" style={{ ...H1 }}>
             <Icon name="books" size={22} color={ACCENT} /> Гайды
           </h1>
           {canEdit ? (

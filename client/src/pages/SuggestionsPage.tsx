@@ -7,7 +7,7 @@ import { suggestionsApi } from '../api';
 import { Suggestion, SuggestionType, SuggestionStatus, SuggestionFolder } from '../types';
 import { apiErrorMessage, showApiError } from '../utils/toast';
 import { timeAgo, parseServerDate } from '../utils/date';
-import { PAGE_GRADIENT, CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, PAGE_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, TRACK_WIDE, BADGE_NOTIFY, ERROR, H1 } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -365,7 +365,7 @@ export default function SuggestionsPage({ user, onLogout }: Props) {
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-6">
-          <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          <h1 className="font-montserrat mb-2 flex items-center gap-2" style={{ ...H1 }}>
             <Icon name="lightbulb" size={22} color={BADGE_NOTIFY} /> Идеи и предложения
           </h1>
           <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, H2 } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
 
 export default function ResetPasswordPage() {
@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center" style={{ background: PAGE_GRADIENT }}>
         <Icon name="warning" size={40} color="#EF9F27" className="mb-4" />
-        <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 22, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>Опс...</h1>
+        <h1 className="font-montserrat mb-2" style={{ ...H2 }}>Опс...</h1>
         <p className="font-montserrat font-semibold mb-3" style={{ fontSize: 15, color: TEXT_PRIMARY }}>Ссылка недействительна</p>
         <p className="font-geist text-sm max-w-sm mb-6" style={{ color: TEXT_MUTED }}>
           Возможно, истекла сессия, либо исчерпан лимит использований, попробуйте ещё раз

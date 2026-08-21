@@ -19,8 +19,7 @@ import {
   ACCENT, NUM_BRIGHT, NUM_DIM, SECONDARY, PAGE_BG,
   TEXT_PRIMARY, TEXT_MUTED, CARD_BG_PATTERN, PAGE_GRADIENT,
   CARD_SHADOW, CARD_SHADOW_TALL, STAT_GRADIENT, STAT_SHADOW, TRACK_WIDE,
-  STAT_LABEL_COLOR,
-} from '../utils/theme';
+  STAT_LABEL_COLOR, H1 } from '../utils/theme';
 
 interface HomePageProps {
   user: any;
@@ -156,8 +155,11 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
           <div className="flex items-center gap-4" style={{ marginLeft: 'clamp(0px, 9.5833vw, 138px)' }}>
             <GreetingFrogIcon size={60} />
             <h1
-              className="font-montserrat font-semibold min-w-0"
-              style={{ fontSize: 'clamp(22px, 2.2222vw, 32px)', lineHeight: 1.25, letterSpacing: TRACK_WIDE, textAlign: 'center' }}
+              className="font-montserrat min-w-0"
+              // On the scale, but fluid: this one is a greeting with a name
+              // in it, and a name can be long. It shrinks from the scale's
+              // top rather than sitting at a size of its own.
+              style={{ ...H1, fontSize: 'clamp(22px, 2.2222vw, 32px)', lineHeight: 1.25, textAlign: 'center' }}
             >
               <span style={{ color: STAT_LABEL_COLOR, display: 'block' }}>Привет,</span>
               <span className="break-words" style={{ color: ACCENT, display: 'block' }}>

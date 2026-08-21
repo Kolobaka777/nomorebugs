@@ -114,3 +114,49 @@ export const TRACK_WIDE = '0.2em';
 // Fonts — Montserrat for headings/logo/nav, Geist for body/lectures/
 // instructions, confirmed by the kit (matches what was already wired into
 // tailwind.config.js's `font-montserrat`/`font-geist`, nothing to add here).
+
+// ── Type scale ────────────────────────────────────────────────────────────
+//
+// The kit's ladder — H1, H2, H3, SMALL, BODY, LINK — as style objects rather
+// than as a set of numbers each page re-types. Before this, a page heading
+// was 28px on one screen, 32px on another and 20px bold on a third, and
+// "second-level heading" had four different sizes across the app depending
+// on who wrote the page.
+//
+// Headings are Montserrat and wide-tracked; body is Geist and is not. SMALL
+// is the uppercase label the kit uses for section captions and metadata —
+// tracked like a heading, sized like a caption.
+//
+// Spread these into `style`, not merged into className: several of them set
+// letterSpacing and lineHeight, which Tailwind would need three utilities
+// each to express and which would then be tuned per call site anyway.
+export const H1: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 32, fontWeight: 600,
+  lineHeight: '40px', letterSpacing: '6.4px', color: '#E0E0E0',
+};
+export const H2: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 24, fontWeight: 600,
+  lineHeight: '32px', letterSpacing: '4.8px', color: TEXT_PRIMARY,
+};
+export const H3: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 20, fontWeight: 600,
+  lineHeight: '28px', letterSpacing: '4px', color: TEXT_PRIMARY,
+};
+// A heading inside a card, under that card's own heading.
+export const H4: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 16, fontWeight: 600,
+  lineHeight: '22px', letterSpacing: '2px', color: TEXT_PRIMARY,
+};
+export const SMALL: React.CSSProperties = {
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 12, fontWeight: 500,
+  lineHeight: '16px', letterSpacing: TRACK_WIDE, color: TEXT_MUTED,
+};
+export const BODY: React.CSSProperties = {
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 14, fontWeight: 400,
+  lineHeight: 1.6, color: TEXT_PRIMARY,
+};
+export const BODY_MUTED: React.CSSProperties = { ...BODY, color: TEXT_MUTED };
+export const LINK: React.CSSProperties = {
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 14, fontWeight: 500,
+  lineHeight: 1.6, color: ACCENT,
+};

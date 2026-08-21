@@ -9,8 +9,11 @@ import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H2, H3, H4, SMALL, CARD_BG_PATTERN } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
+import { getCourseTagColor, tagChipStyle, tagChipStyleMuted } from '../utils/topics';
+import { counted } from '../utils/plural';
+import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
 
 // Same lazy-split reasoning as GuidesPage.tsx — Tiptap is the app's single
 // heaviest dependency, no reason to pay for it before this form is open.
@@ -123,6 +126,27 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
   const addModule = () => setForm(f => ({ ...f, modules: [...f.modules, emptyModule()] }));
   const updateModule = (i: number, m: BModule) =>
     setForm(f => ({ ...f, modules: f.modules.map((old, idx) => (idx === i ? m : old)) }));
+  // Fresh local ids throughout, or the copy and the original would be the
+  // same elements to React and to the prerequisite picker. Prerequisite
+  // references are dropped: pointing at the original's target is a guess,
+  // and pointing at the original itself is a loop.
+  const duplicateModule = (i: number) => {
+    const src = form.modules[i];
+    const copy: BModule = {
+      ...src,
+      _id: uid(),
+      title: src.title ? `${src.title} (копия)` : src.title,
+      lessons: src.lessons.map(l => ({
+        ...l,
+        _id: uid(),
+        prerequisite_type: 'none' as const,
+        prerequisite_lesson_local_id: undefined,
+        questions: l.questions.map(q => ({ ...q, _id: uid() })),
+      })),
+    };
+    setForm(f => ({ ...f, modules: [...f.modules.slice(0, i + 1), copy, ...f.modules.slice(i + 1)] }));
+  };
+
   const deleteModule = (i: number) =>
     setForm(f => ({ ...f, modules: f.modules.filter((_, idx) => idx !== i) }));
 
@@ -200,6 +224,11 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
   const color = form.color;
   const allLessonsFlat = form.modules.flatMap(m => m.lessons.map(l => ({ _id: l._id, title: l.title })));
+  const allLessonsRaw = form.modules.flatMap(m => m.lessons);
+  const lessonCount = allLessonsRaw.length;
+  // Only a test with a question in it counts as a test — an empty one is a
+  // placeholder the author has not filled in yet.
+  const quizCount = allLessonsRaw.filter(l => l.type === 'quiz' && l.questions.length > 0).length;
 
   if (loadingEdit) {
     return (
@@ -216,20 +245,22 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
       <div className="max-w-4xl mx-auto px-6 pt-16 pb-8 fade-in">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
           <button
             onClick={() => navigate('/zhukademia')}
-            className="font-geist text-sm transition-colors cursor-pointer flex items-center gap-1"
-            style={{ color: 'rgba(197, 198, 199, 0.6)' }}
+            className="transition-colors cursor-pointer flex items-center gap-2 shrink-0"
+            style={{ ...SMALL }}
             onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199, 0.6)')}
+            onMouseLeave={e => (e.currentTarget.style.color = TEXT_MUTED)}
           >
-            <Icon name="chevronLeft" size={18} color="currentColor" />
-            Назад
+            <Icon name="chevronLeft" size={18} color={ACCENT} />
+            К КАТАЛОГУ КУРСОВ
           </button>
-          <h1 className="font-montserrat font-bold flex items-center gap-2.5" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
-            <Icon name={isEdit ? 'pencil' : isProposing ? 'lightbulb' : 'sparkle'} size={22} color={ACCENT} />
-            {isEdit ? 'Редактировать курс' : isProposing ? 'Предложить курс' : 'Новый курс'}
+          {/* The course's own name is the heading, per the design — what you
+              are making, not what screen you are on. Until it has one, the
+              screen says which of the three things this is. */}
+          <h1 className="font-montserrat break-words min-w-0 text-right" style={{ ...H2 }}>
+            {form.title || (isEdit ? 'Редактировать курс' : isProposing ? 'Предложить курс' : 'Новый курс')}
           </h1>
         </div>
 
@@ -246,8 +277,8 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               className="rounded-lg p-5"
               style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199, 0.2)', boxShadow: CARD_SHADOW }}
             >
-              <p className="font-montserrat font-semibold mb-4" style={{ fontSize: 13, color: ACCENT, letterSpacing: TRACK_WIDE }}>
-                Основная информация
+              <p className="font-montserrat mb-5" style={{ ...H4 }}>
+                ОСНОВНАЯ ИНФОРМАЦИЯ
               </p>
 
               {/* Title */}
@@ -264,27 +295,43 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
               {/* Tag */}
               <div className="mb-4">
-                <label className="font-geist text-xs block mb-1.5" style={{ color: TEXT_MUTED }}>Тег</label>
-                <select
-                  value={form.tag}
-                  onChange={e => setForm(f => ({ ...f, tag: e.target.value }))}
-                  className="pixel-input text-sm"
-                >
-                  {TAGS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <label className="font-geist text-xs block mb-2" style={{ color: TEXT_MUTED }}>Тег</label>
+                {/* Chips rather than a dropdown: there are seven of them, they
+                    are colour-coded everywhere else in the app, and a select
+                    hides both facts behind one closed row. */}
+                <div className="flex flex-wrap gap-2">
+                  {TAGS.map(t => {
+                    const c = getCourseTagColor(t);
+                    const on = form.tag === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setForm(f => ({ ...f, tag: t }))}
+                        aria-pressed={on}
+                        className="font-geist font-semibold px-2 py-0.5 cursor-pointer transition-all"
+                        style={{ fontSize: 11, letterSpacing: '0.06em', ...(on ? tagChipStyle(c, t) : tagChipStyleMuted(c, t)) }}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Color */}
               <div className="mb-4">
-                <label className="font-geist text-xs block mb-2" style={{ color: TEXT_MUTED }}>Цвет карточки</label>
+                <label className="font-geist text-xs block mb-2" style={{ color: TEXT_MUTED }}>Цветовая схема</label>
                 <div className="flex gap-2 flex-wrap">
                   {PRESET_COLORS.map(c => (
                     <button
                       key={c.value}
                       onClick={() => setForm(f => ({ ...f, color: c.value }))}
                       title={c.name}
-                      className="w-7 h-7 rounded-full transition-all hover:brightness-110 cursor-pointer"
+                      aria-label={c.name}
+                      aria-pressed={form.color === c.value}
+                      className="transition-all hover:brightness-110 cursor-pointer"
                       style={{
+                        width: 34, height: 34, borderRadius: 4,
                         background: c.value,
                         boxShadow: form.color === c.value ? `0 0 0 2px ${PAGE_BG}, 0 0 0 4px ${c.value}` : 'none',
                       }}
@@ -400,41 +447,49 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
               )}
             </div>
 
-            {/* Preview card */}
+            {/* Preview card — the catalog card itself, not a different card
+                that stands for it. The author sees the strip, the chip and
+                the title exactly as a reader will, so "what will this look
+                like" is answered here instead of after publishing. */}
             <div
               className="rounded-lg overflow-hidden"
-              style={{
-                background: CARD_BG,
-                border: `1px solid ${color}`,
-                boxShadow: CARD_SHADOW,
-              }}
+              style={{ background: CARD_BG_PATTERN, border: `1.5px solid ${color}70`, boxShadow: CARD_SHADOW }}
             >
-              <div className="h-16 flex items-center justify-center" style={{ background: `${color}12` }}>
-                <Icon name={
-                  form.tag === 'HTML' ? 'globe' :
-                  form.tag === 'CSS' ? 'palette' :
-                  form.tag === 'DevTools' ? 'microscope' :
-                  form.tag === 'JS' ? 'gear' :
-                  form.tag === 'Network' ? 'antenna' : 'books'
-                } size={28} color={color} />
-              </div>
-              <div className="p-3">
-                <span className="text-xs font-geist font-semibold px-1.5 py-0.5 rounded" style={{ background: `${color}20`, color }}>
-                  {form.tag}
+              <div
+                className="flex items-center px-3 py-1.5"
+                style={{ background: 'rgba(197, 198, 199, 0.06)', borderBottom: `1px solid ${color}40` }}
+              >
+                <span className="font-geist" style={{ fontSize: 12, color: 'rgba(197, 198, 199,0.8)', letterSpacing: TRACK_WIDE }}>
+                  {form.modules.length > 0
+                    ? `0/${form.modules.length} модулей`
+                    : 'Дополнительный курс'}
                 </span>
-                {/* Nothing typed yet still needs something in the preview,
-                    but it is dimmed and italic so it reads as a gap to fill
-                    rather than as a course actually called that. */}
-                <p
-                  className="font-geist font-semibold text-xs mt-2 leading-snug break-words"
-                  style={form.title
-                    ? { color: TEXT_PRIMARY }
-                    : { color: 'rgba(197, 198, 199,0.35)', fontStyle: 'italic', fontWeight: 400 }}
-                >
-                  {form.title || 'Название появится здесь'}
-                </p>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="text-xs font-geist font-bold px-1.5 py-0.5 rounded" style={{ background: '#EF9F27', color: PAGE_BG }}>NEW</span>
+              </div>
+
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-4">
+                  <p
+                    className="font-montserrat break-words min-w-0"
+                    style={form.title
+                      ? { ...H3 }
+                      : { ...H3, color: 'rgba(197, 198, 199,0.35)', fontStyle: 'italic', fontWeight: 400 }}
+                  >
+                    {form.title || 'Название появится здесь'}
+                  </p>
+                  <span
+                    className="shrink-0 mt-0.5 font-geist font-semibold px-2 py-0.5"
+                    style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(color, form.tag) }}
+                  >
+                    {form.tag}
+                  </span>
+                </div>
+                <div className="flex items-center justify-end">
+                  <span
+                    className="font-geist font-semibold flex items-center gap-1"
+                    style={{ fontSize: 12, color, letterSpacing: TRACK_WIDE }}
+                  >
+                    ПРЕДПРОСМОТР КУРСА <Icon name="chevronRight" size={14} color="currentColor" />
+                  </span>
                 </div>
               </div>
             </div>
@@ -442,12 +497,15 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
           {/* ─── RIGHT: Structure builder ─── */}
           <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-montserrat font-semibold" style={{ fontSize: 13, color: ACCENT, letterSpacing: TRACK_WIDE }}>
-                Структура курса
-              </p>
-              <span className="font-geist text-xs" style={{ color: 'rgba(197, 198, 199, 0.55)' }}>
-                {form.modules.length} модул{form.modules.length === 1 ? 'ь' : 'я'}
+            {/* The same three counts a reader sees on the course itself, so
+                the author is looking at the same summary they will get. The
+                old line said "2 модуля" with a hand-built ending. */}
+            <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+              <p className="font-montserrat" style={{ ...H3 }}>Структура курса</p>
+              <span className="flex items-center gap-5 flex-wrap font-geist" style={{ fontSize: 12, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
+                <span className="flex items-center gap-2"><BookOpenIcon size={15} color="currentColor" />{counted(lessonCount, ['УРОК', 'УРОКА', 'УРОКОВ'])}</span>
+                <span className="flex items-center gap-2"><PagesIcon size={15} color="currentColor" />{counted(form.modules.length, ['МОДУЛЬ', 'МОДУЛЯ', 'МОДУЛЕЙ'])}</span>
+                <span className="flex items-center gap-2"><CapIcon size={15} color="currentColor" />{counted(quizCount, ['ТЕСТ', 'ТЕСТА', 'ТЕСТОВ'])}</span>
               </span>
             </div>
 
@@ -458,6 +516,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 modIdx={mi}
                 onChange={updated => updateModule(mi, updated)}
                 onDelete={() => deleteModule(mi)}
+                onDuplicate={() => duplicateModule(mi)}
                 color={color}
                 allLessons={allLessonsFlat}
               />
@@ -465,11 +524,10 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
 
             <button
               onClick={addModule}
-              className="w-full py-3 rounded-lg font-geist text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 mb-6"
-              style={{ background: 'rgba(197, 198, 199, 0.04)', color: 'rgba(197, 198, 199, 0.6)', border: '1px dashed rgba(197, 198, 199, 0.2)' }}
+              className="w-full py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-110 cursor-pointer mb-6"
+              style={{ background: color, color: PAGE_BG, letterSpacing: TRACK_WIDE, boxShadow: CARD_SHADOW }}
             >
-              <Icon name="sparkle" size={14} color="currentColor" />
-              Добавить модуль
+              + ДОБАВИТЬ МОДУЛЬ
             </button>
 
             {/* Error */}
@@ -500,18 +558,18 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 <button
                   onClick={() => save(false)}
                   disabled={saving}
-                  className="flex-1 py-3 rounded-lg font-geist font-semibold text-sm transition-all cursor-pointer"
-                  style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.6)' }}
+                  className="flex-1 py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-125 cursor-pointer"
+                  style={{ background: 'rgba(11, 12, 16, 0.5)', color: TEXT_PRIMARY, border: `1px solid ${color}55`, letterSpacing: TRACK_WIDE }}
                 >
-                  {saving ? 'Сохраняю...' : <span className="flex items-center justify-center gap-2"><Icon name="floppy" size={16} color="currentColor" />Сохранить черновик</span>}
+                  {saving ? 'СОХРАНЯЮ...' : <span className="flex items-center justify-center gap-2"><Icon name="floppy" size={16} color="currentColor" />СОХРАНИТЬ ЧЕРНОВИК</span>}
                 </button>
                 <button
                   onClick={() => save(true)}
                   disabled={saving}
                   className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer"
-                  style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
+                  style={{ background: color, color: PAGE_BG, letterSpacing: TRACK_WIDE, boxShadow: saving ? 'none' : CARD_SHADOW }}
                 >
-                  {saving ? 'Публикую...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />Опубликовать</span>}
+                  {saving ? 'ПУБЛИКУЮ...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />ОПУБЛИКОВАТЬ</span>}
                 </button>
               </div>
             )}

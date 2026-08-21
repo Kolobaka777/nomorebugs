@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { testerApi } from '../api';
 import Icon from '../components/Icon';
 import logoUrl from '../assets/logo.svg';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_MUTED, ACCENT, ERROR, H3 } from '../utils/theme';
 
 interface BaselineSurveyProps {
   onComplete: () => void;
@@ -159,7 +159,7 @@ export default function BaselineSurvey({ onComplete }: BaselineSurveyProps) {
 
           {/* Question */}
           <div className="text-center mb-8">
-            <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>{current.label}</h1>
+            <h1 className="font-montserrat mb-2" style={{ ...H3 }}>{current.label}</h1>
             <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{current.desc}</p>
           </div>
 

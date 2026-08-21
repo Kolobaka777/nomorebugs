@@ -4,7 +4,7 @@ import Icon, { IconName } from '../components/Icon';
 import TeamQuestions from '../components/TeamQuestions';
 import { COIN_REWARDS, PREMIUM_POINT_GUIDE, PREMIUM_POINT_MAX, RewardRow } from '../utils/coins';
 import { FaqItem, HowToItem, faqFor, howToFor, isLeadRole } from '../utils/helpContent';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, CARD_SHADOW, TRACK_WIDE } from '../utils/theme';
+import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, CARD_SHADOW, TRACK_WIDE, H1 } from '../utils/theme';
 
 interface Props {
   user: any;
@@ -25,7 +25,7 @@ interface Props {
 function SectionHeading({ icon, title, subtitle }: { icon: IconName; title: string; subtitle: string }) {
   return (
     <div className="mb-3">
-      <h2 className="font-montserrat font-bold flex items-center gap-2" style={{ fontSize: 16, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+      <h2 className="font-montserrat flex items-center gap-2" style={{ fontSize: 16, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
         <Icon name={icon} size={20} color={ACCENT} /> {title}
       </h2>
       <p className="font-geist text-sm mt-1" style={{ color: TEXT_MUTED }}>{subtitle}</p>
@@ -133,7 +133,7 @@ export default function HelpPage({ user, onLogout }: Props) {
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-8 fade-in">
         <div className="mb-6">
-          <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+          <h1 className="font-montserrat font-bold mb-2 flex items-center gap-2" style={{ ...H1 }}>
             <Icon name="lightbulb" size={22} color={ACCENT} /> Помощь
           </h1>
           <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Как всё устроено — и куда писать, если ответа тут не нашлось</p>

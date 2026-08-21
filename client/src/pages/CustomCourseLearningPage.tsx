@@ -18,7 +18,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { counted } from '../utils/plural';
 import { getCourseTagColor, tagChipStyle } from '../utils/topics';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR, H2 } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
@@ -254,7 +254,7 @@ function CustomQuizView({
   return (
     <div>
       <div className="flex items-center justify-between gap-4 mb-6">
-        <h2 className="font-montserrat break-words min-w-0" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>
+        <h2 className="font-montserrat break-words min-w-0" style={{ ...H2 }}>
           Тест: {lesson.title}
         </h2>
         <span className="font-geist flex items-center gap-2 shrink-0 tabular-nums" style={{ fontSize: 13, color }}>
@@ -520,13 +520,13 @@ function CourseResultScreen({ course, color, passed, score, weakModules, onRetry
               {course.tag}
             </span>
           )}
-          <h2 className="font-montserrat font-bold break-words" style={{ fontSize: 17, color: TEXT_PRIMARY }}>{course.title}</h2>
+          <h2 className="font-montserrat break-words" style={{ fontSize: 17, color: TEXT_PRIMARY }}>{course.title}</h2>
         </div>
         {passed && <CheckCircleIcon size={28} color={ACCENT} className="flex-shrink-0" />}
       </div>
 
       <div className="text-center">
-        <h1 className="font-montserrat font-bold mb-2" style={{ fontSize: 26, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+        <h1 className="font-montserrat font-bold mb-2" style={{ ...H2 }}>
           {passed ? 'ПОЗДРАВЛЯЕМ!' : 'Результат не засчитан'}
         </h1>
         <p className="font-geist text-sm mb-8" style={{ color: TEXT_MUTED }}>
@@ -1119,7 +1119,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                 {/* A quiz writes its own heading ("Тест: …"), so the page
                     does not put the same words above it a second time. */}
                 {currentLesson.type !== 'quiz' && (
-                  <h1 className="font-montserrat mb-6 break-words" style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>{currentLesson.title}</h1>
+                  <h1 className="font-montserrat mb-6 break-words" style={{ ...H2 }}>{currentLesson.title}</h1>
                 )}
 
                 {currentLesson.prerequisite_type === 'optional' && currentLesson.prerequisite_note && (

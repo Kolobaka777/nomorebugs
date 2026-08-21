@@ -9,7 +9,7 @@ import { formatTeamEvent } from '../utils/activity';
 import { timeAgo } from '../utils/date';
 import { apiErrorMessage, showApiError } from '../utils/toast';
 import { EVENT_ICON } from '../utils/newsIcons';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, ACCENT, TEXT_PRIMARY, TEXT_MUTED, CARD_SHADOW, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, ACCENT, TEXT_PRIMARY, TEXT_MUTED, CARD_SHADOW, TRACK_WIDE, ERROR, H1 } from '../utils/theme';
 
 const MAX_ANNOUNCEMENT_LENGTH = 1000;
 
@@ -102,7 +102,7 @@ export default function NewsPage({ user, onLogout }: Props) {
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-8 fade-in">
-        <h1 className="font-montserrat font-bold mb-6 flex items-center gap-2" style={{ fontSize: 24, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
+        <h1 className="font-montserrat mb-6 flex items-center gap-2" style={{ ...H1 }}>
           <Icon name="antenna" size={22} color={ACCENT} /> Новости
         </h1>
 
