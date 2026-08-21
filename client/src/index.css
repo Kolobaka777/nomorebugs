@@ -184,6 +184,50 @@
     filter: brightness(0.96);
   }
 
+  /* The kit's third and fourth kinds.
+     .btn-back is the muted teal (#45A29E) it uses for "go back" — the same
+     family as the primary, a step quieter, so backwards never competes with
+     forwards.
+     .btn-ghost is the outlined accent used for a secondary action that is
+     still the accent's business (add, propose, continue). It was being
+     hand-written as `background: ACCENT1F; border: 1px solid ACCENT` in
+     several places before it had a name. */
+  .btn-back {
+    @apply px-4 py-2 text-game font-sans font-semibold cursor-pointer rounded-lg;
+    background: #45A29E;
+    box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
+    transition: filter 0.15s;
+  }
+  .btn-back:hover:not(:disabled) { filter: brightness(1.12); }
+  .btn-back:active:not(:disabled) { filter: brightness(0.96); }
+  .btn-back:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-ghost {
+    @apply px-4 py-2 font-sans font-semibold cursor-pointer rounded-lg;
+    background: rgba(102, 252, 241, 0.12);
+    border: 1px solid #66FCF1;
+    color: #66FCF1;
+    transition: filter 0.15s;
+  }
+  .btn-ghost:hover:not(:disabled) { filter: brightness(1.25); }
+  .btn-ghost:active:not(:disabled) { filter: brightness(0.9); }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* The kit's small dark chip ("Базово") — a label that is not an action's
+     equal, used for a tier or a state beside something else. */
+  .chip-plain {
+    @apply font-sans cursor-default;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #0B0C10;
+    color: #C5C6C7;
+    border: 1px solid rgba(69, 162, 158, 0.35);
+  }
+
   .btn-purple {
     @apply px-4 py-2 bg-purple text-pixel font-sans font-semibold cursor-pointer rounded-lg;
     box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);

@@ -568,8 +568,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               {user.role === 'lead' ? (
                 <button
                   onClick={() => navigate('/lead/course-builder')}
-                  className="rounded-lg font-geist font-semibold flex items-center gap-2 px-5 cursor-pointer transition-all hover:brightness-110"
-                  style={{ background: ACCENT, color: PAGE_BG, fontSize: 14, height: 48 }}
+                  className="btn-primary font-geist flex items-center gap-2 px-5"
+                  style={{ fontSize: 14, height: 48 }}
                 >
                   <PlusIcon size={16} color={PAGE_BG} /> Создать курс
                 </button>
@@ -921,8 +921,8 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
             <p className="font-geist text-sm mb-4" style={{ color: TEXT_MUTED }}>Вы ещё не создали ни одного курса</p>
             <button
               onClick={() => navigate('/lead/course-builder')}
-              className="rounded-lg font-geist font-semibold px-6 py-2.5 cursor-pointer inline-flex items-center gap-2"
-              style={{ background: ACCENT, color: PAGE_BG, fontSize: 14 }}
+              className="btn-primary font-geist px-6 py-2.5 inline-flex items-center gap-2"
+              style={{ fontSize: 14 }}
             >
               <PlusIcon size={16} color={PAGE_BG} />Создать первый курс
             </button>

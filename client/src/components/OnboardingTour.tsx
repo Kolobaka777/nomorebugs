@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import PixelFrogKnightSprite from './PixelFrogKnightSprite';
 import { FrogLine, loadFrogLines, tourStepsFor } from '../utils/frogLines';
-import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE, PAGE_BG } from '../utils/theme';
+import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../utils/theme';
 
 // First-run walkthrough. Three things changed from the original:
 //
@@ -239,8 +239,8 @@ export default function OnboardingTour({ user }: Props) {
               </span>
               <button
                 onClick={next}
-                className="font-geist font-semibold px-3.5 py-1.5 rounded-lg cursor-pointer"
-                style={{ fontSize: 13, background: ACCENT, color: PAGE_BG }}
+                className="btn-primary font-geist px-3.5 py-1.5"
+                style={{ fontSize: 13 }}
               >
                 {isLast ? 'Готово' : (
                   <span className="inline-flex items-center gap-1.5">Далее <Icon name="arrowRight" size={14} color="currentColor" /></span>

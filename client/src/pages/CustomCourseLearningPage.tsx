@@ -1157,10 +1157,11 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                       {prevLesson ? (
                         <button
                           onClick={() => isAccessible(currentIdx - 1) && setCurrentIdx(i => i - 1)}
-                          className="font-geist flex items-center gap-2 min-w-0 transition-colors cursor-pointer"
-                          style={{ fontSize: 13, letterSpacing: '1.2px', color: 'rgba(197, 198, 199,0.6)' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = TEXT_PRIMARY)}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(197, 198, 199,0.6)')}
+                          // The kit's own "back" treatment: the same family
+                          // as the forward button, a step quieter, so
+                          // backwards never competes with forwards.
+                          className="btn-back font-geist flex items-center gap-2 min-w-0 px-4 py-2"
+                          style={{ fontSize: 13, letterSpacing: '1.2px' }}
                         >
                           <Icon name="arrowLeft" size={20} color="currentColor" />
                           {/* A neutral label rather than the previous

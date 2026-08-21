@@ -338,8 +338,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           {tab === 'examples' && !addingExample && (
             <button
               onClick={() => setAddingExample(true)}
-              className="font-geist font-semibold flex items-center gap-2 px-4 py-2.5 rounded-lg cursor-pointer transition-all hover:brightness-110 shrink-0"
-              style={{ background: `${ACCENT}1F`, border: `1px solid ${ACCENT}`, color: ACCENT, fontSize: 13, letterSpacing: TRACK_WIDE }}
+              className="btn-ghost font-geist flex items-center gap-2 px-4 py-2.5 shrink-0"
+              style={{ fontSize: 13, letterSpacing: TRACK_WIDE }}
             >
               <PlusIcon size={16} color="currentColor" />
               {canEdit ? 'ДОБАВИТЬ ПРИМЕР' : 'ПРЕДЛОЖИТЬ ПРИМЕР'}
