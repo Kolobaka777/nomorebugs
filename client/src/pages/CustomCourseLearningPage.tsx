@@ -17,7 +17,7 @@ import { parseServerDate } from '../utils/date';
 import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { counted } from '../utils/plural';
-import { getCourseTagColor } from '../utils/topics';
+import { getCourseTagColor, tagChipStyle } from '../utils/topics';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
@@ -516,7 +516,7 @@ function CourseResultScreen({ course, color, passed, score, weakModules, onRetry
         </div>
         <div className="min-w-0 flex-1">
           {course.tag && (
-            <span className="inline-block rounded px-2 py-0.5 font-geist text-xs font-semibold mb-1.5" style={{ background: `${color}20`, color, border: `1px solid ${color}55` }}>
+            <span className="inline-block px-2 py-0.5 font-geist text-xs font-semibold mb-1.5" style={{ letterSpacing: '0.06em', ...tagChipStyle(color, course.tag) }}>
               {course.tag}
             </span>
           )}
@@ -1016,7 +1016,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <p className="font-montserrat break-words min-w-0" style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3, letterSpacing: '2.2px', color: TEXT_PRIMARY }}>{course.title}</p>
                       {course.tag && (
-                        <span className="font-geist font-semibold rounded shrink-0" style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.08em', background: `${color}22`, color, border: `1px solid ${color}55` }}>{course.tag}</span>
+                        <span className="font-geist font-semibold shrink-0" style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.06em', ...tagChipStyle(color, course.tag) }}>{course.tag}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-4 flex-wrap mb-3 font-geist" style={{ fontSize: 11, color: TEXT_MUTED, letterSpacing: '1.2px' }}>

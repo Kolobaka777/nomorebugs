@@ -12,6 +12,7 @@ import { ACCENT, ERROR } from '../utils/theme';
 import GalleryAvatarImage from './GalleryAvatarImage';
 import { loadGalleryImage, forgetGalleryImage } from '../utils/galleryImages';
 import { apiErrorMessage } from '../utils/toast';
+import TelegramLinkWidget from './TelegramLinkWidget';
 
 const SPECIALIZATIONS = [
   { value: '',                    label: '— Не выбрано —' },
@@ -698,6 +699,15 @@ export default function ProfileEditModal({
           {/* ── ACCOUNT TAB ── */}
           {tab === 'account' && (
             <>
+              {/* Telegram lives here rather than in the header dropdown. It
+                  loads its state asynchronously, so putting it in a menu meant
+                  the menu changed height under the cursor a moment after it
+                  opened — and a linked account is a setting, not a shortcut. */}
+              <div>
+                <p style={labelStyle}>TELEGRAM</p>
+                <TelegramLinkWidget />
+              </div>
+
               <div>
                 <button
                   onClick={() => setPwOpen(o => !o)}

@@ -303,7 +303,14 @@ export const FRAME_LIST: { id: FrameId; name: string; unlock: string }[] = [
 ];
 
 // ── Background registry ───────────────────────────────────────────────────────
-export type BgId = 'default' | 'forest' | 'console' | 'hive' | 'amber';
+export type BgId =
+  | 'default' | 'forest' | 'console'
+  // Free from the start. There were three backgrounds and two of them were
+  // locked behind badges, so the picker offered a choice of one — which is
+  // not a choice. These cost nothing and are built from the kit's own
+  // palette rather than from new colours.
+  | 'ink' | 'deep' | 'moss' | 'dusk' | 'ember' | 'slate' | 'grid'
+  | 'hive' | 'amber';
 
 export const BG_LIST: { id: BgId; name: string; unlock: string; style: React.CSSProperties }[] = [
   {
@@ -323,6 +330,41 @@ export const BG_LIST: { id: BgId; name: string; unlock: string; style: React.CSS
       backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(102, 252, 241,0.04) 23px, rgba(102, 252, 241,0.04) 24px)',
     },
   },
+  // ── Free ───────────────────────────────────────────────────────────────
+  {
+    id: 'ink', name: 'Чернила', unlock: 'Базовый',
+    style: { background: '#0B0C10' },
+  },
+  {
+    id: 'deep', name: 'Глубина', unlock: 'Базовый',
+    style: { background: 'linear-gradient(180deg, #0B0C10 0%, #1F2833 100%)' },
+  },
+  {
+    id: 'moss', name: 'Тина', unlock: 'Базовый',
+    style: { background: 'linear-gradient(150deg, #0B0C10 0%, #12241f 55%, #0B0C10 100%)' },
+  },
+  {
+    id: 'dusk', name: 'Сумерки', unlock: 'Базовый',
+    style: { background: 'linear-gradient(150deg, #14121f 0%, #1F2833 60%, #0B0C10 100%)' },
+  },
+  {
+    id: 'ember', name: 'Уголёк', unlock: 'Базовый',
+    style: { background: 'linear-gradient(150deg, #1a1410 0%, #1F2833 60%, #0B0C10 100%)' },
+  },
+  {
+    id: 'slate', name: 'Сланец', unlock: 'Базовый',
+    style: { background: '#1F2833' },
+  },
+  {
+    id: 'grid', name: 'Сетка', unlock: 'Базовый',
+    style: {
+      background: '#0B0C10',
+      backgroundImage:
+        'repeating-linear-gradient(0deg, transparent 0 15px, rgba(69,162,158,0.07) 15px 16px),' +
+        'repeating-linear-gradient(90deg, transparent 0 15px, rgba(69,162,158,0.07) 15px 16px)',
+    },
+  },
+  // ── Earned ─────────────────────────────────────────────────────────────
   {
     id: 'hive', name: 'Пчелиный улей', unlock: 'Скрафти любой значок',
     style: {

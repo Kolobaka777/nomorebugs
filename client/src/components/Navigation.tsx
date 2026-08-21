@@ -2,8 +2,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import Icon from './Icon';
 import PixelAvatar from './PixelAvatar';
-import TelegramLinkWidget from './TelegramLinkWidget';
-import ChangePasswordModal from './ChangePasswordModal';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
@@ -94,7 +92,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
   // own stroke color to match the quick-links buttons' fill+dark-icon
   // treatment, and that icon is built from several nested <path> elements.
   const [hamburgerHover, setHamburgerHover] = useState(false);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
   // Own equipped avatar for the nav-bar button — avatar_id/frame/custom_avatar
   // live on the per-page profile record, not the top-level `user` passed in
   // here, so it's fetched once via the same role-agnostic route
@@ -406,8 +403,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 </p>
               </div>
 
-              <TelegramLinkWidget />
-
               {/* Profile link — testers get their full gamified cabinet;
                   leads/admins get a lighter edit-profile modal right here,
                   since they have no /cabinet page of their own. */}
@@ -421,15 +416,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 <span className="inline-flex items-center gap-1">Мой профиль <Icon name="arrowRight" size={14} color="currentColor" /></span>
               </button>
 
-              <button
-                onClick={() => { setShowPasswordChange(true); setMenuOpen(false); }}
-                className="w-full text-left px-3 py-2.5 text-xs font-sans cursor-pointer transition-colors"
-                style={{ color: 'rgba(197, 198, 199,0.7)' }}
-                onMouseEnter={e => { (e.currentTarget).style.background = 'rgba(102, 252, 241,0.08)'; (e.currentTarget).style.color = '#66FCF1'; }}
-                onMouseLeave={e => { (e.currentTarget).style.background = 'transparent'; (e.currentTarget).style.color = 'rgba(197, 198, 199,0.7)'; }}
-              >
-                Сменить пароль
-              </button>
 
               {/* Logout */}
               <button
@@ -446,13 +432,6 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
           </div>
         </div>
       </header>
-
-      {showPasswordChange && (
-        <ChangePasswordModal
-          onDone={() => setShowPasswordChange(false)}
-          onClose={() => setShowPasswordChange(false)}
-        />
-      )}
     </div>
   );
 }

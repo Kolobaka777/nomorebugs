@@ -6,7 +6,7 @@ import FrogLoader from '../components/FrogLoader';
 import Icon from '../components/Icon';
 import Navigation from '../components/Navigation';
 import { BookOpenIcon, CheckCircleIcon } from '../components/CatalogIcons';
-import { getTopicTag, getCourseTagColor } from '../utils/topics';
+import { getTopicTag, getCourseTagColor, tagChipStyle } from '../utils/topics';
 import { celebrateAchievements } from '../utils/achievements';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
 
@@ -222,7 +222,7 @@ export default function QuizPage({ user, onLogout }: QuizPageProps) {
         >
           <BookOpenIcon size={20} color={tagColor} />
           {tag && (
-            <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${tagColor}20`, color: tagColor, border: `1px solid ${tagColor}55` }}>
+            <span className="font-geist font-semibold px-2 py-0.5 shrink-0" style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(tagColor, tag) }}>
               {tag}
             </span>
           )}

@@ -12,6 +12,7 @@ import { parseServerDate } from '../utils/date';
 import { showApiError } from '../utils/toast';
 import { ROLE_LABELS } from '../utils/roles';
 import { formatActivityAction } from '../utils/activity';
+import { FREE_BG_IDS } from '../utils/shop';
 import {
   PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, TRACK_WIDE, CARD_SHADOW,
 } from '../utils/theme';
@@ -206,7 +207,7 @@ export default function ProfilePage({ user, onLogout, onUserUpdate }: Props) {
         <ProfileEditModal
           profile={shown}
           unlockedFrames={['default', 'code']}
-          unlockedBgs={['default', 'forest', 'console']}
+          unlockedBgs={FREE_BG_IDS}
           unlockedAvatars={['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8']}
           badgeIds={shown.badges?.map(b => b.badge_id) || []}
           onSave={patch => {

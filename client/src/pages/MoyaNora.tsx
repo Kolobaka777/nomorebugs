@@ -18,7 +18,8 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
-import { shopItemFor } from '../utils/shop';
+import { shopItemFor, FREE_BG_IDS } from '../utils/shop';
+import { tagChipStyle } from '../utils/topics';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { counted } from '../utils/plural';
 import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
@@ -267,7 +268,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     ...(badgeIds.includes('Bug report quality') ? ['crimescene'] : []),
     ...(badgeIds.length >= 5             ? ['crown'] : []),
   ];
-  const unlockedBgs = ['default', 'forest', 'console',
+  const unlockedBgs = [...FREE_BG_IDS,
     ...(badgeIds.length > 0 || purchased.includes('bg_hive')  ? ['hive']  : []),
     ...(badgeIds.length >= 5 || purchased.includes('bg_amber') ? ['amber'] : []),
   ];
@@ -635,7 +636,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       <Panel pad="p-3" style={{ border: `1px solid ${tagColor}E8` }}>
                         <div className="flex items-start justify-between gap-8 mb-2">
                           <p className="font-montserrat break-words min-w-0" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>{f.title}</p>
-                          <span className="font-geist font-semibold rounded shrink-0" style={{ fontSize: 11, padding: '2px 8px', background: `${tagColor}22`, color: tagColor, border: `1px solid ${tagColor}55` }}>{f.tag}</span>
+                          <span className="font-geist font-semibold shrink-0" style={{ fontSize: 11, padding: '2px 8px', letterSpacing: '0.06em', ...tagChipStyle(tagColor, f.tag) }}>{f.tag}</span>
                         </div>
                         <div className="flex items-center justify-between gap-8 flex-wrap">
                           <div className="flex items-center gap-8 flex-wrap font-geist" style={{ fontSize: 14, fontWeight: 400, letterSpacing: '2.8px', color: TEXT_PRIMARY }}>
@@ -697,7 +698,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         <p className="font-montserrat break-words min-w-0" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '4px', color: TEXT_PRIMARY }}>
                           {g.title} <span style={{ color: TEXT_MUTED, fontWeight: 400 }}>({g.notes.length})</span>
                         </p>
-                        <span className="font-geist font-semibold rounded px-2 py-0.5 shrink-0" style={{ fontSize: 11, background: `${g.color || accent}20`, color: g.color || accent }}>{g.tag}</span>
+                        <span className="font-geist font-semibold px-2 py-0.5 shrink-0" style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(g.color || accent, g.tag) }}>{g.tag}</span>
                       </div>
                       <div className="space-y-2">
                         {g.notes.map((n, i) => (

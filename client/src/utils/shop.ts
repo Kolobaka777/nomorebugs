@@ -21,6 +21,13 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'avatar_frog1',  cost: 120, label: 'Лягуха Кваки',  kind: 'avatar', refId: 'frog1' },
 ];
 
+// Backgrounds that cost nothing and are available from day one. Named here
+// rather than read out of BG_LIST's `unlock` label, which is display copy —
+// deciding access by string-matching it would turn a wording change into an
+// access change. Both profile pages read this, so the lead's editor and the
+// tester's cabinet can't drift apart on what is free.
+export const FREE_BG_IDS = ['default', 'forest', 'console', 'ink', 'deep', 'moss', 'dusk', 'ember', 'slate', 'grid'];
+
 export function shopItemFor(kind: 'frame' | 'bg' | 'avatar', refId: string): ShopItem | undefined {
   return SHOP_ITEMS.find(i => i.kind === kind && i.refId === refId);
 }

@@ -10,7 +10,7 @@ import { Lecture } from '../types';
 import { clickableProps } from '../utils/a11y';
 import { parseServerDate } from '../utils/date';
 import { apiErrorMessage, showApiError } from '../utils/toast';
-import { getTopicTag, getCourseTagColor } from '../utils/topics';
+import { getTopicTag, getCourseTagColor, tagChipStyle, tagChipStyleMuted } from '../utils/topics';
 import { pickByGender } from '../utils/gender';
 import { BookOpenIcon, SearchIcon, LockIcon, CheckCircleIcon, PlusIcon, PencilLineIcon, TrashLineIcon, PeopleIcon } from '../components/CatalogIcons';
 import { ACCENT, CARD_BG, CARD_BG_PATTERN, ERROR, PAGE_BG, PAGE_GRADIENT, SECONDARY, SUCCESS, TEXT_MUTED, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
@@ -40,15 +40,12 @@ const NEW_BADGE: CSSProperties = {
 // Every filter reads as a standing chip in its own topic colour — the same
 // square-cornered badge shape a card wears for its tag, not the pill the
 // page used to draw only once something had been picked.
-function filterChipStyle(color: string, active: boolean): CSSProperties {
+function filterChipStyle(color: string, active: boolean, tag?: string): CSSProperties {
   return {
     fontSize: 12,
-    borderRadius: 4,
     padding: '4px 9px',
     letterSpacing: '0.08em',
-    background: active ? `${color}33` : `${color}14`,
-    color,
-    border: `1px solid ${active ? color : `${color}55`}`,
+    ...(active ? tagChipStyle(color, tag) : tagChipStyleMuted(color, tag)),
   };
 }
 
@@ -268,8 +265,8 @@ function CourseCard({
             </span>
           ) : (
             <span
-              className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5"
-              style={{ fontSize: 11, background: `${tagColor}22`, color: tagColor, border: `1px solid ${tagColor}55` }}
+              className="shrink-0 mt-0.5 font-geist font-semibold px-2 py-0.5"
+              style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(tagColor, tag) }}
             >
               {tag}
             </span>
@@ -597,7 +594,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                   no pointer events so it can't swallow a click meant for
                   the input underneath. */}
               <div className="relative" style={{ width: 396, maxWidth: '100%' }}>
-                <FrogPerched className="absolute pointer-events-none" style={{ left: 8, bottom: 'calc(100% - 10px)' }} />
+                <FrogPerched className="absolute pointer-events-none" style={{ left: -16, bottom: 'calc(100% - 30px)' }} />
                 <div
                   className="flex items-center justify-between"
                   style={{ height: 48, padding: '0 16px', borderRadius: 8, border: `1px solid ${SECONDARY}`, background: 'rgba(11, 12, 16, 0.72)' }}
@@ -631,7 +628,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                     key={tag}
                     onClick={() => { setTagFilter(t => t === tag ? null : tag); setDraftOnly(false); }}
                     className="font-geist font-semibold cursor-pointer transition-all"
-                    style={filterChipStyle(color, tagFilter === tag)}
+                    style={filterChipStyle(color, tagFilter === tag, tag)}
                   >
                     {tag}
                   </button>

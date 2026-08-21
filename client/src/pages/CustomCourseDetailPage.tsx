@@ -9,6 +9,7 @@ import { parseServerDate } from '../utils/date';
 import { pickByGender } from '../utils/gender';
 import { parseRichContent } from '../utils/richContent';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { tagChipStyle } from '../utils/topics';
 
 // Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
 // need the full Tiptap chunk to render, so it stays out of this page's own
@@ -215,7 +216,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-3">
-                <span className="font-geist font-semibold rounded px-2 py-0.5 break-words min-w-0" style={{ fontSize: 11, background: `${color}20`, color, border: `1px solid ${color}55` }}>
+                <span className="font-geist font-semibold px-2 py-0.5 break-words min-w-0" style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(color, course.tag) }}>
                   {course.tag}
                 </span>
                 {courseIsNew && (
