@@ -297,7 +297,7 @@ export const FRAME_LIST: { id: FrameId; name: string; unlock: string }[] = [
   { id: 'gold',       name: 'Золотая',     unlock: 'Скрафти любой значок' },
   { id: 'rainbow',    name: 'Радуга',      unlock: 'Значок CSS' },
   { id: 'glitch',     name: 'Глитч',       unlock: 'Значок DevTools' },
-  { id: 'code',       name: 'Код',         unlock: 'Значок HTML' },
+  { id: 'code',       name: 'Код',         unlock: 'Доступна всегда' },
   { id: 'crimescene', name: 'Место преступления', unlock: 'Значок Bug Reports' },
   { id: 'crown',      name: 'Корона',      unlock: 'Скрафти все значки' },
 ];

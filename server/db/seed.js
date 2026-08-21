@@ -127,7 +127,7 @@ db.exec(`
     specialization TEXT DEFAULT '',
     info_box TEXT DEFAULT '',
     snail_joke TEXT DEFAULT '',
-    avatar_id TEXT DEFAULT 'frog1',
+    avatar_id TEXT DEFAULT 'frog2',   -- must be a free avatar: see src/entitlements.js
     avatar_frame TEXT DEFAULT 'default',
     profile_bg TEXT DEFAULT 'default',
     showcase_badges TEXT DEFAULT '[]',

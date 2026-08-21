@@ -211,7 +211,7 @@ function awardCourseProgress(userId, courseId) {
     SELECT l.id, l.module_id, l.type,
            (SELECT COUNT(*) FROM custom_quiz_questions q WHERE q.lesson_id = l.id) AS questions,
            (SELECT 1 FROM custom_lesson_progress p WHERE p.lesson_id = l.id AND p.user_id = ?) AS done,
-           r.score AS score, r.attempts AS attempts
+           r.score AS score, r.attempts AS attempts, r.first_score AS first_score
     FROM custom_lessons l
     JOIN custom_modules m ON m.id = l.module_id
     LEFT JOIN custom_quiz_results r ON r.lesson_id = l.id AND r.user_id = ?
@@ -222,9 +222,9 @@ function awardCourseProgress(userId, courseId) {
   const byModule = new Map(modules.map(m => [m.id, []]));
   for (const l of lessons) if (byModule.has(l.module_id)) byModule.get(l.module_id).push(l);
 
-  // A run of modules finished first try, counted in course order. It breaks
-  // on the first module that is unfinished or needed a retake, so the bonus
-  // means "three in a row", not "three altogether".
+  // A run of tested modules cleared first try, counted in course order. It
+  // breaks on the first module that is unfinished or needed a retake, so the
+  // bonus means "three in a row", not "three altogether".
   let run = 0;
   let allFirstTry = true;
 
@@ -233,18 +233,37 @@ function awardCourseProgress(userId, courseId) {
     if (own.length === 0) continue;                      // an outline heading, not work
     const finished = own.every(l => l.done);
     const graded = own.filter(l => l.type === 'quiz' && l.questions > 0);
-    const firstTry = graded.length > 0 && graded.every(l => l.attempts === 1);
+    // Passed at the first attempt — not "submitted exactly once". Reading a
+    // test again after passing it used to count as needing a retake.
+    const firstTry = graded.length > 0 && graded.every(l => l.first_score !== null && l.first_score >= COURSE_PASS_SCORE);
 
     if (!finished) { run = 0; allFirstTry = false; continue; }
 
     awardOnce(userId, 'moduleCompleted', mod.id, COIN_REWARDS.moduleCompleted);
+
+    // A module with nothing to grade is neither a win nor a slip. It used to
+    // fall through to the else below and zero the run, so a course with a
+    // theory module in the middle — an introduction, a summary; the shape
+    // every seeded lecture track already has — could be cleared without a
+    // single retake and still pay no streak bonus at all.
+    if (graded.length === 0) continue;
+
     if (firstTry) {
       awardOnce(userId, 'quizFirstTry', mod.id, COIN_REWARDS.quizFirstTry);
       run += 1;
-      if (run >= QUIZ_STREAK_LENGTH) awardOnce(userId, 'quizStreak', mod.id, COIN_REWARDS.quizStreak);
+      // Paid per completed run, not per module once a run is standing.
+      // Awarding on every module from the third onward meant a six-module
+      // course paid it four times and a ten-module course eight — 120 coins
+      // of bonus against 100 for the modules themselves, which is not what
+      // "3 модуля подряд" says on the lead's breakdown, and left the scheme
+      // no longer anchored on the 10 it is supposed to be built from.
+      if (run === QUIZ_STREAK_LENGTH) {
+        awardOnce(userId, 'quizStreak', mod.id, COIN_REWARDS.quizStreak);
+        run = 0;
+      }
     } else {
       run = 0;
-      if (graded.length > 0) allFirstTry = false;
+      allFirstTry = false;
     }
   }
 
@@ -507,15 +526,18 @@ router.post('/api/custom-lessons/:id/submit-quiz', authMiddleware, (req, res) =>
     // the courses page promises ("пересдавать можно сколько угодно,
     // сохраняется лучший результат").
     db.prepare(`
-      INSERT INTO custom_quiz_results (user_id, lesson_id, score, correct_count, total_count, attempts)
-      VALUES (?, ?, ?, ?, ?, 1)
+      INSERT INTO custom_quiz_results (user_id, lesson_id, score, correct_count, total_count, attempts, first_score)
+      VALUES (?, ?, ?, ?, ?, 1, ?)
       ON CONFLICT(user_id, lesson_id) DO UPDATE SET
         attempts = attempts + 1,
+        -- Written once and never again: this is what the first attempt
+        -- scored, which is a different question from the best score.
+        first_score = COALESCE(first_score, CASE WHEN attempts = 1 THEN score END),
         score = MAX(score, excluded.score),
         correct_count = CASE WHEN excluded.score > score THEN excluded.correct_count ELSE correct_count END,
         total_count = excluded.total_count,
         completed_at = CURRENT_TIMESTAMP
-    `).run(req.user.id, lesson.id, score, correct, questions.length);
+    `).run(req.user.id, lesson.id, score, correct, questions.length, score);
 
     const stored = db.prepare('SELECT score, correct_count, total_count, attempts FROM custom_quiz_results WHERE user_id = ? AND lesson_id = ?')
       .get(req.user.id, lesson.id);

@@ -9,9 +9,10 @@
 //    real like an отгул, and that conversion is a human decision made off
 //    the app.
 //
-// COIN_REWARDS mirrors server/src/routeHelpers.js by hand — the same
-// arrangement SHOP_ITEMS/shop.ts already has with the server's SHOP_CATALOG,
-// since this repo has no shared-types boundary. Change one, change the other.
+// Only the premium-point guidance lives here now. That one is genuinely
+// editorial — a recommended scale for a human decision, enforced nowhere —
+// so it has no server-side counterpart to drift from. The bug-coin table
+// does, and is fetched rather than copied; see the note below.
 
 export interface RewardRow {
   action: string;
@@ -19,17 +20,18 @@ export interface RewardRow {
   note?: string;
 }
 
-export const COIN_REWARDS: RewardRow[] = [
-  { action: 'Тест сдан на 90% и выше', amount: '25', note: 'только за первую попытку по лекции' },
-  { action: 'Тест сдан на 75–89%', amount: '18', note: 'только за первую попытку по лекции' },
-  { action: 'Тест сдан на 60–74%', amount: '10', note: 'только за первую попытку по лекции' },
-  { action: 'Тест не сдан (меньше 60%)', amount: '3', note: 'утешительные, тоже только за первую попытку' },
-  { action: 'Курс пройден целиком', amount: '50', note: 'один раз на курс; сервер проверяет, что закрыты все уроки' },
-  { action: 'Предложенный курс одобрен', amount: '100', note: 'начисляется автору, если одобрил кто-то другой' },
-  { action: 'Предложенный гайд одобрен', amount: '60', note: 'начисляется автору, если одобрил кто-то другой' },
-  { action: 'Пример бага одобрен', amount: '30', note: 'начисляется автору, если одобрил кто-то другой' },
-  { action: 'Термин в глоссарии одобрен', amount: '20', note: 'начисляется автору, если одобрил кто-то другой' },
-];
+// The bug-coin price list is NOT mirrored here.
+//
+// It used to be, and it drifted: after the scheme was rebuilt around
+// modules the copy here still promised coins by score band (25/18/10),
+// consolation coins for a failed test, and 50 for finishing a course —
+// none of which the server had paid for some time. The lead read that on
+// the Помощь page and the real numbers on their own page, both at once.
+//
+// It comes from GET /api/coins/rules now, which serves COIN_REWARDS in
+// server/src/routeHelpers.js directly, so the only description of the
+// economy anyone can read is the one the economy actually runs on. See
+// HelpPage.tsx and components/uley/CoinRulesCard.tsx.
 
 // Not enforced anywhere — the award form takes any amount from 1 to 500 with
 // a reason. This is the scale to keep the numbers meaning the same thing

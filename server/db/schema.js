@@ -176,7 +176,7 @@ export function initDb() {
       specialization TEXT DEFAULT '',
       info_box TEXT DEFAULT '',
       snail_joke TEXT DEFAULT '',
-      avatar_id TEXT DEFAULT 'frog1',
+      avatar_id TEXT DEFAULT 'frog2',   -- must be a free avatar: see src/entitlements.js
       avatar_frame TEXT DEFAULT 'default',
       profile_bg TEXT DEFAULT 'default',
       showcase_badges TEXT DEFAULT '[]',
@@ -1187,6 +1187,28 @@ export function initDb() {
   const usersColsForPhone = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
   migrationStep('users.phone', () => {
     if (!usersColsForPhone.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL');
+  });
+
+  // What the very first attempt at a course test scored.
+  //
+  // "Сдан с первого раза" was decided from the attempt counter, which counts
+  // submissions rather than failures — so opening a test you had already
+  // passed and answering it correctly a second time took the first-try and
+  // flawless bonuses away from you, for reviewing. The counter still climbs
+  // (the courses page shows it, and best-score-wins depends on nothing
+  // here); this records the one number that question actually needs.
+  //
+  // Backfilled where it is knowable: a row with a single attempt has its
+  // first attempt's score sitting in `score` already. A pre-existing row
+  // with more than one attempt cannot say what its first attempt scored, and
+  // stays NULL — read as "not first try", which is exactly how the old rule
+  // already treated it, so nobody's bonus changes retroactively.
+  const quizResultCols = db.prepare('PRAGMA table_info(custom_quiz_results)').all().map(c => c.name);
+  migrationStep('custom_quiz_results.first_score', () => {
+    if (!quizResultCols.includes('first_score')) {
+      db.exec('ALTER TABLE custom_quiz_results ADD COLUMN first_score INTEGER DEFAULT NULL');
+      db.exec('UPDATE custom_quiz_results SET first_score = score WHERE attempts = 1');
+    }
   });
 
   // Personal profile accent color — a small self-expression touch alongside

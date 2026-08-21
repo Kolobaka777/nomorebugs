@@ -13,6 +13,7 @@ vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="na
 vi.mock('../api', () => ({
   testerApi: {
     getProfileFull: vi.fn(), getMetrics: vi.fn(), getLectures: vi.fn(), getHistory: vi.fn(),
+    getEntitlements: vi.fn(),
     getFavorites: vi.fn(), removeFavorite: vi.fn(), getNotes: vi.fn(), deleteNote: vi.fn(),
     getBeforeAfter: vi.fn(), updateProfile: vi.fn(), buyShopItem: vi.fn(), craftBadge: vi.fn(),
   },
@@ -34,6 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(testerApi.getProfileFull).mockResolvedValue({ data: profile() } as any);
   vi.mocked(testerApi.getMetrics).mockResolvedValue({ data: { completedLectures: 1, totalLectures: 10, averageScore: 70 } } as any);
+  vi.mocked(testerApi.getEntitlements).mockResolvedValue({ data: { frames: ['default', 'code'], bgs: ['default'], avatars: ['frog2'] } } as any);
   vi.mocked(testerApi.getLectures).mockResolvedValue({ data: [] } as any);
   vi.mocked(testerApi.getHistory).mockResolvedValue({ data: [] } as any);
   vi.mocked(testerApi.getFavorites).mockResolvedValue({ data: [] } as any);

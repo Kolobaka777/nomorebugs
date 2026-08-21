@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Navigation from '../components/Navigation';
 import Icon, { IconName } from '../components/Icon';
 import TeamQuestions from '../components/TeamQuestions';
-import { COIN_REWARDS, PREMIUM_POINT_GUIDE, PREMIUM_POINT_MAX, RewardRow } from '../utils/coins';
+import { PREMIUM_POINT_GUIDE, PREMIUM_POINT_MAX, RewardRow } from '../utils/coins';
+import { leadApi } from '../api';
+import { apiErrorMessage } from '../utils/toast';
 import { FaqItem, HowToItem, faqFor, howToFor, isLeadRole } from '../utils/helpContent';
 import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, BADGE_NOTIFY, CARD_SHADOW, TRACK_WIDE, H1 } from '../utils/theme';
 
@@ -128,6 +130,27 @@ export default function HelpPage({ user, onLogout }: Props) {
   const faq = faqFor(user.role);
   const [tab, setTab] = useState<Tab>('platform');
 
+  // The bug-coin table used to be a hand-written copy of the server's
+  // COIN_REWARDS living in utils/coins.ts. It fell out of date the moment
+  // the scheme was rebuilt around modules, and went on describing an economy
+  // — coins by score band, consolation coins for failing, 50 for a course —
+  // that the server had stopped paying, while the lead's own page showed the
+  // real one. Two contradictory price lists for the same person. It is read
+  // from the same endpoint as that card now, so there is nothing left to
+  // drift.
+  const [coinRules, setCoinRules] = useState<RewardRow[] | null>(null);
+  const [coinError, setCoinError] = useState('');
+
+  useEffect(() => {
+    if (!isLead) return;
+    leadApi.getCoinRules()
+      .then(r => setCoinRules(r.data.rules.map((rule: { label: string; amount: number }) => ({
+        action: rule.label,
+        amount: String(rule.amount),
+      }))))
+      .catch(e => setCoinError(apiErrorMessage(e, 'Не удалось загрузить разбивку начислений.')));
+  }, [isLead]);
+
   return (
     <div className="min-h-screen" style={{ background: PAGE_GRADIENT }}>
       <Navigation user={user} onLogout={onLogout} />
@@ -177,7 +200,13 @@ export default function HelpPage({ user, onLogout }: Props) {
                   title="Баг-коины: за что начисляет сервис"
                   subtitle="Автоматически, без участия лида. Тратятся только на косметику в Багодельне."
                 />
-                <RewardTable rows={COIN_REWARDS} accent={ACCENT} />
+                {coinError ? (
+                  <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>{coinError}</p>
+                ) : coinRules === null ? (
+                  <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Загружаю…</p>
+                ) : (
+                  <RewardTable rows={coinRules} accent={ACCENT} />
+                )}
               </section>
             )}
 

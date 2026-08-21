@@ -18,7 +18,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { celebrateAchievements } from '../utils/achievements';
 import { TIMEZONES, HOUR_OPTIONS } from '../utils/timezones';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
-import { shopItemFor, FREE_BG_IDS } from '../utils/shop';
+import { shopItemFor, FREE_BG_IDS, FREE_FRAME_IDS, FREE_AVATAR_IDS } from '../utils/shop';
 import { tagChipStyle } from '../utils/topics';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { counted } from '../utils/plural';
@@ -134,6 +134,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [craftSuccess, setCraftSuccess] = useState<string | null>(null);
   const [premiumPoints, setPremiumPoints] = useState<{ premium_points: number; history: any[] } | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [entitlements, setEntitlements] = useState<{ frames: string[]; bgs: string[]; avatars: string[] } | null>(null);
   const [myPresence, setMyPresence] = useState<PresenceEntry | null>(null);
   const [presenceForm, setPresenceForm] = useState({ work_start: '', work_end: '', days: new Set(['1', '2', '3', '4', '5']), timezone: 'Europe/Moscow' });
   const [savingPresence, setSavingPresence] = useState(false);
@@ -172,6 +173,20 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
 
   useEffect(() => { loadAll(); }, []);
 
+  // Secondary to the page, like premium points: if it never arrives the
+  // cabinet still works and simply offers the free set. Guarded rather than
+  // left to loadAll's catch, where one failed request would have replaced
+  // the whole profile with an error screen.
+  const loadEntitlements = () => {
+    try {
+      testerApi.getEntitlements()
+        .then(r => setEntitlements(r.data))
+        .catch(() => setEntitlements(null));
+    } catch {
+      setEntitlements(null);
+    }
+  };
+
   const loadAll = async () => {
     setLoadError('');
     try {
@@ -183,6 +198,13 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
         testerApi.getLectures(),
         testerApi.getProfileFull(),
       ]);
+
+      // Buying and crafting both change what may be worn, so this is
+      // refetched after either (see buyAndEquip / the craft handler) rather
+      // than read once. A failure leaves the free set showing, which is the
+      // safe way to be wrong: it under-offers instead of offering a tile the
+      // server will refuse.
+      loadEntitlements();
 
       // Premium points is a secondary widget on this page — a toast on
       // failure (rather than blocking the whole cabinet) is enough; the
@@ -254,32 +276,23 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const nextLecture     = lectures.find(l => l.status === 'active');
 
   const badgeIds       = profile?.badges.map(b => b.badge_id) || [];
-  const purchased      = profile?.purchased_items || [];
   // Personal accent — the "Цветовая схема" picker in the edit modal, applied
   // here to everything that reads as "your" color (level box, edit button,
   // active nav row, Магазин's "own" icon) instead of always the site's
   // fixed teal — otherwise that picker would have no visible effect at all.
   const accent = profile?.profile_accent_color || ACCENT;
 
-  const unlockedFrames = ['default', 'code',
-    ...(badgeIds.length > 0 || purchased.includes('frame_gold')    ? ['gold']       : []),
-    ...(badgeIds.includes('CSS reading') || purchased.includes('frame_rainbow') ? ['rainbow'] : []),
-    ...(badgeIds.includes('DevTools')    || purchased.includes('frame_glitch')  ? ['glitch']  : []),
-    ...(badgeIds.includes('Bug report quality') ? ['crimescene'] : []),
-    ...(badgeIds.length >= 5             ? ['crown'] : []),
-  ];
-  const unlockedBgs = [...FREE_BG_IDS,
-    ...(badgeIds.length > 0 || purchased.includes('bg_hive')  ? ['hive']  : []),
-    ...(badgeIds.length >= 5 || purchased.includes('bg_amber') ? ['amber'] : []),
-  ];
-  // Avatars: most of the 9 frogs are free-equip; 'frog1' is the shop's one
-  // priced tile (see server SHOP_CATALOG), 'frog9' unlocks the first time
-  // any badge is earned — mirrors the reference design's mixed price-lock/
-  // achievement-lock/free avatar grid instead of leaving everything free.
-  const unlockedAvatars = ['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8',
-    ...(purchased.includes('avatar_frog1') ? ['frog1'] : []),
-    ...(badgeIds.length > 0 ? ['frog9'] : []),
-  ];
+  // What may be worn is the server's decision (GET /api/tester/entitlements,
+  // backed by entitlements.js), not this page's. This used to be three
+  // arrays computed right here from badges and purchases — a second copy of
+  // a rule the server also holds, which is how the shop's one priced avatar
+  // came to be every new account's default and got drawn as equipped and
+  // for-sale at once. Until it arrives, only what is free to everyone is
+  // offered: showing a locked tile as unlocked invites a save the server
+  // will refuse.
+  const unlockedFrames = entitlements?.frames ?? FREE_FRAME_IDS;
+  const unlockedBgs    = entitlements?.bgs    ?? FREE_BG_IDS;
+  const unlockedAvatars = entitlements?.avatars ?? FREE_AVATAR_IDS;
 
   // The single achievement chosen to show off (edit modal's "Достижение
   // напоказ", up to 3 picked — only the first is featured here, matching
@@ -353,6 +366,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     try {
       const res = await testerApi.buyShopItem(itemId);
       setProfile(p => p ? { ...p, bug_coins: res.data.newCoins, purchased_items: [...p.purchased_items, itemId] } : p);
+      // The purchase already landed server-side, so the equip below will be
+      // accepted; this only catches the tile up so it stops showing a price.
+      loadEntitlements();
       await equipItem(kind === 'frame' ? { avatar_frame: refId } : kind === 'bg' ? { profile_bg: refId } : { avatar_id: refId });
     } catch (e: any) {
       setShopError(apiErrorMessage(e, 'Не удалось купить'));

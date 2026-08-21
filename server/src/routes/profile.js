@@ -6,10 +6,15 @@ import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware } from '../auth.js';
 import { parseDbDate, awardAchievement, ACHIEVEMENT_IDS, displayName, logActivity, canSeeCourse, toPositiveInt } from '../routeHelpers.js';
+import { entitlements, cosmeticAllowed, LEGACY_AVATARS, SKILL_BADGES, DEFAULT_AVATAR_ID } from '../entitlements.js';
 
 const router = express.Router();
 
-// Badge unlock mappings (what each crafted badge awards)
+// What a freshly crafted badge announces it unlocks. Display only —
+// entitlements.js is what actually decides whether a frame or a
+// background may be worn, and SKILL_BADGES there is the canonical list
+// of the five craftable badges these keys must stay in step with (a test
+// asserts they do).
 const BADGE_UNLOCKS = {
   'HTML structure':      { frame: 'code',        bg: 'forest',  spec: 'HTML-жук' },
   'CSS reading':         { frame: 'rainbow',      bg: 'console', spec: 'CSS-жук' },
@@ -92,7 +97,7 @@ function buildFullProfile(userId) {
     specialization:     profile.specialization || '',
     info_box:           profile.info_box     || '',
     snail_joke:         profile.snail_joke   || '',
-    avatar_id:          profile.avatar_id || 'frog1',
+    avatar_id:          profile.avatar_id || DEFAULT_AVATAR_ID,
     avatar_frame:       profile.avatar_frame || 'default',
     profile_bg:         profile.profile_bg   || 'default',
     profile_accent_color: profile.profile_accent_color || '#66FCF1',
@@ -140,7 +145,7 @@ router.get('/api/users/:id/profile', authMiddleware, (req, res) => {
         id: target.id,
         name: target.name,
         avatar_initials: target.avatar_initials,
-        avatar_id: profileRow.avatar_id || 'frog1',
+        avatar_id: profileRow.avatar_id || DEFAULT_AVATAR_ID,
         avatar_frame: profileRow.avatar_frame || 'default',
         custom_avatar: profileRow.custom_avatar || null,
         is_public: false,
@@ -226,6 +231,50 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
       return res.status(400).json({ error: 'Аватар слишком большой (макс 2 MB)' });
     }
 
+    // Nothing may be worn that was not bought or earned. Without this the
+    // shop was ornamental: a plain profile save carrying avatar_frame:
+    // 'rainbow' equipped the 350-coin frame for a tester holding zero coins,
+    // and the same for every priced background. The rule lives in
+    // entitlements.js and is the same one the profile page reads to draw its
+    // locks, so the lock a person sees and the check they hit agree.
+    //
+    // Whatever the account already wears stays wearable — see cosmeticAllowed.
+    const owned = entitlements(userId);
+    // Everything the account already has, so an absent field can keep its
+    // value instead of being blanked — see the `keep` helper below.
+    const current = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) || {};
+
+    if (!cosmeticAllowed(owned.frames, avatar_frame, current.avatar_frame)) {
+      return res.status(403).json({ error: 'Эта рамка ещё не открыта' });
+    }
+    if (!cosmeticAllowed(owned.bgs, profile_bg, current.profile_bg)) {
+      return res.status(403).json({ error: 'Этот фон ещё не открыт' });
+    }
+    // 'custom' is valid whenever the account actually has an uploaded image,
+    // and the legacy bug sprites stay valid for accounts that still carry one.
+    const avatarExtras = [...LEGACY_AVATARS, ...(custom_avatar || current.custom_avatar ? ['custom'] : [])];
+    if (!cosmeticAllowed(owned.avatars, avatar_id, current.avatar_id, avatarExtras)) {
+      return res.status(403).json({ error: 'Этот аватар ещё не открыт' });
+    }
+
+    // A field this request did not mention keeps the value it already had.
+    //
+    // This used to overwrite all fifteen columns from whatever the body
+    // happened to contain, which made every partial caller destructive: the
+    // profile page equips a frame by sending {avatar_frame}, and that one
+    // request wiped the nickname, the status quote, the specialization, the
+    // info box, gender, the accent colour, the background, the showcase
+    // badges and the uploaded avatar, and flipped a public profile private —
+    // all with a 200 and no warning. Buying a frame did it too, so a 350-coin
+    // purchase erased the profile it was bought for. The nickname is what
+    // every list in the app shows (see displayName), so it went from the news
+    // feed, the team page and the ratings at the same time.
+    //
+    // `undefined` means absent, so it keeps the old value. An explicit null
+    // or empty string still clears the field — that is how the edit modal
+    // empties one on purpose.
+    const keep = (incoming, existing) => (incoming === undefined ? existing : (incoming || null));
+
     db.prepare(`
       INSERT INTO user_profiles
         (user_id, nickname, status_quote, specialization, info_box, snail_joke,
@@ -248,12 +297,22 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
         profile_accent_color = excluded.profile_accent_color
     `).run(
       userId,
-      nickname || null, status_quote || null, specialization || null,
-      info_box || null, snail_joke || null,
-      avatar_id || 'frog1', avatar_frame || 'default', profile_bg || 'default',
-      JSON.stringify(showcase_badges || []),
-      favorite_lecture_id || null, is_public ? 1 : 0,
-      custom_avatar || null, gender || null, profile_accent_color || '#66FCF1',
+      keep(nickname, current.nickname),
+      keep(status_quote, current.status_quote),
+      keep(specialization, current.specialization),
+      keep(info_box, current.info_box),
+      keep(snail_joke, current.snail_joke),
+      avatar_id || current.avatar_id || DEFAULT_AVATAR_ID,
+      avatar_frame || current.avatar_frame || 'default',
+      profile_bg || current.profile_bg || 'default',
+      showcase_badges === undefined
+        ? (current.showcase_badges || '[]')
+        : JSON.stringify(showcase_badges || []),
+      keep(favorite_lecture_id, current.favorite_lecture_id),
+      is_public === undefined ? (current.is_public ? 1 : 0) : (is_public ? 1 : 0),
+      keep(custom_avatar, current.custom_avatar),
+      keep(gender, current.gender),
+      profile_accent_color || current.profile_accent_color || '#66FCF1',
     );
 
     res.json({ success: true });
@@ -572,15 +631,31 @@ router.post('/api/tester/craft-badge', authMiddleware, (req, res) => {
 
     // «Коллекционер» — all 5 skill-area badges crafted.
     const craftedSkillBadges = db.prepare(
-      `SELECT COUNT(*) as c FROM user_badges WHERE user_id = ? AND badge_id IN (${Object.keys(BADGE_UNLOCKS).map(() => '?').join(',')})`
-    ).get(userId, ...Object.keys(BADGE_UNLOCKS)).c;
+      `SELECT COUNT(*) as c FROM user_badges WHERE user_id = ? AND badge_id IN (${SKILL_BADGES.map(() => '?').join(',')})`
+    ).get(userId, ...SKILL_BADGES).c;
     const newAchievements = [];
-    if (craftedSkillBadges >= Object.keys(BADGE_UNLOCKS).length) {
+    if (craftedSkillBadges >= SKILL_BADGES.length) {
       if (awardAchievement(userId, ACHIEVEMENT_IDS.KOLLEKTSIONER)) newAchievements.push(ACHIEVEMENT_IDS.KOLLEKTSIONER);
     }
 
     const unlocks = BADGE_UNLOCKS[skill_area] || { frame: 'gold', bg: 'forest', spec: '' };
     res.json({ success: true, badge_id: skill_area, unlocks, newAchievements });
+  } catch (err) {
+    logError(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// What this account may wear, decided by the same function that refuses a
+// save (entitlements.js). The profile page used to work this out in the
+// browser from its badges and purchases, which meant the rule that greys out
+// a locked tile and the rule that enforces it were two separate pieces of
+// code — and they had already drifted: the shop's priced avatar was also
+// every new account's default, so a new tester saw their own current avatar
+// drawn as locked with a 120-coin price on it.
+router.get('/api/tester/entitlements', authMiddleware, (req, res) => {
+  try {
+    res.json(entitlements(req.user.id));
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

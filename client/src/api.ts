@@ -105,6 +105,13 @@ export const testerApi = {
 
   updateProfile: (data: any) => api.put('/tester/profile', data),
 
+  // Which frames/backgrounds/avatars this account may wear. Decided by the
+  // server, because the server is what refuses a save that claims one it
+  // does not own — a second copy of the rule in the browser is how the
+  // profile page ended up drawing a price tag on the avatar every new
+  // account was already wearing.
+  getEntitlements: () => api.get('/tester/entitlements'),
+
   // Returns { rows, hasMore } and, deliberately, no image data — the bytes
   // come one at a time from getGalleryImage below so the browser can cache
   // them, instead of arriving together in one very large JSON response.

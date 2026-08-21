@@ -26,7 +26,16 @@ export const SHOP_ITEMS: ShopItem[] = [
 // deciding access by string-matching it would turn a wording change into an
 // access change. Both profile pages read this, so the lead's editor and the
 // tester's cabinet can't drift apart on what is free.
+// What everybody has without buying or earning anything.
+//
+// These are only the fallback the profile page shows while GET
+// /api/tester/entitlements is still in flight — the server decides what may
+// actually be worn (server/src/entitlements.js) and refuses a save that
+// claims otherwise. Falling back to the free set means a slow request
+// under-offers rather than offering a tile the save would bounce.
 export const FREE_BG_IDS = ['default', 'forest', 'console', 'ink', 'deep', 'moss', 'dusk', 'ember', 'slate', 'grid'];
+export const FREE_FRAME_IDS = ['default', 'code'];
+export const FREE_AVATAR_IDS = ['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8'];
 
 export function shopItemFor(kind: 'frame' | 'bg' | 'avatar', refId: string): ShopItem | undefined {
   return SHOP_ITEMS.find(i => i.kind === kind && i.refId === refId);

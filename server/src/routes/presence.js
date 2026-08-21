@@ -13,8 +13,17 @@ const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
+// A field this request did not mention keeps the value it already had.
+//
+// The working-hours form does not send `status` — it has no status control on
+// it — and this used to default an absent status back to 'active'. So anyone
+// who marked themselves remote and later adjusted their hours was quietly put
+// back in the office on the team's presence board, without touching that
+// setting. Same shape of bug as the profile save's; see routes/profile.js.
 function upsertPresence(userId, { work_start, work_end, work_days, timezone, status, birthday }) {
-  let days = '1,2,3,4,5';
+  const current = db.prepare('SELECT work_start, work_end, work_days, timezone, status, birthday FROM user_profiles WHERE user_id = ?').get(userId) || {};
+
+  let days = current.work_days || '1,2,3,4,5';
   if (work_days) {
     const parsed = String(work_days).split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 7);
     if (parsed.length) days = parsed.join(',');
@@ -25,8 +34,7 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
   // silently ignored (kept as-is) rather than overwritten; only a
   // currently-null birthday can be set through this path, which mainly
   // covers accounts that existed before this field did.
-  const existing = db.prepare('SELECT birthday FROM user_profiles WHERE user_id = ?').get(userId);
-  const nextBirthday = existing?.birthday ? existing.birthday : (birthday || null);
+  const nextBirthday = current.birthday ? current.birthday : (birthday || null);
   db.prepare(`
     INSERT INTO user_profiles (user_id, work_start, work_end, work_days, timezone, status, birthday)
     VALUES (?,?,?,?,?,?,?)
@@ -37,7 +45,15 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
       timezone   = excluded.timezone,
       status     = excluded.status,
       birthday   = excluded.birthday
-  `).run(userId, work_start || null, work_end || null, days, timezone || 'Europe/Moscow', status || 'active', nextBirthday);
+  `).run(
+    userId,
+    work_start === undefined ? (current.work_start || null) : (work_start || null),
+    work_end === undefined ? (current.work_end || null) : (work_end || null),
+    days,
+    timezone || current.timezone || 'Europe/Moscow',
+    status || current.status || 'active',
+    nextBirthday,
+  );
 }
 
 function validatePresenceBody(body) {
