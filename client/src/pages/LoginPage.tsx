@@ -18,13 +18,14 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [remember, setRemember] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const { data } = await authApi.login(email, password);
+      const { data } = await authApi.login(email, password, remember);
       onLogin(data.token, data.user, data.needsBaselineSurvey, data.mustChangePassword);
     } catch (err: any) {
       setError(apiErrorMessage(err, 'Ошибка входа'));
@@ -145,10 +146,40 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
               <button
                 type="button"
                 onClick={() => navigate('/forgot-password')}
-                className="mt-2 text-pixel/50 text-xs font-sans cursor-pointer hover:text-pixel/70"
+                className="mt-2 text-xs font-sans link-muted"
               >
                 Забыли пароль?
               </button>
+            </div>
+
+            {/* Per the kit. Unchecked, the browser keeps the session only
+                until it closes — the server-side token is unchanged either
+                way, this is about the copy the browser holds. */}
+            <div>
+              <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={e => setRemember(e.target.checked)}
+                  disabled={loading}
+                  className="sr-only"
+                  aria-label="Запомнить меня"
+                />
+                <span
+                  aria-hidden="true"
+                  className="flex items-center justify-center shrink-0"
+                  style={{
+                    width: 16, height: 16, borderRadius: 2,
+                    background: remember ? 'transparent' : '#0B0C10',
+                    border: `2px solid ${remember ? '#66FCF1' : 'rgba(197, 198, 199, 0.35)'}`,
+                  }}
+                >
+                  {remember && <Icon name="check" size={11} color="#66FCF1" />}
+                </span>
+                <span className="text-xs font-sans" style={{ color: remember ? '#66FCF1' : 'rgba(197, 198, 199, 0.6)' }}>
+                  Запомнить меня
+                </span>
+              </label>
             </div>
 
             <button
@@ -167,7 +198,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
 
           <button
             onClick={() => navigate('/register')}
-            className="w-full text-center mt-4 text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
+            className="w-full text-center mt-4 text-xs font-sans link-muted"
           >
             Нет аккаунта? Зарегистрироваться <Icon name="arrowRight" size={16} color="currentColor" />
           </button>

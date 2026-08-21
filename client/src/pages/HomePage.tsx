@@ -170,7 +170,7 @@ export default function HomePage({ user, onLogout }: HomePageProps) {
 
           <div className="w-full lg:w-auto lg:min-w-[420px]">
             <TwoTone first={isTester ? 'ТВОИ' : 'КОМАНДА'} second={isTester ? 'НАВЫКИ' : 'СЕГОДНЯ'} />
-            <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-2 gap-3 mt-3 items-stretch">
               {headerStats.map(s => <StatCard key={s.label} {...s} />)}
             </div>
           </div>
@@ -362,8 +362,12 @@ function TwoTone({ first, second }: { first: string; second: string }) {
 function StatCard({ value, suffix, label, dot }: { value: string | number; suffix?: string; label: string; dot?: boolean }) {
   return (
     <div
-      className="relative flex flex-col items-start rounded-lg"
-      style={{ padding: 16, gap: 24, background: CARD_BG_PATTERN, boxShadow: CARD_SHADOW_TALL }}
+      // h-full so the card fills the grid row it is in, and
+      // justify-between so its label sits on the bottom edge rather than a
+      // fixed gap under the number. Two of these stand side by side, and a
+      // label that wraps to two lines used to leave the pair mismatched.
+      className="relative flex flex-col items-start justify-between rounded-lg h-full"
+      style={{ padding: 16, gap: 24, minHeight: 132, background: CARD_BG_PATTERN, boxShadow: CARD_SHADOW_TALL }}
     >
       {/* Kit uses a small glowing sparkle here, not a plain dot — star.svg
           already bakes in its own drop-shadow glow filter. */}

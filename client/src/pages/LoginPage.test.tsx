@@ -88,3 +88,24 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Неверный пароль')).toBeInTheDocument();
   });
 });
+
+// Per the kit. The flag travels with the login so the server knows whether
+// the browser should keep its refresh cookie past this session.
+describe('LoginPage — «Запомнить меня»', () => {
+  it('is on by default, and says so to a screen reader', async () => {
+    render(<LoginPage onLogin={vi.fn()} />);
+    expect(screen.getByLabelText('Запомнить меня')).toBeChecked();
+  });
+
+  it('sends what the box says', async () => {
+    vi.mocked(authApi.login).mockResolvedValue({ data: { token: 't', user: { id: 1 }, needsBaselineSurvey: false } } as any);
+    render(<LoginPage onLogin={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('your@email.com'), { target: { value: 'a@b.c' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••'), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByLabelText('Запомнить меня'));
+    fireEvent.click(screen.getByRole('button', { name: 'ВОЙТИ' }));
+
+    await waitFor(() => expect(authApi.login).toHaveBeenCalledWith('a@b.c', 'secret123', false));
+  });
+});

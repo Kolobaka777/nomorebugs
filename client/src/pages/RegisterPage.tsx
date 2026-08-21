@@ -236,7 +236,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
 
           <button
             onClick={() => navigate('/')}
-            className="w-full text-center mt-4 text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
+            className="w-full text-center mt-4 text-xs font-sans link-muted"
           >
             Уже есть аккаунт? Войти <Icon name="arrowRight" size={16} color="currentColor" />
           </button>

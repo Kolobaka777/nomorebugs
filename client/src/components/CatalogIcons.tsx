@@ -44,6 +44,18 @@ export function CheckCircleIcon({ size = 24, color = DEFAULT_COLOR, className }:
 // CheckCircleIcon, which marks a finished *course*. Two ticks, no ring, so a
 // column of them reads as a list of small confirmations rather than a column
 // of medals.
+// The counterpart of CheckCircleIcon: a ring with a bar through it. Marks
+// the "don't do this" half of a before/after pair, where a cross would read
+// as "failed" rather than as "not this way".
+export function MinusCircleIcon({ size = 24, color = DEFAULT_COLOR, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2" />
+      <path d="M8 12H16" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function DoubleCheckIcon({ size = 24, color = DEFAULT_COLOR, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

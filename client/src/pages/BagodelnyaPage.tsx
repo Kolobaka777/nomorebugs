@@ -8,7 +8,9 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { pickByGender } from '../utils/gender';
 import { Gender } from '../types';
 import { parseRichContent, richContentToPlainText } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H1 } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H1, H3, H4, CARD_BG_PATTERN } from '../utils/theme';
+import { PlusIcon, MinusCircleIcon, CheckCircleIcon } from '../components/CatalogIcons';
+import { tagChipStyle } from '../utils/topics';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
 const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
@@ -321,33 +323,54 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
       <Navigation user={user} onLogout={onLogout} />
 
       <div className="max-w-6xl mx-auto px-6 pt-16 pb-8 fade-in">
-        <div className="mb-8 flex items-start justify-between flex-wrap gap-3">
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h1 className="font-montserrat mb-2 flex items-center gap-2.5" style={{ ...H1 }}>
-              <Icon name="books" size={22} color={ACCENT} />
-              Багодельня
+            <h1 className="font-montserrat mb-2 flex items-center gap-3" style={{ ...H1 }}>
+              <Icon name="gear" size={30} color={ACCENT} />
+              БАГОДЕЛЬНЯ
             </h1>
-            <p className="text-sm font-geist" style={{ color: TEXT_MUTED }}>База знаний тестировщика</p>
+            <p className="font-montserrat" style={{ ...H3, color: TEXT_MUTED }}>База знаний тестировщиков</p>
           </div>
+
+          {/* The page's one action, in the page's header. It used to sit
+              inside the examples tab, which meant it appeared and vanished
+              as you switched tabs and pushed the list down when it did. */}
+          {tab === 'examples' && !addingExample && (
+            <button
+              onClick={() => setAddingExample(true)}
+              className="font-geist font-semibold flex items-center gap-2 px-4 py-2.5 rounded-lg cursor-pointer transition-all hover:brightness-110 shrink-0"
+              style={{ background: `${ACCENT}1F`, border: `1px solid ${ACCENT}`, color: ACCENT, fontSize: 13, letterSpacing: TRACK_WIDE }}
+            >
+              <PlusIcon size={16} color="currentColor" />
+              {canEdit ? 'ДОБАВИТЬ ПРИМЕР' : 'ПРЕДЛОЖИТЬ ПРИМЕР'}
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 flex-wrap">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="rounded-lg font-geist font-semibold cursor-pointer px-3.5 py-2 flex items-center gap-1.5 transition-colors"
-              style={{
-                fontSize: 13,
-                background: tab === t.id ? ACCENT : 'rgba(197, 198, 199, 0.06)',
-                color: tab === t.id ? PAGE_BG : 'rgba(197, 198, 199, 0.6)',
-              }}
-            >
-              <Icon name={t.icon} size={14} color="currentColor" />
-              {t.label}
-            </button>
-          ))}
+        {/* Wide segments sharing the row rather than small chips bunched at
+            the left: there are two of them and they are the page's two halves,
+            so they get the width to say so. */}
+        <div className="grid gap-3 mb-8" style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}>
+          {TABS.map(t => {
+            const on = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                aria-pressed={on}
+                className="rounded font-montserrat cursor-pointer px-4 py-2 flex items-center justify-center gap-3 transition-colors relative"
+                style={{
+                  ...H4, fontSize: 14,
+                  background: on ? ACCENT : 'transparent',
+                  color: on ? PAGE_BG : 'rgba(197, 198, 199, 0.55)',
+                }}
+              >
+                {t.label.toUpperCase()}
+                <Icon name={t.icon} size={16} color="currentColor" className="absolute" style={{ right: 12 }} />
+              </button>
+            );
+          })}
         </div>
 
         {loading && <FrogLoader />}
@@ -366,12 +389,6 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: примеры */}
             <div className="lg:col-span-2">
-              {!addingExample && (
-                <button onClick={() => setAddingExample(true)} className="btn-primary text-xs px-4 py-2 mb-5 flex items-center gap-1.5">
-                  <Icon name="sparkle" size={14} color="currentColor" />
-                  {canEdit ? 'Добавить пример' : 'Предложить пример'}
-                </button>
-              )}
               {addingExample && (
                 <BugExampleForm
                   isProposing={!canEdit}
@@ -388,19 +405,16 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
               )}
 
               {/* Column headers */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 px-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: ERROR }} />
-                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: ERROR, fontSize: 13, letterSpacing: TRACK_WIDE }}>
-                    <Icon name="close" size={13} color="currentColor" /> Как писать НЕ надо
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: GOOD_GREEN }} />
-                  <span className="font-montserrat font-semibold flex items-center gap-1.5" style={{ color: GOOD_GREEN, fontSize: 13, letterSpacing: TRACK_WIDE }}>
-                    <Icon name="check" size={13} color="currentColor" /> Как писать правильно
-                  </span>
-                </div>
+              {/* Hidden while the two columns are stacked: below `sm` they
+                  are not columns, so a heading for each would sit above the
+                  wrong card. The per-card labels take over there. */}
+              <div className="hidden sm:grid grid-cols-2 gap-4 mb-4 px-1">
+                <span className="font-montserrat flex items-center gap-2" style={{ ...H4, fontSize: 15, color: ERROR }}>
+                  <MinusCircleIcon size={18} color="currentColor" /> Как НЕ надо писать
+                </span>
+                <span className="font-montserrat flex items-center gap-2" style={{ ...H4, fontSize: 15, color: GOOD_GREEN }}>
+                  <CheckCircleIcon size={18} color="currentColor" /> Как писать правильно
+                </span>
               </div>
 
               {bugExamples.length === 0 && (
@@ -427,8 +441,8 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                         <>
                           <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
                             <span
-                              className="text-xs font-geist px-2 py-0.5 rounded font-semibold shrink-0 break-words"
-                              style={{ background: `${pair.tag_color}18`, color: pair.tag_color }}
+                              className="text-xs font-geist px-2 py-0.5 font-semibold shrink-0 break-words"
+                              style={{ letterSpacing: '0.06em', ...tagChipStyle(pair.tag_color) }}
                             >
                               {pair.tag}
                             </span>
@@ -470,23 +484,30 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                             )}
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${ERROR}`, boxShadow: CARD_SHADOW }}>
-                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: ERROR, letterSpacing: TRACK_WIDE }}>
-                                <Icon name="close" size={13} color="currentColor" /> ПЛОХО
-                              </span>
-                              <Suspense fallback={<RichTextEditorFallback />}>
-                                <RichTextEditor content={parseRichContent(pair.bad_text)} editable={false} />
-                              </Suspense>
-                            </div>
-                            <div className="p-4 rounded-lg flex flex-col gap-2" style={{ background: CARD_BG, borderLeft: `3px solid ${GOOD_GREEN}`, boxShadow: CARD_SHADOW }}>
-                              <span className="flex items-center gap-1.5 text-xs font-montserrat font-semibold shrink-0" style={{ color: GOOD_GREEN, letterSpacing: TRACK_WIDE }}>
-                                <Icon name="check" size={13} color="currentColor" /> ПРАВИЛЬНО
-                              </span>
-                              <Suspense fallback={<RichTextEditorFallback />}>
-                                <RichTextEditor content={parseRichContent(pair.good_text)} editable={false} />
-                              </Suspense>
-                            </div>
+                          {/* `items-stretch` is the default, and both halves
+                              are flex columns, so the pair is always the same
+                              height however uneven the two texts are. */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+                            {([
+                              [pair.bad_text, ERROR, 'ПЛОХО', MinusCircleIcon] as const,
+                              [pair.good_text, GOOD_GREEN, 'ПРАВИЛЬНО', CheckCircleIcon] as const,
+                            ]).map(([text, tone, label, Glyph], side) => (
+                              <div
+                                key={side}
+                                className="p-3 rounded-lg flex items-start gap-3 h-full"
+                                style={{ background: CARD_BG_PATTERN, border: `1px solid ${tone}`, boxShadow: CARD_SHADOW }}
+                              >
+                                <Glyph size={20} color={tone} className="shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  {/* Only while the columns are stacked and
+                                      their headings are hidden. */}
+                                  <span className="sm:hidden font-montserrat block mb-1" style={{ fontSize: 11, letterSpacing: TRACK_WIDE, color: tone }}>{label}</span>
+                                  <Suspense fallback={<RichTextEditorFallback />}>
+                                    <RichTextEditor content={parseRichContent(text)} editable={false} />
+                                  </Suspense>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </>
                       )}

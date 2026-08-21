@@ -123,6 +123,17 @@
     box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
   }
 
+  /* ===== LINKS =====
+     Per the kit, a secondary link is body-grey at rest and accent teal on
+     hover. Four of them were grey-to-slightly-lighter-grey, which is a
+     hover you have to look for to notice. */
+  .link-muted {
+    color: rgba(197, 198, 199, 0.6);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .link-muted:hover { color: #66FCF1; }
+
   /* ===== BUTTONS ===== */
   /* Unified hover language, site-wide: a smooth color/brightness shift only
      — no translateY lift. A lift reads as the element physically jumping

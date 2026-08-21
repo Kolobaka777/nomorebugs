@@ -329,7 +329,10 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
         </div>
 
         {/* ===== METRIC CARDS ===== */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {/* items-stretch plus h-full on the card: the wrapper stretches by
+            default, but the card inside it does not inherit that, so a
+            longer label made one of the three shorter than the others. */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 items-stretch">
           {[
             { label: 'Средний прогресс', value: `${avgProgress}%`, color: ACCENT },
             { label: 'Средний балл', value: `${avgScore}%`, color: BADGE_NOTIFY },
@@ -337,7 +340,7 @@ export default function UleyPage({ user, onLogout }: UleyPageProps) {
           ].map((m, idx) => (
             <div
               key={idx}
-              className="p-4 rounded-lg"
+              className="p-4 rounded-lg h-full flex flex-col justify-between"
               style={{
                 background: CARD_BG,
                 border: `1px solid ${m.color}40`,

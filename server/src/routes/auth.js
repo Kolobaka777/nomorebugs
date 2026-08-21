@@ -50,8 +50,14 @@ function refreshCookieOptions() {
     path: '/api/auth',
   };
 }
-function setRefreshCookie(res, token) {
-  res.cookie(REFRESH_COOKIE_NAME, token, { ...refreshCookieOptions(), maxAge: REFRESH_TOKEN_TTL_MS });
+// `remember` decides how long the browser keeps the cookie, not how long
+// the token is valid. Unchecked, it becomes a session cookie: the browser
+// drops it when it closes, so a shared or borrowed machine does not stay
+// signed in. The server-side token still expires on its own schedule and is
+// still revocable either way — this is about the browser's copy.
+function setRefreshCookie(res, token, remember = true) {
+  const opts = refreshCookieOptions();
+  res.cookie(REFRESH_COOKIE_NAME, token, remember ? { ...opts, maxAge: REFRESH_TOKEN_TTL_MS } : opts);
 }
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions());
@@ -412,7 +418,7 @@ router.post('/api/auth/login', loginLimiter, (req, res) => {
     // login is the only point that reaches it without an extra fetch.
     const profileRow = db.prepare('SELECT nickname, gender FROM user_profiles WHERE user_id = ?').get(user.id);
 
-    setRefreshCookie(res, refresh.token);
+    setRefreshCookie(res, refresh.token, req.body?.remember !== false);
     res.json({
       token,
       user: {

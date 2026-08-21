@@ -38,8 +38,11 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
+  // `remember` decides how long the browser keeps its refresh cookie, not
+  // how long the session is valid: unchecked, the cookie lives only until the
+  // browser closes, so a borrowed machine does not stay signed in.
+  login: async (email: string, password: string, remember = true) => {
+    const res = await api.post('/auth/login', { email, password, remember });
     const { token, user, needsBaselineSurvey, mustChangePassword } = res.data;
     return { data: { token, user, needsBaselineSurvey, mustChangePassword: !!mustChangePassword } };
   },

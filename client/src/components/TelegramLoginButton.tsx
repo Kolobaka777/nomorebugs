@@ -105,7 +105,7 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
         </p>
         <button
           onClick={start}
-          className="w-full text-center text-pixel/60 text-xs font-sans cursor-pointer hover:text-pixel/80"
+          className="w-full text-center text-xs font-sans link-muted"
         >
           <span className="inline-flex items-center gap-1">Попробовать снова <Icon name="arrowRight" size={14} color="currentColor" /></span>
         </button>

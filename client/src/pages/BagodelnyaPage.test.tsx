@@ -50,30 +50,31 @@ describe('BagodelnyaPage', () => {
 
   it('offers a tester «Предложить пример», not «Добавить пример» — the wording is the permission', async () => {
     renderPage(tester);
-    expect(await screen.findByText(/Предложить пример/)).toBeInTheDocument();
-    expect(screen.queryByText('Добавить пример')).not.toBeInTheDocument();
+    // Case-insensitive: the wording is the permission, the casing is styling.
+    expect(await screen.findByText(/Предложить пример/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Добавить пример/i)).not.toBeInTheDocument();
   });
 
   it('offers a lead the direct «Добавить пример»', async () => {
     renderPage(lead);
-    expect(await screen.findByText('Добавить пример')).toBeInTheDocument();
+    expect(await screen.findByText(/Добавить пример/i)).toBeInTheDocument();
   });
 
   it('lets a granted tester add directly, without promoting them', async () => {
     vi.mocked(knowledgeApi.getMyPermissions).mockResolvedValue({ data: ['manage_knowledge_base'] } as any);
     renderPage(tester);
-    expect(await screen.findByText('Добавить пример')).toBeInTheDocument();
+    expect(await screen.findByText(/Добавить пример/i)).toBeInTheDocument();
   });
 
   it('keeps the mascot-copy tab away from testers — the server refuses their writes anyway', async () => {
     renderPage(tester);
     await screen.findByText('Отступ слишком большой');
-    expect(screen.queryByRole('button', { name: /Лягух/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Лягух/i })).not.toBeInTheDocument();
   });
 
   it('gives a lead the mascot-copy tab, and opens it on click', async () => {
     renderPage(lead);
-    const tab = await screen.findByRole('button', { name: /Лягух/ });
+    const tab = await screen.findByRole('button', { name: /Лягух/i });
     fireEvent.click(tab);
     expect(await screen.findByTestId('frog-editor')).toBeInTheDocument();
   });
@@ -81,14 +82,14 @@ describe('BagodelnyaPage', () => {
   it('does not give the mascot tab to a merely granted tester — that permission is about the knowledge base', async () => {
     vi.mocked(knowledgeApi.getMyPermissions).mockResolvedValue({ data: ['manage_knowledge_base'] } as any);
     renderPage(tester);
-    await screen.findByText('Добавить пример');
-    expect(screen.queryByRole('button', { name: /Лягух/ })).not.toBeInTheDocument();
+    await screen.findByText(/Добавить пример/i);
+    expect(screen.queryByRole('button', { name: /Лягух/i })).not.toBeInTheDocument();
   });
 
   it('switches to the glossary tab', async () => {
     vi.mocked(knowledgeApi.getGlossary).mockResolvedValue({ data: [{ id: 5, term: 'Регрессия', definition: 'd', is_published: 1, proposal_status: null, created_by: 1 }] } as any);
     renderPage(lead);
-    fireEvent.click(await screen.findByRole('button', { name: /Словарь/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Словарь/i }));
     expect(await screen.findByText('Регрессия')).toBeInTheDocument();
   });
 });
