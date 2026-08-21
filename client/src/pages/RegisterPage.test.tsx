@@ -36,7 +36,7 @@ describe('RegisterPage validation, before anything reaches the server', () => {
     render(<RegisterPage onLogin={vi.fn()} />);
     fill({ password: 'short1', confirm: 'short1' });
     submit();
-    expect(await screen.findByText('Пароль должен быть не короче 8 символов')).toBeInTheDocument();
+    expect(await screen.findByText('Пароль слишком короткий')).toBeInTheDocument();
     expect(authApi.register).not.toHaveBeenCalled();
   });
 
@@ -86,5 +86,38 @@ describe('RegisterPage submission', () => {
     fill();
     submit();
     expect(await screen.findByText(/Ошибка регистрации/)).toBeInTheDocument();
+  });
+});
+
+// A validation problem and a server error are different things: one is the
+// reader's to fix and one is not. They used to be the same red box.
+describe('RegisterPage — telling the two failures apart', () => {
+  it('shows what to do about it, not just what is wrong', async () => {
+    render(<RegisterPage onLogin={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'short' } });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'short' } });
+    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+
+    expect(await screen.findByText('Пароль слишком короткий')).toBeInTheDocument();
+    expect(screen.getByText('Нужно не меньше 8 символов.')).toBeInTheDocument();
+    // ...and it is announced, because a form error nobody hears is a form
+    // that silently does nothing.
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it('clears the validation callout once the form is resubmitted', async () => {
+    vi.mocked(authApi.register).mockResolvedValue({ data: { token: 't', user: { id: 1 }, needsBaselineSurvey: false } } as any);
+    render(<RegisterPage onLogin={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'short' } });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'short' } });
+    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+    await screen.findByText('Пароль слишком короткий');
+
+    fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'longenough' } });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'longenough' } });
+    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+
+    await waitFor(() => expect(screen.queryByText('Пароль слишком короткий')).not.toBeInTheDocument());
   });
 });

@@ -123,6 +123,13 @@
     box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
   }
 
+  /* The kit's loading wheel turns; `prefers-reduced-motion` gets a pulse
+     instead of a spin, since the point is "still working", not the rotation. */
+  @keyframes spinner-turn { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    [role="status"] { animation: pixel-pulse 1.2s ease-in-out infinite !important; }
+  }
+
   /* ===== LINKS =====
      Per the kit, a secondary link is body-grey at rest and accent teal on
      hover. Four of them were grey-to-slightly-lighter-grey, which is a

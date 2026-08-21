@@ -794,6 +794,13 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
     }
   }, [patchQuiz]);
 
+  // How many times each quiz has been restarted. It rides in the quiz view's
+  // React key, which is what actually sends it back to question one: the
+  // answers live in this component, but *which question is on screen* is the
+  // view's own state, and clearing the answers alone left the reader looking
+  // at the last question of the attempt they had just finished.
+  const [retakeCounts, setRetakeCounts] = useState<Record<number, number>>({});
+
   // Wipes this quiz's answers so it starts from question one. The stored
   // result is left alone on purpose: the server keeps the best attempt, so a
   // worse retake can never cost someone a pass they already earned.
@@ -803,6 +810,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
       delete next[idx];
       return next;
     });
+    setRetakeCounts(prev => ({ ...prev, [idx]: (prev[idx] || 0) + 1 }));
   }, []);
 
   const markComplete = useCallback(async (lessonId: number) => {
@@ -1185,7 +1193,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
                   </>
                 ) : (
                   <CustomQuizView
-                    key={currentLesson.id}
+                    key={`${currentLesson.id}:${retakeCounts[currentIdx] || 0}`}
                     lesson={currentLesson}
                     quizState={quizStates[currentIdx] || emptyQuizState()}
                     onAnswer={(qi, oi) => patchQuiz(currentIdx, st => ({ answers: { ...st.answers, [qi]: oi }, error: '' }))}

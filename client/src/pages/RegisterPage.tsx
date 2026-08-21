@@ -6,6 +6,7 @@ import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
 import { ERROR } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
+import FieldError from '../components/FieldError';
 
 interface RegisterPageProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -22,6 +23,9 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   // anywhere else in the app afterward (see MoyaNora.tsx/presence.js).
   const [birthday, setBirthday] = useState('');
   const [error, setError] = useState('');
+  // Two different failures, told apart because the reader's next move
+  // differs: a validation problem is theirs to fix, a server error is not.
+  const [invalid, setInvalid] = useState<{ title: string; hint: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -29,17 +33,18 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInvalid(null);
 
     if (password !== confirmPassword) {
-      setError('Пароли не совпадают');
+      setInvalid({ title: 'Пароли не совпадают', hint: 'Проверь оба поля — второй пароль должен повторять первый.' });
       return;
     }
     if (password.length < 8) {
-      setError('Пароль должен быть не короче 8 символов');
+      setInvalid({ title: 'Пароль слишком короткий', hint: 'Нужно не меньше 8 символов.' });
       return;
     }
     if (birthday && !BIRTHDAY_RE.test(birthday)) {
-      setError('Дата рождения — в формате ММ-ДД, например 08-15');
+      setInvalid({ title: 'Неверная дата рождения', hint: 'Формат — ММ-ДД, например 08-15.' });
       return;
     }
 
@@ -103,6 +108,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {invalid && <FieldError title={invalid.title} pointer="none">{invalid.hint}</FieldError>}
             {error && (
               <div
                 className="px-4 py-3 rounded-lg text-sm font-sans break-words"

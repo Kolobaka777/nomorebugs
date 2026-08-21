@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
 import Icon from './Icon';
 import { ERROR } from '../utils/theme';
+import Spinner from './Spinner';
 
 interface TelegramLoginButtonProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
@@ -114,6 +115,14 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
   }
 
   return (
+    <>
+    {/* Per the kit: the two ways in are separated by a labelled rule, not
+        stacked as if one followed from the other. */}
+    <div className="flex items-center gap-3 mt-5" aria-hidden="true">
+      <span className="flex-1" style={{ height: 1, background: 'rgba(197, 198, 199, 0.15)' }} />
+      <span className="text-xs font-sans" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>или</span>
+      <span className="flex-1" style={{ height: 1, background: 'rgba(197, 198, 199, 0.15)' }} />
+    </div>
     <button
       onClick={start}
       disabled={phase === 'starting'}
@@ -128,8 +137,9 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
         cursor: 'pointer',
       }}
     >
-      <Icon name="bug" size={13} color="#229ED9" />
+      {phase === 'starting' ? <Spinner size={14} color="#229ED9" /> : <Icon name="telegram" size={15} color="#229ED9" />}
       {phase === 'starting' ? 'секунду...' : 'Войти через Telegram'}
     </button>
+    </>
   );
 }

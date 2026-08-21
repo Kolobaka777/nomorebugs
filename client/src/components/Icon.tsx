@@ -39,7 +39,7 @@ export type IconName =
   // archive/restore actions were still falling back to raw emoji) —
   // 'trash' is real kit path data (trash.svg); 'key'/'archive'/'undo' are
   // hand-drawn to match (24x24, 2px stroke), no kit source exists for them.
-  | 'trash' | 'key' | 'archive' | 'undo' | 'clock' | 'copy'
+  | 'trash' | 'key' | 'archive' | 'undo' | 'clock' | 'copy' | 'telegram'
   // The mascot. 'frogEgg'/'tadpole' lived here too, as the lower rungs of
   // a level ladder that no longer exists (see types.ts).
   | 'frog';
@@ -295,6 +295,12 @@ const RENDERERS: Record<IconName, (color: string, color2: string) => React.React
   arrowLeft: (c) => <>
     <path d="M7 12H21" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M2.28483 11.7966L7.73505 7.90356C8.26449 7.52535 9 7.90385 9 8.55455V15.4454C9 16.0961 8.26449 16.4746 7.73505 16.0964L2.28483 12.2034C2.14522 12.1037 2.14522 11.8963 2.28483 11.7966Z" fill={c} />
+  </>,
+  // Telegram's paper plane. The button that opens Telegram used to wear the
+  // bug glyph, which says nothing about where it goes.
+  telegram: (c) => <>
+    <path d="M21.5 3.5L2.5 10.5L9.5 13L12 20.5L15 15L20 19L21.5 3.5Z" stroke={c} strokeWidth="2" strokeLinejoin="round" />
+    <path d="M9.5 13L21.5 3.5" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </>,
   // Duplicate — two sheets, the back one offset. Drawn to match the kit's
   // 24x24 / 2px-stroke construction; the kit exports no copy glyph.

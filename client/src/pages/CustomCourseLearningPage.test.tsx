@@ -147,6 +147,44 @@ describe('CustomCourseLearningPage', () => {
     expect(coursesApi.completeLesson).not.toHaveBeenCalled();
   });
 
+  it('starts a retake at the first question, not wherever the last attempt ended', async () => {
+    vi.mocked(coursesApi.get).mockResolvedValue({ data: course({
+      modules: [{ id: 1, title: 'Модуль 1', order_num: 0, lessons: [
+        { id: 20, title: 'Тест', type: 'quiz', completed: false, locked: false, prerequisite_type: 'none', myResult: null, questions: [
+          { id: 1, question_text: 'Первый вопрос', option_a: 'a1', option_b: 'b1', option_c: 'c1', option_d: 'd1' },
+          { id: 2, question_text: 'Второй вопрос', option_a: 'a2', option_b: 'b2', option_c: 'c2', option_d: 'd2' },
+        ] },
+      ] }],
+    }) } as any);
+    vi.mocked(coursesApi.getExplanation).mockResolvedValue({ data: { correct_idx: 1, explanation: 'вот так' } } as any);
+    vi.mocked(coursesApi.submitQuiz).mockResolvedValue({ data: {
+      score: 0, correct: 0, total: 2,
+      breakdown: [{ id: 1, correct_idx: 1, isCorrect: false, explanation: '' }, { id: 2, correct_idx: 1, isCorrect: false, explanation: '' }],
+      best: { score: 0 },
+    } } as any);
+    renderPage();
+
+    await screen.findByText('Первый вопрос');
+    fireEvent.click(screen.getByText('a1'));
+    fireEvent.click(screen.getByText('Ответить'));
+    await screen.findByText(/Правильный ответ/);
+    fireEvent.click(screen.getByText('Следующий вопрос'));
+
+    await screen.findByText('Второй вопрос');
+    fireEvent.click(screen.getByText('a2'));
+    fireEvent.click(screen.getByText('Ответить'));
+    await screen.findByText(/Правильный ответ/);
+    fireEvent.click(screen.getByText('Завершить тест'));
+
+    await screen.findByText('Пройти тест заново');
+    fireEvent.click(screen.getByText('Пройти тест заново'));
+
+    // Clearing the answers is not enough: which question is on screen is the
+    // quiz view's own state, and it survived the reset.
+    expect(await screen.findByText('Первый вопрос')).toBeInTheDocument();
+    expect(screen.queryByText('Второй вопрос')).not.toBeInTheDocument();
+  });
+
   it('offers a retry when the course could not be fetched', async () => {
     vi.mocked(coursesApi.get).mockRejectedValue(new Error('offline'));
     renderPage();
