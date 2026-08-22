@@ -14,7 +14,7 @@ vi.mock('../components/Navigation', () => ({ default: () => <div data-testid="na
 vi.mock('../api', () => ({
   adminApi: {
     getUsers: vi.fn(), setUserRole: vi.fn(), resetPassword: vi.fn(), archiveUser: vi.fn(), restoreUser: vi.fn(),
-    getOverview: vi.fn(), getTaskTypes: vi.fn(), createTaskType: vi.fn(), deleteTaskType: vi.fn(),
+    getOverview: vi.fn(),
     getBonusCandidates: vi.fn(), getTrash: vi.fn(), restoreTrash: vi.fn(), purgeTrash: vi.fn(),
   },
   leadApi: { getActivity: vi.fn(), getLectures: vi.fn(), setLectureVideo: vi.fn() },
@@ -29,7 +29,6 @@ const row = (o = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(adminApi.getUsers).mockResolvedValue({ data: [row()] } as any);
-  vi.mocked(adminApi.getTaskTypes).mockResolvedValue({ data: [] } as any);
   vi.mocked(adminApi.getOverview).mockResolvedValue({
     data: {
       totalUsers: 5, byRole: { tester: 3, lead: 1, admin: 1 }, viaEmail: 5, viaTelegram: 0,

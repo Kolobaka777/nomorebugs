@@ -27,11 +27,6 @@ interface AdminUser {
   last_active: string | null;
 }
 
-interface TaskType {
-  id: number;
-  name: string;
-}
-
 interface TrashItem {
   type: string;
   typeLabel: string;
@@ -85,13 +80,12 @@ function actionLabel(row: ActivityRow, nameById: Record<number, string>): string
   return formatted.charAt(0).toLowerCase() + formatted.slice(1);
 }
 
-type Tab = 'users' | 'activity' | 'analytics' | 'settings' | 'lectures' | 'trash';
+type Tab = 'users' | 'activity' | 'analytics' | 'lectures' | 'trash';
 
 const TAB_LABELS: Record<Tab, string> = {
   users: 'Пользователи',
   activity: 'Активность',
   analytics: 'Аналитика',
-  settings: 'Настройки',
   lectures: 'Лекции',
   trash: 'Корзина',
 };
@@ -135,8 +129,6 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [bonusCandidates, setBonusCandidates] = useState<any[] | null>(null);
 
-  const [taskTypes, setTaskTypes] = useState<TaskType[] | null>(null);
-  const [newTaskType, setNewTaskType] = useState('');
 
   const [trash, setTrash] = useState<TrashItem[] | null>(null);
 
@@ -153,7 +145,6 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     if (tab === 'activity' && activity.length === 0) loadActivity(0);
     if (tab === 'analytics' && !overview) loadOverview();
     if (tab === 'analytics' && !bonusCandidates) loadBonusCandidates();
-    if (tab === 'settings' && !taskTypes) loadTaskTypes();
     if (tab === 'lectures' && !lectures) loadLectures();
     if (tab === 'trash' && !trash) loadTrash();
   }, [tab]);
@@ -207,35 +198,8 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
     }
   };
 
-  const loadTaskTypes = async () => {
-    try {
-      const res = await adminApi.getTaskTypes();
-      setTaskTypes(res.data);
-    } catch {
-      setError('Не удалось загрузить типы задач');
-    }
-  };
 
-  const addTaskType = async () => {
-    if (!newTaskType.trim()) return;
-    try {
-      await adminApi.createTaskType(newTaskType.trim());
-      setNewTaskType('');
-      loadTaskTypes();
-    } catch (err: any) {
-      setError(apiErrorMessage(err, 'Не удалось добавить тип задачи'));
-    }
-  };
 
-  const removeTaskType = async (id: number) => {
-    if (!confirm('Удалить этот тип задачи из списка?')) return;
-    try {
-      await adminApi.deleteTaskType(id);
-      loadTaskTypes();
-    } catch {
-      setError('Не удалось удалить тип задачи');
-    }
-  };
 
   const loadTrash = async () => {
     try {
@@ -394,7 +358,7 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {(['users', 'activity', 'analytics', 'settings', 'lectures', 'trash'] as Tab[]).map(t => (
+          {(['users', 'activity', 'analytics', 'lectures', 'trash'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -599,38 +563,6 @@ export default function AdminPage({ user, onLogout }: AdminPageProps) {
           ) : (
             <FrogLoader />
           )
-        )}
-
-        {tab === 'settings' && (
-          <div>
-            <SectionHeading>Типы задач для чек-листов</SectionHeading>
-            <p className="text-xs font-geist mb-3" style={{ color: TEXT_MUTED }}>Этот список появляется в выпадающем меню при отправке чек-листа. Тестировщик всё ещё может ввести свой вариант вручную.</p>
-            {taskTypes ? (
-              <>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {taskTypes.map(t => (
-                    <span key={t.id} className="flex items-center gap-1.5 text-xs font-geist px-2.5 py-1 rounded-lg" style={{ background: 'rgba(197, 198, 199, 0.07)', color: 'rgba(197, 198, 199, 0.8)' }}>
-                      <span className="break-words min-w-0">{t.name}</span>
-                      <button onClick={() => removeTaskType(t.id)} aria-label={`Удалить тип ${t.name}`} className="flex items-center" style={{ color: ERROR }}>
-                        <Icon name="close" size={13} color="currentColor" />
-                      </button>
-                    </span>
-                  ))}
-                  {taskTypes.length === 0 && <p className="text-xs font-geist" style={{ color: 'rgba(197, 198, 199, 0.4)' }}>Список пуст.</p>}
-                </div>
-                <div className="flex gap-2 max-w-sm">
-                  <input
-                    className="pixel-input text-xs"
-                    placeholder="Новый тип задачи"
-                    value={newTaskType}
-                    onChange={e => setNewTaskType(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addTaskType()}
-                  />
-                  <button onClick={addTaskType} className="btn-primary text-xs px-4 py-2 shrink-0">Добавить</button>
-                </div>
-              </>
-            ) : <FrogLoader />}
-          </div>
         )}
 
         {tab === 'lectures' && (

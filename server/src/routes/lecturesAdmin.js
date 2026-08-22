@@ -1,10 +1,8 @@
-// Lead/admin management of lecture video links and the curated task-type
-// list. Split out from the old monolithic app.js — see PROGRESS.md.
+// Lead/admin management of lecture video links.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { isUniqueConstraintError } from '../routeHelpers.js';
 
 const router = express.Router();
 
@@ -47,38 +45,6 @@ router.patch('/api/admin/lectures/:id/video', authMiddleware, requireRole('lead'
         ? 'Ссылка сохранена, но её хост не из привычного списка (YouTube/Google Диск/VK/Яндекс.Диск) — проверь, что она открывается.'
         : null,
     });
-  } catch (err) {
-    logError(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.get('/api/admin/task-types', authMiddleware, requireRole('admin'), (req, res) => {
-  try {
-    res.json(db.prepare('SELECT id, name FROM task_types ORDER BY name').all());
-  } catch (err) {
-    logError(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.post('/api/admin/task-types', authMiddleware, requireRole('admin'), (req, res) => {
-  try {
-    const name = (req.body.name || '').trim();
-    if (!name) return res.status(400).json({ error: 'Укажите название типа задачи' });
-    const result = db.prepare('INSERT INTO task_types (name) VALUES (?)').run(name);
-    res.json({ ok: true, id: result.lastInsertRowid });
-  } catch (err) {
-    if (isUniqueConstraintError(err)) return res.status(409).json({ error: 'Такой тип уже существует' });
-    logError(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.delete('/api/admin/task-types/:id', authMiddleware, requireRole('admin'), (req, res) => {
-  try {
-    db.prepare('DELETE FROM task_types WHERE id = ?').run(req.params.id);
-    res.json({ ok: true });
   } catch (err) {
     logError(err);
     res.status(500).json({ error: 'Server error' });

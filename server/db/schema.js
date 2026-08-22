@@ -207,42 +207,6 @@ export function initDb() {
       UNIQUE(user_id, badge_id)
     );
 
-    CREATE TABLE IF NOT EXISTS checklist_templates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      task_type TEXT NOT NULL,
-      color TEXT DEFAULT '#1D9E75',
-      order_num INTEGER DEFAULT 0,
-      mvt_updated_at TEXT DEFAULT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS checklist_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      template_id INTEGER NOT NULL,
-      text TEXT NOT NULL,
-      order_num INTEGER DEFAULT 0,
-      FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS checklist_submissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      template_id INTEGER NOT NULL,
-      task_name TEXT NOT NULL,
-      submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS checklist_item_results (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      submission_id INTEGER NOT NULL,
-      item_id INTEGER NOT NULL,
-      status TEXT NOT NULL CHECK(status IN ('ok', 'fail', 'skip')),
-      FOREIGN KEY (submission_id) REFERENCES checklist_submissions(id),
-      FOREIGN KEY (item_id) REFERENCES checklist_items(id)
-    );
-
     CREATE TABLE IF NOT EXISTS course_time_tracking (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -789,16 +753,6 @@ export function initDb() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
-    -- Admin-curated canonical list of checklist task types — previously
-    -- this was just "whatever distinct values happen to exist in
-    -- checklist_submissions.task_type", with no way to define the set up
-    -- front or clean up near-duplicate free-typed variants.
-    CREATE TABLE IF NOT EXISTS task_types (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
     -- A lead-awarded bonus/recognition log, separate from the generic
     -- activity_log so "who got a bonus, how much, why, when" can be
     -- reported on directly without parsing free-text action strings.
@@ -909,152 +863,6 @@ export function initDb() {
       backfillSequentialPrerequisites();
     }
   });
-
-  // Checklist schema migration: check if new columns exist
-  const checklistItemCols = db.prepare("PRAGMA table_info(checklist_items)").all().map(c => c.name);
-  migrationStep('checklist_items.category', () => {
-    if (!checklistItemCols.includes('category')) {
-      // Drop old checklist tables and recreate with v2 schema
-      db.exec(`
-        DROP TABLE IF EXISTS checklist_item_results;
-        DROP TABLE IF EXISTS checklist_submissions;
-        DROP TABLE IF EXISTS checklist_items;
-        DROP TABLE IF EXISTS checklist_templates;
-  
-        CREATE TABLE checklist_templates (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL UNIQUE,
-          task_type TEXT NOT NULL,
-          color TEXT DEFAULT '#1D9E75',
-          order_num INTEGER DEFAULT 0,
-          mvt_updated_at TEXT DEFAULT NULL
-        );
-  
-        CREATE TABLE checklist_items (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          template_id INTEGER NOT NULL,
-          category TEXT DEFAULT '',
-          text TEXT NOT NULL,
-          order_num INTEGER DEFAULT 0,
-          in_mvt INTEGER DEFAULT 1,
-          FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-        );
-  
-        CREATE TABLE checklist_submissions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          template_id INTEGER NOT NULL,
-          task_name TEXT NOT NULL,
-          content_author TEXT DEFAULT '',
-          verska_author TEXT DEFAULT '',
-          task_type TEXT DEFAULT '',
-          check_date TEXT DEFAULT '',
-          submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id),
-          FOREIGN KEY (template_id) REFERENCES checklist_templates(id)
-        );
-  
-        CREATE TABLE checklist_item_results (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          submission_id INTEGER NOT NULL,
-          item_id INTEGER NOT NULL,
-          status TEXT NOT NULL CHECK(status IN ('ok', 'fail', 'na')),
-          note TEXT DEFAULT '',
-          FOREIGN KEY (submission_id) REFERENCES checklist_submissions(id),
-          FOREIGN KEY (item_id) REFERENCES checklist_items(id)
-        );
-      `);
-      // note: checklist_item_results.note was already listed above — this
-      // CREATE TABLE block already has every column the migration path below
-      // would otherwise backfill, so a genuinely fresh install (which always
-      // takes this branch, never the else/ALTER migration path below, since
-      // a brand-new checklist_items table never has a 'category' column yet)
-      // doesn't end up missing columns that only "table already existed"
-      // upgrades would get.
-      seedChecklistTemplates();
-    } else {
-      // Ensure submissions has new columns (safe migration — the column-check
-      // guard is what makes this safe to re-run, not a try/catch swallowing
-      // whatever error comes back; a bare catch{} here would hide a genuine
-      // migration failure instead of failing loudly, same reasoning as the
-      // user_profiles migration above).
-      const subCols = db.prepare("PRAGMA table_info(checklist_submissions)").all().map(c => c.name);
-      migrationStep('checklist_submissions.content_author', () => {
-      if (!subCols.includes('content_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN content_author TEXT DEFAULT ''");
-    });
-      migrationStep('checklist_submissions.verska_author', () => {
-      if (!subCols.includes('verska_author')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN verska_author TEXT DEFAULT ''");
-    });
-      migrationStep('checklist_submissions.task_type', () => {
-      if (!subCols.includes('task_type')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN task_type TEXT DEFAULT ''");
-    });
-      migrationStep('checklist_submissions.check_date', () => {
-      if (!subCols.includes('check_date')) db.exec("ALTER TABLE checklist_submissions ADD COLUMN check_date TEXT DEFAULT ''");
-    });
-  
-      // Migration: add in_mvt column (1 = included in MVT mode, 0 = full only)
-      migrationStep('checklist_items.in_mvt', () => {
-      if (!checklistItemCols.includes('in_mvt')) db.exec('ALTER TABLE checklist_items ADD COLUMN in_mvt INTEGER DEFAULT 1');
-    });
-  
-      // Migration: optimistic-locking stamp for the MVT editor — without it,
-      // two leads opening the same template's MVT editor at once silently
-      // lose whichever save happened first (last write wins on the whole
-      // items array). The PATCH route now requires the caller to echo back
-      // the stamp it loaded and 409s if it's stale.
-      const checklistTemplateCols = db.prepare("PRAGMA table_info(checklist_templates)").all().map(c => c.name);
-      migrationStep('checklist_templates.mvt_updated_at', () => {
-      if (!checklistTemplateCols.includes('mvt_updated_at')) db.exec('ALTER TABLE checklist_templates ADD COLUMN mvt_updated_at TEXT DEFAULT NULL');
-    });
-  
-      // Migration: optional free-text note per failed item — lets a tester
-      // describe what actually went wrong instead of just a bare fail flag,
-      // so reporting can show more than "this item failed N times".
-      const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
-      migrationStep('checklist_item_results.note', () => {
-      if (!resultCols.includes('note')) db.exec("ALTER TABLE checklist_item_results ADD COLUMN note TEXT DEFAULT ''");
-    });
-  
-      // Check if preland template has full items (75 items) — if still old (9 items), reseed.
-      // Deleting checklist_items outright used to be able to fail with a
-      // FOREIGN KEY constraint error (foreign_keys is ON — see the users
-      // rebuild comment above) if any real submission had already recorded a
-      // checklist_item_results row against one of the old items, e.g. after
-      // restoring an old backup that predates this reseed. Clearing those
-      // results first (they belong to the stale 9-item version anyway — no
-      // longer meaningful once the items they reference are replaced) makes
-      // this safe regardless of what data exists.
-      const prelandTpl = db.prepare("SELECT id FROM checklist_templates WHERE task_type = 'prelending'").get();
-      if (prelandTpl) {
-        const itemCount = db.prepare('SELECT COUNT(*) as c FROM checklist_items WHERE template_id = ?').get(prelandTpl.id);
-        if (itemCount.c < 20) {
-          db.transaction(() => {
-            db.prepare(`
-              DELETE FROM checklist_item_results WHERE item_id IN (
-                SELECT id FROM checklist_items WHERE template_id = ?
-              )
-            `).run(prelandTpl.id);
-            db.prepare('DELETE FROM checklist_items WHERE template_id = ?').run(prelandTpl.id);
-            seedPrelandItems(prelandTpl.id);
-          })();
-        }
-      }
-    }
-  });
-
-  // One-time: seed the curated task_types list from whatever distinct
-  // values are already in use, so existing free-typed types don't vanish
-  // from the dropdown the moment this becomes an admin-curated list
-  // instead of "derived from history". Only runs while the table is empty.
-  const taskTypeCount = db.prepare('SELECT COUNT(*) as c FROM task_types').get().c;
-  if (taskTypeCount === 0) {
-    const existingTypes = new Set([
-      ...db.prepare("SELECT DISTINCT task_type FROM checklist_submissions WHERE task_type != ''").all().map(r => r.task_type),
-      ...db.prepare("SELECT DISTINCT task_type FROM checklist_templates WHERE task_type != ''").all().map(r => r.task_type),
-    ]);
-    const insTaskType = db.prepare('INSERT OR IGNORE INTO task_types (name) VALUES (?)');
-    for (const name of existingTypes) insTaskType.run(name);
-  }
 
   // Migration: course/guide proposals — lets a plain tester submit a full
   // course or guide that only goes live once a lead approves it (see
@@ -1429,17 +1237,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
     CREATE INDEX IF NOT EXISTS idx_user_cards_user_id ON user_cards(user_id);
     CREATE INDEX IF NOT EXISTS idx_user_badges_user_id ON user_badges(user_id);
-    CREATE INDEX IF NOT EXISTS idx_checklist_items_template_id ON checklist_items(template_id);
-    CREATE INDEX IF NOT EXISTS idx_checklist_submissions_user_id ON checklist_submissions(user_id);
-    CREATE INDEX IF NOT EXISTS idx_checklist_submissions_template_id ON checklist_submissions(template_id);
-    CREATE INDEX IF NOT EXISTS idx_checklist_submissions_submitted_at ON checklist_submissions(submitted_at);
-    CREATE INDEX IF NOT EXISTS idx_checklist_submissions_task_type ON checklist_submissions(task_type);
-    CREATE INDEX IF NOT EXISTS idx_checklist_item_results_submission_id ON checklist_item_results(submission_id);
-    CREATE INDEX IF NOT EXISTS idx_checklist_item_results_item_id ON checklist_item_results(item_id);
     -- Fail-rate reporting queries filter checklist_item_results by status
     -- (e.g. counting 'fail' rows per item/template) without joining on
     -- submission_id/item_id first, so those two indexes alone don't help.
-    CREATE INDEX IF NOT EXISTS idx_checklist_item_results_status ON checklist_item_results(status);
     CREATE INDEX IF NOT EXISTS idx_course_time_tracking_user_id ON course_time_tracking(user_id);
     -- routes/courses.js queries course_time_tracking by course_id directly
     -- (completed-count aggregation, finished-users list, progress lookup) —
@@ -1478,6 +1278,35 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_users_role_archived_at ON users(role, archived_at);
   `);
 
+  // Checklists were removed from the product on 2026-08-15 (see the note in
+  // client/src/App.tsx). Not one route or screen survives, yet five tables
+  // went on being created at every boot — five of forty-seven that mean
+  // nothing, and that everyone reading the schema works out from scratch who
+  // writes to. Nobody does.
+  //
+  // Only empty ones are dropped. A database that accumulated real submission
+  // history before August keeps it: deleting real data is a decision taken
+  // with an export and a confirmation, not a side effect of a deploy. On an
+  // empty one — which every new install is — the schema simply becomes honest.
+  // Runs last in initDb: the indexes and migrations above still address these
+  // tables while they exist, so dropping halfway through would fail startup on
+  // the first statement referring to something already gone.
+  migrationStep('drop_empty_checklist_tables', () => {
+    // Order matters: referencing tables first, referenced ones after.
+    // task_types belongs here too — it existed for the dropdown on the
+    // checklist submission form, and once that went it was a lookup an admin
+    // curated and nobody read.
+    const tables = ['checklist_item_results', 'checklist_submissions', 'checklist_items', 'checklist_templates', 'task_types'];
+    const existing = tables.filter(t =>
+      db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(t));
+    const allEmpty = existing.every(t => db.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c === 0);
+    if (!allEmpty) {
+      console.warn('Таблицы чек-листов не пусты — оставлены как есть. Удалять их вручную, с выгрузкой.');
+      return;
+    }
+    for (const t of existing) db.exec(`DROP TABLE IF EXISTS ${t}`);
+  });
+
   seedOnboardingCourseSkeleton();
 }
 
@@ -1497,13 +1326,12 @@ function seedOnboardingCourseSkeleton() {
   const author = db.prepare("SELECT id FROM users WHERE role IN ('lead','admin') ORDER BY id LIMIT 1").get();
   if (!author) return;
 
-  // Module 4's lessons are seeded from today's real checklist templates
-  // (Прелендинг/Оффер/Вайт) rather than hand-typed — accurate on day one,
-  // but a one-time title seed, not a live join: a lead can freely
-  // rename/add/remove lessons afterward with no ongoing coupling to
-  // checklist_templates (see the plan's reasoning for not wiring this to
-  // task_types as a live foreign key).
-  const taskTypeLessons = db.prepare('SELECT name FROM checklist_templates ORDER BY id').all().map(t => t.name);
+  // Module 4's lesson titles came from the checklist templates. It was always
+  // a one-time title seed rather than a live join — a lead renames and adds
+  // lessons freely afterwards — so with checklists gone the same three names
+  // are simply written here. Reading them from a table that no longer exists
+  // was the last thing tying the onboarding course to the removed feature.
+  const taskTypeLessons = ['Прелендинг', 'Оффер', 'Вайт'];
 
   db.transaction(() => {
     const courseId = db.prepare(`
@@ -1567,137 +1395,3 @@ function backfillSequentialPrerequisites() {
   }
 }
 
-function seedChecklistTemplates() {
-  const insertTpl = db.prepare('INSERT INTO checklist_templates (name, task_type, color, order_num) VALUES (?, ?, ?, ?)');
-
-  const r1 = insertTpl.run('Прелендинг', 'prelending', '#1D9E75', 1);
-  seedPrelandItems(r1.lastInsertRowid);
-
-  const r2 = insertTpl.run('Оффер', 'offer', '#7F77DD', 2);
-  seedOfferItems(r2.lastInsertRowid);
-
-  const r3 = insertTpl.run('Вайт', 'white', '#EF9F27', 3);
-  seedWhiteItems(r3.lastInsertRowid);
-}
-
-function seedPrelandItems(tplId) {
-  const insertItem = db.prepare('INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)');
-  let n = 1;
-  const add = (cat, text) => insertItem.run(tplId, cat, text, n++);
-
-  add('Визуал', 'Футер соответствует стандарту (лого + строка копирайта, год)');
-  add('Визуал', 'Сайд-блок скрыт в мобильной версии');
-  add('Визуал', 'Нет указания погоды или иной привязки ко времени');
-  add('Визуал', 'Прокрутка в верхнем меню (хедере) работает корректно');
-  add('Визуал', 'Новостной блок корректен: без старых новостей, ровная верстка');
-  add('Визуал', 'Инструкция оформлена по стандарту - отцентровка');
-  add('Визуал', '203885 ID');
-  add('Визуал', 'Верстка корректна');
-  add('Визуал', 'Интервалы соблюдены во всех частях страницы');
-  add('Визуал', 'Имена в интервью выделены жирным');
-  add('Визуал', 'Слово "Важно" выделено красным, только одно');
-  add('Визуал', 'Оформление постов соцсетей, блока с отзывами');
-  add('Визуал', 'Визуальная и функциональная проверка через фб-браузер');
-
-  add('Функционал', 'Ховер-эффект отсутствует');
-  add('Функционал', 'Серые поля у чеков в слайдере и документа, лупа в слайдере');
-  add('Функционал', 'Неразрывный пробел');
-  add('Функционал', 'Кнопка не исчезает при наведении курсора');
-  add('Функционал', 'Плеер работает корректно');
-  add('Функционал', 'Интерактив работает корректно: слайдер, ползунки и проч');
-  add('Функционал', 'Горизонтальный скролл отсутствует');
-  add('Функционал', 'Форма в лендофферах');
-  add('Функционал', 'Скорость загрузки (время и ошибки) – обновление новостника');
-  add('Функционал', 'Наличие {{split.lp_header}} // {{split.lp_content_var_header_image}}');
-
-  add('Ссылки', 'В одном абзаце только один вид ссылки');
-  add('Ссылки', 'Одинаковый дизайн ссылок по всему преленду');
-  add('Ссылки', 'Оффернейм подставлен корректно');
-  add('Ссылки', 'Выделены все фразы «слово+link», оба слова');
-  add('Ссылки', 'Ссылка осуществляет корректный переход');
-  add('Ссылки', 'Все элементы, кроме ссылок, некликабельны');
-
-  add('Картинки', 'Все картинки корректно отображаются');
-  add('Картинки', 'Содержание картинок корректно (гео, погода, даты и др)');
-
-  add('Пунктуация', 'Опечатка/орфографические ошибки');
-  add('Пунктуация', 'Тысячные значения оформлены единообразно');
-  add('Пунктуация', 'Отсутствует точка в конце заголовка и подзаголовка');
-  add('Пунктуация', 'Род, падежи в тексте');
-  add('Пунктуация', 'Валюта по тексту соответствует гео');
-
-  add('Смысловая нагрузка', 'В 1м дне экспа в последнем абзаце стоит 2 транзакции, не 4');
-  add('Смысловая нагрузка', 'Отсутствует упоминание других гео/национальностей/селеб');
-  add('Смысловая нагрузка', 'Смысловые ошибки');
-  add('Смысловая нагрузка', 'Язык соответствует гео во всех частях текста');
-  add('Смысловая нагрузка', 'Имена написанны корректно/единообразно');
-  add('Смысловая нагрузка', 'Дата: публикации, регистрации, даты в тексте');
-  add('Смысловая нагрузка', 'Имя "М с компами/редактора" одинаковое в 3х местах: подпись под фото, справка 2го дня, чек 7го дня');
-  add('Смысловая нагрузка', 'Варселеб: все плейсхолдеры используются корректно');
-
-  add('Квитанция', 'Квитанция нового формата - фото физического чека');
-  add('Квитанция', 'Данные в квитанции заблюрены достаточно');
-  add('Квитанция', 'Сумма дохода соответствует заявленной в тексте');
-  add('Квитанция', 'Имя соответствует заявленному в тексте');
-  add('Квитанция', 'Данные чека соответствует гео (телефон, адрес, перевод)');
-  add('Квитанция', 'Ссылка в комментарии соответствует стандарту');
-  add('Квитанция', 'Содержание комментариев корректно (смысл шаблона, селеба, м/ж)');
-  add('Квитанция', 'Скрин банка использован уместно (имя, куда прекреплен по смыслу)');
-
-  add('Комментарии', 'Авы/никнеймы/кнопки/поле ввода, слово "комментарии" соответствуют гео и полу: гость на языке гео');
-  add('Комментарии', 'Авы/никнеймы/лайки не дублируются');
-  add('Комментарии', 'Гость без аватарки');
-  add('Комментарии', 'Аватарка соответствует имени и гео');
-  add('Комментарии', 'Верстка комментариев корректна (наслоение, длина, кнопки, язык кнопок)');
-  add('Комментарии', 'Хронология в комментариях корректна');
-  add('Комментарии', 'Поле ввода комм некликабельно, стоит верная заглушка');
-  add('Комментарии', 'Слово "Комментарии" во множетсвенном числе, актуальное количество комментариев');
-
-  add('Новые проверки', 'Нет читерства с тегами <header>, <footer>, <aside>');
-  add('Новые проверки', 'Количество запросов страницы — до 50, либо оптимизировано максимально близко к этому значению');
-  add('Новые проверки', 'Макрос {{aio:macros:currency_nowrap}} подключен, сумма и валюта отображаются на одной строке');
-  add('Новые проверки', 'Во всех <a> отсутствует target="_blank"');
-  add('Новые проверки', 'Каждый абзац находится в отдельном теге <p>, без двойных <br>');
-  add('Новые проверки', 'iframe и noscript удалены из разметки');
-  add('Новые проверки', 'Серые поля у документа, и у чеков в слайдере, лупа в слайдере и скринах в комментариях, лупа отцентрована');
-  add('Новые проверки', 'Язык соответствует гео во всех частях текста, интерфейс комментариев на языке гео');
-  add('Новые проверки', 'Стрелка в слайдере не выделяется после отжатия, нет синих полос');
-  add('Новые проверки', 'Корректное отображение при увеличении, картинки не находящиеся в одном слайдере не пролистываются');
-
-  add('Критически важно!', 'Макрос {{aio:macros:new_instruction_to_reg}} подключен корректно');
-  add('Критически важно!', 'Кастомизация макроса {{aio:macros:new_instruction_to_reg}} выполнена корректно');
-  add('Критически важно!', 'Используется сплит-кей lp_content_var_custom_1, отсутствует lp_mvt_content_var');
-  add('Критически важно!', 'Использован новый формат динамических комментариев');
-  add('Критически важно!', 'В коде присутствует атрибут data-time-function');
-}
-
-function seedOfferItems(tplId) {
-  const insertItem = db.prepare('INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)');
-  let n = 1;
-  const add = (cat, text) => insertItem.run(tplId, cat, text, n++);
-
-  add('Общее', 'Страница открывается без ошибок');
-  add('Общее', 'Нет ошибок в консоли браузера');
-  add('Общее', 'Адаптивная верстка на мобильном');
-  add('Форма', 'Форма заказа отображается корректно');
-  add('Форма', 'Все поля формы работают');
-  add('Форма', 'Валидация обязательных полей работает');
-  add('Форма', 'Кнопка отправки формы активна');
-  add('Форма', 'Страница «Спасибо» открывается после отправки');
-  add('Контент', 'Номер телефона кликабельный на мобильном');
-  add('Контент', 'Текст читаем, нет явных опечаток');
-}
-
-function seedWhiteItems(tplId) {
-  const insertItem = db.prepare('INSERT INTO checklist_items (template_id, category, text, order_num) VALUES (?, ?, ?, ?)');
-  let n = 1;
-  const add = (cat, text) => insertItem.run(tplId, cat, text, n++);
-
-  add('Контент', 'Страница имеет реальный тематический контент');
-  add('Контент', 'Нет редиректа на оффер при прямом переходе');
-  add('SEO', 'Meta title заполнен и релевантен теме');
-  add('SEO', 'Meta description заполнен');
-  add('Техническое', 'Нет ошибок в консоли');
-  add('Техническое', 'Страница корректно отображается на мобильном');
-  add('Техническое', 'Контент выглядит естественно, нет спам-текста');
-}

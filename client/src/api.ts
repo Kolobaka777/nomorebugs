@@ -77,9 +77,6 @@ export const adminApi = {
   getOverview: () => api.get('/admin/overview'),
   getBonusCandidates: () => api.get('/admin/bonus-candidates'),
 
-  getTaskTypes: () => api.get('/admin/task-types'),
-  createTaskType: (name: string) => api.post('/admin/task-types', { name }),
-  deleteTaskType: (id: number) => api.delete(`/admin/task-types/${id}`),
 
   getTrash: () => api.get('/admin/trash'),
   restoreTrash: (type: string, id: number) => api.post(`/admin/trash/${type}/${id}/restore`),
@@ -275,9 +272,6 @@ export const statsApi = {
   getGlobal: () => api.get('/stats'),
 };
 
-// Чеклисты — фича извлечена из проекта 15.08.2026 (не нужна в этом
-// сервисе). Исходники: c:\Users\user\Desktop\Projects\_archive\checklists-feature-2026-08-15\.
-
 // Knowledge base (Багодельня): bug examples + glossary. Anyone can also
 // *propose* one — the server forces it unpublished + pending review
 // regardless of what's sent (see POST /api/bug-examples, POST /api/glossary).
@@ -357,3 +351,9 @@ export const permissionsApi = {
     api.post('/lead/permissions', data),
   revoke: (id: number) => api.delete(`/lead/permissions/${id}`),
 };
+
+// The axios instance itself. Every call goes through the grouped objects
+// above; this is exported so a test can swap in a transport and exercise the
+// interceptors — refresh on 401 and the retry that follows — without going
+// near the network. See api.test.ts.
+export { api };

@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "backups": "node scripts/restore-backup.js --list",
-    "restore": "node scripts/restore-backup.js"
+    "restore": "node scripts/restore-backup.js",
+    "backups:s3": "node scripts/restore-backup.js --list-s3",
+    "restore:s3": "node scripts/restore-backup.js --from-s3"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",

@@ -205,8 +205,8 @@ export default function TeamTab({
                 </p>
               </div>
 
-              {/* Scoped permissions — точечный доступ к разделам без
-                  полной смены роли. Отмеченный чекбокс = выдано. */}
+              {/* Scoped permissions — access to one area without a full role
+                  change. A ticked box means the grant is in effect. */}
               <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(197, 198, 199, 0.12)' }}>
                 <div className="flex items-center gap-3 flex-wrap mb-2">
                   {ALL_PERMISSIONS.map(perm => {

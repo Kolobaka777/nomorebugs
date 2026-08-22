@@ -16,6 +16,7 @@ import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, CARD_SHADOW, 
 // switching categories) doesn't pay that cost until a guide is actually
 // opened or edited.
 const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+import RichTextView from '../components/RichTextView';
 
 function RichTextEditorFallback() {
   return (
@@ -366,9 +367,7 @@ export default function GuidesPage({ user, onLogout }: Props) {
                     <Icon name="clock" size={14} color="#EF9F27" /> Ждёт рассмотрения лидом — как только одобрят, гайд станет виден всей команде.
                   </p>
                 )}
-                <Suspense fallback={<RichTextEditorFallback />}>
-                  <RichTextEditor content={parseRichContent(selected.content)} editable={false} />
-                </Suspense>
+                <RichTextView content={parseRichContent(selected.content)} />
               </div>
             ) : !listError ? (
               <div

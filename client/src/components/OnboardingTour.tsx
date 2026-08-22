@@ -3,6 +3,7 @@ import Icon from './Icon';
 import PixelFrogKnightSprite from './PixelFrogKnightSprite';
 import { FrogLine, loadFrogLines, tourStepsFor } from '../utils/frogLines';
 import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_PRIMARY, TEXT_MUTED, TRACK_WIDE } from '../utils/theme';
+import { useEscapeKey } from '../utils/a11y';
 
 // First-run walkthrough. Three things changed from the original:
 //
@@ -121,6 +122,12 @@ export default function OnboardingTour({ user }: Props) {
     localStorage.setItem(storageKey, 'true');
     setActive(false);
   };
+
+  // The backdrop below covers the whole screen and swallows every click
+  // aimed at the page, so until this existed the only way out was to find
+  // and hit one of the tour's own buttons. Escape closes every other overlay
+  // in the app (see useEscapeKey's other call sites); it closes this one too.
+  useEscapeKey(() => { if (active) finish(); });
 
   const next = () => {
     if (steps && stepIndex < steps.length - 1) setStepIndex(i => i + 1);

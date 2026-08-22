@@ -88,19 +88,6 @@
 
 @layer components {
   /* ===== PIXEL BORDERS ===== */
-  .pixel-border {
-    box-shadow: 2px 0 0 0 #66FCF1, -2px 0 0 0 #66FCF1, 0 2px 0 0 #66FCF1, 0 -2px 0 0 #66FCF1;
-  }
-  .pixel-border-amber {
-    box-shadow: 2px 0 0 0 #EF9F27, -2px 0 0 0 #EF9F27, 0 2px 0 0 #EF9F27, 0 -2px 0 0 #EF9F27;
-  }
-  .pixel-border-purple {
-    box-shadow: 2px 0 0 0 #7F77DD, -2px 0 0 0 #7F77DD, 0 2px 0 0 #7F77DD, 0 -2px 0 0 #7F77DD;
-  }
-  .pixel-border-red {
-    box-shadow: 2px 0 0 0 #e05252, -2px 0 0 0 #e05252, 0 2px 0 0 #e05252, 0 -2px 0 0 #e05252;
-  }
-
   /* ===== CARDS ===== */
   /* Unified with HomePage's flat-card language: solid CARD_BG fill, 8px
      radius, soft blurred drop shadow (theme.ts's CARD_SHADOW value, inlined
@@ -112,17 +99,6 @@
     @apply bg-game-card p-4 rounded-lg;
     box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
   }
-  .card-amber {
-    @apply bg-game-card p-4 rounded-lg;
-    border: 1px solid rgba(239, 159, 39, 0.35);
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-  .card-purple {
-    @apply bg-game-card p-4 rounded-lg;
-    border: 1px solid rgba(127, 119, 221, 0.35);
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-
   /* The kit's loading wheel turns; `prefers-reduced-motion` gets a pulse
      instead of a spin, since the point is "still working", not the rotation. */
   @keyframes spinner-turn { to { transform: rotate(360deg); } }
@@ -215,31 +191,6 @@
 
   /* The kit's small dark chip ("Базово") — a label that is not an action's
      equal, used for a tier or a state beside something else. */
-  .chip-plain {
-    @apply font-sans cursor-default;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    background: #0B0C10;
-    color: #C5C6C7;
-    border: 1px solid rgba(69, 162, 158, 0.35);
-  }
-
-  .btn-purple {
-    @apply px-4 py-2 bg-purple text-pixel font-sans font-semibold cursor-pointer rounded-lg;
-    box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-    transition: filter 0.15s;
-  }
-  .btn-purple:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-  .btn-purple:active:not(:disabled) {
-    filter: brightness(0.96);
-  }
-
   /* ===== XP / HP BARS ===== */
   .xp-bar-track {
     @apply h-4 rounded relative overflow-hidden;
@@ -275,64 +226,17 @@
   }
 
   /* ===== PIXEL HEADING ===== */
-  .pixel-heading {
-    @apply font-pixel text-primary;
-    text-shadow: 2px 2px 0 rgba(102, 252, 241, 0.3);
-    line-height: 1.8;
-  }
-  .pixel-heading-amber {
-    @apply font-pixel text-amber;
-    text-shadow: 2px 2px 0 rgba(239, 159, 39, 0.3);
-    line-height: 1.8;
-  }
-  .pixel-heading-pixel {
-    @apply font-pixel text-pixel;
-    text-shadow: 2px 2px 0 rgba(197, 198, 199, 0.2);
-    line-height: 1.8;
-  }
-
   /* ===== STATUS BADGES ===== */
   /* Flat pill, no bevel — small 4px radius is this badge scale's own
      established exception (matches the nav's role-pill/BADGE_BG treatment
      in theme.ts, not the 8px card radius). */
-  .badge-passed {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
-    background: rgba(102, 252, 241, 0.15);
-    color: #66FCF1;
-    border: 1px solid rgba(102, 252, 241, 0.4);
-  }
-  .badge-active {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
-    background: rgba(239, 159, 39, 0.15);
-    color: #EF9F27;
-    border: 1px solid rgba(239, 159, 39, 0.4);
-  }
-  .badge-locked {
-    @apply px-2 py-1 text-xs font-sans font-semibold rounded;
-    background: rgba(197, 198, 199, 0.05);
-    color: rgba(197, 198, 199, 0.3);
-    border: 1px solid rgba(197, 198, 199, 0.15);
-  }
-
   /* ===== NAV LINK ===== */
-  .nav-link {
-    @apply px-3 py-1.5 text-xs font-sans font-medium rounded-lg transition-all duration-150 cursor-pointer text-pixel/60;
-  }
-  .nav-link:hover {
-    @apply text-pixel bg-primary/10;
-  }
   .nav-link.active {
     @apply text-game font-semibold;
     background: #66FCF1;
   }
 
   /* ===== TABS ===== */
-  .tab-btn {
-    @apply px-4 py-2 text-sm font-sans font-medium transition-all duration-150 cursor-pointer border-b-2 border-transparent text-pixel/60;
-  }
-  .tab-btn:hover {
-    @apply text-pixel/80;
-  }
   .tab-btn.active {
     @apply text-primary border-primary;
   }
@@ -342,59 +246,10 @@
      as "attached" to the panel below it), single soft shadow on the active
      tab only. Class names kept as `.win98-tab*` — renaming would mean
      touching every page that references them for zero visual gain. */
-  .win98-tab {
-    padding: 6px 18px;
-    font-family: Geist, system-ui, sans-serif;
-    font-size: 0.75rem;
-    font-weight: 500;
-    background: #1F2833;
-    border: 1px solid rgba(197, 198, 199, 0.12);
-    color: rgba(197, 198, 199,0.45);
-    cursor: pointer;
-    white-space: nowrap;
-    border-radius: 8px 8px 0 0;
-    transition: color 0.15s, background 0.15s, border-color 0.15s;
-  }
-  .win98-tab:hover:not(.win98-tab-active) {
-    color: rgba(197, 198, 199,0.8);
-    border-color: rgba(102, 252, 241,0.3);
-  }
-  .win98-tab-active {
-    background: #66FCF1;
-    color: #0B0C10;
-    font-weight: 600;
-    border-color: #66FCF1;
-    box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-  }
-
   /* ===== PANELS (для inline-стилизованных блоков) ===== */
   /* Flat CARD_BG fill, 8px radius, soft CARD_SHADOW — the -red/-green
      variants keep a colored left rule (their one meaningful differentiator,
      e.g. a before/after comparison) instead of a full bevel border. */
-  .win98-panel {
-    background: #1F2833;
-    border-radius: 8px;
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-  .win98-panel-red {
-    background: #1F2833;
-    border-left: 3px solid #e05252;
-    border-radius: 8px;
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-  .win98-panel-green {
-    background: #1F2833;
-    border-left: 3px solid #66FCF1;
-    border-radius: 8px;
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-  .win98-panel-amber {
-    background: #1F2833;
-    border: 1px solid rgba(239,159,39,0.35);
-    border-radius: 8px;
-    box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  }
-
   /* ===== INPUTS ===== */
   /* Unified with the kit's BORDERED_BOX treatment (theme.ts): flat PAGE_BG
      fill, thin muted border that brightens to full ACCENT on focus, 8px
@@ -508,14 +363,6 @@
   }
 }
 
-/* ===== ANIMATIONS ===== */
-@keyframes achievement-slide-up {
-  0%   { transform: translateY(120%) scale(0.9); opacity: 0; }
-  15%  { transform: translateY(0) scale(1);     opacity: 1; }
-  80%  { transform: translateY(0) scale(1);     opacity: 1; }
-  100% { transform: translateY(-30px) scale(0.95); opacity: 0; }
-}
-
 @keyframes pixel-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.5; }
@@ -526,23 +373,9 @@
   50%       { transform: translateY(-3px); }
 }
 
-@keyframes gold-shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position:  200% center; }
-}
-
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes node-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(102, 252, 241,0.4); }
-  50%       { box-shadow: 0 0 18px rgba(102, 252, 241,0.8); }
-}
-
-.achievement-popup {
-  animation: achievement-slide-up 3.2s ease-in-out forwards;
 }
 
 .pixel-pulse {
@@ -551,21 +384,6 @@
 
 .snail-bob {
   animation: snail-bob 0.8s ease-in-out infinite;
-}
-
-.gold-shimmer {
-  background: linear-gradient(90deg, #EF9F27 20%, #fff5a0 50%, #EF9F27 80%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: gold-shimmer 2s linear infinite;
-}
-
-.gold-shimmer-bg {
-  background: linear-gradient(90deg, #EF9F27 20%, #fff5a0 50%, #EF9F27 80%);
-  background-size: 200% auto;
-  animation: gold-shimmer 2s linear infinite;
 }
 
 .fade-in {
@@ -616,10 +434,6 @@
   .stagger-in > * {
     animation: none;
   }
-}
-
-.node-glow {
-  animation: node-glow 2s ease-in-out infinite;
 }
 
 /* ===== INVENTORY / TROPHY COLLECTION ===== */
@@ -687,17 +501,6 @@
 .frame-crimescene { animation: crimescene-frame 1.5s ease-in-out infinite; }
 
 /* ===== RPG STAT BAR ===== */
-.stat-bar-track {
-  height: 8px;
-  background: rgba(197, 198, 199,0.07);
-  position: relative;
-  overflow: hidden;
-}
-.stat-bar-fill {
-  height: 100%;
-  transition: width 0.6s ease-out;
-}
-
 /* ===== FROG COMPANION ===== */
 @keyframes frog-companion-idle-bob {
   0%, 100% { transform: translateY(0); }
@@ -953,15 +756,6 @@
   }
 }
 
-/* ===== HOMM ACHIEVEMENT ===== */
-@keyframes homm-in {
-  0%   { transform: translateY(80px) scale(0.85); opacity: 0; }
-  7%   { transform: translateY(-5px) scale(1.04); opacity: 1; filter: brightness(1.7); }
-  13%  { transform: translateY(0) scale(1);       opacity: 1; filter: brightness(1); }
-  78%  { transform: translateY(0) scale(1);       opacity: 1; }
-  100% { transform: translateY(-24px) scale(0.96); opacity: 0; }
-}
-
 /* ===== CARD HOVER — deeper shadow only, no lift/bevel flip ===== */
 .card:hover, .card-amber:hover, .card-purple:hover {
   box-shadow: 0 10px 16px 0 rgba(0, 0, 0, 0.3);
@@ -978,160 +772,16 @@
 /* Flat CARD_BG/PAGE_BG fill, 8px radius, soft shadow — the -gold/-dark
    variants keep a colored border as their one meaningful differentiator
    (achievement/highlight vs. recessed) instead of a full bevel+outline. */
-.rpg-panel {
-  position: relative;
-  background: #1F2833;
-  border-radius: 8px;
-  box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-}
-.rpg-panel-gold {
-  position: relative;
-  background: #1F2833;
-  border: 1px solid rgba(239,159,39,0.5);
-  border-radius: 8px;
-  box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-}
-.rpg-panel-dark {
-  position: relative;
-  background: #0B0C10;
-  border: 1px solid rgba(127,119,221,0.25);
-  border-radius: 8px;
-  box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-}
-
 /* ── Inventory Slot ── */
-.inv-slot {
-  position: relative;
-  background: #0d0d18;
-  border: 1px solid rgba(127,119,221,0.35);
-  border-radius: 8px;
-  transition: border-color 0.15s, background 0.15s;
-  cursor: default;
-}
-.inv-slot:hover {
-  border-color: rgba(239,159,39,0.55);
-  background: #161625;
-}
-.inv-slot-earned {
-  border-color: #66FCF1;
-}
-.inv-slot-rare {
-  border-color: #7F77DD;
-}
-.inv-slot-epic {
-  border-color: #EF9F27;
-  animation: epic-badge-pulse 2.4s ease-in-out infinite;
-}
-
 /* ── RPG Tab buttons ── */
 /* Flat, rounded top corners (attaches to the panel below), single soft
    shadow on the active tab — same treatment as .win98-tab above. */
-.rpg-tab {
-  padding: 7px 14px;
-  font-family: Montserrat, sans-serif;
-  font-size: 0.6rem;
-  line-height: 1.6;
-  background: #12121f;
-  border: 1px solid rgba(197, 198, 199, 0.12);
-  color: rgba(197, 198, 199,0.4);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  border-radius: 8px 8px 0 0;
-}
-.rpg-tab:hover:not(.rpg-tab-active) {
-  color: rgba(197, 198, 199,0.7);
-  border-color: rgba(239,159,39,0.35);
-}
-.rpg-tab-active {
-  border-color: #EF9F27;
-  background: #1F2833;
-  color: #EF9F27;
-  box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.25);
-}
-
 /* ── Coin chip ── */
-.coin-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  background: rgba(239,159,39,0.08);
-  border: 1px solid rgba(239,159,39,0.4);
-  border-radius: 8px;
-  font-family: Montserrat, sans-serif;
-  font-size: 0.62rem;
-  color: #EF9F27;
-  cursor: default;
-}
-
 /* ── Portrait frame (HoMM character window left) ── */
-.portrait-frame {
-  background: #0d0d18;
-  border: 1px solid rgba(239,159,39,0.3);
-  border-radius: 8px;
-  box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25), inset 0 0 12px rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* ── Section divider ── */
-.rpg-divider {
-  height: 2px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(239,159,39,0.15) 20%,
-    rgba(239,159,39,0.3) 50%,
-    rgba(239,159,39,0.15) 80%,
-    transparent 100%
-  );
-  margin: 0;
-}
-
 /* ── RPG Banner header ── */
-.rpg-banner {
-  background: linear-gradient(90deg, #12121f 0%, #1a1430 50%, #12121f 100%);
-  border-top: 1px solid rgba(239,159,39,0.2);
-  border-bottom: 1px solid rgba(239,159,39,0.2);
-  padding: 6px 16px;
-  font-family: Montserrat, sans-serif;
-  font-size: 0.62rem;
-  color: rgba(197, 198, 199,0.5);
-  letter-spacing: 0.06em;
-}
-
 /* ── Shop item card ── */
-.shop-card {
-  background: #12121f;
-  border: 1px solid rgba(127,119,221,0.3);
-  border-radius: 8px;
-  box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.25);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.shop-card:hover {
-  border-color: rgba(239,159,39,0.5);
-  box-shadow: 0 10px 16px 0 rgba(0, 0, 0, 0.3);
-}
-.shop-card-owned {
-  border-color: #66FCF1;
-  background: rgba(102, 252, 241,0.05);
-}
-
 /* ── Stat bar (HoMM narrow) — see ===== RPG STAT BAR ===== above ── */
-
-/* ── Coin spin ── */
-@keyframes coin-spin {
-  0%   { transform: scaleX(1); }
-  40%  { transform: scaleX(0.1); }
-  50%  { transform: scaleX(0.1); }
-  90%  { transform: scaleX(1); }
-  100% { transform: scaleX(1); }
-}
-.coin-spin {
-  display: inline-block;
-  animation: coin-spin 1.4s ease-in-out infinite;
-}
 
 /* ===== RICH TEXT EDITOR ===== */
 /* Global on purpose, not an inline <style> inside RichTextEditor.tsx — this
@@ -1254,6 +904,21 @@
 .rich-text-content .tiptap div[data-type="details"] summary::-webkit-details-marker { display: none; }
 .rich-text-content .tiptap div[data-type="detailsContent"] { margin: 0.3em 0 0.3em 24px; padding-left: 8px; border-left: 2px solid rgba(197, 198, 199, 0.12); }
 .rich-text-content .tiptap div[data-type="detailsContent"] > *:first-child { margin-top: 0; }
+
+/* The same toggle, as rendered by RichTextView (read-only). It emits a real
+   <details>/<summary> instead of Tiptap's div+button, because outside the
+   editor nothing needs to own the click: the browser collapses it natively
+   and gives keyboard operation for free. The triangle is drawn the same way
+   for both, driven here off [open] rather than off a sibling's [hidden]. */
+.rich-text-content .tiptap details[data-type="details"] { margin: 0.5em 0; }
+.rich-text-content .tiptap details[data-type="details"] > summary {
+  font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px;
+}
+.rich-text-content .tiptap details[data-type="details"] > summary::-webkit-details-marker { display: none; }
+.rich-text-content .tiptap details[data-type="details"] > summary::before {
+  content: '▸'; font-size: 11px; color: #66FCF1; flex-shrink: 0;
+}
+.rich-text-content .tiptap details[data-type="details"][open] > summary::before { content: '▾'; }
 
 /* Drag handle — a floating grip icon (portaled next to whichever block the
    cursor is over) rather than an inline column, so it doesn't shift block

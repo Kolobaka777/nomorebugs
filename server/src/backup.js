@@ -1,8 +1,13 @@
 import path from 'path';
 import fs from 'fs';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { db } from '../db/schema.js';
 import { logError } from './sentry.js';
+import { isOffsiteBackupEnabled, uploadFile } from './s3.js';
+
+// Re-exported so existing callers (app.js's startup warning, the tests)
+// keep their import site. The implementation lives in s3.js, which the
+// restore script also needs and which must not open the database.
+export { isOffsiteBackupEnabled };
 
 // Writes into a subdirectory of wherever the live DB file lives — on
 // Railway that's the same mounted volume, so this protects against
@@ -19,29 +24,9 @@ const BACKUP_DIR = process.env.BACKUP_DIR || (
 // the on-volume backups above can't protect against by construction. No-op
 // unless configured, matching the Sentry/SMTP/Telegram integrations'
 // pattern elsewhere in this codebase — nothing breaks or changes behavior
-// for a deployment that hasn't set these up. Works with AWS S3 and any
-// S3-compatible provider (Cloudflare R2, Backblaze B2) via
-// BACKUP_S3_ENDPOINT; see .env.example for the full variable list and a
-// cost/setup comparison of the two recommended providers.
-let s3Client = null;
-export function isOffsiteBackupEnabled() {
-  return Boolean(process.env.BACKUP_S3_BUCKET && process.env.BACKUP_S3_ACCESS_KEY_ID && process.env.BACKUP_S3_SECRET_ACCESS_KEY);
-}
-
-function getS3Client() {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: process.env.BACKUP_S3_REGION || 'auto', // R2 ignores region and expects 'auto'; real AWS S3 needs a real region here
-      endpoint: process.env.BACKUP_S3_ENDPOINT || undefined, // unset = real AWS S3; set for R2/B2
-      credentials: {
-        accessKeyId: process.env.BACKUP_S3_ACCESS_KEY_ID,
-        secretAccessKey: process.env.BACKUP_S3_SECRET_ACCESS_KEY,
-      },
-    });
-  }
-  return s3Client;
-}
-
+// for a deployment that hasn't set these up. The S3 talking happens in
+// s3.js; getting a copy *back* from there is scripts/restore-backup.js.
+//
 // Deliberately does its own try/catch and never throws — called from
 // runBackup() right after a successful local backup, and a failed upload
 // (bad credentials, network blip, bucket typo) should never make the
@@ -51,13 +36,7 @@ function getS3Client() {
 export async function shipBackupOffsite(filePath) {
   if (!isOffsiteBackupEnabled()) return false;
   try {
-    const body = fs.readFileSync(filePath);
-    const key = `${(process.env.BACKUP_S3_PREFIX || 'backups').replace(/\/+$/, '')}/${path.basename(filePath)}`;
-    await getS3Client().send(new PutObjectCommand({
-      Bucket: process.env.BACKUP_S3_BUCKET,
-      Key: key,
-      Body: body,
-    }));
+    await uploadFile(filePath);
     return true;
   } catch (err) {
     logError(err, { context: 'off-site DB backup upload' });

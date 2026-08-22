@@ -101,10 +101,6 @@ export const HEADER_BG = 'rgba(31, 40, 51, 0.20)';
 export const HEADER_SHADOW = '0 8px 13.6px 0 rgba(0, 0, 0, 0.25)';
 export const HEADER_BLUR = 'blur(10px)';
 
-// Role badge ("TESTER" pill) — filled, not just a bordered outline.
-export const BADGE_BG = 'rgba(102, 252, 241, 0.60)';
-export const BADGE_BORDER = 'rgba(102, 252, 241, 0.80)';
-
 // Section headings ("ТВОИ НАВЫКИ", "СТАТИСТИКА ПЛОЩАДКИ", ...) and the big
 // stat-card numbers are consistently 0.2em letter-spacing in the source
 // file (6.4px/32px, 3.6px/18px, 2.8px/14px, 8px/40px all reduce to the same
@@ -155,7 +151,6 @@ export const BODY: React.CSSProperties = {
   fontFamily: 'Geist, system-ui, sans-serif', fontSize: 14, fontWeight: 400,
   lineHeight: 1.6, color: TEXT_PRIMARY,
 };
-export const BODY_MUTED: React.CSSProperties = { ...BODY, color: TEXT_MUTED };
 export const LINK: React.CSSProperties = {
   fontFamily: 'Geist, system-ui, sans-serif', fontSize: 14, fontWeight: 500,
   lineHeight: 1.6, color: ACCENT,

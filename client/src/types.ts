@@ -127,12 +127,6 @@ export interface UserBadge {
   earned_at: string;
 }
 
-export interface BlockProgress {
-  skill_area: string;
-  total: number;
-  collected: number;
-}
-
 // A publicly-shared uploaded avatar (see custom_avatars table /
 // GET /api/avatars/gallery) — anyone can pick one as their own avatar_id:
 // 'custom' + custom_avatar. Distinct from a private upload, which never
@@ -190,14 +184,6 @@ export interface FullProfile {
   coursesApproved: number;
   guidesProposed: number;
   guidesApproved: number;
-}
-
-export interface TestHistoryItem {
-  id: number;
-  score: number;
-  completed_at: string;
-  lecture_title: string;
-  skill_area: string;
 }
 
 export interface GlobalStats {
@@ -365,10 +351,3 @@ export interface SuggestionFolder {
   created_at: string;
 }
 
-// ===== COURSE DEADLINE OVERRIDES =====
-export interface CourseDeadlineOverride {
-  user_id: number;
-  name: string;
-  deadline_at: string;
-  reason: string;
-}

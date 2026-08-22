@@ -285,3 +285,4 @@ describe('team news — a lead posting and deleting', () => {
     expect(news.body.rows.find(n => n.id === announcementId)).toBeUndefined();
   });
 });
+

@@ -7,7 +7,7 @@ import Icon, { IconName } from './Icon';
 import Modal from './Modal';
 import { useEscapeKey } from '../utils/a11y';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
-import { shopItemFor, ACCENT_PALETTE } from '../utils/shop';
+import { DEFAULT_AVATAR_ID, shopItemFor, ACCENT_PALETTE } from '../utils/shop';
 import { ACCENT, ERROR } from '../utils/theme';
 import GalleryAvatarImage from './GalleryAvatarImage';
 import { loadGalleryImage, forgetGalleryImage } from '../utils/galleryImages';
@@ -65,7 +65,7 @@ export default function ProfileEditModal({
   const [infoBox, setInfoBox]               = useState(profile.info_box || '');
   const [snailJoke, setSnailJoke]           = useState(profile.snail_joke || '');
   const [isPublic, setIsPublic]             = useState(profile.is_public);
-  const [avatarId, setAvatarId]             = useState<AvatarId>((profile.avatar_id as AvatarId) || "frog1");
+  const [avatarId, setAvatarId]             = useState<AvatarId>((profile.avatar_id as AvatarId) || (DEFAULT_AVATAR_ID as AvatarId));
   const [frame, setFrame]                   = useState<FrameId>((profile.avatar_frame as FrameId) || 'default');
   const [bg, setBg]                         = useState<BgId>((profile.profile_bg as BgId) || 'default');
   const [accentColor, setAccentColor]       = useState(profile.profile_accent_color || ACCENT);

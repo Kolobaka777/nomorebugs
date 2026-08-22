@@ -1,6 +1,6 @@
 // Knowledge base (Багодельня): bug-example write-ups + glossary terms, and
 // guides (lead/admin-editable articles replacing the team's external Notion
-// docs). Split out from the old monolithic app.js — see PROGRESS.md.
+// docs).
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { displayName, logActivity } from '../routeHelpers.js';
@@ -20,7 +20,6 @@ function truncateForNotify(text, max = 60) {
 const router = express.Router();
 
 // A ceiling on the knowledge-base lists, none of which had one.
-//
 // These are curated content — a team's glossary and bug examples grow to
 // hundreds of rows, not millions — so this is a backstop, not real
 // pagination with a cursor the client walks. It exists so a list that grows
@@ -312,7 +311,6 @@ router.patch('/api/glossary/:id/approve', authMiddleware, requirePermission('man
 // meant to replace the team's external Notion docs. Content is a plain
 // safe-markdown-subset string (see client GuidesPage's renderer) — never
 // raw HTML, so there's no dangerouslySetInnerHTML/XSS surface.
-//
 // Any other tester can also *propose* a guide (POST below, unprivileged
 // branch) — same shape, but forced unpublished + proposal_status='pending'
 // until a lead approves it. See routes/courses.js's near-identical course

@@ -1,7 +1,6 @@
 // Tester-facing cabinet: profile/metrics/lecture listing, history,
 // before/after self-comparison, global landing-page stats, quiz
-// submission + shop, and baseline/final skill surveys. Split out from the
-// old monolithic app.js — see PROGRESS.md.
+// submission + shop, and baseline/final skill surveys.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';

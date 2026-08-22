@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OnboardingTour from './OnboardingTour';
 import { tourStepsFor } from '../utils/frogLines';
@@ -116,5 +116,24 @@ describe('OnboardingTour', () => {
     await new Promise(r => setTimeout(r, 600));
     expect(screen.queryByText('Админка')).toBeNull();
     expect(localStorage.getItem(`onboarding_seen_${user.id}`)).toBeNull();
+  });
+});
+
+// The tour's backdrop covers the whole screen and swallows every click aimed
+// at the page. Until Escape was wired up, the only way out was finding one of
+// the tour's own buttons — while Escape closes every other overlay in the app
+// (see the other useEscapeKey call sites).
+describe('OnboardingTour — leaving by keyboard', () => {
+  it('closes on Escape and counts the tour as seen', async () => {
+    mountTarget('nav-courses');
+    vi.mocked(tourStepsFor).mockReturnValue([step('nav-courses', 'Курсы')] as any);
+
+    render(<OnboardingTour user={user} />);
+    await screen.findByText('Курсы');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByText('Курсы')).toBeNull());
+    expect(localStorage.getItem(`onboarding_seen_${user.id}`)).toBe('true');
   });
 });

@@ -1,5 +1,5 @@
 // Suggestions / ideas board, plus the lead's own private folders for
-// sorting them. Split out from the old monolithic app.js — see PROGRESS.md.
+// sorting them.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';

@@ -631,7 +631,7 @@ const GUIDES = [
   },
 ];
 
-// ── Bug examples: как не надо / как надо ──────────────────────────────────
+// ── Bug examples: the bad way and the good way ───────────────────────────
 
 const BUG_EXAMPLES = [
   {

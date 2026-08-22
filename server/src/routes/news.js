@@ -1,12 +1,11 @@
 // Team-wide "what's new" feed — deliberately separate from activity_log
 // (see team_events' schema.js comment). Visible to every role, unlike
-// /api/lead/activity which is a private audit trail. Split out from the
-// old monolithic app.js — see PROGRESS.md.
+// /api/lead/activity which is a private audit trail.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
 import { authMiddleware, requireRole } from '../auth.js';
-import { displayName, logActivity } from '../routeHelpers.js';
+import { displayName, logActivity, parseDbDate } from '../routeHelpers.js';
 
 const MAX_ANNOUNCEMENT_LENGTH = 1000;
 import { todayInTimezone, todayMonthDayInTimezone } from '../presence.js';
@@ -84,7 +83,18 @@ router.get('/api/team/news', authMiddleware, (req, res) => {
       }
     }
 
-    const merged = [...virtual, ...storedPage].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // parseDbDate, not new Date(): stored events carry SQLite's zoneless
+    // "YYYY-MM-DD HH:MM:SS", which new Date() reads as *local* time, while
+    // the virtual birthday/leave items above are .toISOString() UTC. Today
+    // that mismatch is not observable — virtual items are stamped at request
+    // time, so they sort to the top either way, and stored rows are all
+    // shifted equally so their order among themselves is unaffected. It is
+    // fixed anyway because the invariant is what protects it: the moment a
+    // virtual item gets a timestamp that is not "now" (a birthday stamped at
+    // local midnight, say), the bare comparison starts interleaving them
+    // wrongly by the server's UTC offset. Same reason parseDbDate exists at
+    // all — see routeHelpers.js.
+    const merged = [...virtual, ...storedPage].sort((a, b) => parseDbDate(b.created_at) - parseDbDate(a.created_at));
     // storedCount (not rows.length) is what the client must advance its next
     // `offset` by — offset is a cursor into the *stored* team_events table
     // only. Virtual (birthday/leave) items only ever appear on page 0 and
@@ -129,7 +139,6 @@ router.post('/api/team/news', authMiddleware, requireRole('lead'), (req, res) =>
 // Deleting is lead-only and covers any stored event, not just announcements:
 // a course published by mistake leaves an item in everyone's feed, and
 // unpublishing the course doesn't take it back out.
-//
 // The birthday and leave items have no row to delete — they are recomputed
 // from user_profiles/leave_periods on every read (see the GET above), so a
 // delete would appear to work and the item would be back on the next load.

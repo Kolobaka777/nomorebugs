@@ -1,8 +1,6 @@
 // Admin endpoints (user management, role changes), the shared trash/
 // soft-delete recovery bin, scoped permission grants, and recognition/
-// bonus ledgers. Split out from the old monolithic app.js — see
-// PROGRESS.md.
-//
+// bonus ledgers.
 // Deliberately its own role rather than folded into 'lead' — a team lead
 // running courses/checklists for their team is a different concern from
 // who can grant roles across the whole system. requireRole('admin') below

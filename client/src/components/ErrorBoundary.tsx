@@ -3,6 +3,15 @@ import { captureError } from '../monitoring';
 
 interface Props {
   children: ReactNode;
+  // Rendered instead of the full-screen message when this boundary guards
+  // one region rather than the whole app. Without it every render error
+  // anywhere — a malformed rich-text document in one panel, a bad date in
+  // one card — replaced the entire application with "что-то пошло не так",
+  // including the navigation needed to get somewhere else.
+  fallback?: ReactNode;
+  // Names the region in the console/Sentry report, so "which panel" does not
+  // have to be reconstructed from a component stack.
+  label?: string;
 }
 
 interface State {
@@ -17,11 +26,14 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Unhandled render error:', error, info.componentStack);
-    captureError(error, { componentStack: info.componentStack });
+    console.error('Unhandled render error:', this.props.label ?? 'root', error, info.componentStack);
+    captureError(error, { componentStack: info.componentStack, boundary: this.props.label ?? 'root' });
   }
 
   render() {
+    if (this.state.hasError && this.props.fallback !== undefined) {
+      return this.props.fallback;
+    }
     if (this.state.hasError) {
       return (
         <div

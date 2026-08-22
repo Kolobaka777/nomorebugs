@@ -187,34 +187,65 @@ railway run --service server -- sqlite3 /data/learning_hub.db ".backup /data/bac
 ### Restoring from a backup
 
 Backups existing is not the same as being able to restore from one under
-pressure — this has never actually been exercised end-to-end, so treat it
-as a starting runbook to verify (ideally on a throwaway volume first), not
-a guarantee.
+pressure. The mechanics are exercised by tests — `server/test/backup-restore.test.js`
+for the on-volume path and `server/test/backup-offsite-restore.test.js` for
+the round trip through the bucket — but no drill has been run against this
+deployment's real volume, and only that proves the backups on *this* disk
+are real.
 
-1. **List what's available:**
-   ```bash
-   railway run --service server -- ls -la /data/backups
-   ```
-2. **Scale the server service to 0 replicas first** (Railway dashboard →
-   server service → Settings → a running app writing to the DB at the same
-   moment a restore happens underneath it is how you turn one bad table
-   into two).
-3. **Restore the chosen backup over the live DB**, via sqlite3's own
-   `.restore` (the inverse of the `.backup` command already used above —
-   goes through SQLite's backup API rather than a raw file copy, so it
-   can't leave the live DB half-written):
-   ```bash
-   railway run --service server -- sqlite3 /data/learning_hub.db ".restore /data/backups/<chosen-backup-file>.db"
-   ```
-4. **Clear any stale WAL/SHM sidecars** left over from the *pre-restore*
-   live DB — otherwise they can get replayed against the just-restored
-   file, silently reintroducing exactly what the restore was meant to undo:
-   ```bash
-   railway run --service server -- sh -c 'rm -f /data/learning_hub.db-wal /data/learning_hub.db-shm'
-   ```
-5. **Scale the server back to 1 replica.** Confirm with
-   `curl https://<server-domain>/api/health` and a real login before
-   telling anyone it's back.
+Use the scripts rather than the raw sqlite3 commands. They verify the
+candidate file opens, passes `integrity_check` and actually contains this
+application's schema **before** anything is overwritten, and they keep a
+timestamped copy of the database they replaced. Restoring onto a corrupted
+database is recoverable; restoring onto a healthy one by mistake is not,
+unless the old file is still there.
+
+**Scale the server service to 0 replicas first** (Railway dashboard → server
+service → Settings). A running app writing to the database at the same
+moment a restore happens underneath it is how you turn one bad table into
+two. Scale back to 1 at the end, and confirm with
+`curl https://<server-domain>/api/health` plus a real login before telling
+anyone it is back.
+
+#### The volume is intact (a bad migration, a dropped table)
+
+```bash
+railway run --service server -- npm run backups          # what exists, oldest first
+railway run --service server -- npm run restore -- --latest
+# or a specific one:
+railway run --service server -- npm run restore -- /data/backups/backup-<stamp>.db
+```
+
+#### The volume is gone
+
+This is the case the off-site copies exist for, and the case where
+`/data/backups` is gone along with the database — so nothing local is left
+to list. Requires `BACKUP_S3_*` to be set on the service.
+
+```bash
+railway run --service server -- npm run backups:s3       # what is in the bucket
+railway run --service server -- npm run restore:s3       # newest
+# or a specific one:
+railway run --service server -- npm run restore:s3 -- backup-<stamp>.db
+```
+
+The object is streamed to a temp file, checked, and only then swapped in —
+a truncated or half-written upload is rejected instead of replacing the
+database with it.
+
+#### Doing it by hand
+
+Only if the scripts are unavailable. This path performs none of the checks
+above, so you are trusting the file blind:
+
+```bash
+railway run --service server -- sqlite3 /data/learning_hub.db ".restore /data/backups/<chosen-backup-file>.db"
+# Then clear stale WAL/SHM sidecars left over from the pre-restore live DB —
+# otherwise they get replayed against the just-restored file and silently
+# reintroduce exactly what the restore was meant to undo. (The scripts above
+# do this for you.)
+railway run --service server -- sh -c 'rm -f /data/learning_hub.db-wal /data/learning_hub.db-shm'
+```
 
 ## Go-live checklist
 
@@ -228,9 +259,11 @@ listed in the order they bite.
    every production start while this is unset; see "Off-site backup
    shipping" above for the R2/B2 values.
 2. **Restore drill** — run `npm run backups` to list what exists, then
-   restore the newest one onto a scratch copy and log in. The mechanics are
-   covered by tests (`server/test/backup-restore.test.js`), but a drill
-   proves the backups on *this* volume are real, which no test can.
+   `npm run restore -- --latest` onto a scratch copy and log in. Do the
+   same once for `npm run backups:s3` / `npm run restore:s3`, because that
+   is the path that runs on the day the volume is gone and the local copies
+   went with it. The mechanics are covered by tests, but only a drill
+   proves the backups on *this* volume and in *this* bucket are real.
 3. **The two origins.** Client and server are separate Railway services
    with separate hostnames, so each has to be told about the other, and
    both failures show up only in the browser console:

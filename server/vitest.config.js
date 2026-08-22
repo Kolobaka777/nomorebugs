@@ -13,9 +13,13 @@ export default defineConfig({
     // seed script is a one-off dev utility neither of which the suite runs.
     coverage: {
       provider: 'v8',
-      reporter: ['text-summary', 'html'],
+      // 'text' as well as the summary: the four aggregate numbers hide
+      // the shape, and the shape is the useful part. An 81% total sat on
+      // top of a 0%-covered shutdown path and a 0.44%-covered profile
+      // editor, and nothing in the default output said so.
+      reporter: ['text', 'text-summary', 'html'],
       include: ['src/**/*.js', 'db/schema.js'],
-      exclude: ['db/seed.js', 'db/seedDemoContent.js', 'db/migrate_*.mjs'],
+      exclude: ['db/seed.js', 'db/seedDemoContent.js'],
       thresholds: { lines: 70, functions: 70, branches: 75, statements: 70 },
     },
   },

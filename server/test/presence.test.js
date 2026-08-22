@@ -221,3 +221,40 @@ describe('presence — lead-managed', () => {
     expect(del.status).toBe(200);
   });
 });
+
+// A set of working days is a subset of seven values and cannot be anything
+// larger. The filter checked that each entry was a valid day but never how
+// many there were: "1," repeated two hundred thousand times is two hundred
+// thousand valid entries, and they were joined back up and stored — 400 KB in
+// one profile row, answered with a 200. GET /api/team/presence reads work_days
+// for every member, so one poisoned row is re-read and re-parsed on every load
+// of the team board, by everyone.
+describe('working days are bounded by the seven that exist', () => {
+  it('stores no repeats, however many arrive', async () => {
+    const res = await request(server).patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ work_days: '1,'.repeat(200000) + '1' });
+
+    expect(res.status).toBe(200);
+    const stored = db.prepare('SELECT work_days FROM user_profiles WHERE user_id = ?').get(fixtures.testerId).work_days;
+    expect(stored).toBe('1');
+    expect(stored.length).toBeLessThan(20);
+  });
+
+  it('stores a real set once each, in order', async () => {
+    const res = await request(server).patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ work_days: '3,1,2,1,3,2' });
+
+    expect(res.status).toBe(200);
+    expect(db.prepare('SELECT work_days FROM user_profiles WHERE user_id = ?').get(fixtures.testerId).work_days).toBe('1,2,3');
+  });
+
+  it('still discards values outside the range', async () => {
+    await request(server).patch('/api/me/presence')
+      .set('Authorization', `Bearer ${testerToken}`)
+      .send({ work_days: '0,8,99,-1,5' });
+
+    expect(db.prepare('SELECT work_days FROM user_profiles WHERE user_id = ?').get(fixtures.testerId).work_days).toBe('5');
+  });
+});

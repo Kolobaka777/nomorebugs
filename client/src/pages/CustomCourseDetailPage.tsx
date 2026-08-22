@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -14,15 +14,8 @@ import { tagChipStyle } from '../utils/topics';
 // Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
 // need the full Tiptap chunk to render, so it stays out of this page's own
 // (already lazy-routed) bundle until a course with content is actually open.
-const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+import RichTextView from '../components/RichTextView';
 
-function RichTextEditorFallback() {
-  return (
-    <div className="flex items-center justify-center py-6">
-      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю...</div>
-    </div>
-  );
-}
 
 interface Props {
   user: any;
@@ -262,9 +255,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="lg:col-span-2 space-y-6">
             {course.description && (
               <Panel title="О курсе">
-                <Suspense fallback={<RichTextEditorFallback />}>
-                  <RichTextEditor content={parseRichContent(course.description)} editable={false} />
-                </Suspense>
+                <RichTextView content={parseRichContent(course.description)} />
               </Panel>
             )}
 
@@ -354,9 +345,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
           <div className="space-y-4">
             {course.requirements && (
               <Panel title="Требования" pad="p-5">
-                <Suspense fallback={<RichTextEditorFallback />}>
-                  <RichTextEditor content={parseRichContent(course.requirements)} editable={false} />
-                </Suspense>
+                <RichTextView content={parseRichContent(course.requirements)} />
               </Panel>
             )}
 

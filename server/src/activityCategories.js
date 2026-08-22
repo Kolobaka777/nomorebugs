@@ -67,8 +67,6 @@ export const ACTIVITY_CATEGORIES = {
   ],
 };
 
-export const CATEGORY_NAMES = Object.keys(ACTIVITY_CATEGORIES);
-
 // Returns { sql, params } for a WHERE fragment, or null for "no filter".
 // Unknown category names return null rather than throwing — a filter is a
 // query-string parameter, and a typo in one should show everything, not

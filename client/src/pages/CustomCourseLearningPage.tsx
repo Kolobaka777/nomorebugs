@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 // The pass mark, mirrored from the server (COURSE_PASS_SCORE in
 // routes/courses.js). The number is written down in two places because the
 // browser has to be able to say "не сдан" without a round trip; the server
@@ -23,15 +23,8 @@ import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
-const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+import RichTextView from '../components/RichTextView';
 
-function LessonContentFallback() {
-  return (
-    <div className="flex items-center justify-center py-10">
-      <div className="pixel-pulse font-geist text-xs" style={{ color: TEXT_MUTED }}>загружаю...</div>
-    </div>
-  );
-}
 
 // Semantic pass/fail colors for the course-result screen — deliberately
 // independent of the course's own accent `color` (a course themed amber can
@@ -65,9 +58,7 @@ function LessonContent({ content }: { content: string }) {
     );
   }
   return (
-    <Suspense fallback={<LessonContentFallback />}>
-      <RichTextEditor content={parseRichContent(content)} editable={false} />
-    </Suspense>
+    <RichTextView content={parseRichContent(content)} />
   );
 }
 

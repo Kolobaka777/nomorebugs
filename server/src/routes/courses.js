@@ -1,5 +1,4 @@
-// Custom courses (modules/lessons/quizzes) + course time tracking. Split
-// out from the old monolithic app.js — see PROGRESS.md.
+// Custom courses (modules/lessons/quizzes) + course time tracking.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
@@ -44,7 +43,6 @@ function courseOfLesson(lessonId) {
 // to GET /api/custom-courses/:id was walked straight around. /complete let
 // the same person accrue progress on a draft, which is the first half of
 // what the course-completion coins are paid for.
-//
 // 404 rather than 403 on an invisible course: an unpublished draft's
 // existence is itself not the caller's business.
 function lessonVisibleTo(lessonId, user, res) {
@@ -61,7 +59,6 @@ function lessonVisibleTo(lessonId, user, res) {
 // someone finished last month looked exactly like one they had never
 // opened, and the status filter beside it only ever applied to the fixed
 // lecture track.
-//
 // Counted in lessons rather than by the pass mark, because that is what a
 // progress bar means — "how much is left to read", not "did you score
 // 60%". Whether it was *passed* is a separate question the course page
@@ -165,7 +162,6 @@ router.get('/api/custom-courses', authMiddleware, (req, res) => {
 // ids. A module opens once every graded test in every module before it has
 // been passed — that is what makes an intermediate test intermediate rather
 // than an optional detour.
-//
 // Modules with nothing graded in them gate nothing: a course with no tests
 // at all would otherwise be locked shut by a rule about tests. An empty test
 // (no questions written yet) counts as nothing graded for the same reason.
@@ -202,7 +198,6 @@ function lockedModuleIds(userId, courseId) {
 // is earned rather than all at the end. Called after any lesson is marked
 // done; every payment is guarded by the ledger, so calling it again after
 // the next lesson costs nothing.
-//
 // The unit is the module: 10 coins for finishing one. Every bonus here is a
 // multiple of that, so the numbers stay comparable to each other.
 function awardCourseProgress(userId, courseId) {
@@ -483,13 +478,11 @@ router.post('/api/custom-lessons/:id/complete', authMiddleware, (req, res) => {
 });
 
 // Grading, on the server, from the server's own copy of the answers.
-//
 // The score used to be computed in the browser and never sent anywhere: the
 // completion coins, the pass/fail screen and the lead's analytics all rested
 // on a number nobody had checked, and a course built in the builder produced
 // no data at all. This is the same shape the seeded lecture track has always
 // used (POST /api/lectures/:id/submit-test).
-//
 // `answers` is { questionId: optionIndex }. Keyed by id rather than by
 // position so a course edited between loading and submitting can't silently
 // grade someone against a different question than the one they read.

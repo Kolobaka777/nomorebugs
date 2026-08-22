@@ -10,7 +10,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
-const sendMock = vi.fn().mockResolvedValue({});
+// Drains a streamed Body the way the real SDK does. Without this the
+// stream stays unopened, and a test that deletes its fixture afterwards
+// gets an ENOENT from the lazily-opened read stream — an unhandled error
+// that can mask a genuine failure elsewhere in the run.
+const drain = async (input) => {
+  if (input?.Body && typeof input.Body.pipe === 'function') {
+    await new Promise((resolve) => {
+      input.Body.on('error', resolve);
+      input.Body.on('end', resolve);
+      input.Body.resume();
+    });
+  }
+  return {};
+};
+const sendMock = vi.fn((cmd) => drain(cmd?.input));
 const S3ClientMock = vi.fn();
 let lastPutObjectArgs = null;
 vi.mock('@aws-sdk/client-s3', () => ({
@@ -45,7 +59,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   sendMock.mockClear();
-  sendMock.mockResolvedValue({});
+  sendMock.mockImplementation((cmd) => drain(cmd?.input));
   lastPutObjectArgs = null;
   process.env = { ...ORIGINAL_ENV };
   delete process.env.BACKUP_S3_BUCKET;
@@ -102,7 +116,13 @@ describe('shipBackupOffsite', () => {
     expect(sendMock).toHaveBeenCalledTimes(1);
     expect(lastPutObjectArgs.Bucket).toBe('my-bucket');
     expect(lastPutObjectArgs.Key).toBe(`backups/${path.basename(tmpFile)}`);
-    expect(Buffer.isBuffer(lastPutObjectArgs.Body)).toBe(true);
+    // Streamed, not read into memory. This assertion used to be the exact
+    // opposite — Buffer.isBuffer — which locked in the behaviour that made
+    // the upload allocate the whole database every six hours. ContentLength
+    // has to travel with it: SigV4 will not sign a body of unknown size.
+    expect(Buffer.isBuffer(lastPutObjectArgs.Body)).toBe(false);
+    expect(typeof lastPutObjectArgs.Body?.pipe).toBe('function');
+    expect(lastPutObjectArgs.ContentLength).toBe(fs.statSync(tmpFile).size);
 
     fs.unlinkSync(tmpFile);
   });

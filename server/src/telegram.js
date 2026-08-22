@@ -33,10 +33,6 @@ export function isTelegramConfigured() {
   return !!process.env.TELEGRAM_BOT_TOKEN;
 }
 
-export function getBotUsername() {
-  return botUsername;
-}
-
 // Generates a one-time login/link token. `linkUserId` set means "attach
 // this Telegram account to an already-logged-in user" instead of starting
 // a brand new session.

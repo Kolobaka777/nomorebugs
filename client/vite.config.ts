@@ -36,7 +36,11 @@ export default defineConfig({
     // than failing the build on day one — raise them as coverage grows.
     coverage: {
       provider: 'v8',
-      reporter: ['text-summary', 'html'],
+      // 'text' as well as the summary: the four aggregate numbers hide
+      // the shape, and the shape is the useful part. An 81% total sat on
+      // top of a 0%-covered shutdown path and a 0.44%-covered profile
+      // editor, and nothing in the default output said so.
+      reporter: ['text', 'text-summary', 'html'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.{ts,tsx}',

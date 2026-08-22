@@ -1,6 +1,5 @@
 // Authentication: register/login/refresh/logout, password change/reset,
-// and Telegram login/linking. Split out from the old monolithic app.js —
-// see PROGRESS.md.
+// and Telegram login/linking.
 import express from 'express';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
@@ -66,7 +65,6 @@ function clearRefreshCookie(res) {
 // ============== AUTH ENDPOINTS ==============
 
 // Every limit below is overridable by environment variable.
-//
 // Two reasons. Operationally, the right number depends on the deployment —
 // a team of ten behind one office NAT and a public sign-up page want very
 // different budgets, and neither should need a code change. For tests, it
@@ -83,7 +81,6 @@ const limitFromEnv = (name, fallback) => {
 // Throttles login attempts per IP. Deliberately looser than the per-account
 // lockout below, because the two defend against different things and only
 // one of them should be the tight one.
-//
 // A whole office behind a single NAT shares this bucket: at 20 per 15
 // minutes, five people mistyping their passwords on a Monday morning locked
 // out everyone else in the building — a self-inflicted denial of service

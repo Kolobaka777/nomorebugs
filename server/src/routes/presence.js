@@ -1,5 +1,4 @@
-// "Работают сейчас" — team presence/working-hours + leave periods. Split
-// out from the old monolithic app.js — see PROGRESS.md.
+// "Работают сейчас" — team presence/working-hours + leave periods.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
@@ -14,7 +13,6 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const BIRTHDAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 // A field this request did not mention keeps the value it already had.
-//
 // The working-hours form does not send `status` — it has no status control on
 // it — and this used to default an absent status back to 'active'. So anyone
 // who marked themselves remote and later adjusted their hours was quietly put
@@ -25,8 +23,16 @@ function upsertPresence(userId, { work_start, work_end, work_days, timezone, sta
 
   let days = current.work_days || '1,2,3,4,5';
   if (work_days) {
+    // Deduplicated, because a weekday set has at most seven members by
+    // definition. The filter alone only checked that each entry was a valid
+    // day, not how many there were: "1," repeated 200k times is 200k *valid*
+    // entries, and they were joined back and stored — 400 KB in one profile
+    // row, accepted with a 200. GET /api/team/presence reads work_days for
+    // every member and computeIsWorkingNow splits it, so one poisoned row is
+    // re-read and re-parsed on every load of the team board by everyone.
     const parsed = String(work_days).split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 7);
-    if (parsed.length) days = parsed.join(',');
+    const unique = [...new Set(parsed)].sort();
+    if (unique.length) days = unique.join(',');
   }
   // Birthday is set once — normally at registration (see auth.js) — and
   // locked after that; it's "once per person", not an editable working-hours

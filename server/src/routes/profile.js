@@ -1,6 +1,5 @@
 // Profile customization (self-service + viewing a teammate's public
-// profile) and trading cards/badges. Split out from the old monolithic
-// app.js — see PROGRESS.md.
+// profile) and trading cards/badges.
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
@@ -336,8 +335,25 @@ router.put('/api/tester/profile', authMiddleware, (req, res) => {
 // independent copy.
 const MAX_AVATAR_BASE64_CHARS = 2.8 * 1024 * 1024; // same cap as custom_avatar above
 
+// How many pictures one person may keep in the shared gallery.
+// There was no limit. Each upload is capped at ~2.8 MB and the write
+// limiter allows 300 writes per 15 minutes, so one authenticated tester
+// could push on the order of 800 MB into a 433 MB volume in a quarter of an
+// hour — the same volume that holds the live database and all 28 backup
+// rotations. Filling it does not merely stop uploads; it stops every write
+// in the app, and takes the backups down with it.
+// Twelve is a personal avatar collection, not a photo host. Deleting one's
+// own entry (DELETE below) frees a slot.
+const MAX_GALLERY_AVATARS_PER_USER = 12;
+
+// Only what the serving route can actually serve. That route already
+// answers 415 for anything that is not a data: image URI — so a payload
+// failing this check could never be displayed, and was pure stored weight:
+// arbitrary text up to 2.8 MB accepted with a 200 and shown to the team as
+// a broken tile. Rejected at the door instead of at every read.
+const DATA_IMAGE_URI = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*$/;
+
 // The gallery listing carries no image data at all.
-//
 // It used to select ca.image for every row with no limit — each one up to
 // 2.8 MB of base64, so twenty uploaded avatars meant roughly 56 MB in a
 // single JSON response, sent every time the avatar picker opened, with no
@@ -408,6 +424,13 @@ router.post('/api/tester/avatar/gallery', authMiddleware, (req, res) => {
     const { image } = req.body;
     if (!image || typeof image !== 'string') return res.status(400).json({ error: 'Нужна картинка' });
     if (image.length > MAX_AVATAR_BASE64_CHARS) return res.status(400).json({ error: 'Картинка слишком большая (макс 2 MB)' });
+    if (!DATA_IMAGE_URI.test(image)) return res.status(400).json({ error: 'Это не картинка' });
+
+    const mine = db.prepare('SELECT COUNT(*) as c FROM custom_avatars WHERE user_id = ?').get(req.user.id).c;
+    if (mine >= MAX_GALLERY_AVATARS_PER_USER) {
+      return res.status(400).json({ error: `В галерее можно держать не больше ${MAX_GALLERY_AVATARS_PER_USER} своих картинок — удали лишние` });
+    }
+
     const result = db.prepare('INSERT INTO custom_avatars (user_id, image) VALUES (?, ?)').run(req.user.id, image);
     res.json({ id: result.lastInsertRowid });
   } catch (err) {

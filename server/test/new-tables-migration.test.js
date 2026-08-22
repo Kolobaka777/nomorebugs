@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-// Regression coverage for the commit-f58e3f8 migrations (checklist_item_results.note
+// Regression coverage for the commit-f58e3f8 migrations (the knowledge-base
 // column, plus the new bug_examples/glossary_terms/granted_permissions/
 // custom_course_views tables) — every other test file uses a fresh `:memory:`
 // DB via initDb(), which never exercises the "existing DB missing these"
@@ -111,7 +111,7 @@ function seedPreMigrationSchema() {
 }
 
 describe('new-table / new-column migrations (commit f58e3f8) against a pre-existing DB', () => {
-  it('adds checklist_item_results.note and creates the knowledge-base/permissions tables without losing existing data', async () => {
+  it('creates the knowledge-base/permissions tables without losing existing data', async () => {
     const { subId } = seedPreMigrationSchema();
 
     process.env.DB_PATH = dbPath;
@@ -121,12 +121,11 @@ describe('new-table / new-column migrations (commit f58e3f8) against a pre-exist
 
     expect(() => initDb()).not.toThrow();
 
-    // Existing row survived, status preserved, note backfilled to a safe default.
-    const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
-    expect(resultCols).toContain('note');
+    // Checklists are gone from the product and their tables are no longer
+    // created — but a database still holding their history must not lose it on
+    // upgrade. The drop only fires on empty ones (see checklist-teardown.test.js).
     const row = db.prepare('SELECT * FROM checklist_item_results WHERE submission_id = ?').get(subId);
     expect(row.status).toBe('fail');
-    expect(row.note).toBe('');
 
     // New tables exist and are usable.
     const tableNames = db.prepare(
@@ -157,8 +156,8 @@ describe('new-table / new-column migrations (commit f58e3f8) against a pre-exist
     expect(db.prepare('SELECT COUNT(*) as c FROM bug_examples').get().c).toBe(beforeBugExamples);
     expect(db.prepare('SELECT COUNT(*) as c FROM glossary_terms').get().c).toBe(beforeGlossary);
 
-    const resultCols = db.prepare("PRAGMA table_info(checklist_item_results)").all().map(c => c.name);
-    expect(resultCols.filter(c => c === 'note')).toHaveLength(1);
+    // A second boot still leaves non-empty checklist tables alone.
+    expect(db.prepare('SELECT COUNT(*) as c FROM checklist_item_results').get().c).toBe(1);
 
     db.close();
   });

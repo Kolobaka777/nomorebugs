@@ -37,6 +37,11 @@ export const FREE_BG_IDS = ['default', 'forest', 'console', 'ink', 'deep', 'moss
 export const FREE_FRAME_IDS = ['default', 'code'];
 export const FREE_AVATAR_IDS = ['frog2', 'frog3', 'frog4', 'frog5', 'frog6', 'frog7', 'frog8'];
 
+// Must be one of the free ones. It was 'frog1' — the shop's single priced
+// tile — so a profile with nothing stored yet opened the editor already
+// wearing an avatar the same screen offered to sell it.
+export const DEFAULT_AVATAR_ID = 'frog2';
+
 export function shopItemFor(kind: 'frame' | 'bg' | 'avatar', refId: string): ShopItem | undefined {
   return SHOP_ITEMS.find(i => i.kind === kind && i.refId === refId);
 }

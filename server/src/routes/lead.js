@@ -1,7 +1,6 @@
 // Lead dashboard: team roster/stats, per-tester notes, before/after skill
 // comparisons, lecture stats, and the lead's activity audit log (plus its
-// self-scoped equivalent for any authenticated user). Split out from the
-// old monolithic app.js — see PROGRESS.md.
+// self-scoped equivalent for any authenticated user).
 import express from 'express';
 import { db } from '../../db/schema.js';
 import { logError } from '../sentry.js';
@@ -362,7 +361,6 @@ router.get('/api/lead/activity', authMiddleware, requireRole('lead'), (req, res)
 // Self-scoped equivalent of /api/lead/activity above (same shape, same
 // query minus the role gate) — that route is lead/admin-only, so a tester
 // had no way to see their own activity history anywhere in the app.
-//
 // Test attempts are the one thing it does not show. Every attempt and its
 // verdict is recorded for the lead to read; handing the same rows back to
 // the person who made them turns a record of how the team is doing into a

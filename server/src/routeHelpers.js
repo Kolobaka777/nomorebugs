@@ -220,11 +220,33 @@ export function revokeAllRefreshTokens(userId) {
 export function hardDeleteCourse(courseId) {
   db.transaction(() => {
     const mods = db.prepare('SELECT id FROM custom_modules WHERE course_id = ?').all(courseId);
+
+    // Prerequisites first, across the whole course, before any lesson goes.
+    // custom_lessons.prerequisite_lesson_id is a self-referencing FK with no
+    // ON DELETE, and lessons are deleted module by module — so a course whose
+    // module 2 opens on module 1's test (the shape seedFrontendCourses,
+    // backfillSequentialPrerequisites and the onboarding skeleton all build)
+    // had module 2 holding module 1's rows, and the very first module's
+    // delete failed. Same class as the FKs below: not stray rows, a rolled
+    // back transaction and a course stuck in the trash for good.
+    db.prepare(`
+      UPDATE custom_lessons SET prerequisite_lesson_id = NULL, prerequisite_type = 'none'
+      WHERE module_id IN (SELECT id FROM custom_modules WHERE course_id = ?)
+    `).run(courseId);
+
     for (const m of mods) {
       const lessons = db.prepare('SELECT id FROM custom_lessons WHERE module_id = ?').all(m.id);
       for (const l of lessons) {
         db.prepare('DELETE FROM custom_quiz_questions WHERE lesson_id = ?').run(l.id);
         db.prepare('DELETE FROM custom_lesson_progress WHERE lesson_id = ?').run(l.id);
+        // Same bug class as course_deadline_overrides and custom_lesson_notes
+        // below, and the one still left: custom_quiz_results has an FK on
+        // custom_lessons with no ON DELETE, so any course whose test anybody
+        // ever submitted failed the DELETE of custom_lessons a few lines
+        // down, rolled the whole transaction back, and stayed in the trash
+        // permanently — un-purgeable without manual surgery. Which is every
+        // course that was actually used.
+        db.prepare('DELETE FROM custom_quiz_results WHERE lesson_id = ?').run(l.id);
       }
       db.prepare('DELETE FROM custom_lessons WHERE module_id = ?').run(m.id);
     }
@@ -247,6 +269,11 @@ export function hardDeleteCourse(courseId) {
     // note on hit the same foreign-key-constraint failure here, permanently
     // stuck in trash, unpurgeable without manual DB surgery.
     db.prepare('DELETE FROM custom_lesson_notes WHERE course_id = ?').run(courseId);
+    // No FK on course_id (see schema.js — the column spans two kinds of
+    // course), so nothing here fails without it. It leaves a bookmark
+    // pointing at nothing instead, which the profile's «Избранное» renders
+    // as a card for a course that no longer exists.
+    db.prepare("DELETE FROM user_favorite_courses WHERE course_type = 'custom' AND course_id = ?").run(courseId);
     db.prepare('DELETE FROM custom_courses WHERE id = ?').run(courseId);
   })();
 }

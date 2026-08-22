@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -9,6 +9,7 @@ import InstallPrompt from './components/InstallPrompt';
 import OnboardingTour from './components/OnboardingTour';
 import FrogCompanion from './components/FrogCompanion';
 import BgWatermark from './components/BgWatermark';
+import ErrorBoundary from './components/ErrorBoundary';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import {
   getAccessToken, getStoredUser, getNeedsBaselineSurvey, getMustChangePassword,
@@ -31,9 +32,6 @@ const BagodelnyaPage = lazy(() => import('./pages/BagodelnyaPage'));
 const CustomCourseDetailPage = lazy(() => import('./pages/CustomCourseDetailPage'));
 const CustomCourseLearningPage = lazy(() => import('./pages/CustomCourseLearningPage'));
 const CourseBuilderPage = lazy(() => import('./pages/CourseBuilderPage'));
-// Чеклисты — фича полностью извлечена из этого проекта 15.08.2026 (не
-// нужна в этом сервисе, переносится в отдельный новый сервис). Исходники
-// сохранены в c:\Users\user\Desktop\Projects\_archive\checklists-feature-2026-08-15\.
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
@@ -188,6 +186,16 @@ function App() {
           screen reader can jump straight past the chrome on every screen,
           which it could previously do on exactly one of them. */}
       <main style={{ position: 'relative', zIndex: 1 }}>
+        {/* Scoped to the routed page, so a render error on one screen leaves
+            the navigation above it alive and the person able to go somewhere
+            else. The only boundary used to be at the root in main.tsx, which
+            meant any error anywhere replaced the whole application — chrome
+            included — with a full-screen message and a reload button. The
+            root boundary stays as the last resort for anything outside a
+            route. Keyed on pathname so navigating away clears a caught
+            error instead of leaving the fallback stuck on every later
+            screen: a boundary latches until something changes its identity. */}
+        <RoutedErrorBoundary>
         <Suspense fallback={
           <div className="flex justify-center items-center h-screen font-pixel text-primary text-xs pixel-pulse" style={{ background: '#0B0C10', lineHeight: 1.8 }}>
             <Icon name="snail" size={16} color="currentColor" /> уже ползу...
@@ -242,8 +250,36 @@ function App() {
             )}
           </Routes>
         </Suspense>
+        </RoutedErrorBoundary>
       </main>
     </BrowserRouter>
+  );
+}
+
+// Splits the pathname read out of App itself: useLocation only works inside
+// the router, and App is what renders it.
+function RoutedErrorBoundary({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <ErrorBoundary
+      key={pathname}
+      label={`route:${pathname}`}
+      fallback={
+        <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: '60vh' }}>
+          <p className="font-pixel text-primary text-xs mb-4" style={{ lineHeight: 1.8 }}>
+            эта страница не открылась
+          </p>
+          <p className="text-pixel/60 text-sm font-sans mb-6 max-w-md">
+            Остальное работает — можно перейти в другой раздел через меню сверху или перезагрузить страницу.
+          </p>
+          <button onClick={() => window.location.reload()} className="btn-primary px-4 py-2 text-xs font-sans cursor-pointer">
+            Перезагрузить
+          </button>
+        </div>
+      }
+    >
+      {children}
+    </ErrorBoundary>
   );
 }
 

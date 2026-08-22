@@ -14,6 +14,7 @@ import { tagChipStyle } from '../utils/topics';
 
 // Same lazy-split reasoning as GuidesPage.tsx.
 const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+import RichTextView from '../components/RichTextView';
 
 function RichTextEditorFallback() {
   return (
@@ -387,7 +388,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
         <div key={tab} className="fade-in">
         {!loading && !loadError && tab === 'examples' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT: примеры */}
+            {/* LEFT: bug examples */}
             <div className="lg:col-span-2">
               {addingExample && (
                 <BugExampleForm
@@ -502,9 +503,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                                   {/* Only while the columns are stacked and
                                       their headings are hidden. */}
                                   <span className="sm:hidden font-montserrat block mb-1" style={{ fontSize: 11, letterSpacing: TRACK_WIDE, color: tone }}>{label}</span>
-                                  <Suspense fallback={<RichTextEditorFallback />}>
-                                    <RichTextEditor content={parseRichContent(text)} editable={false} />
-                                  </Suspense>
+                                  <RichTextView content={parseRichContent(text)} />
                                 </div>
                               </div>
                             ))}
@@ -611,9 +610,7 @@ export default function BagodelnyaPage({ user, onLogout }: BagodelnyaPageProps) 
                       {item.term}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <Suspense fallback={<RichTextEditorFallback />}>
-                        <RichTextEditor content={parseRichContent(item.definition)} editable={false} />
-                      </Suspense>
+                      <RichTextView content={parseRichContent(item.definition)} />
                     </div>
                     {isPending && (
                       <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
