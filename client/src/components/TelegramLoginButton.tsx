@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { telegramApi } from '../api';
 import Icon from './Icon';
-import { ERROR } from '../utils/theme';
+import { ACCENT, ERROR } from '../utils/theme';
 import Spinner from './Spinner';
 
 interface TelegramLoginButtonProps {
   onLogin: (token: string, user: any, needsBaselineSurvey: boolean) => void;
+  // Whether to head the button with an "или" rule. True where the two ways
+  // in are genuine alternatives (registration), false where they simply
+  // stack (sign-in).
+  divider?: boolean;
 }
+
+// Telegram's own brand blue, not a colour of this palette — the button is
+// recognised by it.
+const TELEGRAM_BLUE = '#229ED9';
 
 type Phase = 'idle' | 'starting' | 'waiting' | 'expired' | 'error' | 'unavailable';
 
@@ -16,7 +24,7 @@ const POLL_INTERVAL_MS = 2000;
 // send the person to Telegram, poll until the bot (server-side, via /start)
 // reports the session is ready. Mirrors the email/password flow's onLogin
 // contract exactly, so App.tsx treats it identically either way.
-export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProps) {
+export default function TelegramLoginButton({ onLogin, divider = true }: TelegramLoginButtonProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -116,28 +124,33 @@ export default function TelegramLoginButton({ onLogin }: TelegramLoginButtonProp
 
   return (
     <>
-    {/* Per the kit: the two ways in are separated by a labelled rule, not
-        stacked as if one followed from the other. */}
-    <div className="flex items-center gap-3 mt-5" aria-hidden="true">
-      <span className="flex-1" style={{ height: 1, background: 'rgba(197, 198, 199, 0.15)' }} />
-      <span className="text-xs font-sans" style={{ color: 'rgba(197, 198, 199, 0.45)' }}>или</span>
-      <span className="flex-1" style={{ height: 1, background: 'rgba(197, 198, 199, 0.15)' }} />
-    </div>
+    {/* A labelled rule where the two ways in are genuine alternatives —
+        the registration form. The sign-in form stacks them instead. */}
+    {divider && (
+      <div className="flex items-center gap-3" style={{ marginTop: 20, marginBottom: 20 }} aria-hidden="true">
+        <span className="flex-1" style={{ height: 1, background: `${ACCENT}55` }} />
+        <span className="font-geist" style={{ fontSize: 14, color: ACCENT }}>или</span>
+        <span className="flex-1" style={{ height: 1, background: `${ACCENT}55` }} />
+      </div>
+    )}
     <button
       onClick={start}
       disabled={phase === 'starting'}
-      className="w-full mt-4 flex items-center justify-center gap-2 disabled:opacity-50"
+      className="w-full flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:brightness-110"
       style={{
-        padding: '10px',
-        fontSize: '13px',
-        borderRadius: '8px',
-        border: '2px solid #229ED9',
-        background: 'rgba(34,158,217,0.08)',
-        color: '#229ED9',
+        marginTop: divider ? 0 : 12,
+        padding: '15px 20px',
+        fontSize: 15,
+        fontWeight: 600,
+        fontFamily: 'Geist, system-ui, sans-serif',
+        borderRadius: 8,
+        border: 'none',
+        background: TELEGRAM_BLUE,
+        color: '#FFFFFF',
         cursor: 'pointer',
       }}
     >
-      {phase === 'starting' ? <Spinner size={14} color="#229ED9" /> : <Icon name="telegram" size={15} color="#229ED9" />}
+      {phase === 'starting' ? <Spinner size={16} color="#FFFFFF" /> : <Icon name="telegram" size={20} color="#FFFFFF" />}
       {phase === 'starting' ? 'секунду...' : 'Войти через Telegram'}
     </button>
     </>

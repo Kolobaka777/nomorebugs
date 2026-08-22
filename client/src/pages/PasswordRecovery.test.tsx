@@ -42,14 +42,14 @@ describe('ForgotPasswordPage', () => {
 
 describe('ResetPasswordPage', () => {
   const fill = (pw: string, confirm = pw) => {
-    fireEvent.change(screen.getByPlaceholderText('Новый пароль'), { target: { value: pw } });
-    fireEvent.change(screen.getByPlaceholderText('Повтори пароль'), { target: { value: confirm } });
+    fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: pw } });
+    fireEvent.change(screen.getByPlaceholderText('Repeat Password'), { target: { value: confirm } });
   };
   const submit = () => fireEvent.click(screen.getByRole('button', { name: /сменить пароль/i }));
 
   it('shows nothing to fill in when the link carries no token', () => {
     render(<ResetPasswordPage />);
-    expect(screen.queryByPlaceholderText('Новый пароль')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
   });
 
   it('refuses a short password and a mismatch without calling the server', async () => {

@@ -17,9 +17,11 @@ const sources = import.meta.glob('../**/*.tsx', { query: '?raw', import: 'defaul
 // FrogCompanion positions itself with inline styles (bottom: 54, right: 24)
 // rather than classes, so it never matches the pattern below — it is the
 // thing being avoided, not one of the avoiders.
+// Both auth pages used to be listed here for a decorative frog pinned to the
+// bottom-right. The mockup has no watermark, the frogs are gone, and an
+// exemption for a file that no longer pins anything is what the second test
+// below exists to catch.
 const EXEMPT: Record<string, string> = {
-  '../pages/LoginPage.tsx': 'decorative watermark on a page shown before login, where the mascot is not mounted',
-  '../pages/RegisterPage.tsx': 'same watermark, same reason',
 };
 
 // `fixed` … `bottom-<n>` … `right-<n>`, in whatever order they were typed.

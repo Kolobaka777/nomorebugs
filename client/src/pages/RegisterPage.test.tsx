@@ -21,7 +21,7 @@ function fill({ password = 'longenough1', confirm = 'longenough1', birthday = ''
   if (birthday) fireEvent.change(screen.getByPlaceholderText(/ММ-ДД/), { target: { value: birthday } });
 }
 
-const submit = () => fireEvent.click(screen.getByRole('button', { name: /зарегистр/i }));
+const submit = () => fireEvent.click(screen.getByRole('button', { name: /^регистрация$/i }));
 
 describe('RegisterPage validation, before anything reaches the server', () => {
   it('refuses mismatched passwords', async () => {
@@ -96,7 +96,7 @@ describe('RegisterPage — telling the two failures apart', () => {
     render(<RegisterPage onLogin={vi.fn()} />);
     fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'short' } });
     fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'short' } });
-    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^регистрация$/i }));
 
     expect(await screen.findByText('Пароль слишком короткий')).toBeInTheDocument();
     expect(screen.getByText('Нужно не меньше 8 символов.')).toBeInTheDocument();
@@ -111,12 +111,12 @@ describe('RegisterPage — telling the two failures apart', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'short' } });
     fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'short' } });
-    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^регистрация$/i }));
     await screen.findByText('Пароль слишком короткий');
 
     fireEvent.change(screen.getByPlaceholderText('Не короче 8 символов'), { target: { value: 'longenough' } });
     fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: 'longenough' } });
-    fireEvent.click(screen.getByRole('button', { name: /Зарегистрироваться/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^регистрация$/i }));
 
     await waitFor(() => expect(screen.queryByText('Пароль слишком короткий')).not.toBeInTheDocument());
   });

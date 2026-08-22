@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
-import Icon from '../components/Icon';
-import logoUrl from '../assets/logo.svg';
-import { PAGE_GRADIENT, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import AuthShell, { AUTH_BTN, AUTH_FIELD, AUTH_FIELD_BAD, AuthLink, FieldWarning } from '../components/AuthShell';
+import { BADGE_NOTIFY, TEXT_MUTED } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
 
+const LOOKS_LIKE_EMAIL = /^\S+@\S+\.\S+$/;
+
 export default function ForgotPasswordPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [emailBad, setEmailBad] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const bad = !email.trim() ? 'Введите email' : !LOOKS_LIKE_EMAIL.test(email.trim()) ? 'Некорректный email' : '';
+    setEmailBad(bad);
+    if (bad) return;
     setError('');
     setLoading(true);
     try {
@@ -27,56 +30,60 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  if (sent) {
+    return (
+      <AuthShell
+        title="Восстановление доступа"
+        subtitle="Проверьте почту"
+        footer={<AuthLink to="/">Войти</AuthLink>}
+      >
+        <p className="font-geist text-center" style={{ fontSize: 14, color: 'rgba(197, 198, 199,0.75)', lineHeight: 1.6 }}>
+          Если такой email зарегистрирован — на него (или в Telegram, если он привязан) отправлена
+          ссылка для сброса пароля. Ссылка действует 30 минут.
+        </p>
+      </AuthShell>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PAGE_GRADIENT }}>
-      <div className="w-full max-w-md relative z-10 fade-in">
-        <div className="text-center mb-8">
-          <img src={logoUrl} alt="baganet" style={{ height: 40, width: 'auto', margin: '0 auto' }} />
+    <AuthShell
+      title="Восстановление доступа"
+      subtitle="Введите почту, на которую зарегистрирован аккаунт"
+      footer={
+        <>
+          <p className="font-geist text-center" style={{ fontSize: 14, color: TEXT_MUTED }}>Вспомнили пароль?</p>
+          <AuthLink to="/">Войти</AuthLink>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <div style={{ position: 'relative' }}>
+          <input
+            type="email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); if (emailBad) setEmailBad(''); }}
+            style={emailBad ? AUTH_FIELD_BAD : AUTH_FIELD}
+            placeholder="Email"
+            aria-label="Email"
+            aria-invalid={!!emailBad}
+            disabled={loading}
+          />
+          {emailBad && <FieldWarning message={emailBad} />}
         </div>
-        <div className="p-8 rounded-lg" style={{ background: CARD_BG, boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)' }}>
-          <h2 className="font-montserrat font-bold mb-2 text-center" style={{ fontSize: 20, color: TEXT_PRIMARY, letterSpacing: TRACK_WIDE }}>
-            Восстановление доступа
-          </h2>
-          {sent ? (
-            <div className="text-center space-y-4 mt-4">
-              <p className="font-geist text-sm" style={{ color: 'rgba(197, 198, 199,0.75)' }}>
-                Если такой email зарегистрирован — на него (или в Telegram, если он привязан) отправлена ссылка для сброса пароля. Ссылка действует 30 минут.
-              </p>
-              <button onClick={() => navigate('/')} className="font-geist text-sm hover:underline cursor-pointer" style={{ color: ACCENT }}><Icon name="chevronLeft" size={22} color="currentColor" /> Ко входу</button>
-            </div>
-          ) : (
-            <>
-              <p className="font-geist text-sm text-center mb-6" style={{ color: TEXT_MUTED }}>Введите почту, на которую зарегистрирован аккаунт</p>
-              <form onSubmit={submit} className="space-y-4">
-                {error && (
-                  <div className="px-4 py-3 rounded-lg text-sm font-geist" style={{ background: 'rgba(224,82,82,0.1)', color: ERROR }}>
-                    {error}
-                  </div>
-                )}
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="pixel-input"
-                  placeholder="Email"
-                  aria-label="Email"
-                  disabled={loading}
-                  required
-                />
-                <button type="submit" disabled={loading} className="btn-primary w-full mt-2 disabled:opacity-50" style={{ padding: '12px', fontSize: '14px' }}>
-                  {loading ? '...' : 'ОТПРАВИТЬ ССЫЛКУ'}
-                </button>
-                <div className="text-center pt-2">
-                  <p className="font-geist text-sm" style={{ color: TEXT_MUTED }}>Вспомнили пароль?</p>
-                  <button type="button" onClick={() => navigate('/')} className="font-geist text-sm cursor-pointer hover:underline" style={{ color: ACCENT }}>
-                    Войти
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+
+        {error && (
+          <p role="alert" className="font-geist break-words" style={{ fontSize: 14, color: BADGE_NOTIFY }}>{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          className="transition-all hover:brightness-110"
+        >
+          {loading ? 'Отправляем...' : 'Отправить ссылку'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

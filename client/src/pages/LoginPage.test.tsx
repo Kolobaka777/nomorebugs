@@ -18,8 +18,8 @@ vi.mock('../api', () => ({ authApi: { login: vi.fn() } }));
 beforeEach(() => vi.clearAllMocks());
 
 const fill = (email = 'tester@qa.com', password = 'testerpass') => {
-  fireEvent.change(screen.getByPlaceholderText('your@email.com'), { target: { value: email } });
-  fireEvent.change(screen.getByPlaceholderText('••••••'), { target: { value: password } });
+  fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: email } });
+  fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: password } });
 };
 
 describe('LoginPage', () => {
@@ -101,10 +101,10 @@ describe('LoginPage — «Запомнить меня»', () => {
     vi.mocked(authApi.login).mockResolvedValue({ data: { token: 't', user: { id: 1 }, needsBaselineSurvey: false } } as any);
     render(<LoginPage onLogin={vi.fn()} />);
 
-    fireEvent.change(screen.getByPlaceholderText('your@email.com'), { target: { value: 'a@b.c' } });
-    fireEvent.change(screen.getByPlaceholderText('••••••'), { target: { value: 'secret123' } });
+    fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'a@b.c' } });
+    fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByLabelText('Запомнить меня'));
-    fireEvent.click(screen.getByRole('button', { name: 'ВОЙТИ' }));
+    fireEvent.click(screen.getByRole('button', { name: /^войти$/i }));
 
     await waitFor(() => expect(authApi.login).toHaveBeenCalledWith('a@b.c', 'secret123', false));
   });

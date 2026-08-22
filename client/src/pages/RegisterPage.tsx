@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api';
-import FrogIcon from '../components/FrogIcon';
-import Icon from '../components/Icon';
 import TelegramLoginButton from '../components/TelegramLoginButton';
-import { ERROR } from '../utils/theme';
+import AuthShell, { AUTH_BTN, AUTH_FIELD, AuthLink } from '../components/AuthShell';
+import { ACCENT, BADGE_NOTIFY, PAGE_BG, TEXT_MUTED } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
 import FieldError from '../components/FieldError';
 
@@ -13,13 +11,12 @@ interface RegisterPageProps {
 }
 
 export default function RegisterPage({ onLogin }: RegisterPageProps) {
-  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
-  // Set once, here, at registration — there's no editable birthday field
+  // Set once, here, at registration — there is no editable birthday field
   // anywhere else in the app afterward (see MoyaNora.tsx/presence.js).
   const [birthday, setBirthday] = useState('');
   const [error, setError] = useState('');
@@ -60,200 +57,113 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: '#0B0C10' }}
+    <AuthShell
+      title="Регистрация"
+      subtitle="Зарегистрируйте аккаунт"
+      footer={
+        <>
+          <p className="font-geist text-center" style={{ fontSize: 14, color: TEXT_MUTED }}>Уже есть аккаунт?</p>
+          <AuthLink to="/">Войти</AuthLink>
+        </>
+      }
     >
-      <div
-        className="fixed inset-0 pointer-events-none opacity-5"
-        style={{
-          backgroundImage: 'linear-gradient(#66FCF1 1px, transparent 1px), linear-gradient(90deg, #66FCF1 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }}
-      />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        {invalid && <FieldError title={invalid.title} pointer="none">{invalid.hint}</FieldError>}
+        {error && (
+          <p role="alert" className="font-geist break-words" style={{ fontSize: 14, color: BADGE_NOTIFY }}>{error}</p>
+        )}
 
-      <div className="fixed top-8 left-8 opacity-20">
-        <FrogIcon size={40} color="#66FCF1" />
-      </div>
-      <div className="fixed bottom-8 right-8 opacity-20">
-        <FrogIcon size={56} color="#EF9F27" />
-      </div>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          style={AUTH_FIELD}
+          placeholder="Как к тебе обращаться"
+          aria-label="Имя"
+          disabled={loading}
+        />
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          style={AUTH_FIELD}
+          placeholder="your@email.com"
+          aria-label="Email"
+          disabled={loading}
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          style={AUTH_FIELD}
+          placeholder="Не короче 8 символов"
+          aria-label="Пароль"
+          disabled={loading}
+        />
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={e => setConfirmPassword(e.target.value)}
+          style={AUTH_FIELD}
+          placeholder="••••••••"
+          aria-label="Повтори пароль"
+          disabled={loading}
+        />
 
-      <div className="w-full max-w-md relative z-10 fade-in">
-        <div className="text-center mb-8">
-          <h1
-            className="font-pixel text-primary mb-4"
-            style={{ fontSize: '1.5rem', lineHeight: 1.8, textShadow: '4px 4px 0 rgba(102, 252, 241,0.3)' }}
-          >
-            baga-net
-          </h1>
-          <p className="text-pixel/60 text-sm font-sans italic">
-            новая лягушка в болоте
+        {/* Not a public identity field — it decides verb endings in the
+            activity feed and on the home page. "Не указывать" is a real
+            option, not a placeholder. */}
+        <div className="flex gap-2">
+          {([
+            { value: 'male' as const, label: 'Мужской' },
+            { value: 'female' as const, label: 'Женский' },
+            { value: null, label: 'Не указывать' },
+          ]).map(opt => (
+            <button
+              key={String(opt.value)}
+              type="button"
+              onClick={() => setGender(opt.value)}
+              disabled={loading}
+              className="flex-1 cursor-pointer transition-colors"
+              style={{
+                ...AUTH_FIELD, padding: '12px 8px', textAlign: 'center', fontSize: 14,
+                background: gender === opt.value ? `${ACCENT}1F` : PAGE_BG,
+                color: gender === opt.value ? ACCENT : 'rgba(197, 198, 199,0.6)',
+                borderColor: gender === opt.value ? ACCENT : `${ACCENT}55`,
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          <input
+            type="text"
+            value={birthday}
+            onChange={e => setBirthday(e.target.value)}
+            style={AUTH_FIELD}
+            placeholder="День рождения — ММ-ДД, например 08-15"
+            aria-label="День рождения"
+            disabled={loading}
+            maxLength={5}
+          />
+          <p className="font-geist" style={{ fontSize: 12, color: 'rgba(197, 198, 199,0.4)', marginTop: 6 }}>
+            Указывается один раз — потом её не получится изменить самостоятельно
           </p>
         </div>
 
-        <div
-          className="p-8 rounded-lg"
-          style={{
-            background: '#1F2833',
-            border: '1px solid #66FCF1',
-            boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
-          }}
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          className="transition-all hover:brightness-110"
         >
-          <h2
-            className="font-pixel text-pixel mb-6 text-center"
-            style={{ fontSize: '0.65rem', lineHeight: 1.8 }}
-          >
-            РЕГИСТРАЦИЯ
-          </h2>
+          {loading ? 'Регистрируем...' : 'Регистрация'}
+        </button>
+      </form>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {invalid && <FieldError title={invalid.title} pointer="none">{invalid.hint}</FieldError>}
-            {error && (
-              <div
-                className="px-4 py-3 rounded-lg text-sm font-sans break-words"
-                style={{
-                  background: 'rgba(224,82,82,0.1)',
-                  color: ERROR,
-                  border: `1px solid ${ERROR}`,
-                  boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                Имя
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="pixel-input"
-                placeholder="Как к тебе обращаться"
-                disabled={loading}
-                maxLength={60}
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pixel-input"
-                placeholder="your@email.com"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                Пароль
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pixel-input"
-                placeholder="Не короче 8 символов"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                Повтори пароль
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="pixel-input"
-                placeholder="••••••••"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                Пол
-              </label>
-              <div className="flex gap-2">
-                {([
-                  { value: 'male' as const, label: 'Мужской' },
-                  { value: 'female' as const, label: 'Женский' },
-                  { value: null, label: 'Не указывать' },
-                ]).map(opt => (
-                  <button
-                    key={String(opt.value)}
-                    type="button"
-                    onClick={() => setGender(opt.value)}
-                    disabled={loading}
-                    className="flex-1 py-2 rounded-lg text-xs font-sans cursor-pointer transition-colors"
-                    style={{
-                      background: gender === opt.value ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                      color: gender === opt.value ? '#66FCF1' : 'rgba(197, 198, 199,0.5)',
-                      border: gender === opt.value ? '1px solid #66FCF1' : 'none',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block mb-2 text-pixel/60 text-xs font-sans font-medium">
-                День рождения (необязательно)
-              </label>
-              <input
-                type="text"
-                value={birthday}
-                onChange={(e) => setBirthday(e.target.value)}
-                className="pixel-input"
-                placeholder="ММ-ДД, например 08-15"
-                disabled={loading}
-                maxLength={5}
-              />
-              <p className="text-pixel/40 text-xs font-sans mt-1.5">
-                Указывается один раз — потом её не получится изменить самостоятельно
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full mt-6 disabled:opacity-50"
-              style={{ padding: '12px', fontSize: '14px' }}
-            >
-              {loading ? (
-                <span className="pixel-pulse flex items-center justify-center gap-1"><Icon name="frog" size={13} color="currentColor" /> скачем...</span>
-              ) : (
-                'ЗАРЕГИСТРИРОВАТЬСЯ'
-              )}
-            </button>
-          </form>
-
-          <button
-            onClick={() => navigate('/')}
-            className="w-full text-center mt-4 text-xs font-sans link-muted"
-          >
-            Уже есть аккаунт? Войти <Icon name="arrowRight" size={16} color="currentColor" />
-          </button>
-
-          <TelegramLoginButton onLogin={onLogin} />
-        </div>
-
-        <p className="text-center text-pixel/55 text-xs font-pixel mt-6" style={{ lineHeight: 1.8 }}>
-          de[bug] starts here
-        </p>
-      </div>
-    </div>
+      <TelegramLoginButton onLogin={onLogin} />
+    </AuthShell>
   );
 }
