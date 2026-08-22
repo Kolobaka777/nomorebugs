@@ -4,7 +4,7 @@ import Icon from '../Icon';
 import LessonEditor from './LessonEditor';
 import { emptyLesson, uid } from './types';
 import type { BLesson, BModule } from './types';
-import { CARD_BG, TEXT_MUTED, ERROR, PAGE_BG, TEXT_PRIMARY, H4 } from '../../utils/theme';
+import { CARD_BG, TEXT_MUTED, ERROR, TEXT_PRIMARY, H4, blendOver, readableTextOn } from '../../utils/theme';
 import { counted } from '../../utils/plural';
 
 export default function ModuleEditor({
@@ -120,7 +120,7 @@ export default function ModuleEditor({
             <button
               onClick={addLesson}
               className="flex-1 py-2.5 rounded font-geist text-sm transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: `${color}66`, color: PAGE_BG, fontWeight: 600 }}
+              style={{ background: `${color}66`, color: readableTextOn(blendOver(color, 0.4)), fontWeight: 600 }}
             >
               + Добавить урок
             </button>

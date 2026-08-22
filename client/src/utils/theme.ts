@@ -56,34 +56,45 @@ export const CARD_SHADOW = '0 6px 12px 0 rgba(0, 0, 0, 0.25)';
 // blur/spread than everything else — per Figma, not a typo of CARD_SHADOW.
 export const CARD_SHADOW_TALL = '0 8px 12px 0 rgba(0, 0, 0, 0.25)';
 
-// Figma's Inspect panel gave both the results-card and skill-stat-card
-// backgrounds as a repeating image tile over #1F2833 ("background:
-// url(<path-to-image>) lightgray 0% 0% / 12.75px 12.75px repeat, #1F2833")
-// — Figma shows that exact placeholder (always the same 12.75px value) when
-// a fill references a local image that was never exported, so that number
-// isn't meaningful; the tile size is picked to visually match the user's
-// reference screenshot instead. The user supplied the real source asset
-// (client/src/assets/bug-texture.png, from her design files' buggground.png
-// — 4 pixel-art bugs in a 2x2 sheet) directly — an earlier pass hand-drew an
-// approximation instead and got corrected; this uses her actual file.
+// The bug tile behind every card. Figma's recipe, read off the fill panel and
+// then checked against the design's own export of the frame: a pixel-art sheet
+// over a solid #1F2833, tiled at 12.75%, with the image fill set to Multiply
+// at 10%.
 //
-// It's pre-processed offline rather than at runtime, so the card only needs
-// a plain low-cost background-image. Two corrections so far:
-//   1) an initial pass left the ink nearly invisible/too faint at a 90px
-//      tile — bumped alpha 16% → 45%;
-//   2) that 45% pass then turned out to have the source's alpha/RGB encoding
-//      backwards: the whole 592x592 sheet carried one uniform low alpha
-//      (~10%) and the bug *silhouettes* were the lighter RGB values against
-//      a black fill — composited over the dark card that reads as light
-//      bugs on a dark card, the opposite of the mockup's dark-on-dark look,
-//      and at a 120px tile they read as oversized. Reprocessed to flip
-//      that: background pixels → fully transparent, ink pixels → solid
-//      black scaled to a max ~16% alpha (so composited over #1F2833 it
-//      lands only a few percent darker — a subtle emboss, not a stamp),
-//      and shrunk the tile 120px → 64px to match the mockup's denser,
-//      smaller repeat. See PROGRESS notes if it ever needs reprocessing
-//      from a fresh export.
-export const CARD_BG_PATTERN = `url("${bugTextureUrl}") 0 0/64px 64px repeat, ${CARD_BG}`;
+// Three things here were wrong for a long time, and all three are worth naming
+// because each one was arrived at by eye.
+//
+// The tile scale. An earlier pass recorded 12.75 as a meaningless placeholder
+// Figma shows for an unexported local image, and picked a size by eye instead.
+// It is the real tile scale: the sheet is 592px, 592 x 12.75% = 75.48, and
+// Figma's canvas measures one repeat at exactly 75.48. We render 74 rather than
+// 75.48 on purpose — the art sits on a 16px grid, so the sheet is 37 x 37 art
+// pixels, and 74 is exactly two screen pixels per art pixel and exactly an
+// eighth of the sheet. The grid survives instead of being resampled. (75.48 is
+// 2.04 per art pixel, which is why the mockup's own render is a shade softer
+// than the source art.) The asset ships pre-reduced to 74px for the same
+// reason: handing the browser a 592px sheet and asking for 64px, which is what
+// this used to do, resamples 1.73 screen pixels per art pixel on every paint,
+// and pixel art does not survive that.
+//
+// The blend. Multiply, not Normal — and over a solid card the two are not
+// close. Each of the sheet's four ink tones composites to a colour that appears
+// in the design's exported frame; under Normal at the same 10%, three of those
+// four land on colours the export contains zero pixels of.
+//
+// The ink. The old processing used each pixel's brightness as its alpha, which
+// did two things: it dropped the pure black entirely — 22.1% of the sheet, and
+// the outlines, which is most of what makes a bug read as a bug — and it
+// inverted the ramp, so the palest grey came out the most opaque. Ink coverage
+// was 13.2% where the sheet's is 35.3%. Multiply at 10% over a solid card is
+// exactly black at alpha 0.1 * (1 - ink/255), within a fifth of a colour unit,
+// so the tile stays a black overlay rather than a bitmap welded to one card
+// colour, and CARD_BG can still move without regenerating it.
+//
+// bug-texture-master.png sits alongside, deliberately not imported: it is the
+// 592px sheet the tile is generated from (reduce 8x nearest, then that alpha
+// ramp). Keep it — without it the tile cannot be regenerated.
+export const CARD_BG_PATTERN = `url("${bugTextureUrl}") 0 0/74px 74px repeat, ${CARD_BG}`;
 
 // One-off label color from the "СТАТИСТИКА ПЛОЩАДКИ" stat-card spec — close
 // to but distinct from TEXT_PRIMARY/TEXT_MUTED, so it's its own token rather
@@ -110,6 +121,91 @@ export const TRACK_WIDE = '0.2em';
 // Fonts — Montserrat for headings/logo/nav, Geist for body/lectures/
 // instructions, confirmed by the kit (matches what was already wired into
 // tailwind.config.js's `font-montserrat`/`font-geist`, nothing to add here).
+
+// ── Contrast ──────────────────────────────────────────────────────────────
+//
+// Half the badges in the app paint a label over a fill tinted with a colour
+// nobody reviewed: a role's hue, a course author's pick, a tester's own accent
+// colour. Hardcoding the label near-black — which is what every one of them
+// did — only works while the fill stays bright. The admin badge is dark red at
+// 60% over the page, which composites to #8B3638, and near-black on that is
+// 2.4:1: a word you can see is there and cannot read.
+//
+// The two functions below answer the only question those call sites actually
+// have. blendOver() says what colour the browser really ends up painting, and
+// readableTextOn() picks a neutral that survives it.
+
+type Rgb = [number, number, number];
+
+function toRgb(hex: string): Rgb | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const v = m[1];
+  return [0, 2, 4].map(i => parseInt(v.slice(i, i + 2), 16)) as Rgb;
+}
+
+// Relative luminance, sRGB, per WCAG. An unparseable colour scores as black,
+// which on this app's near-black page is the safe way to be wrong.
+export function relativeLuminance(hex: string): number {
+  const rgb = toRgb(hex);
+  if (!rgb) return 0;
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+}
+
+// What `hex` at `alpha` actually looks like once the page shows through it.
+// "#EF9F27" is a light amber; "#EF9F2766" over the page is a dark brown, and
+// it is the brown a label has to be legible against.
+export function blendOver(hex: string, alpha: number, backdrop: string = PAGE_BG): string {
+  const fg = toRgb(hex);
+  const bg = toRgb(backdrop);
+  if (!fg || !bg) return backdrop;
+  const a = Math.min(1, Math.max(0, alpha));
+  return `#${[0, 1, 2]
+    .map(i => Math.round(fg[i] * a + bg[i] * (1 - a)).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// The label is always neutral — a grey, white, or near-black — so the hue
+// stays in the fill and the outline, where it costs nobody the word.
+//
+// Order is the whole design of this ramp. The palette's own two text colours
+// come first, so any surface that already read well keeps exactly the label it
+// has today and nothing churns; the brighter and darker neutrals are reached
+// only where those two both fall short. Both directions stay in one list
+// rather than being chosen up front, because a mid-luminance fill — the role
+// badge's amber at 60%, say — is the case where the better-looking direction
+// still misses and only the other one clears.
+const TEXT_RAMP = [TEXT_PRIMARY, PAGE_BG, '#E6E7E8', '#FFFFFF', '#000000'];
+
+// WCAG AA for body text is 4.5:1. Badge and chip labels run 10-12px in
+// letterspaced caps, which is where that floor stops being comfortable, so the
+// ramp aims a step above it and takes the next neutral up rather than sitting
+// on the line. Where nothing clears it — a mid grey has no good answer — the
+// best of the five wins.
+const MIN_CONTRAST = 5;
+
+export function readableTextOn(background: string): string {
+  let best = TEXT_PRIMARY;
+  let bestRatio = 0;
+  for (const candidate of TEXT_RAMP) {
+    const ratio = contrastRatio(candidate, background);
+    if (ratio >= MIN_CONTRAST) return candidate;
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      best = candidate;
+    }
+  }
+  return best;
+}
 
 // ── Type scale ────────────────────────────────────────────────────────────
 //

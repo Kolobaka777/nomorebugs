@@ -1,4 +1,4 @@
-import { ACCENT, TEXT_PRIMARY, PAGE_BG } from './theme';
+import { ACCENT, TEXT_PRIMARY, CARD_BG, blendOver, readableTextOn, relativeLuminance } from './theme';
 
 // Lecture skill_area strings are free-text ("HTML structure", "CSS reading",
 // "Bug report quality", ...) rather than the canonical topic-tag keys used
@@ -25,10 +25,9 @@ const COURSE_TAG_COLORS: Record<string, string> = {
   HTML: '#EF9F27',
   CSS: ACCENT,
   DevTools: '#27A5E7',
-  // A real hex rather than an alpha wash: tagBadgeStyle below reads the
-  // colour's luminance to pick its text, and it cannot read one through an
-  // alpha channel. Console is the kit's "neutral" chip, so this is the muted
-  // text grey — see the exception in tagBadgeStyle.
+  // The kit's neutral chip. A real hex rather than an alpha wash because
+  // callers outside the chip — a row's left edge, a legend dot — paint it
+  // directly; tagChipStyle gives Console its own treatment and ignores it.
   Console: '#8A8B8E',
   'Bug Reports': '#F05454',
   JS: '#7F77DD',
@@ -42,33 +41,29 @@ export function getCourseTagColor(tag: string): string {
 // ── Tag chips ────────────────────────────────────────────────────────────
 //
 // Per the kit, a tag is a 4px chip whose fill and outline are its own colour
-// and whose *text is chosen for contrast against that fill* — a light hue
-// (amber, teal) takes near-black text, a dark one (blue, red, violet) takes
-// the light body colour.
+// and whose text is chosen for contrast against that fill. Every badge in the
+// app once painted the text in the tag colour too, over a 13%-alpha wash of
+// the same colour — same hue three times over, so the label sat barely above
+// its own background and read as faded rather than as a label.
 //
-// Every badge in the app used to paint the text in the tag colour too, over a
-// 13%-alpha wash of the same colour. Same hue three times over, so the label
-// sat barely above its own background and read as faded rather than as a
-// label — which is exactly the "никогда прозрачным не выглядеть" the kit is
-// written against.
+// The fill is that colour at 15-40% alpha over a near-black page, so the
+// contrast question is about the composite and not about the hex. Scoring the
+// hex is what put near-black text on the amber and teal chips, and what made
+// every tag missing from the palette above — Мемы, Общее, Custom, Advanced,
+// all of which fall through to the body grey — render as near-black on a 15%
+// wash of near-black. Composite first, then pick the label.
 
-// Relative luminance, sRGB, per WCAG. Only the threshold matters here: it
-// decides which of two text colours reads on the fill, not a contrast score.
-function luminance(hex: string): number {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return 0;
-  const v = m[1];
-  const channel = (i: number) => {
-    const c = parseInt(v.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
-}
+const HEX6 = /^#[0-9a-f]{6}$/i;
 
-// Above this the fill is light enough that near-black text reads better on
-// it than the body grey does. Sits between DevTools blue (0.33, light text)
-// and kit amber (0.43, dark text), which is where the kit itself draws it.
+// Two fill weights, because a light hue at a given alpha reads heavier than a
+// dark one. This governs the wash only; the label is picked from what that
+// wash composites to.
 const LIGHT_FILL = 0.38;
+const CHIP_LIGHT = { fill: 0.4, edge: 0.5 };
+const CHIP_DARK = { fill: 0.3, edge: 0.4 };
+const MUTED = { fill: 0.15, edge: 0.25 };
+
+const alphaHex = (a: number) => Math.round(a * 255).toString(16).padStart(2, '0').toUpperCase();
 
 export interface TagChipStyle {
   background: string;
@@ -77,45 +72,49 @@ export interface TagChipStyle {
   borderRadius: number;
 }
 
-const HEX6 = /^#[0-9a-f]{6}$/i;
+// The kit's one neutral chip — a fill the colour of the card. Doubles as the
+// fallback for a colour this cannot compose an alpha onto: custom courses
+// carry whatever their author saved, and appending "4D" to an rgba() string
+// yields a colour the browser drops silently, leaving a chip with no fill and
+// no outline at all, which is worse than the faded ones this replaced.
+const NEUTRAL_FILL = 'rgba(31, 40, 51, 0.30)';
+const NEUTRAL_TEXT = readableTextOn(blendOver(CARD_BG, 0.3));
 
-// A chip for a colour this cannot compose an alpha onto. Custom courses carry
-// whatever colour their author saved, and appending "4D" to an rgba() string
-// yields a colour the browser drops silently — a chip with no fill and no
-// outline at all, which is worse than the faded ones this replaced.
 const NEUTRAL_CHIP: TagChipStyle = {
-  background: 'rgba(31, 40, 51, 0.30)',
+  background: NEUTRAL_FILL,
   border: '1px solid rgba(197, 198, 199, 0.35)',
-  color: TEXT_PRIMARY,
+  color: NEUTRAL_TEXT,
   borderRadius: 4,
 };
 
 export function tagChipStyle(color: string, tag?: string): TagChipStyle {
-  // The kit's one neutral chip: a fill the colour of the card needs its
-  // outline and its label to carry it, so both take the accent.
+  // Console is the kit's neutral chip: its fill is the card colour, so the
+  // outline is what carries the tag. The label stays neutral like every other
+  // one — a chip is identified by its edge, never by tinted text.
   if (tag === 'Console') {
-    return {
-      background: 'rgba(31, 40, 51, 0.30)',
-      border: `1px solid ${ACCENT}66`,
-      color: ACCENT,
-      borderRadius: 4,
-    };
+    return { ...NEUTRAL_CHIP, border: `1px solid ${ACCENT}66` };
   }
   if (!HEX6.test(color.trim())) return NEUTRAL_CHIP;
-  const light = luminance(color) > LIGHT_FILL;
+  const weight = relativeLuminance(color) > LIGHT_FILL ? CHIP_LIGHT : CHIP_DARK;
   return {
-    background: `${color}${light ? '66' : '4D'}`,   // 0.4 / 0.3
-    border: `1px solid ${color}${light ? '80' : '66'}`, // 0.5 / 0.4
-    color: light ? PAGE_BG : TEXT_PRIMARY,
+    background: `${color}${alphaHex(weight.fill)}`,
+    border: `1px solid ${color}${alphaHex(weight.edge)}`,
+    color: readableTextOn(blendOver(color, weight.fill)),
     borderRadius: 4,
   };
 }
 
-// The same chip, dimmed, for a filter that is available but not chosen. The
-// text keeps its contrast — a dimmed *label* is unreadable, a dimmed
-// *background* is just quieter.
+// The same chip, dimmed, for a filter that is available but not chosen. Only
+// the background dims: a quieter fill is quieter, a quieter label is just
+// unreadable. The label is re-picked rather than inherited, because a 15%
+// wash composites to a different colour than a 40% one.
 export function tagChipStyleMuted(color: string, tag?: string): TagChipStyle {
   const on = tagChipStyle(color, tag);
   if (tag === 'Console' || !HEX6.test(color.trim())) return on;
-  return { ...on, background: `${color}26`, border: `1px solid ${color}40` };
+  return {
+    ...on,
+    background: `${color}${alphaHex(MUTED.fill)}`,
+    border: `1px solid ${color}${alphaHex(MUTED.edge)}`,
+    color: readableTextOn(blendOver(color, MUTED.fill)),
+  };
 }

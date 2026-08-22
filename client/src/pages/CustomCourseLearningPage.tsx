@@ -18,7 +18,7 @@ import { apiErrorMessage, showApiError } from '../utils/toast';
 import { parseRichContent } from '../utils/richContent';
 import { counted } from '../utils/plural';
 import { getCourseTagColor, tagChipStyle } from '../utils/topics';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR, H2 } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, SUCCESS, TRACK_WIDE, ERROR, H2, readableTextOn } from '../utils/theme';
 import successFrogUrl from '../assets/icons/success-frog.svg';
 import failedFrogUrl from '../assets/icons/failed-frog.svg';
 
@@ -117,7 +117,7 @@ function CustomQuizView({
       <div className="flex flex-col items-center py-16">
         <Icon name="construction" size={48} color="#EF9F27" className="mb-4" />
         <p className="font-sans text-pixel/60 text-sm">Вопросы для теста ещё готовятся</p>
-        <button onClick={onNext} className="mt-6 px-6 py-2 rounded font-sans font-bold text-sm" style={{ background: color, color: '#0B0C10' }}>
+        <button onClick={onNext} className="mt-6 px-6 py-2 rounded font-sans font-bold text-sm" style={{ background: color, color: readableTextOn(color) }}>
           {isLastLesson
             ? <><CheckCircleIcon size={16} color="currentColor" /> Завершить</>
             : <>Далее <Icon name="arrowRight" size={20} color="currentColor" /></>}
@@ -258,7 +258,7 @@ function CustomQuizView({
           nothing else on it, which is a border drawn around everything. */}
       <div className="fade-in">
         <p className="font-geist mb-6 break-words flex gap-3" style={{ fontSize: 15, lineHeight: 1.6, letterSpacing: '1.6px', color: TEXT_PRIMARY }}>
-          <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold text-xs" style={{ background: color, color: PAGE_BG }}>{qIdx + 1}</span>
+          <span className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-geist font-bold text-xs" style={{ background: color, color: readableTextOn(color) }}>{qIdx + 1}</span>
           <span className="break-words min-w-0">{q.question_text}</span>
         </p>
 
@@ -1218,7 +1218,7 @@ export default function CustomCourseLearningPage({ user, onLogout }: Props) {
         // empty on every page.
         <button onClick={() => setShowNotes(true)} className="fixed bottom-6 left-6 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-sans text-sm font-semibold shadow-lg transition-all hover:brightness-110" style={{ background: CARD_BG, border: '1px solid rgba(197, 198, 199,0.12)', color: 'rgba(197, 198, 199,0.6)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
           <Icon name="memo" size={22} color="currentColor" /> <span className="text-xs">Заметки</span>
-          {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: '#0B0C10', fontSize: '0.6rem' }}>{notes.length}</span>}
+          {notes.length > 0 && <span className="rounded-full w-4 h-4 flex items-center justify-center text-xs" style={{ background: color, color: readableTextOn(color), fontSize: '0.6rem' }}>{notes.length}</span>}
         </button>
       )}
     </div>

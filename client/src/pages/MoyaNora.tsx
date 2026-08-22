@@ -23,7 +23,7 @@ import { tagChipStyle } from '../utils/topics';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { counted } from '../utils/plural';
 import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, blendOver, readableTextOn } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
@@ -281,6 +281,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   // active nav row, Магазин's "own" icon) instead of always the site's
   // fixed teal — otherwise that picker would have no visible effect at all.
   const accent = profile?.profile_accent_color || ACCENT;
+  // Free-form: a tester can save any hex, including one this button's
+  // label would vanish into.
+  const accentText = readableTextOn(accent);
 
   // What may be worn is the server's decision (GET /api/tester/entitlements,
   // backed by entitlements.js), not this page's. This used to be three
@@ -477,7 +480,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                       what a lead saw on their own profile. */}
                   <span
                     className="font-montserrat font-medium inline-block"
-                    style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: PAGE_BG, background: `${roleColor}99`, border: `1px solid ${roleColor}CC`, borderRadius: 4, padding: '2px 6px' }}
+                    style={{ fontSize: 10, letterSpacing: TRACK_WIDE, color: readableTextOn(blendOver(roleColor, 0.6)), background: `${roleColor}99`, border: `1px solid ${roleColor}CC`, borderRadius: 4, padding: '2px 6px' }}
                   >
                     {ROLE_SHORT[user.role] || ROLE_SHORT.tester}
                   </span>
@@ -565,9 +568,9 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
             <button
               onClick={() => setShowEdit(true)}
               className="w-full rounded-lg font-geist font-semibold cursor-pointer flex items-center justify-center gap-2 py-3 transition-all hover:brightness-110"
-              style={{ background: accent, color: PAGE_BG, fontSize: 14 }}
+              style={{ background: accent, color: accentText, fontSize: 14 }}
             >
-              Редактировать профиль <Icon name="pencil" size={16} color={PAGE_BG} />
+              Редактировать профиль <Icon name="pencil" size={16} color={accentText} />
             </button>
 
             {/* Proposals — only shown once the tester has actually

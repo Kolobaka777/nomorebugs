@@ -8,7 +8,7 @@ import { leadApi, coursesApi } from '../api';
 import { parseServerDate } from '../utils/date';
 import { pickByGender } from '../utils/gender';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, H2 } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, H2, readableTextOn } from '../utils/theme';
 import { tagChipStyle } from '../utils/topics';
 
 // Same lazy-split reasoning as GuidesPage.tsx — read-only instances still
@@ -267,7 +267,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
                       <div className="flex items-center gap-2.5 mb-2">
                         <span
                           className="w-6 h-6 rounded flex items-center justify-center font-geist font-bold flex-shrink-0"
-                          style={{ fontSize: 12, background: color, color: PAGE_BG }}
+                          style={{ fontSize: 12, background: color, color: readableTextOn(color) }}
                         >
                           {i + 1}
                         </span>
@@ -354,7 +354,7 @@ export default function CustomCourseDetailPage({ user, onLogout }: Props) {
               <button
                 onClick={() => navigate(`/custom-course/${id}/learn`)}
                 className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer flex items-center justify-center gap-2"
-                style={{ background: color, color: PAGE_BG }}
+                style={{ background: color, color: readableTextOn(color) }}
               >
                 {hasProgress ? 'Продолжить курс' : 'Начать курс'} <Icon name="chevronRight" size={18} color="currentColor" />
               </button>

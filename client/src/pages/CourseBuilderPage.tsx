@@ -9,7 +9,7 @@ import ModuleEditor from '../components/courseBuilder/ModuleEditor';
 import { uid, PRESET_COLORS, TAGS, emptyModule } from '../components/courseBuilder/types';
 import type { BModule, FormState } from '../components/courseBuilder/types';
 import { parseRichContent } from '../utils/richContent';
-import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H2, H3, H4, SMALL, CARD_BG_PATTERN } from '../utils/theme';
+import { PAGE_GRADIENT, PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, CARD_SHADOW, ERROR, H2, H3, H4, SMALL, CARD_BG_PATTERN, readableTextOn } from '../utils/theme';
 import { apiErrorMessage } from '../utils/toast';
 import { getCourseTagColor, tagChipStyle, tagChipStyleMuted } from '../utils/topics';
 import { counted } from '../utils/plural';
@@ -525,7 +525,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
             <button
               onClick={addModule}
               className="w-full py-3 rounded-lg font-geist font-semibold text-sm transition-all hover:brightness-110 cursor-pointer mb-6"
-              style={{ background: color, color: PAGE_BG, letterSpacing: TRACK_WIDE, boxShadow: CARD_SHADOW }}
+              style={{ background: color, color: readableTextOn(color), letterSpacing: TRACK_WIDE, boxShadow: CARD_SHADOW }}
             >
               + ДОБАВИТЬ МОДУЛЬ
             </button>
@@ -549,7 +549,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                 onClick={() => save(false)}
                 disabled={saving}
                 className="w-full py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: color, color: PAGE_BG, boxShadow: saving ? 'none' : CARD_SHADOW }}
+                style={{ background: color, color: readableTextOn(color), boxShadow: saving ? 'none' : CARD_SHADOW }}
               >
                 {saving ? 'Отправляю...' : <span className="flex items-center justify-center gap-2"><Icon name="lightbulb" size={16} color="currentColor" />Отправить на рассмотрение</span>}
               </button>
@@ -567,7 +567,7 @@ export default function CourseBuilderPage({ user, onLogout }: Props) {
                   onClick={() => save(true)}
                   disabled={saving}
                   className="flex-1 py-3 rounded-lg font-geist font-bold text-sm transition-all hover:brightness-110 cursor-pointer"
-                  style={{ background: color, color: PAGE_BG, letterSpacing: TRACK_WIDE, boxShadow: saving ? 'none' : CARD_SHADOW }}
+                  style={{ background: color, color: readableTextOn(color), letterSpacing: TRACK_WIDE, boxShadow: saving ? 'none' : CARD_SHADOW }}
                 >
                   {saving ? 'ПУБЛИКУЮ...' : <span className="flex items-center justify-center gap-2"><Icon name="rocket" size={16} color="currentColor" />ОПУБЛИКОВАТЬ</span>}
                 </button>

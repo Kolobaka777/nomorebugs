@@ -37,6 +37,13 @@ const NEW_BADGE: CSSProperties = {
   padding: '2px 4px',
 };
 
+// The frog is perched on the search field rather than parked beside it, so
+// it hangs this far past the field's left edge. Named because the row above
+// has to reserve the overhang — see the header.
+const FROG_PERCH_LEFT = 16;
+// The kit's gap between two controls on a line.
+const CONTROL_GAP = 12;
+
 // Every filter reads as a standing chip in its own topic colour — the same
 // square-cornered badge shape a card wears for its tag, not the pill the
 // page used to draw only once something had been picked.
@@ -564,7 +571,18 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
           </div>
 
           <div className="flex flex-col items-end gap-3 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap justify-end">
+            {/* The overhang used to cost nothing: a button up here was a lead's
+                privilege, and every other role left the frog empty space to
+                hang in. Now everyone gets one, and the kit's 12px gap put the
+                frog's feet on it. The column gap is the overhang plus that 12,
+                so the frog keeps its perch and the button keeps its edge. The
+                row gap stays 12 — when this wraps the button goes to the right
+                edge and the frog to the left of the field below it, and the
+                two never meet. */}
+            <div
+              className="flex items-center flex-wrap justify-end"
+              style={{ columnGap: FROG_PERCH_LEFT + CONTROL_GAP, rowGap: CONTROL_GAP }}
+            >
               {user.role === 'lead' ? (
                 <button
                   onClick={() => navigate('/lead/course-builder')}
@@ -594,7 +612,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                   no pointer events so it can't swallow a click meant for
                   the input underneath. */}
               <div className="relative" style={{ width: 396, maxWidth: '100%' }}>
-                <FrogPerched className="absolute pointer-events-none" style={{ left: -16, bottom: 'calc(100% - 30px)' }} />
+                <FrogPerched className="absolute pointer-events-none" style={{ left: -FROG_PERCH_LEFT, bottom: 'calc(100% - 30px)' }} />
                 <div
                   className="flex items-center justify-between"
                   style={{ height: 48, padding: '0 16px', borderRadius: 8, border: `1px solid ${SECONDARY}`, background: 'rgba(11, 12, 16, 0.72)' }}

@@ -6,7 +6,7 @@ import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { computeInitials } from '../utils/initials';
 import { usersApi } from '../api';
 import logoUrl from '../assets/logo.svg';
-import { ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG, HEADER_BG, HEADER_SHADOW, HEADER_BLUR, ERROR } from '../utils/theme';
+import { ACCENT, TRACK_WIDE, STAT_LABEL_COLOR, PAGE_BG, HEADER_BG, HEADER_SHADOW, HEADER_BLUR, ERROR, blendOver, readableTextOn } from '../utils/theme';
 
 // Distance from the header's own top/bottom edge to a nav tab, per the kit
 // spec — with the header's own height, this fixes the tab's rendered
@@ -339,7 +339,7 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 fontSize: 10,
                 lineHeight: 1.6,
                 letterSpacing: TRACK_WIDE,
-                color: '#0B0C10',
+                color: readableTextOn(blendOver(roleMeta.color, 0.6)),
                 // Tinted by role, not always teal: a lead and a tester wore
                 // the same badge colour, so the only thing telling them
                 // apart was the word inside it.
