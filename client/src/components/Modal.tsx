@@ -1,7 +1,7 @@
 import { ReactNode, MouseEvent, KeyboardEvent, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon';
-import { ACCENT, CARD_BG, CARD_SHADOW_TALL, TEXT_MUTED, TRACK_WIDE } from '../utils/theme';
+import { ACCENT, CARD_BG_PATTERN, CARD_SHADOW_TALL, TEXT_MUTED, TRACK_WIDE } from '../utils/theme';
 
 // Single shared "window" chrome for every modal/dialog in the app — before
 // this, each modal (ChangePasswordModal, ProfileEditModal, the checklist
@@ -94,14 +94,20 @@ export default function Modal({ title, onClose, children, maxWidth = 440, zIndex
         aria-modal="true"
         tabIndex={-1}
         className="w-full rounded-lg"
-        style={{ maxWidth, maxHeight: '90vh', overflowY: 'auto', background: CARD_BG, border: `1px solid ${ACCENT}`, boxShadow: CARD_SHADOW_TALL, outline: 'none' }}
+        // The bug tile, same as every card on every page. A dialog was the
+        // one surface in the app still painted flat — measured against the
+        // design's export of the profile editor, its header and its body
+        // carry the same tile at the same strength as a course card.
+        style={{ maxWidth, maxHeight: '90vh', overflowY: 'auto', background: CARD_BG_PATTERN, border: `1px solid ${ACCENT}`, boxShadow: CARD_SHADOW_TALL, outline: 'none' }}
         onClick={stop}
         onKeyDown={trapTabKey}
       >
         {(title || onClose) && (
           <div
             className="sticky top-0 flex items-center justify-between gap-4 px-5 py-4"
-            style={{ background: CARD_BG, borderBottom: `1px solid ${ACCENT}22`, borderRadius: '8px 8px 0 0' }}
+            // Its own copy of the tile rather than a transparent header:
+            // this is sticky, so the body scrolls underneath it.
+            style={{ background: CARD_BG_PATTERN, borderBottom: `1px solid ${ACCENT}22`, borderRadius: '8px 8px 0 0' }}
           >
             {title && (
               <div className="font-montserrat font-semibold flex items-center gap-2 min-w-0" style={{ color: ACCENT, fontSize: 16, letterSpacing: TRACK_WIDE }}>
