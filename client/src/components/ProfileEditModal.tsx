@@ -3,12 +3,12 @@ import { testerApi, authApi } from '../api';
 import { setAccessToken } from '../auth';
 import { FullProfile, GalleryAvatar } from '../types';
 import PixelAvatar, { AVATAR_LIST, FRAME_LIST, BG_LIST, AvatarId, FrameId, BgId } from './PixelAvatar';
-import Icon, { IconName } from './Icon';
+import Icon from './Icon';
 import Modal from './Modal';
 import { useEscapeKey } from '../utils/a11y';
 import { BADGE_META, ACHIEVEMENTS_CATALOG } from '../utils/badges';
 import { DEFAULT_AVATAR_ID, shopItemFor, ACCENT_PALETTE } from '../utils/shop';
-import { ACCENT, ERROR } from '../utils/theme';
+import { ACCENT, ERROR, PAGE_BG, TEXT_PRIMARY, TRACK_WIDE } from '../utils/theme';
 import GalleryAvatarImage from './GalleryAvatarImage';
 import { loadGalleryImage, forgetGalleryImage } from '../utils/galleryImages';
 import { apiErrorMessage } from '../utils/toast';
@@ -24,6 +24,63 @@ const SPECIALIZATIONS = [
 ];
 
 type EditTab = 'main' | 'looks' | 'account';
+
+// ── The dialog's chrome ──────────────────────────────────────────────────
+//
+// One definition per shape. These were re-typed at every call site before,
+// which is how a field on the account tab ended up a different size from the
+// identical-looking field on the first one.
+
+// A column, not a share of the width: the three labels are known, and the
+// section beside them is what should absorb a resize.
+const RAIL_WIDTH = 190;
+
+const MODAL_TITLE: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 20, fontWeight: 600,
+  letterSpacing: '3px', color: TEXT_PRIMARY,
+};
+
+const SECTION_LABEL: React.CSSProperties = {
+  fontFamily: 'Montserrat, sans-serif', fontSize: 15, fontWeight: 600,
+  letterSpacing: '2.4px', color: TEXT_PRIMARY, display: 'block', marginBottom: 10,
+};
+
+const FIELD: React.CSSProperties = {
+  width: '100%', background: PAGE_BG, color: TEXT_PRIMARY,
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 15, lineHeight: 1.4,
+  padding: '13px 16px', borderRadius: 8, border: `1px solid ${ACCENT}`, outline: 'none',
+};
+
+// Sits inside the field rather than under it, so a counter never adds a row
+// of its own between one field and the next.
+const COUNTER: React.CSSProperties = {
+  position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 13,
+  color: 'rgba(197, 198, 199,0.45)', pointerEvents: 'none',
+};
+
+const TILE: React.CSSProperties = {
+  position: 'relative', aspectRatio: '1', width: '100%', overflow: 'hidden',
+  borderRadius: 6, border: `1px solid ${ACCENT}`, background: 'rgba(11, 12, 16, 0.45)',
+};
+const TILE_ON: React.CSSProperties = {
+  background: `${ACCENT}1F`, boxShadow: `0 0 0 1px ${ACCENT}`,
+};
+
+// A band across the foot of a locked tile rather than a plate floating in
+// the middle of it, so the picture underneath stays readable.
+const PRICE_TAG: React.CSSProperties = {
+  background: ACCENT, fontSize: 13, padding: '3px 0', letterSpacing: '0.04em',
+};
+
+const SOLID_BTN: React.CSSProperties = {
+  background: ACCENT, color: PAGE_BG, borderRadius: 8, padding: '11px 20px',
+  fontFamily: 'Geist, system-ui, sans-serif', fontSize: 14, fontWeight: 600,
+  letterSpacing: TRACK_WIDE,
+};
+const SECTION_RULE: React.CSSProperties = {
+  borderTop: `1px solid ${ACCENT}22`, paddingTop: 18,
+};
 
 interface Props {
   profile: FullProfile;
@@ -84,6 +141,11 @@ export default function ProfileEditModal({
   // retroactive; only a fresh upload triggers a new gallery entry).
   const [publishPublicly, setPublishPublicly] = useState(false);
   const [galleryAvatars, setGalleryAvatars] = useState<GalleryAvatar[]>([]);
+  // The mockup puts a caret on these two headings; the third (Фон) has none,
+  // so it stays open.
+  const [avatarsOpen, setAvatarsOpen] = useState(true);
+  const [framesOpen, setFramesOpen]   = useState(true);
+  const [galleryOpen, setGalleryOpen] = useState(true);
 
   const equipFromGallery = async (id: number) => {
     setEquipError('');
@@ -261,20 +323,10 @@ export default function ProfileEditModal({
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    background: '#0B0C10', border: 'none', outline: 'none',
-    color: '#C5C6C7', fontSize: 13, fontFamily: 'Geist, system-ui, sans-serif',
-    padding: '8px 10px', width: '100%', borderBottom: '2px solid rgba(102, 252, 241,0.3)',
-  };
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.6rem', fontFamily: 'Montserrat', color: 'rgba(102, 252, 241,0.7)',
-    display: 'block', marginBottom: 6, lineHeight: 1.8,
-  };
-
-  const TABS: { id: EditTab; label: string; icon: IconName }[] = [
-    { id: 'main',    label: 'Основное',    icon: 'memo'    },
-    { id: 'looks',   label: 'Внешний вид', icon: 'palette' },
-    { id: 'account', label: 'Аккаунт',     icon: 'lock'    },
+  const TABS: { id: EditTab; label: string }[] = [
+    { id: 'main',    label: 'Основное'    },
+    { id: 'looks',   label: 'Внешний вид' },
+    { id: 'account', label: 'Аккаунт'     },
   ];
 
   // Locally-merged unlock lists — a purchase made just now is pickable
@@ -282,64 +334,87 @@ export default function ProfileEditModal({
   const effectiveUnlockedFrames = [...new Set([...unlockedFrames, ...justPurchased.map(id => SHOP_REF(id, FRAME_LIST)).filter(Boolean) as string[]])];
   const effectiveUnlockedBgs    = [...new Set([...unlockedBgs, ...justPurchased.map(id => SHOP_REF(id, BG_LIST)).filter(Boolean) as string[]])];
 
-  return (
-    <Modal title="Редактировать профиль" onClose={onClose} maxWidth={576} zIndex={100} noBodyPadding>
-      <>
-        {/* Sub-tabs */}
-        <div className="flex" style={{ borderBottom: '1px solid rgba(102, 252, 241,0.15)' }}>
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex-1 py-2 text-xs font-sans cursor-pointer transition-colors"
-              style={{
-                background: tab === t.id ? 'rgba(102, 252, 241,0.15)' : 'transparent',
-                color: tab === t.id ? '#66FCF1' : 'rgba(197, 198, 199,0.4)',
-              }}
-            >
-              <span className="flex items-center justify-center gap-1.5">
-                <Icon name={t.icon} size={11} color="currentColor" />
-                {t.label}
-              </span>
-            </button>
-          ))}
-        </div>
+  // The rail is a fixed column, not a share of the width: the three labels
+  // are known and the section beside them is what should absorb a resize.
+  const railItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    width: '100%', padding: '12px 14px', borderRadius: 6, cursor: 'pointer',
+    fontFamily: 'Montserrat, sans-serif', fontSize: 13, fontWeight: 600,
+    letterSpacing: TRACK_WIDE, textTransform: 'uppercase',
+    background: active ? ACCENT : 'transparent',
+    color: active ? PAGE_BG : TEXT_PRIMARY,
+    borderBottom: `1px solid ${active ? 'transparent' : `${ACCENT}33`}`,
+    transition: 'background 120ms, color 120ms',
+  });
 
-        {/* Content */}
-        <div className="px-6 py-5 space-y-5">
+  const collapsibleLabel = (open: boolean): React.CSSProperties => ({
+    ...SECTION_LABEL, marginBottom: open ? 10 : 0,
+    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', width: '100%',
+  });
+
+  return (
+    <Modal
+      title={<span style={MODAL_TITLE}>Редактирование профиля</span>}
+      onClose={onClose}
+      maxWidth={820}
+      zIndex={100}
+      noBodyPadding
+    >
+      <div className="flex flex-col">
+        <div className="flex gap-6 px-6 pt-5">
+          {/* Section rail. Was a row of three tabs across the top; the
+              mockup stands it up on the left, which is also what lets the
+              save button sit under both columns instead of under the form. */}
+          <nav className="shrink-0 flex flex-col" style={{ width: RAIL_WIDTH }} aria-label="Разделы профиля">
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={railItem(tab === t.id)}>
+                {t.label}
+                <Icon name="chevronRight" size={14} color="currentColor" />
+              </button>
+            ))}
+          </nav>
+
+          {/* Only this column scrolls, so the rail and the save button stay
+              where the reader left them however long the section is. */}
+          <div
+            className="flex-1 min-w-0 flex flex-col gap-5"
+            style={{ maxHeight: 'calc(90vh - 210px)', overflowY: 'auto', paddingRight: 12, paddingBottom: 4 }}
+          >
 
           {/* ── MAIN TAB ── */}
           {tab === 'main' && (
             <>
               <div>
-                <label style={labelStyle}>НИК (макс 40)</label>
-                <input
-                  value={nickname}
-                  onChange={e => setNickname(e.target.value.slice(0, 40))}
-                  placeholder={profile.name}
-                  style={inputStyle}
-                />
-                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{nickname.length}/40</p>
+                <label style={SECTION_LABEL} htmlFor="pe-nickname">Имя</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="pe-nickname"
+                    value={nickname}
+                    onChange={e => setNickname(e.target.value.slice(0, 40))}
+                    placeholder={profile.name}
+                    style={{ ...FIELD, paddingRight: 72 }}
+                  />
+                  <span style={COUNTER}>{nickname.length}/40</span>
+                </div>
               </div>
 
               <div>
-                <label style={labelStyle}>СТАТУС-ЦИТАТА (макс 60)</label>
-                <input
-                  value={statusQuote}
-                  onChange={e => setStatusQuote(e.target.value.slice(0, 60))}
-                  placeholder="ловлю мух с 2024..."
-                  style={inputStyle}
-                />
-                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{statusQuote.length}/60</p>
+                <label style={SECTION_LABEL} htmlFor="pe-status">Статус</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="pe-status"
+                    value={statusQuote}
+                    onChange={e => setStatusQuote(e.target.value.slice(0, 60))}
+                    placeholder="ловлю мух с 2024..."
+                    style={{ ...FIELD, paddingRight: 64 }}
+                  />
+                  <span style={COUNTER}>{statusQuote.length}/60</span>
+                </div>
               </div>
 
               <div>
-                <label style={labelStyle}>СПЕЦИАЛИЗАЦИЯ</label>
-                <select
-                  value={spec}
-                  onChange={e => setSpec(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }}
-                >
+                <label style={SECTION_LABEL} htmlFor="pe-spec">Специализация</label>
+                <select id="pe-spec" value={spec} onChange={e => setSpec(e.target.value)} style={{ ...FIELD, cursor: 'pointer' }}>
                   {SPECIALIZATIONS.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
@@ -347,30 +422,40 @@ export default function ProfileEditModal({
               </div>
 
               <div>
-                <label style={labelStyle}>ИНФОБОКС (макс 200)</label>
-                <textarea
-                  value={infoBox}
-                  onChange={e => setInfoBox(e.target.value.slice(0, 200))}
-                  placeholder="Специализация: консольные баги..."
-                  rows={3}
-                  style={{ ...inputStyle, resize: 'none' }}
-                />
-                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{infoBox.length}/200</p>
+                <label style={SECTION_LABEL} htmlFor="pe-info">Инфобокс</label>
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    id="pe-info"
+                    value={infoBox}
+                    onChange={e => setInfoBox(e.target.value.slice(0, 200))}
+                    placeholder="Специализация: консольные баги..."
+                    rows={4}
+                    style={{ ...FIELD, resize: 'none', paddingBottom: 30 }}
+                  />
+                  <span style={{ ...COUNTER, top: 'auto', bottom: 18, transform: 'none' }}>{infoBox.length}/200</span>
+                </div>
+              </div>
+
+              {/* Not in the mockup, kept because removing them removes
+                  behaviour: the joke shows on the public profile, gender
+                  decides verb endings across the app, and the toggle is the
+                  only control over whether anyone can open the profile. */}
+              <div>
+                <label style={SECTION_LABEL} htmlFor="pe-joke">Лягушачья шутка</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="pe-joke"
+                    value={snailJoke}
+                    onChange={e => setSnailJoke(e.target.value.slice(0, 80))}
+                    placeholder="квакнул бы, да лень..."
+                    style={{ ...FIELD, paddingRight: 64 }}
+                  />
+                  <span style={COUNTER}>{snailJoke.length}/80</span>
+                </div>
               </div>
 
               <div>
-                <label style={labelStyle}>ЛЯГУШАЧЬЯ ШУТКА (макс 80)</label>
-                <input
-                  value={snailJoke}
-                  onChange={e => setSnailJoke(e.target.value.slice(0, 80))}
-                  placeholder="квакнул бы, да лень..."
-                  style={inputStyle}
-                />
-                <p className="text-pixel/55 text-xs font-sans mt-1 text-right">{snailJoke.length}/80</p>
-              </div>
-
-              <div>
-                <label style={labelStyle}>ПОЛ</label>
+                <span style={SECTION_LABEL}>Пол</span>
                 <div className="flex gap-2">
                   {([
                     { value: 'male' as const, label: 'Мужской' },
@@ -380,13 +465,12 @@ export default function ProfileEditModal({
                     <button
                       key={String(opt.value)}
                       onClick={() => setGender(opt.value)}
-                      className="flex-1 py-2 rounded text-xs font-sans cursor-pointer transition-colors"
+                      className="flex-1 cursor-pointer transition-colors"
                       style={{
-                        background: gender === opt.value ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                        color: gender === opt.value ? '#66FCF1' : 'rgba(197, 198, 199,0.5)',
-                        boxShadow: gender === opt.value
-                          ? '1px 0 0 0 #66FCF1,-1px 0 0 0 #66FCF1,0 1px 0 0 #66FCF1,0 -1px 0 0 #66FCF1'
-                          : 'none',
+                        ...FIELD, padding: '11px 8px', textAlign: 'center', fontSize: 14,
+                        background: gender === opt.value ? `${ACCENT}1F` : PAGE_BG,
+                        color: gender === opt.value ? ACCENT : 'rgba(197, 198, 199,0.6)',
+                        borderColor: gender === opt.value ? ACCENT : `${ACCENT}55`,
                       }}
                     >
                       {opt.label}
@@ -395,22 +479,20 @@ export default function ProfileEditModal({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label style={{ ...labelStyle, marginBottom: 0 }}>ПУБЛИЧНЫЙ ПРОФИЛЬ</label>
+              <div className="flex items-center justify-between gap-4">
+                <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>Публичный профиль</span>
                 <button
                   onClick={() => setIsPublic(v => !v)}
-                  className="font-pixel cursor-pointer px-3 py-1 rounded"
+                  className="cursor-pointer flex items-center gap-2"
                   style={{
-                    fontSize: '0.45rem',
-                    background: isPublic ? 'rgba(102, 252, 241,0.2)' : 'rgba(197, 198, 199,0.05)',
-                    color: isPublic ? '#66FCF1' : 'rgba(197, 198, 199,0.3)',
-                    boxShadow: isPublic ? '1px 0 0 0 #66FCF1,-1px 0 0 0 #66FCF1,0 1px 0 0 #66FCF1,0 -1px 0 0 #66FCF1' : 'none',
+                    ...FIELD, width: 'auto', padding: '9px 14px', fontSize: 13,
+                    background: isPublic ? `${ACCENT}1F` : PAGE_BG,
+                    color: isPublic ? ACCENT : 'rgba(197, 198, 199,0.5)',
+                    borderColor: isPublic ? ACCENT : `${ACCENT}55`,
                   }}
                 >
-                  <span className="flex items-center gap-1.5">
-                    <Icon name={isPublic ? 'check' : 'lock'} size={10} color="currentColor" />
-                    {isPublic ? 'ПУБЛИЧНЫЙ' : 'ПРИВАТНЫЙ'}
-                  </span>
+                  <Icon name={isPublic ? 'check' : 'lock'} size={13} color="currentColor" />
+                  {isPublic ? 'Открыт' : 'Закрыт'}
                 </button>
               </div>
             </>
@@ -419,50 +501,48 @@ export default function ProfileEditModal({
           {/* ── LOOKS TAB ── */}
           {tab === 'looks' && (
             <>
-              {/* Current-avatar preview + upload — mirrors the reference's
-                  top row: a big preview of what's equipped right now, with
-                  "Загрузить свой" as its own button next to it rather than
-                  a tile inside the avatar grid below. */}
-              <div className="flex items-center gap-3">
-                <PixelAvatar
-                  id={avatarId}
-                  frame={frame}
-                  size={84}
-                  customSrc={avatarId === 'custom' ? customAvatar : null}
-                />
-                <div className="flex-1 flex flex-col gap-1.5">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full rounded-lg cursor-pointer flex items-center justify-center gap-2 py-3 font-geist text-xs font-semibold transition-colors"
-                    style={{ background: 'rgba(102, 252, 241,0.12)', color: '#66FCF1' }}
-                  >
-                    Загрузить свой <Icon name="camera" size={14} color="currentColor" />
-                  </button>
-                  {/* Only meaningful once a custom image is actually
-                      equipped — picking a built-in frog clears customAvatar
-                      (see below), which hides this along with it. */}
-                  {avatarId === 'custom' && customAvatar && (
-                    <label className="flex items-center gap-1.5 text-xs font-sans cursor-pointer" style={{ color: 'rgba(197, 198, 199,0.7)' }}>
-                      <input type="checkbox" checked={publishPublicly} onChange={e => setPublishPublicly(e.target.checked)} />
-                      Показывать в общей галерее — смогут выбрать себе и другие
-                    </label>
-                  )}
+              <div>
+                <span style={SECTION_LABEL}>Аватар</span>
+                <div className="flex items-start gap-4">
+                  <div style={{ ...TILE, width: 150, height: 150, flexShrink: 0 }}>
+                    <PixelAvatar
+                      id={avatarId}
+                      frame={frame}
+                      size={148}
+                      customSrc={avatarId === 'custom' ? customAvatar : null}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-2 min-w-0">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full cursor-pointer flex items-center justify-center gap-2 transition-all hover:brightness-110"
+                      style={{ ...SOLID_BTN, padding: '14px 16px' }}
+                    >
+                      Загрузить свой <Icon name="camera" size={16} color="currentColor" />
+                    </button>
+                    {avatarId === 'custom' && customAvatar && (
+                      <label className="flex items-start gap-2 font-geist cursor-pointer" style={{ fontSize: 12, color: 'rgba(197, 198, 199,0.7)', lineHeight: 1.5 }}>
+                        <input type="checkbox" checked={publishPublicly} onChange={e => setPublishPublicly(e.target.checked)} className="mt-0.5" />
+                        Показывать в общей галерее — смогут выбрать себе и другие
+                      </label>
+                    )}
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                 </div>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
               </div>
 
-              {/* Color scheme */}
               <div>
-                <label style={labelStyle}>ЦВЕТОВАЯ СХЕМА</label>
+                <span style={SECTION_LABEL}>Цветовая схема</span>
                 <div className="flex flex-wrap gap-2">
                   {ACCENT_PALETTE.map(c => (
                     <button
                       key={c}
                       onClick={() => setAccentColor(c)}
                       aria-label={`Цвет ${c}`}
-                      className="rounded-lg cursor-pointer transition-transform"
+                      aria-pressed={accentColor === c}
+                      className="cursor-pointer transition-transform"
                       style={{
-                        width: 28, height: 28, background: c,
+                        width: 44, height: 44, borderRadius: 6, background: c,
                         border: accentColor === c ? '2px solid #FFFFFF' : '2px solid transparent',
                         boxShadow: accentColor === c ? `0 0 0 2px ${c}` : 'none',
                       }}
@@ -471,11 +551,10 @@ export default function ProfileEditModal({
                 </div>
               </div>
 
-              {/* Achievement showcase — shows every real achievement, not
-                  just earned ones, so you can see what's still locked
-                  (greyed "?" tile); only earned ones are actually toggleable. */}
+              {/* Every achievement, not just the earned ones, so what is
+                  still missing is visible as a "?" rather than absent. */}
               <div>
-                <label style={labelStyle}>ДОСТИЖЕНИЕ НАПОКАЗ (до 3)</label>
+                <span style={SECTION_LABEL}>Достижение напоказ</span>
                 <div className="flex flex-wrap gap-2">
                   {ACHIEVEMENTS_CATALOG.map(a => {
                     const meta = BADGE_META[a.id];
@@ -486,212 +565,204 @@ export default function ProfileEditModal({
                         key={a.id}
                         onClick={() => earned && toggleShowcase(a.id)}
                         disabled={!earned}
+                        aria-pressed={selected}
                         title={earned ? meta?.name : `${meta?.name} — не получено`}
-                        className="rounded-lg flex items-center justify-center transition-all"
+                        className="flex items-center justify-center transition-all"
                         style={{
-                          width: 40, height: 40, cursor: earned ? 'pointer' : 'default',
-                          background: selected ? `${meta?.color || ACCENT}25` : 'rgba(197, 198, 199,0.04)',
-                          border: `1.5px solid ${selected ? (meta?.color || ACCENT) : 'transparent'}`,
-                          opacity: earned ? 1 : 0.4,
+                          width: 44, height: 44, borderRadius: '50%',
+                          cursor: earned ? 'pointer' : 'default',
+                          background: selected ? (meta?.color || ACCENT) : 'transparent',
+                          border: `1px solid ${selected ? (meta?.color || ACCENT) : `${ACCENT}66`}`,
+                          opacity: earned ? 1 : 0.5,
                         }}
                       >
                         {earned
-                          ? <Icon name={meta?.icon || 'trophy'} size={20} color={meta?.color || ACCENT} />
-                          : <span className="font-montserrat font-bold" style={{ fontSize: 14, color: 'rgba(197, 198, 199,0.5)' }}>?</span>}
+                          ? <Icon name={meta?.icon || 'trophy'} size={20} color={selected ? PAGE_BG : (meta?.color || ACCENT)} />
+                          : <span className="font-montserrat font-bold" style={{ fontSize: 15, color: `${ACCENT}99` }}>?</span>}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Avatar gallery — most of the 9 frogs are free, one is a
-                  priced shop tile (price overlay), one unlocks with any
-                  earned badge (plain padlock overlay, no price). No names
-                  under the tiles — just the pictures, matching the shared
-                  gallery below which has no names to show anyway. */}
               <div>
-                <label style={labelStyle}>ДОСТУПНЫЕ АВАТАРЫ</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {AVATAR_LIST.map(av => {
-                    const locked = !unlockedAvatars.includes(av.id);
-                    const shopItem = shopItemFor('avatar', av.id);
-                    return (
-                      <button
-                        key={av.id}
-                        onClick={() => { if (!locked) { setAvatarId(av.id); setCustomAvatar(null); setPublishPublicly(false); } else if (shopItem) buyItem(shopItem.id); }}
-                        disabled={locked && !shopItem}
-                        className="relative flex items-center justify-center p-1 rounded-lg cursor-pointer overflow-hidden transition-all"
-                        style={{
-                          background: avatarId === av.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                          boxShadow: avatarId === av.id
-                            ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
-                            : 'none',
-                        }}
-                      >
-                        <PixelAvatar id={av.id} size={44} />
-                        {locked && shopItem && (
-                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
-                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1 py-0.5" style={{ fontSize: '0.55rem', color: coins >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
-                              {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={8} color="currentColor" /></>}
-                            </span>
-                          </div>
-                        )}
-                        {locked && !shopItem && (
-                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
-                            <Icon name="lock" size={16} color="rgba(197, 198, 199,0.7)" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Shared gallery — avatars other testers (or you, earlier)
-                  published publicly. Picking one is exactly equivalent to
-                  uploading that same image yourself (avatar_id stays
-                  'custom'); the trash icon only shows on your own entries. */}
-              {galleryAvatars.length > 0 && (
-                <div>
-                  <label style={labelStyle}>ОБЩАЯ ГАЛЕРЕЯ</label>
-                  {equipError && (
-                    <p role="alert" className="font-geist text-xs mb-2" style={{ color: ERROR }}>{equipError}</p>
-                  )}
+                <button onClick={() => setAvatarsOpen(o => !o)} style={collapsibleLabel(avatarsOpen)}>
+                  Доступные аватары
+                  <Icon name={avatarsOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
+                </button>
+                {avatarsOpen && (
                   <div className="grid grid-cols-5 gap-2">
-                    {galleryAvatars.map(g => {
-                      const isMine = g.user_id === profile.id;
-                      const equipped = equippedGalleryId === g.id;
+                    {AVATAR_LIST.map(av => {
+                      const locked = !unlockedAvatars.includes(av.id);
+                      const shopItem = shopItemFor('avatar', av.id);
+                      const worn = avatarId === av.id;
                       return (
-                        <div
-                          key={g.id}
-                          className="relative flex items-center justify-center p-1 rounded-lg overflow-hidden"
-                          style={{
-                            background: equipped ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                            boxShadow: equipped
-                              ? '2px 0 0 0 #66FCF1,-2px 0 0 0 #66FCF1,0 2px 0 0 #66FCF1,0 -2px 0 0 #66FCF1'
-                              : 'none',
-                          }}
+                        <button
+                          key={av.id}
+                          onClick={() => { if (!locked) { setAvatarId(av.id); setCustomAvatar(null); setPublishPublicly(false); } else if (shopItem) buyItem(shopItem.id); }}
+                          disabled={locked && !shopItem}
+                          aria-pressed={worn}
+                          className="flex items-center justify-center cursor-pointer transition-all"
+                          style={{ ...TILE, ...(worn ? TILE_ON : null) }}
                         >
-                          <button
-                            onClick={() => equipFromGallery(g.id)}
-                            title={`Загрузил(а): ${g.uploader_name}`}
-                            aria-label={`Надеть аватар из галереи, загрузил(а) ${g.uploader_name}`}
-                            className="cursor-pointer flex items-center justify-center"
-                          >
-                            <GalleryAvatarImage id={g.id} />
-                          </button>
-                          {isMine && (
-                            <button
-                              onClick={async () => {
-                                setDeletingGalleryId(g.id);
-                                try {
-                                  await testerApi.deleteGalleryAvatar(g.id);
-                                  forgetGalleryImage(g.id);
-                                  setGalleryAvatars(prev => prev.filter(x => x.id !== g.id));
-                                } catch { /* toast not critical here — the tile just stays */ }
-                                finally { setDeletingGalleryId(null); }
-                              }}
-                              disabled={deletingGalleryId === g.id}
-                              aria-label="Убрать из общей галереи"
-                              title="Убрать из общей галереи"
-                              className="absolute top-0.5 right-0.5 rounded flex items-center justify-center cursor-pointer"
-                              style={{ width: 16, height: 16, background: 'rgba(0, 0, 0, 0.7)' }}
-                            >
-                              <Icon name="close" size={10} color={ERROR} />
-                            </button>
+                          <PixelAvatar id={av.id} size={84} />
+                          {locked && shopItem && (
+                            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
+                              style={{ ...PRICE_TAG, color: coins >= shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}>
+                              {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={11} color="currentColor" /></>}
+                            </span>
                           )}
-                        </div>
+                          {locked && !shopItem && (
+                            <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11, 12, 16, 0.6)' }}>
+                              <Icon name="lock" size={20} color={ACCENT} />
+                            </span>
+                          )}
+                        </button>
                       );
                     })}
                   </div>
+                )}
+              </div>
+
+              {/* Avatars other testers published. Picking one is the same as
+                  uploading that image yourself — avatar_id stays 'custom'. */}
+              {galleryAvatars.length > 0 && (
+                <div>
+                  <button onClick={() => setGalleryOpen(o => !o)} style={collapsibleLabel(galleryOpen)}>
+                    Общая галерея
+                    <Icon name={galleryOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
+                  </button>
+                  {galleryOpen && (
+                    <>
+                      {equipError && (
+                        <p role="alert" className="font-geist mb-2" style={{ fontSize: 12, color: ERROR }}>{equipError}</p>
+                      )}
+                      <div className="grid grid-cols-5 gap-2">
+                        {galleryAvatars.map(g => {
+                          const isMine = g.user_id === profile.id;
+                          const equipped = equippedGalleryId === g.id;
+                          return (
+                            <div key={g.id} className="flex items-center justify-center" style={{ ...TILE, ...(equipped ? TILE_ON : null) }}>
+                              <button
+                                onClick={() => equipFromGallery(g.id)}
+                                title={`Загрузил(а): ${g.uploader_name}`}
+                                aria-label={`Надеть аватар из галереи, загрузил(а) ${g.uploader_name}`}
+                                className="cursor-pointer flex items-center justify-center"
+                              >
+                                <GalleryAvatarImage id={g.id} />
+                              </button>
+                              {isMine && (
+                                <button
+                                  onClick={async () => {
+                                    setDeletingGalleryId(g.id);
+                                    try {
+                                      await testerApi.deleteGalleryAvatar(g.id);
+                                      forgetGalleryImage(g.id);
+                                      setGalleryAvatars(prev => prev.filter(x => x.id !== g.id));
+                                    } catch { /* toast not critical here — the tile just stays */ }
+                                    finally { setDeletingGalleryId(null); }
+                                  }}
+                                  disabled={deletingGalleryId === g.id}
+                                  aria-label="Убрать из общей галереи"
+                                  title="Убрать из общей галереи"
+                                  className="absolute top-1 right-1 rounded flex items-center justify-center cursor-pointer"
+                                  style={{ width: 18, height: 18, background: 'rgba(11, 12, 16, 0.7)' }}
+                                >
+                                  <Icon name="close" size={11} color={ERROR} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
-              {/* Frame gallery — empty swatches (just the border style, no
-                  avatar inside), matching the reference; locked-but-
-                  purchasable items get a "Купить" button right there
-                  instead of just being greyed out. */}
               <div>
-                <label style={labelStyle}>ДОСТУПНЫЕ РАМКИ</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {FRAME_LIST.map(f => {
-                    const locked = !effectiveUnlockedFrames.includes(f.id);
-                    const shopItem = shopItemFor('frame', f.id);
-                    return (
-                      <button
-                        key={f.id}
-                        onClick={() => !locked && setFrame(f.id)}
-                        disabled={locked}
-                        className="flex flex-col items-center gap-1 p-2 rounded transition-all"
-                        style={{
-                          cursor: locked ? 'default' : 'pointer', opacity: locked && !shopItem ? 0.4 : 1,
-                          background: frame === f.id ? 'rgba(102, 252, 241,0.15)' : 'rgba(197, 198, 199,0.04)',
-                        }}
-                      >
-                        <PixelAvatar id="frog1" size={40} frame={f.id} empty />
-                        <span className="text-pixel/60 font-sans text-center" style={{ fontSize: '0.55rem' }}>{f.name}</span>
-                        {locked && shopItem ? (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={e => { e.stopPropagation(); buyItem(shopItem.id); }}
-                            className="font-geist font-semibold rounded cursor-pointer flex items-center gap-1"
-                            style={{ fontSize: '0.55rem', color: coins >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.4)', padding: '2px 6px', background: 'rgba(239,159,39,0.1)' }}
-                          >
-                            {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
-                          </span>
-                        ) : locked ? (
-                          <span className="text-pixel/45 font-sans text-center" style={{ fontSize: '0.5rem' }}>{f.unlock}</span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
+                <button onClick={() => setFramesOpen(o => !o)} style={collapsibleLabel(framesOpen)}>
+                  Доступные рамки
+                  <Icon name={framesOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
+                </button>
+                {framesOpen && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {FRAME_LIST.map(f => {
+                      const locked = !effectiveUnlockedFrames.includes(f.id);
+                      const shopItem = shopItemFor('frame', f.id);
+                      const worn = frame === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => { if (!locked) setFrame(f.id); else if (shopItem) buyItem(shopItem.id); }}
+                          disabled={locked && !shopItem}
+                          aria-pressed={worn}
+                          title={locked ? f.unlock : f.name}
+                          className="flex items-center justify-center cursor-pointer transition-all"
+                          style={{ ...TILE, ...(worn ? TILE_ON : null), opacity: locked && !shopItem ? 0.45 : 1 }}
+                        >
+                          <PixelAvatar id="frog1" size={74} frame={f.id} empty />
+                          {locked && shopItem && (
+                            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
+                              style={{ ...PRICE_TAG, color: coins >= shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}>
+                              {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={11} color="currentColor" /></>}
+                            </span>
+                          )}
+                          {locked && !shopItem && (
+                            <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11, 12, 16, 0.6)' }}>
+                              <Icon name="lock" size={20} color={ACCENT} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Background gallery — same buy-inline treatment */}
               <div>
-                <label style={labelStyle}>ФОН ПРОФИЛЯ</label>
-                <div className="grid grid-cols-3 gap-2">
+                <span style={SECTION_LABEL}>Фон</span>
+                <div className="grid grid-cols-5 gap-2">
                   {BG_LIST.map(b2 => {
                     const locked = !effectiveUnlockedBgs.includes(b2.id);
                     const shopItem = shopItemFor('bg', b2.id);
+                    const worn = bg === b2.id;
                     return (
                       <button
                         key={b2.id}
-                        onClick={() => !locked && setBg(b2.id)}
-                        disabled={locked}
-                        className="flex flex-col items-center justify-center gap-1 p-2 rounded transition-all"
-                        style={{
-                          ...b2.style, cursor: locked ? 'default' : 'pointer', opacity: locked && !shopItem ? 0.45 : 1,
-                          border: bg === b2.id ? '2px solid #66FCF1' : '2px solid transparent', minHeight: 56,
-                        }}
+                        onClick={() => { if (!locked) setBg(b2.id); else if (shopItem) buyItem(shopItem.id); }}
+                        disabled={locked && !shopItem}
+                        aria-pressed={worn}
+                        aria-label={b2.name}
+                        title={locked ? b2.unlock : b2.name}
+                        className="cursor-pointer transition-all"
+                        style={{ ...TILE, ...b2.style, ...(worn ? TILE_ON : null), opacity: locked && !shopItem ? 0.45 : 1 }}
                       >
-                        <span className="font-sans" style={{ fontSize: '0.6rem', color: '#C5C6C7' }}>{b2.name}</span>
-                        {locked && shopItem ? (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={e => { e.stopPropagation(); buyItem(shopItem.id); }}
-                            className="font-geist font-semibold rounded cursor-pointer flex items-center gap-1"
-                            style={{ fontSize: '0.55rem', color: coins >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.4)', padding: '2px 6px', background: 'rgba(0,0,0,0.4)' }}
-                          >
-                            {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
+                        {locked && shopItem && (
+                          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
+                            style={{ ...PRICE_TAG, color: coins >= shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}>
+                            {buyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={11} color="currentColor" /></>}
                           </span>
-                        ) : locked ? (
-                          <span className="font-sans text-center" style={{ fontSize: '0.5rem', color: 'rgba(197, 198, 199,0.55)' }}>{b2.unlock}</span>
-                        ) : null}
+                        )}
+                        {locked && !shopItem && (
+                          <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11, 12, 16, 0.6)' }}>
+                            <Icon name="lock" size={20} color={ACCENT} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="font-geist text-xs flex items-center gap-1.5" style={{ color: 'rgba(197, 198, 199,0.55)' }}>
-                  Баланс: <span style={{ color: '#EF9F27' }} className="font-semibold flex items-center gap-1">{coins}<Icon name="lightning" size={12} color="currentColor" /></span>
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-geist flex items-center gap-2" style={{ fontSize: 13, color: 'rgba(197, 198, 199,0.55)' }}>
+                  Баланс:
+                  <span className="font-semibold flex items-center gap-1" style={{ color: '#EF9F27' }}>
+                    {coins}<Icon name="lightning" size={13} color="currentColor" />
+                  </span>
                 </span>
-                {buyError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{buyError}</p>}
+                {buyError && <p className="font-geist break-words" style={{ fontSize: 12, color: ERROR }}>{buyError}</p>}
               </div>
             </>
           )}
@@ -699,38 +770,25 @@ export default function ProfileEditModal({
           {/* ── ACCOUNT TAB ── */}
           {tab === 'account' && (
             <>
-              {/* Telegram lives here rather than in the header dropdown. It
-                  loads its state asynchronously, so putting it in a menu meant
-                  the menu changed height under the cursor a moment after it
-                  opened — and a linked account is a setting, not a shortcut. */}
               <div>
-                <p style={labelStyle}>TELEGRAM</p>
-                <TelegramLinkWidget />
-              </div>
-
-              <div>
-                <button
-                  onClick={() => setPwOpen(o => !o)}
-                  className="w-full flex items-center justify-between cursor-pointer"
-                  style={{ ...labelStyle, marginBottom: pwOpen ? 10 : 0 }}
-                >
-                  <span>СМЕНИТЬ ПАРОЛЬ</span>
-                  <Icon name={pwOpen ? 'chevronUp' : 'chevronDown'} size={12} color="currentColor" />
+                <button onClick={() => setPwOpen(o => !o)} style={collapsibleLabel(pwOpen)}>
+                  Сменить пароль
+                  <Icon name={pwOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
                 </button>
                 {pwOpen && (
                   <>
-                    <div className="space-y-2">
-                      <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
-                      <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Новый пароль" style={inputStyle} />
-                      <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повтори пароль" style={inputStyle} />
+                    <div className="flex flex-col gap-3">
+                      <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Введите старый пароль" style={FIELD} />
+                      <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Введите новый пароль" style={FIELD} />
+                      <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Повторите новый пароль" style={FIELD} />
                     </div>
-                    {pwError && <p className="text-xs font-sans mt-1 break-words" style={{ color: ERROR }}>{pwError}</p>}
-                    {pwSuccess && <p className="text-xs font-sans mt-1" style={{ color: '#4ADE80' }}>Пароль изменён</p>}
+                    {pwError && <p className="font-geist mt-2 break-words" style={{ fontSize: 12, color: ERROR }}>{pwError}</p>}
+                    {pwSuccess && <p className="font-geist mt-2" style={{ fontSize: 12, color: '#4ADE80' }}>Пароль изменён</p>}
                     <button
                       onClick={changePassword}
                       disabled={pwSaving || !currentPw || !newPw || !confirmPw}
-                      className="mt-2 px-4 py-2 rounded font-sans text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
-                      style={{ background: 'rgba(102, 252, 241,0.15)', color: '#66FCF1', opacity: pwSaving || !currentPw || !newPw || !confirmPw ? 0.5 : 1 }}
+                      className="mt-3 cursor-pointer disabled:cursor-not-allowed transition-all hover:brightness-110"
+                      style={{ ...SOLID_BTN, opacity: pwSaving || !currentPw || !newPw || !confirmPw ? 0.5 : 1 }}
                     >
                       {pwSaving ? '...' : 'Сохранить пароль'}
                     </button>
@@ -738,22 +796,22 @@ export default function ProfileEditModal({
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(102, 252, 241,0.1)', paddingTop: 16 }}>
-                <button onClick={() => setEmailOpen(o => !o)} className="w-full flex items-center justify-between cursor-pointer" style={{ ...labelStyle, marginBottom: emailOpen ? 10 : 0 }}>
-                  <span>СМЕНИТЬ ПОЧТУ</span>
-                  <Icon name={emailOpen ? 'chevronUp' : 'chevronDown'} size={12} color="currentColor" />
+              <div style={SECTION_RULE}>
+                <button onClick={() => setEmailOpen(o => !o)} style={collapsibleLabel(emailOpen)}>
+                  Сменить почту
+                  <Icon name={emailOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
                 </button>
-                {!emailOpen && <p className="text-pixel/55 text-xs font-sans">{currentEmail}</p>}
+                {!emailOpen && <p className="font-geist mt-2" style={{ fontSize: 13, color: 'rgba(197, 198, 199,0.55)' }}>{currentEmail}</p>}
                 {emailOpen && (
-                  <div className="space-y-2">
-                    <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder={currentEmail} style={inputStyle} />
-                    <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
-                    {emailError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{emailError}</p>}
+                  <div className="flex flex-col gap-3">
+                    <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder={currentEmail} style={FIELD} />
+                    <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="Текущий пароль" style={FIELD} />
+                    {emailError && <p className="font-geist break-words" style={{ fontSize: 12, color: ERROR }}>{emailError}</p>}
                     <button
                       onClick={changeEmail}
                       disabled={emailSaving || !newEmail || !emailPw}
-                      className="px-4 py-2 rounded font-sans text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
-                      style={{ background: 'rgba(102, 252, 241,0.15)', color: '#66FCF1', opacity: emailSaving || !newEmail || !emailPw ? 0.5 : 1 }}
+                      className="cursor-pointer disabled:cursor-not-allowed self-start transition-all hover:brightness-110"
+                      style={{ ...SOLID_BTN, opacity: emailSaving || !newEmail || !emailPw ? 0.5 : 1 }}
                     >
                       {emailSaving ? '...' : 'Сохранить почту'}
                     </button>
@@ -761,56 +819,62 @@ export default function ProfileEditModal({
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(102, 252, 241,0.1)', paddingTop: 16 }}>
-                <button onClick={() => setPhoneOpen(o => !o)} className="w-full flex items-center justify-between cursor-pointer" style={{ ...labelStyle, marginBottom: phoneOpen ? 10 : 0 }}>
-                  <span>СМЕНИТЬ НОМЕР</span>
-                  <Icon name={phoneOpen ? 'chevronUp' : 'chevronDown'} size={12} color="currentColor" />
+              <div style={SECTION_RULE}>
+                <button onClick={() => setPhoneOpen(o => !o)} style={collapsibleLabel(phoneOpen)}>
+                  Сменить номер
+                  <Icon name={phoneOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
                 </button>
-                {!phoneOpen && <p className="text-pixel/55 text-xs font-sans">{profile.phone || 'Не указан'}</p>}
+                {!phoneOpen && <p className="font-geist mt-2" style={{ fontSize: 13, color: 'rgba(197, 198, 199,0.55)' }}>{profile.phone || 'Не указан'}</p>}
                 {phoneOpen && (
-                  <div className="space-y-2">
-                    <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+7 900 000-00-00" style={inputStyle} />
-                    <input type="password" value={phonePw} onChange={e => setPhonePw(e.target.value)} placeholder="Текущий пароль" style={inputStyle} />
-                    {phoneError && <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{phoneError}</p>}
-                    {phoneSuccess && <p className="text-xs font-sans" style={{ color: '#4ADE80' }}>Номер изменён</p>}
+                  <div className="flex flex-col gap-3">
+                    <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+7 900 000-00-00" style={FIELD} />
+                    <input type="password" value={phonePw} onChange={e => setPhonePw(e.target.value)} placeholder="Текущий пароль" style={FIELD} />
+                    {phoneError && <p className="font-geist break-words" style={{ fontSize: 12, color: ERROR }}>{phoneError}</p>}
+                    {phoneSuccess && <p className="font-geist" style={{ fontSize: 12, color: '#4ADE80' }}>Номер изменён</p>}
                     <button
                       onClick={changePhone}
                       disabled={phoneSaving || !phonePw}
-                      className="px-4 py-2 rounded font-sans text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
-                      style={{ background: 'rgba(102, 252, 241,0.15)', color: '#66FCF1', opacity: phoneSaving || !phonePw ? 0.5 : 1 }}
+                      className="cursor-pointer disabled:cursor-not-allowed self-start transition-all hover:brightness-110"
+                      style={{ ...SOLID_BTN, opacity: phoneSaving || !phonePw ? 0.5 : 1 }}
                     >
                       {phoneSaving ? '...' : 'Сохранить номер'}
                     </button>
                   </div>
                 )}
               </div>
+
+              {/* Not in the mockup either, and it cannot move to the header
+                  menu: it loads asynchronously, so a menu changed height
+                  under the cursor a moment after opening. */}
+              <div style={SECTION_RULE}>
+                <span style={SECTION_LABEL}>Telegram</span>
+                <TelegramLinkWidget />
+              </div>
             </>
           )}
 
-          {/* Error */}
           {error && (
-            <p className="text-xs font-sans break-words" style={{ color: ERROR }}>{error}</p>
+            <p className="font-geist break-words" style={{ fontSize: 12, color: ERROR }}>{error}</p>
           )}
-
-          {/* Save — hidden on the Account tab, which saves each of its own
-              fields independently rather than through this bottom button. */}
-          {tab !== 'account' && (
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-primary flex-1 cursor-pointer"
-                style={{ opacity: saving ? 0.6 : 1 }}
-              >
-                {saving ? 'Сохраняю...' : 'Сохранить'}
-              </button>
-              <button onClick={onClose} className="btn-secondary px-4 cursor-pointer">
-                Отмена
-              </button>
-            </div>
-          )}
+          </div>
         </div>
-      </>
+
+        {/* One save button for the whole dialog, bottom-right, under both
+            columns — the mockup shows it on every section, including the
+            account one whose own forms still save themselves. */}
+        <div className="flex justify-end px-6 py-5">
+          {/* No Отмена beside it: the mockup has one button here, and the
+              dialog already closes from the header cross and from Escape. */}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="cursor-pointer transition-all hover:brightness-110"
+            style={{ ...SOLID_BTN, padding: '14px 30px', textTransform: 'uppercase', opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? 'Сохраняю...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

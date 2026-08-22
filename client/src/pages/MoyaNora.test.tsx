@@ -118,7 +118,7 @@ describe('MoyaNora', () => {
     await screen.findByText('Nazariy');
     // The nav rows uppercase their label in the DOM, not just in CSS.
     fireEvent.click(screen.getByRole('button', { name: /МАГАЗИН/ }));
-    expect(await screen.findByText('АВАТАРЫ')).toBeInTheDocument();
+    expect(await screen.findByText('Аватары')).toBeInTheDocument();
     // The shop prices everything against this number, so it has to be the
     // profile's real balance and not a placeholder.
     // Rendered in more than one spot on this screen; any of them proves the

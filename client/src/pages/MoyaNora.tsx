@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import FrogLoader from '../components/FrogLoader';
@@ -22,12 +22,32 @@ import { shopItemFor, FREE_BG_IDS, FREE_FRAME_IDS, FREE_AVATAR_IDS } from '../ut
 import { tagChipStyle } from '../utils/topics';
 import { ROLE_META, ROLE_SHORT } from '../utils/roles';
 import { counted } from '../utils/plural';
-import { BookOpenIcon, PagesIcon, CapIcon } from '../components/CatalogIcons';
+import { BookOpenIcon, PagesIcon, CapIcon, CheckCircleIcon } from '../components/CatalogIcons';
 import { PAGE_GRADIENT, PAGE_BG, CARD_BG, CARD_BG_PATTERN, CARD_SHADOW, TEXT_PRIMARY, TEXT_MUTED, ACCENT, TRACK_WIDE, ERROR, blendOver, readableTextOn } from '../utils/theme';
 
 interface MoyaNoraProps { user: any; onLogout: () => void; onUserUpdate?: (patch: Record<string, any>) => void; }
 
 type Tab = 'favorites' | 'notes' | 'shop' | 'collection' | 'presence';
+
+// A shop tile: a square of the item itself, outlined, with anything the
+// reader needs to know laid over it rather than stacked underneath. The
+// three shelves used to draw their own, at three different sizes.
+const SHOP_TILE: CSSProperties = {
+  position: 'relative', aspectRatio: '1', width: '100%', overflow: 'hidden',
+  borderRadius: 6, border: '1px solid transparent', background: 'rgba(11, 12, 16, 0.45)',
+};
+
+interface ShelfItem {
+  id: string;
+  name: string;
+  unlock: string;
+  equipped: boolean;
+  locked: boolean;
+  shopItem: ReturnType<typeof shopItemFor>;
+  equip: Record<string, string>;
+  art: ReactNode;
+  tileStyle?: CSSProperties;
+}
 
 // ── Rarity ───────────────────────────────────────────────────────────────────
 const RARITY_COLORS = { common: ACCENT, rare: '#7F77DD', epic: '#EF9F27' };
@@ -142,6 +162,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
   const [noteGroups, setNoteGroups]     = useState<CourseNoteGroup[]>([]);
   const [achievementsExpanded, setAchievementsExpanded] = useState(false);
   const [shopBuyingId, setShopBuyingId] = useState<string | null>(null);
+  const [shopOpen, setShopOpen] = useState<Record<string, boolean>>({ avatars: true, frames: true, bgs: true });
   const [shopError, setShopError]       = useState('');
 
   const togglePresenceDay = (d: string) => setPresenceForm(f => {
@@ -415,6 +436,47 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
     { label: 'КУРСОВ ПРОЙДЕНО',        value: completed },
     { label: 'ТОЧНОСТЬ ПРОХОЖДЕНИЯ',   value: `${metrics?.averageScore || 0}%` },
     ...(premiumPoints ? [{ label: 'ПРЕМИАЛЬНЫЕ БАЛЛЫ', value: premiumPoints.premium_points }] : []),
+  ];
+
+
+  // The shop's three shelves, described once. The grid renders them in one
+  // loop rather than as three near-identical blocks — which is how their
+  // carets ended up decorative, two of them pointing down at an open section.
+  const shopShelves: { id: string; label: string; kind: 'avatar' | 'frame' | 'bg'; items: ShelfItem[] }[] = [
+    {
+      id: 'avatars', label: 'Аватары', kind: 'avatar',
+      items: AVATAR_LIST.map(av => ({
+        id: av.id, name: av.name, unlock: '',
+        equipped: (profile?.avatar_id || 'frog1') === av.id,
+        locked: !unlockedAvatars.includes(av.id),
+        shopItem: shopItemFor('avatar', av.id),
+        equip: { avatar_id: av.id },
+        art: <PixelAvatar id={av.id as AvatarId} size={88} />,
+      })),
+    },
+    {
+      id: 'frames', label: 'Рамки', kind: 'frame',
+      items: FRAME_LIST.map(f => ({
+        id: f.id, name: f.name, unlock: f.unlock,
+        equipped: (profile?.avatar_frame || 'default') === f.id,
+        locked: !unlockedFrames.includes(f.id),
+        shopItem: shopItemFor('frame', f.id),
+        equip: { avatar_frame: f.id },
+        art: <PixelAvatar id="frog1" size={78} frame={f.id} empty />,
+      })),
+    },
+    {
+      id: 'bgs', label: 'Фон', kind: 'bg',
+      items: BG_LIST.map(b => ({
+        id: b.id, name: b.name, unlock: b.unlock,
+        equipped: (profile?.profile_bg || 'default') === b.id,
+        locked: !unlockedBgs.includes(b.id),
+        shopItem: shopItemFor('bg', b.id),
+        equip: { profile_bg: b.id },
+        art: null,
+        tileStyle: b.style as CSSProperties,
+      })),
+    },
   ];
 
   return (
@@ -753,104 +815,63 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                 style itself (empty swatch), matching the reference.
             ══════════════════════════════════════════════════════ */}
             {tab === 'shop' && (
-              <div className="space-y-6">
-                <div>
-                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
-                    АВАТАРЫ <Icon name="chevronUp" size={12} color={TEXT_MUTED} />
-                  </p>
-                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                    {AVATAR_LIST.map(av => {
-                      const equipped = (profile?.avatar_id || 'frog1') === av.id;
-                      const locked = !unlockedAvatars.includes(av.id);
-                      const shopItem = shopItemFor('avatar', av.id);
-                      return (
-                        <button
-                          key={av.id}
-                          onClick={() => { if (!locked) equipItem({ avatar_id: av.id }); else if (shopItem) buyAndEquip(shopItem.id, 'avatar', av.id); }}
-                          disabled={locked && !shopItem}
-                          className="relative flex items-center justify-center p-1.5 rounded-lg cursor-pointer overflow-hidden transition-all"
-                          style={{ background: equipped ? `${accent}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? accent : 'transparent'}` }}
-                        >
-                          {equipped && <Icon name="check" size={12} color={accent} className="absolute top-1 right-1 z-10" />}
-                          <PixelAvatar id={av.id} size={56} />
-                          {locked && shopItem && (
-                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.72)' }}>
-                              <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)' }}>
-                                {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
-                              </span>
-                            </div>
-                          )}
-                          {locked && !shopItem && (
-                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
-                              <Icon name="lock" size={18} color="rgba(197, 198, 199,0.7)" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
-                    РАМКИ <Icon name="chevronDown" size={12} color={TEXT_MUTED} />
-                  </p>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {FRAME_LIST.map(f => {
-                      const equipped = (profile?.avatar_frame || 'default') === f.id;
-                      const locked = !unlockedFrames.includes(f.id);
-                      const shopItem = shopItemFor('frame', f.id);
-                      return (
-                        <button
-                          key={f.id}
-                          onClick={() => { if (!locked) equipItem({ avatar_frame: f.id }); else if (shopItem) buyAndEquip(shopItem.id, 'frame', f.id); }}
-                          disabled={locked && !shopItem}
-                          className="flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
-                          style={{ background: equipped ? `${accent}18` : 'rgba(197, 198, 199,0.04)', border: `1px solid ${equipped ? accent : 'transparent'}`, opacity: locked && !shopItem ? 0.4 : 1 }}
-                        >
-                          <PixelAvatar id="frog1" size={44} frame={f.id} empty />
-                          <span className="font-geist text-center" style={{ fontSize: 10, color: 'rgba(197, 198, 199,0.6)' }}>{f.name}</span>
-                          {locked && shopItem && (
-                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.4)', background: 'rgba(239,159,39,0.1)' }}>
-                              {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
-                            </span>
-                          )}
-                          {locked && !shopItem && <span className="font-geist text-center" style={{ fontSize: 9, color: 'rgba(197, 198, 199,0.4)' }}>{f.unlock}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="font-montserrat font-semibold mb-2 flex items-center gap-1.5" style={{ fontSize: 13, color: TEXT_MUTED, letterSpacing: TRACK_WIDE }}>
-                    ФОН <Icon name="chevronDown" size={12} color={TEXT_MUTED} />
-                  </p>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {BG_LIST.map(bItem => {
-                      const equipped = (profile?.profile_bg || 'default') === bItem.id;
-                      const locked = !unlockedBgs.includes(bItem.id);
-                      const shopItem = shopItemFor('bg', bItem.id);
-                      return (
-                        <button
-                          key={bItem.id}
-                          onClick={() => { if (!locked) equipItem({ profile_bg: bItem.id }); else if (shopItem) buyAndEquip(shopItem.id, 'bg', bItem.id); }}
-                          disabled={locked && !shopItem}
-                          className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg cursor-pointer transition-all"
-                          style={{ ...bItem.style, border: equipped ? `2px solid ${accent}` : '2px solid transparent', opacity: locked && !shopItem ? 0.45 : 1, minHeight: 60 }}
-                        >
-                          <span className="font-geist text-center" style={{ fontSize: 10, color: '#C5C6C7' }}>{bItem.name}</span>
-                          {locked && shopItem && (
-                            <span className="font-geist font-semibold rounded flex items-center gap-1 px-1.5 py-0.5" style={{ fontSize: 10, color: (profile?.bug_coins ?? 0) >= shopItem.cost ? '#EF9F27' : 'rgba(197, 198, 199,0.5)', background: 'rgba(0,0,0,0.4)' }}>
-                              {shopBuyingId === shopItem.id ? '...' : <>{shopItem.cost}<Icon name="lightning" size={9} color="currentColor" /></>}
-                            </span>
-                          )}
-                          {locked && !shopItem && <span className="font-geist text-center" style={{ fontSize: 9, color: 'rgba(197, 198, 199,0.55)' }}>{bItem.unlock}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="flex flex-col gap-6">
+                {shopShelves.map(section => {
+                  const open = shopOpen[section.id];
+                  return (
+                    <div key={section.id}>
+                      <button
+                        onClick={() => setShopOpen(o => ({ ...o, [section.id]: !o[section.id] }))}
+                        className="flex items-center gap-2 cursor-pointer"
+                        style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 13, fontWeight: 600, letterSpacing: TRACK_WIDE, color: TEXT_MUTED, marginBottom: open ? 10 : 0 }}
+                      >
+                        {section.label}
+                        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={12} color={accent} />
+                      </button>
+                      {open && (
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                          {section.items.map(item => (
+                            <button
+                              key={item.id}
+                              onClick={() => { if (!item.locked) equipItem(item.equip); else if (item.shopItem) buyAndEquip(item.shopItem.id, section.kind, item.id); }}
+                              disabled={item.locked && !item.shopItem}
+                              aria-pressed={item.equipped}
+                              aria-label={item.name}
+                              title={item.locked ? item.unlock : item.name}
+                              className="flex items-center justify-center cursor-pointer transition-all"
+                              style={{ ...SHOP_TILE, ...item.tileStyle, borderColor: item.equipped ? accent : `${accent}66`, opacity: item.locked && !item.shopItem ? 0.45 : 1 }}
+                            >
+                              {item.art}
+                              {item.equipped && (
+                                <span className="absolute inset-0 flex items-center justify-center">
+                                  <CheckCircleIcon size={26} color={accent} />
+                                </span>
+                              )}
+                              {item.locked && item.shopItem && (
+                                <>
+                                  <span className="absolute inset-x-0 top-0 font-geist truncate px-1" style={{ fontSize: 11, color: TEXT_PRIMARY, background: 'rgba(11, 12, 16, 0.75)', padding: '3px 4px' }}>
+                                    {item.shopItem.label}
+                                  </span>
+                                  <span
+                                    className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
+                                    style={{ background: accent, fontSize: 13, padding: '3px 0', color: (profile?.bug_coins ?? 0) >= item.shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}
+                                  >
+                                    {shopBuyingId === item.shopItem.id ? '...' : <>{item.shopItem.cost}<Icon name="lightning" size={11} color="currentColor" /></>}
+                                  </span>
+                                </>
+                              )}
+                              {item.locked && !item.shopItem && (
+                                <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11, 12, 16, 0.6)' }}>
+                                  <Icon name="lock" size={20} color={accent} />
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {shopError && <p className="font-geist text-xs" style={{ color: ERROR }}>{shopError}</p>}
               </div>
