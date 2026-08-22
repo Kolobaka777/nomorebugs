@@ -138,7 +138,7 @@ export default function TelegramLoginButton({ onLogin, divider = true }: Telegra
       disabled={phase === 'starting'}
       className="w-full flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:brightness-110"
       style={{
-        marginTop: divider ? 0 : 12,
+        marginTop: divider ? 0 : 14,
         padding: '15px 20px',
         fontSize: 15,
         fontWeight: 600,

@@ -33,7 +33,7 @@ type EditTab = 'main' | 'looks' | 'account';
 
 // A column, not a share of the width: the three labels are known, and the
 // section beside them is what should absorb a resize.
-const RAIL_WIDTH = 190;
+const RAIL_WIDTH = 200;
 
 const MODAL_TITLE: React.CSSProperties = {
   fontFamily: 'Montserrat, sans-serif', fontSize: 20, fontWeight: 600,
@@ -356,7 +356,7 @@ export default function ProfileEditModal({
     <Modal
       title={<span style={MODAL_TITLE}>Редактирование профиля</span>}
       onClose={onClose}
-      maxWidth={820}
+      maxWidth={800}
       zIndex={100}
       noBodyPadding
     >

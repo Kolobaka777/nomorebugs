@@ -57,7 +57,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         {sessionExpired && !error && (
           <p className="font-geist" style={{ fontSize: 14, color: BADGE_NOTIFY }}>
             Сессия истекла. Войди ещё раз.
@@ -95,7 +95,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
         {/* Unchecked, the browser keeps the session only until it closes.
             The server-side token is the same either way — this is about the
             copy the browser holds. */}
-        <RememberMe checked={remember} onChange={setRemember} disabled={loading} />
+        <div style={{ marginTop: 3 }}><RememberMe checked={remember} onChange={setRemember} disabled={loading} /></div>
 
         {/* Whatever the server said, in the same amber the fields use: it is
             an answer to this attempt, not a fault in the page. */}
@@ -108,7 +108,7 @@ export default function LoginPage({ onLogin, sessionExpired }: LoginPageProps) {
         <button
           type="submit"
           disabled={loading}
-          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          style={{ ...AUTH_BTN, marginTop: 26, opacity: loading ? 0.6 : 1 }}
           className="transition-all hover:brightness-110"
         >
           {loading ? 'Входим...' : 'Войти'}

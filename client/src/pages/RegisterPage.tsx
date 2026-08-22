@@ -67,7 +67,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         {invalid && <FieldError title={invalid.title} pointer="none">{invalid.hint}</FieldError>}
         {error && (
           <p role="alert" className="font-geist break-words" style={{ fontSize: 14, color: BADGE_NOTIFY }}>{error}</p>
@@ -156,7 +156,7 @@ export default function RegisterPage({ onLogin }: RegisterPageProps) {
         <button
           type="submit"
           disabled={loading}
-          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          style={{ ...AUTH_BTN, marginTop: 26, opacity: loading ? 0.6 : 1 }}
           className="transition-all hover:brightness-110"
         >
           {loading ? 'Регистрируем...' : 'Регистрация'}

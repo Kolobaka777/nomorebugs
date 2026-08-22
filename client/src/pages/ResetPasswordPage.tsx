@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
         </>
       }
     >
-      <form onSubmit={submit} className="flex flex-col gap-3">
+      <form onSubmit={submit} className="flex flex-col gap-2">
         <div style={{ position: 'relative' }}>
           <input
             type="password"
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          style={{ ...AUTH_BTN, marginTop: 26, opacity: loading ? 0.6 : 1 }}
           className="transition-all hover:brightness-110"
         >
           {loading ? 'Меняем...' : 'Сменить пароль'}

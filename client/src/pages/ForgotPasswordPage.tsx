@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
         </>
       }
     >
-      <form onSubmit={submit} className="flex flex-col gap-3">
+      <form onSubmit={submit} className="flex flex-col gap-2">
         <div style={{ position: 'relative' }}>
           <input
             type="email"
@@ -78,7 +78,7 @@ export default function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          style={{ ...AUTH_BTN, marginTop: 12, opacity: loading ? 0.6 : 1 }}
+          style={{ ...AUTH_BTN, marginTop: 26, opacity: loading ? 0.6 : 1 }}
           className="transition-all hover:brightness-110"
         >
           {loading ? 'Отправляем...' : 'Отправить ссылку'}

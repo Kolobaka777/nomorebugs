@@ -21,7 +21,7 @@ export const AUTH_FIELD: CSSProperties = {
   fontFamily: 'Geist, system-ui, sans-serif',
   fontSize: 15,
   lineHeight: 1.4,
-  padding: '15px 18px',
+  padding: '13px 18px',   // 13 + 13 + a 21px line + 2 of border = the 49px the export measures
   borderRadius: 8,
   border: `1px solid ${ACCENT}80`,
   outline: 'none',
@@ -98,12 +98,12 @@ interface AuthShellProps {
 export default function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PAGE_GRADIENT }}>
-      <div className="w-full fade-in" style={{ maxWidth: 430 }}>
-        <div className="flex justify-center" style={{ marginBottom: 26 }}>
-          <img src={logoUrl} alt="baganet" style={{ width: 268, height: 58, objectFit: 'contain' }} />
+      <div className="w-full fade-in" style={{ maxWidth: 460 }}>
+        <div className="flex justify-center" style={{ marginBottom: 20 }}>
+          <img src={logoUrl} alt="baganet" style={{ width: 264, height: 46, objectFit: 'contain' }} />
         </div>
 
-        <div style={{ background: CARD_BG_PATTERN, borderRadius: 12, boxShadow: CARD_SHADOW_TALL, padding: '30px 28px' }}>
+        <div style={{ background: CARD_BG_PATTERN, borderRadius: 12, boxShadow: CARD_SHADOW_TALL, padding: 32 }}>
           <h1
             className="font-geist text-center"
             style={{ fontSize: 24, fontWeight: 600, color: TEXT_PRIMARY, letterSpacing: '0.2px' }}
@@ -114,9 +114,9 @@ export default function AuthShell({ title, subtitle, children, footer }: AuthShe
             {subtitle}
           </p>
 
-          <div style={{ marginTop: 26 }}>{children}</div>
+          <div style={{ marginTop: 30 }}>{children}</div>
 
-          {footer && <div className="flex flex-col gap-1" style={{ marginTop: 24 }}>{footer}</div>}
+          {footer && <div className="flex flex-col" style={{ marginTop: 35, gap: 6 }}>{footer}</div>}
         </div>
       </div>
     </div>
