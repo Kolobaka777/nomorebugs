@@ -42,7 +42,7 @@ const MODAL_TITLE: React.CSSProperties = {
 
 const SECTION_LABEL: React.CSSProperties = {
   fontFamily: 'Montserrat, sans-serif', fontSize: 15, fontWeight: 600,
-  letterSpacing: '2.4px', color: TEXT_PRIMARY, display: 'block', marginBottom: 10,
+  letterSpacing: '2.4px', color: TEXT_PRIMARY, display: 'block', marginBottom: 5,
 };
 
 const FIELD: React.CSSProperties = {
@@ -60,7 +60,7 @@ const COUNTER: React.CSSProperties = {
 };
 
 const TILE: React.CSSProperties = {
-  position: 'relative', aspectRatio: '1', width: '100%', overflow: 'hidden',
+  position: 'relative', width: 80, height: 80, flexShrink: 0, overflow: 'hidden',
   borderRadius: 6, border: `1px solid ${ACCENT}`, background: 'rgba(11, 12, 16, 0.45)',
 };
 const TILE_ON: React.CSSProperties = {
@@ -429,8 +429,8 @@ export default function ProfileEditModal({
                     value={infoBox}
                     onChange={e => setInfoBox(e.target.value.slice(0, 200))}
                     placeholder="Специализация: консольные баги..."
-                    rows={4}
-                    style={{ ...FIELD, resize: 'none', paddingBottom: 30 }}
+                    rows={3}
+                    style={{ ...FIELD, resize: 'none', height: 100, paddingBottom: 30 }}
                   />
                   <span style={{ ...COUNTER, top: 'auto', bottom: 18, transform: 'none' }}>{infoBox.length}/200</span>
                 </div>
@@ -591,7 +591,7 @@ export default function ProfileEditModal({
                   <Icon name={avatarsOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
                 </button>
                 {avatarsOpen && (
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="flex flex-wrap gap-4">
                     {AVATAR_LIST.map(av => {
                       const locked = !unlockedAvatars.includes(av.id);
                       const shopItem = shopItemFor('avatar', av.id);
@@ -605,7 +605,7 @@ export default function ProfileEditModal({
                           className="flex items-center justify-center cursor-pointer transition-all"
                           style={{ ...TILE, ...(worn ? TILE_ON : null) }}
                         >
-                          <PixelAvatar id={av.id} size={84} />
+                          <PixelAvatar id={av.id} size={78} />
                           {locked && shopItem && (
                             <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
                               style={{ ...PRICE_TAG, color: coins >= shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}>
@@ -637,7 +637,7 @@ export default function ProfileEditModal({
                       {equipError && (
                         <p role="alert" className="font-geist mb-2" style={{ fontSize: 12, color: ERROR }}>{equipError}</p>
                       )}
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="flex flex-wrap gap-4">
                         {galleryAvatars.map(g => {
                           const isMine = g.user_id === profile.id;
                           const equipped = equippedGalleryId === g.id;
@@ -686,7 +686,7 @@ export default function ProfileEditModal({
                   <Icon name={framesOpen ? 'chevronUp' : 'chevronDown'} size={13} color={ACCENT} />
                 </button>
                 {framesOpen && (
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="flex flex-wrap gap-4">
                     {FRAME_LIST.map(f => {
                       const locked = !effectiveUnlockedFrames.includes(f.id);
                       const shopItem = shopItemFor('frame', f.id);
@@ -701,7 +701,7 @@ export default function ProfileEditModal({
                           className="flex items-center justify-center cursor-pointer transition-all"
                           style={{ ...TILE, ...(worn ? TILE_ON : null), opacity: locked && !shopItem ? 0.45 : 1 }}
                         >
-                          <PixelAvatar id="frog1" size={74} frame={f.id} empty />
+                          <PixelAvatar id="frog1" size={72} frame={f.id} empty />
                           {locked && shopItem && (
                             <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 font-geist font-semibold"
                               style={{ ...PRICE_TAG, color: coins >= shopItem.cost ? PAGE_BG : 'rgba(11, 12, 16, 0.5)' }}>
@@ -722,7 +722,7 @@ export default function ProfileEditModal({
 
               <div>
                 <span style={SECTION_LABEL}>Фон</span>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="flex flex-wrap gap-4">
                   {BG_LIST.map(b2 => {
                     const locked = !effectiveUnlockedBgs.includes(b2.id);
                     const shopItem = shopItemFor('bg', b2.id);
@@ -862,14 +862,14 @@ export default function ProfileEditModal({
         {/* One save button for the whole dialog, bottom-right, under both
             columns — the mockup shows it on every section, including the
             account one whose own forms still save themselves. */}
-        <div className="flex justify-end px-6 py-5">
+        <div className="flex justify-end px-6" style={{ paddingTop: 33, paddingBottom: 24 }}>
           {/* No Отмена beside it: the mockup has one button here, and the
               dialog already closes from the header cross and from Escape. */}
           <button
             onClick={handleSave}
             disabled={saving}
             className="cursor-pointer transition-all hover:brightness-110"
-            style={{ ...SOLID_BTN, padding: '14px 30px', textTransform: 'uppercase', opacity: saving ? 0.6 : 1 }}
+            style={{ ...SOLID_BTN, padding: '15px 26px', textTransform: 'uppercase', opacity: saving ? 0.6 : 1 }}
           >
             {saving ? 'Сохраняю...' : 'Сохранить'}
           </button>

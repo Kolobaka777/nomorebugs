@@ -829,7 +829,7 @@ export default function MoyaNora({ user, onLogout, onUserUpdate }: MoyaNoraProps
                         <Icon name={open ? 'chevronUp' : 'chevronDown'} size={12} color={accent} />
                       </button>
                       {open && (
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-5" style={{ gap: 15 }}>
                           {section.items.map(item => (
                             <button
                               key={item.id}
