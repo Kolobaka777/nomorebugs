@@ -23,6 +23,21 @@ function isNew(createdAt: string, viewed: boolean): boolean {
   return Date.now() - parseServerDate(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 }
 
+// Card metrics from Figma's Inspect panel. Named rather than sprinkled
+// through the JSX, because the same numbers describe three different chips
+// and the CTA, and last time they drifted apart one by one.
+//
+// The body is 12px padding, a 16px column gap and a 1px outline of the tag
+// colour at 80%. Its three type sizes are 16 for the progress strip, 14 for
+// the tag and the CTA, and all of them carry the kit's 0.2em tracking, which
+// is where Figma's 3.2px and 2.8px come from — the same token, two sizes.
+const CARD_BORDER_ALPHA = 'CC';           // 0.80
+const CTA_PASSED = 'rgba(102, 252, 241, 0.80)';
+// Figma pins the tag at 80px. Kept as a minimum, not a width: the panel
+// measured one chip, and "BugReports" at 14px with 2.8px tracking is wider
+// than 80px on its own.
+const TAG_CHIP: CSSProperties = { fontSize: 14, minWidth: 80, padding: '2px 8px', letterSpacing: TRACK_WIDE };
+
 // Per the kit: the badge is the accent teal, not a green of its own, and it
 // carries a faint amber glow so it lifts off the card it sits on.
 const NEW_BADGE: CSSProperties = {
@@ -80,9 +95,11 @@ type StatusFilter = 'all' | 'active' | 'locked' | 'passed' | 'unpassed';
 //
 // Only the first two are about the course itself; the rest are about how
 // far the reader has got, which the list endpoint now reports.
-function courseCardState(cc: any, color: string) {
+// The CTA no longer takes the course's own colour — Figma puts every label
+// but "passed" in the body grey — so this needs nothing but the course.
+function courseCardState(cc: any) {
   if (cc.proposal_status === 'pending') return { ctaLabel: 'НА РАССМОТРЕНИИ', ctaColor: '#EF9F27', isPassed: false, progressPct: undefined };
-  if (!cc.is_published) return { ctaLabel: 'ПРОДОЛЖИТЬ РЕДАКТИРОВАНИЕ', ctaColor: color, isPassed: false, progressPct: undefined };
+  if (!cc.is_published) return { ctaLabel: 'ПРОДОЛЖИТЬ РЕДАКТИРОВАНИЕ', ctaColor: TEXT_PRIMARY, isPassed: false, progressPct: undefined };
 
   const total = cc.modulesTotal ?? 0;
   const done = cc.modulesDone ?? 0;
@@ -91,12 +108,12 @@ function courseCardState(cc: any, color: string) {
   // keeps the strip from being announced as a progressbar reading 0%.
   const pct = total > 0 ? (done / total) * 100 : undefined;
 
-  if (cc.isCompleted) return { ctaLabel: 'КУРС ПРОЙДЕН!', ctaColor: SUCCESS, isPassed: true, progressPct: 100 };
+  if (cc.isCompleted) return { ctaLabel: 'КУРС ПРОЙДЕН!', ctaColor: CTA_PASSED, isPassed: true, progressPct: 100 };
   // "Started" is judged on lessons, not modules: reading one lesson of a
   // four-lesson module is a course you have started, even though the
   // module count still says nothing is finished.
-  if ((cc.lessonsDone ?? 0) > 0) return { ctaLabel: 'ПРОДОЛЖИТЬ КУРС', ctaColor: color, isPassed: false, progressPct: pct };
-  return { ctaLabel: 'НАЧАТЬ КУРС', ctaColor: color, isPassed: false, progressPct: pct };
+  if ((cc.lessonsDone ?? 0) > 0) return { ctaLabel: 'ПРОДОЛЖИТЬ КУРС', ctaColor: TEXT_PRIMARY, isPassed: false, progressPct: pct };
+  return { ctaLabel: 'НАЧАТЬ КУРС', ctaColor: TEXT_PRIMARY, isPassed: false, progressPct: pct };
 }
 
 // "2/12 модулей" — the label the design puts in the strip that doubles as
@@ -184,15 +201,17 @@ function CourseCard({
         // Same beetle tile the homepage cards sit on, so the catalog reads
         // as the same surface rather than a flat panel next to a textured one.
         background: CARD_BG_PATTERN,
-        border: `1.5px solid ${isLocked ? 'rgba(197, 198, 199, 0.18)' : `${tagColor}70`}`,
+        border: `1px solid ${isLocked ? 'rgba(197, 198, 199, 0.18)' : `${tagColor}${CARD_BORDER_ALPHA}`}`,
         boxShadow: '0 6px 12px 0 rgba(0, 0, 0, 0.25)',
         opacity: isLocked ? 0.6 : 1,
       }}
     >
       {showNew && (
         <span
-          className="absolute -top-3 right-3 z-10 font-geist"
-          style={NEW_BADGE}
+          className="absolute z-10 font-geist"
+          // Measured off the mockup at 2x, not from Inspect: the badge hangs
+          // over the corner instead of sitting 12px inside the right edge.
+          style={{ top: -6, right: -12, ...NEW_BADGE }}
         >
           NEW
         </span>
@@ -220,7 +239,7 @@ function CourseCard({
         )}
         <span
           className="relative font-geist px-3 py-1.5"
-          style={{ fontSize: 12, color: isLocked ? 'rgba(197, 198, 199,0.4)' : 'rgba(197, 198, 199,0.8)', letterSpacing: TRACK_WIDE }}
+          style={{ fontSize: 16, color: isLocked ? 'rgba(138, 139, 142, 0.5)' : TEXT_MUTED, letterSpacing: TRACK_WIDE }}
           {...(progressPct !== undefined ? {
             role: 'progressbar',
             'aria-valuemin': 0,
@@ -241,39 +260,29 @@ function CourseCard({
           the same space a two-line one would need, so the grid's tallest
           card no longer varies row to row. mt-auto pins the footer to the
           bottom instead of it drifting up under a short title. */}
-      <div className="p-4 flex-1 flex flex-col">
+      <div className="p-3 flex-1 flex flex-col gap-4">
         {/* Title and its badge share a row, per the design. They used to sit
             in separate rows, which put the badge on top of the progress
             fill — legible enough, but it read as two labels fighting for
             the same strip. */}
-        <div className="flex items-start justify-between gap-2 mb-4">
+        <div className="flex items-start justify-between gap-2">
           <h3 className="font-montserrat flex items-start gap-2 min-w-0" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.3, letterSpacing: '4px', color: TEXT_PRIMARY }}>
-            {onToggleFavorite && (
-              <button
-                onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
-                aria-label={isFavorited ? 'Убрать из избранного' : 'Добавить в избранное'}
-                className="shrink-0 cursor-pointer flex items-center mt-0.5"
-                style={{ color: isFavorited ? '#EF9F27' : 'rgba(197, 198, 199,0.3)' }}
-              >
-                <Icon name="star" size={15} color="currentColor" />
-              </button>
-            )}
             <span className="flex-1 break-words min-w-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</span>
             {isLocked && <LockIcon size={16} color="rgba(197, 198, 199,0.4)" className="shrink-0 mt-1" />}
           </h3>
 
           {pendingReview ? (
-            <span className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
+            <span className="shrink-0 mt-0.5 font-geist rounded inline-flex items-center justify-center" style={{ ...TAG_CHIP, background: 'rgba(239,159,39,0.15)', color: '#EF9F27' }}>
               На рассмотрении
             </span>
           ) : isDraft ? (
-            <span className="shrink-0 mt-0.5 font-geist font-semibold rounded px-2 py-0.5" style={{ fontSize: 11, background: 'rgba(197, 198, 199,0.1)', color: 'rgba(197, 198, 199,0.6)' }}>
+            <span className="shrink-0 mt-0.5 font-geist rounded inline-flex items-center justify-center" style={{ ...TAG_CHIP, background: 'rgba(197, 198, 199,0.1)', color: 'rgba(197, 198, 199,0.6)' }}>
               Draft
             </span>
           ) : (
             <span
-              className="shrink-0 mt-0.5 font-geist font-semibold px-2 py-0.5"
-              style={{ fontSize: 11, letterSpacing: '0.06em', ...tagChipStyle(tagColor, tag) }}
+              className="shrink-0 mt-0.5 font-geist inline-flex items-center justify-center"
+              style={{ ...TAG_CHIP, ...tagChipStyle(tagColor, tag) }}
             >
               {tag}
             </span>
@@ -281,12 +290,24 @@ function CourseCard({
         </div>
 
         <div className="flex items-center justify-between gap-2 mt-auto">
-          <span className="font-geist truncate" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
-            {statsLabel}
+          <span className="flex items-center gap-2 min-w-0">
+            {onToggleFavorite && (
+              <button
+                onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
+                aria-label={isFavorited ? 'Убрать из избранного' : 'Добавить в избранное'}
+                className="shrink-0 cursor-pointer flex items-center"
+                style={{ color: isFavorited ? '#EF9F27' : 'rgba(197, 198, 199,0.3)' }}
+              >
+                <Icon name="star" size={15} color="currentColor" />
+              </button>
+            )}
+            <span className="font-geist truncate" style={{ fontSize: 11, color: 'rgba(197, 198, 199,0.55)' }}>
+              {statsLabel}
+            </span>
           </span>
           <span
-            className="font-geist font-semibold flex items-center gap-1 shrink-0"
-            style={{ fontSize: 12, color: isLocked ? 'rgba(197, 198, 199,0.4)' : ctaColor, letterSpacing: TRACK_WIDE }}
+            className="font-geist flex items-center gap-1 shrink-0"
+            style={{ fontSize: 14, color: isLocked ? 'rgba(197, 198, 199,0.4)' : ctaColor, letterSpacing: TRACK_WIDE }}
           >
             {isPassed && <CheckCircleIcon size={13} color={ctaColor} />}
             {ctaLabel}
@@ -701,7 +722,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                 const isPending = cc.proposal_status === 'pending';
                 const isLead = user.role === 'lead';
                 const isOwn = cc.created_by === user.id;
-                const state = courseCardState(cc, color);
+                const state = courseCardState(cc);
                 const hidden = isDraft && !isLead && !isOwn;
 
                 return (
@@ -745,7 +766,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
               const canOpen = isTester && (isActive || isPassed);
               const stats = lectureStatsById[lecture.id];
               const ctaLabel = isPassed ? 'КУРС ПРОЙДЕН!' : isLocked ? 'КУРС ЗАКРЫТ' : isActive ? 'ПРОДОЛЖИТЬ КУРС' : !isTester ? 'ПРОСМОТР' : 'НАЧАТЬ КУРС';
-              const ctaColor = isPassed ? ACCENT : tagColor;
+              const ctaColor = isPassed ? CTA_PASSED : TEXT_PRIMARY;
 
               return (
                 <CourseCard
@@ -852,7 +873,7 @@ export default function ZhukademiPage({ user, onLogout }: ZhukademiPageProps) {
                     const isDraft = !cc.is_published;
                     const isPending = cc.proposal_status === 'pending';
                     const isLead = user.role === 'lead';
-                    const state = courseCardState(cc, color);
+                    const state = courseCardState(cc);
                     const isOwn = cc.created_by === user.id;
                     // A lead sees every draft/proposal (their own review queue);
                     // anyone else only sees their own — the server already only

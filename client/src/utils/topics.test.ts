@@ -26,13 +26,15 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 // The chip's declared background is "#rrggbbAA" — split it back apart and
-// composite it the way the browser will, over the page.
+// composite it the way the browser will. Over the card, not the page: a chip
+// sits on a card as often as not, and the card is the lighter ground of the
+// two, so it is the one that decides whether a light label holds up.
 function painted(background: string): string {
   const m = /^#([0-9a-f]{6})([0-9a-f]{2})$/i.exec(background);
   if (!m) return CARD_BG; // the neutral chip's rgba() fill, close enough to score
   const a = parseInt(m[2], 16) / 255;
   const [fr, fg, fb] = rgb(`#${m[1]}`);
-  const [br, bg, bb] = rgb(PAGE_BG);
+  const [br, bg, bb] = rgb(CARD_BG);
   const mix = (f: number, b: number) => Math.round(f * a + b * (1 - a));
   return `#${[mix(fr, br), mix(fg, bg), mix(fb, bb)]
     .map(c => c.toString(16).padStart(2, '0')).join('')}`;

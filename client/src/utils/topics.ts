@@ -46,7 +46,7 @@ export function getCourseTagColor(tag: string): string {
 // the same colour — same hue three times over, so the label sat barely above
 // its own background and read as faded rather than as a label.
 //
-// The fill is that colour at 15-40% alpha over a near-black page, so the
+// The fill is that colour at 15-40% alpha over whatever is behind it, so the
 // contrast question is about the composite and not about the hex. Scoring the
 // hex is what put near-black text on the amber and teal chips, and what made
 // every tag missing from the palette above — Мемы, Общее, Custom, Advanced,
@@ -54,6 +54,11 @@ export function getCourseTagColor(tag: string): string {
 // wash of near-black. Composite first, then pick the label.
 
 const HEX6 = /^#[0-9a-f]{6}$/i;
+
+// A chip is painted on a card as often as on the page, and the card is the
+// lighter of the two. Score against the card: a label that clears there clears
+// on the page as well, where the same wash composites darker.
+const CHIP_BACKDROP = CARD_BG;
 
 // Two fill weights, because a light hue at a given alpha reads heavier than a
 // dark one. This governs the wash only; the label is picked from what that
@@ -78,7 +83,7 @@ export interface TagChipStyle {
 // yields a colour the browser drops silently, leaving a chip with no fill and
 // no outline at all, which is worse than the faded ones this replaced.
 const NEUTRAL_FILL = 'rgba(31, 40, 51, 0.30)';
-const NEUTRAL_TEXT = readableTextOn(blendOver(CARD_BG, 0.3));
+const NEUTRAL_TEXT = readableTextOn(blendOver(CARD_BG, 0.3, CHIP_BACKDROP));
 
 const NEUTRAL_CHIP: TagChipStyle = {
   background: NEUTRAL_FILL,
@@ -99,7 +104,7 @@ export function tagChipStyle(color: string, tag?: string): TagChipStyle {
   return {
     background: `${color}${alphaHex(weight.fill)}`,
     border: `1px solid ${color}${alphaHex(weight.edge)}`,
-    color: readableTextOn(blendOver(color, weight.fill)),
+    color: readableTextOn(blendOver(color, weight.fill, CHIP_BACKDROP)),
     borderRadius: 4,
   };
 }
@@ -115,6 +120,6 @@ export function tagChipStyleMuted(color: string, tag?: string): TagChipStyle {
     ...on,
     background: `${color}${alphaHex(MUTED.fill)}`,
     border: `1px solid ${color}${alphaHex(MUTED.edge)}`,
-    color: readableTextOn(blendOver(color, MUTED.fill)),
+    color: readableTextOn(blendOver(color, MUTED.fill, CHIP_BACKDROP)),
   };
 }
